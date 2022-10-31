@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Dict
 
@@ -20,7 +21,14 @@ class FHIRClient:
         """
         Get a resource from the FHIR server by its canonical URL.
         """
-        r = requests.get(f"{self.base_url}/{element_type}?url={canonical_url}")
+        logging.info(f"Requesting resource: {canonical_url}")
+
+        try:
+            r = requests.get(f"{self.base_url}/{element_type}?url={canonical_url}")
+        except ConnectionRefusedError:
+            raise ConnectionRefusedError(
+                f"Could not connect to FHIR server at {self.base_url}"
+            )
         assert (
             r.status_code == 200
         ), f"Could not get resource: HTTP status code {r.status_code}"

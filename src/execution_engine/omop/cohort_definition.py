@@ -1,64 +1,8 @@
 from enum import Enum
 from typing import Dict, List
 
-from .concepts import ConceptSet, ConceptSetManager
-
-
-class Criterion:
-    """A criterion in a cohort definition."""
-
-    def __init__(self, concept_set: ConceptSet):
-        self._concept_set = concept_set
-
-    def getType(self) -> str:
-        """
-        Get the type of the criterion.
-        """
-        return self.__class__.__name__
-
-    def json(self) -> Dict:
-        """Return the JSON representation of the criterion."""
-        return {
-            self.getType(): {
-                "CodesetId": self._concept_set.id,
-            }
-        }
-
-
-class ConditionOccurrence(Criterion):
-    """A condition occurrence criterion in a cohort definition."""
-
-    pass
-
-
-class DrugExposure(Criterion):
-    """A drug exposure criterion in a cohort definition."""
-
-    pass
-
-
-class Measurement(Criterion):
-    """A measurement criterion in a cohort definition."""
-
-    pass
-
-
-class Observation(Criterion):
-    """An observation criterion in a cohort definition."""
-
-    pass
-
-
-class ProcedureOccurrence(Criterion):
-    """A procedure occurrence criterion in a cohort definition."""
-
-    pass
-
-
-class Visit(Criterion):
-    """A visit criterion in a cohort definition."""
-
-    pass
+from .concepts import ConceptSetManager
+from .criterion import Criterion
 
 
 class ObservationWindow:

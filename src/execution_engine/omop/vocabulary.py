@@ -14,6 +14,7 @@ class Vocabulary(Enum):
     SNOMEDCT = "SNOMED"
     LOINC = "LOINC"
 
+    @staticmethod
     def from_url(url: str) -> "Vocabulary":
         """
         Get the vocabulary ID from the system URL.

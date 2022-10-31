@@ -1,7 +1,13 @@
+import logging
+from enum import Enum
 from typing import List
 
 from fhir.resources.activitydefinition import ActivityDefinition
-from fhir.resources.evidencevariable import EvidenceVariable
+from fhir.resources.evidencevariable import (
+    EvidenceVariable,
+    EvidenceVariableCharacteristic,
+    EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+)
 from fhir.resources.plandefinition import PlanDefinition
 
 from .client import FHIRClient
@@ -31,6 +37,8 @@ class Recommendation:
         self._recommendation = plan_def
         self._population = ev
 
+        logging.info("Recommendation loaded.")
+
     def get_recommendation(self, canonical_url: str) -> PlanDefinition:
         """Read the PlanDefinition resource from the FHIR server."""
         return self.fhir.get_resource("PlanDefinition", canonical_url)
@@ -48,3 +56,16 @@ class Recommendation:
         The actions for the recommendation.
         """
         return self._actions
+
+    @staticmethod
+    def is_combination_definition(
+        characteristic: EvidenceVariableCharacteristic,
+    ) -> bool:
+        """
+        Determine if the characteristic is a combination of other characteristics.
+
+        EvidenceVariable.characteristic are either a single characteristic defined using
+        EvidenceVariableCharacteristic.definitionByTypeAndValue or a combination of other
+        characteristics defined using EvidenceVariableCharacteristic.definitionByCombination.
+        """
+        return characteristic.definitionByCombination is not None
