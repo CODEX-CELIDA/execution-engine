@@ -1,9 +1,29 @@
-from typing import List
+import os
 from enum import Enum
+from typing import List
+
+from fhir.resources.activitydefinition import ActivityDefinition
+from fhir.resources.codeableconcept import CodeableConcept
+from fhir.resources.evidencevariable import EvidenceVariable
+from fhir.resources.plandefinition import PlanDefinition
 from fhir_tx import get_descendents, get_value_set
+from omop.cohort_definition import (
+    CohortDefinition,
+    ConditionOccurrence,
+    InclusionCriterion,
+    InclusionRule,
+    ObservationWindow,
+    Occurrence,
+    PrimaryCriteria,
+    PrimaryCriteriaLimit,
+    StartWindow,
+)
 from omop.concepts import ConceptSet, ConceptSetManager
 from omop.vocabulary import Vocabulary, get_concept_info, get_standard_concept
-from fhir.resources.codeableconcept import CodeableConcept
+
+from . import LOINC, SNOMEDCT
+from .fhir.client import FHIRClient
+from .fhir.recommendation import Recommendation
 
 SCT_CLINICAL_FINDING = "404684003"  # Clinical finding (finding)
 SCT_ALLERGIC_DISPOSITION = "609328004"  # Allergic disposition (finding)
@@ -13,10 +33,6 @@ SCT_PROCEDURE = "71388002"  # Procedure (procedure)
 SCT_VENTILATOR_OBSERVABLE = "364698001"  # Ventilator observable (observable entity)
 
 VS_VENTILATOR_OBSERVABLE = "https://medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
-
-
-SNOMEDCT = "http://snomed.info/sct"
-LOINC = "http://loinc.org"
 
 
 def isSNOMEDCT(cc: CodeableConcept) -> bool:
@@ -90,3 +106,67 @@ def conceptToOMOP(cc: CodeableConcept) -> str:
         raise Exception(f"Unknown concept: {cc}")
 
     return "NotImplemented"
+
+
+class ExecutionEngine:
+    """The Execution Engine is responsible for reading recommendations in CPG-on-EBM-on-FHIR format and creating an OMOP Cohort Definition from them."""
+
+    def __init__(self) -> None:
+
+        if os.environ.get("FHIR_BASE_URL") is None:
+            raise Exception("FHIR_BASE_URL environment variable not set.")
+
+        fhir_base_url: str = os.environ["FHIR_BASE_URL"]
+
+        self._fhir = FHIRClient(fhir_base_url)
+
+    def process_recommendation(self, recommendation_url: str) -> None:
+        """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
+        rec = Recommendation(recommendation_url, self._fhir)
+
+        cd = self.generate_population_cohort_definition(rec.population)
+
+        print(cd.json())
+
+    def generate_population_cohort_definition(
+        self, population: EvidenceVariable
+    ) -> CohortDefinition:
+        """Generates a population cohort definition from a recommendation."""
+
+        c = population.characteristic[0]
+
+        cc = c.definitionByTypeAndValue.valueCodeableConcept
+
+        cm = ConceptSetManager()
+
+        concept = get_standard_concept(
+            Vocabulary.from_url(cc.coding[0].system), cc.coding[0].code
+        )
+
+        cs = cm.add("COVID-19", concept)
+
+        primaryCriterion = ConditionOccurrence(cs)
+
+        primaryCrit = PrimaryCriteria(
+            [primaryCriterion], window=ObservationWindow(), limit=PrimaryCriteriaLimit()
+        )
+
+        inclCriterion = InclusionCriterion(
+            primaryCriterion,
+            startWindow=StartWindow(),
+            occurrence=Occurrence(Occurrence.Type.AT_LEAST, count=1),
+        )
+
+        inclCrit = InclusionRule(
+            "incl-rule1",
+            type=InclusionRule.InclusionRuleType.AT_LEAST,
+            count=1,
+            criteria=[inclCriterion],
+        )
+
+        cd = CohortDefinition(cm, primaryCrit, [inclCrit])
+
+        return cd
+
+    def execute(self) -> List[int]:
+        """Executes the Cohort Definition and returns a list of Person IDs."""

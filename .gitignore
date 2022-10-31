@@ -79,3 +79,4 @@ notebooks/
 log/
 test.py
 .Rhistory
+*.sqlite
