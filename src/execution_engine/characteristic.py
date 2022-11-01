@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Iterator, List, Optional, Tuple, Union
+from typing import Any, Iterator, List, Optional, Tuple, Type, Union
 
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
 from fhir.resources.evidencevariable import (
+    EvidenceVariableCharacteristic,
     EvidenceVariableCharacteristicDefinitionByTypeAndValue,
 )
 
@@ -40,7 +41,9 @@ class CharacteristicCombination:
         NET_EFFECT = "net-effect"  # net effect of characteristics
         DATASET = "dataset"  # dataset of characteristics
 
-    def __init__(self, code: Code, threshold: Optional[int] = None) -> None:
+    def __init__(
+        self, code: Code, exclude: bool, threshold: Optional[int] = None
+    ) -> None:
         """
         Creates a new characteristic combination.
         """
@@ -48,6 +51,7 @@ class CharacteristicCombination:
         self.characteristics: List[
             Union["AbstractCharacteristic", "CharacteristicCombination"]
         ] = []
+        self.exclude: bool = exclude
         self.threshold: Optional[int] = threshold
 
     def add(
@@ -69,9 +73,28 @@ class CharacteristicCombination:
 class AbstractCharacteristic(ABC):
     """
     An abstract characteristic.
+
+    An instance of this class represents a single characteristic entry of the EvidenceVariable resource
+    in the context of CPG-on-EBM-on-FHIR. In the Implementation Guide (specifically, the EligibilityCriteria profile),
+    several types of characteristics are defined, including:
+    - Condition
+    - Allergy
+    - Radiologic finding
+    - Episode of Care
+    - Procedure
+    - Ventilation Observable
+    - Laboratory Value
+    Each of these slices from the Implementation Guide is represented by a subclass of this class.
+
+    Subclasses must define the follwing methods:
+    - valid: returns True if the supplied characteristic falls within the scope of the subclass
+    - to_omop: converts the characteristic to a list of OMOP criteria
+    - from_fhir: creates a new instance of the subclass from a FHIR EvidenceVariable.characteristic elements
+
     """
 
-    def __init__(self) -> None:
+    def __init__(self, exclude: bool) -> None:
+        self._exclude = exclude
         self._value: Optional[Concept] = None
 
     @classmethod
@@ -81,6 +104,11 @@ class AbstractCharacteristic(ABC):
     ) -> "AbstractCharacteristic":
         """Creates a new characteristic from a FHIR EvidenceVariable."""
         raise NotImplementedError()
+
+    @property
+    def exclude(self) -> bool:
+        """Returns True if this characteristic is an exclusion."""
+        return self._exclude
 
     @property
     def value(self) -> Any:
@@ -95,7 +123,7 @@ class AbstractCharacteristic(ABC):
     @staticmethod
     @abstractmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if the given FHIR EvidenceVariable is a valid characteristic."""
         raise NotImplementedError()
@@ -110,15 +138,17 @@ class CharacteristicFactory:
     """Factory for creating characteristics objects from EvidenceVariable.characteristic."""
 
     def __init__(self) -> None:
-        self._characteristic_types: List[AbstractCharacteristic] = []
+        self._characteristic_types: List[Type[AbstractCharacteristic]] = []
 
     def register_characteristic_type(
-        self, characteristic: AbstractCharacteristic
+        self, characteristic: Type[AbstractCharacteristic]
     ) -> None:
         """Register a new characteristic type."""
         self._characteristic_types.append(characteristic)
 
-    def get_characteristic(self, fhir: CodeableConcept) -> AbstractCharacteristic:
+    def get_characteristic(
+        self, fhir: EvidenceVariableCharacteristic
+    ) -> AbstractCharacteristic:
         """Get the characteristic type for the given CodeableConcept from EvidenceVariable.characteristic.definitionByTypeAndValue.type."""
         for characteristic in self._characteristic_types:
             if characteristic.valid(fhir):
@@ -141,25 +171,25 @@ class ConditionCharacteristic(AbstractCharacteristic):
 
     @staticmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if the given FHIR definition is a valid condition characteristic in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(char_definition.type)
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
         return isSNOMEDCT(cc) and cc.code == SCT_CLINICAL_FINDING
 
     @classmethod
     def from_fhir(
-        cls, char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue
+        cls, characteristic: EvidenceVariableCharacteristic
     ) -> AbstractCharacteristic:
         """Creates a new ConditionCharacteristic from a FHIR EvidenceVariable.characteristic."""
-        assert cls.valid(char_definition), "Invalid characteristic definition"
+        assert cls.valid(characteristic), "Invalid characteristic definition"
 
-        cc = get_coding(char_definition.valueCodeableConcept)
+        cc = get_coding(characteristic.definitionByTypeAndValue.valueCodeableConcept)
         omop_concept = webapi.get_standard_concept(
             Vocabulary.from_url(cc.system), cc.code
         )
 
-        c = ConditionCharacteristic()
+        c = ConditionCharacteristic(characteristic.exclude)
         c.value = omop_concept
 
         return c
@@ -175,10 +205,10 @@ class AllergyCharacteristic(ConditionCharacteristic):
 
     @staticmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if the given characteristic definition is a valid allergy characteristic in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(char_definition.type)
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
         return isSNOMEDCT(cc) and cc.code == SCT_ALLERGIC_DISPOSITION
 
 
@@ -187,10 +217,10 @@ class RadiologyCharacteristic(AbstractCharacteristic):
 
     @staticmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if the characteristic is a radiology finding in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(char_definition.type)
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
         return isSNOMEDCT(cc) and cc.code == SCT_RADIOLOGIC_FINDING
 
 
@@ -199,10 +229,10 @@ class ProcedureCharacteristic(AbstractCharacteristic):
 
     @staticmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if the given characteristic definition is a procedure characteristic in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(char_definition.type)
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
         return isSNOMEDCT(cc) and cc.code == SCT_PROCEDURE
 
 
@@ -211,10 +241,10 @@ class EpisodeOfCareCharacteristic(AbstractCharacteristic):
 
     @staticmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if the given characteristic definition is a valid episode of care characteristic in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(char_definition.type)
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
         return isLOINC(cc) and cc.code == SCT_EPISODE_OF_CARE_TYPE
 
 
@@ -223,10 +253,10 @@ class VentilationObservableCharacteristic(AbstractCharacteristic):
 
     @staticmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if characteristic is a ventilation observable in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(char_definition.type)
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
         ventilationObservablesSCT = tx_client.get_descendents(
             SNOMEDCT, SCT_VENTILATOR_OBSERVABLE
         )
@@ -242,9 +272,9 @@ class LaboratoryCharacteristic(AbstractCharacteristic):
 
     @staticmethod
     def valid(
-        char_definition: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
+        char_definition: EvidenceVariableCharacteristic,
     ) -> bool:
         """Checks if characteristic is a laboratory observable in the context of CPG-on-EBM-on-FHIR"""
-        cc = get_coding(char_definition.type)
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
         # TODO: Don't just use all LOINC codes, but restrict to subset of important ones (or actually used ones)
         return isLOINC(cc)

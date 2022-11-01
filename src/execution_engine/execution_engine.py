@@ -75,13 +75,13 @@ class ExecutionEngine:
 
     def _init_characteristics_factory(self) -> CharacteristicFactory:
         cf = CharacteristicFactory()
-        cf.register_characteristic_type(ConditionCharacteristic())
-        cf.register_characteristic_type(AllergyCharacteristic())
-        # cf.register_characteristic_type(RadiologyCharacteristic()) #fixme: implement
-        # cf.register_characteristic_type(ProcedureCharacteristic()) #fixme: implement
-        # cf.register_characteristic_type(EpisodeOfCareCharacteristic()) #fixme: implement
-        # cf.register_characteristic_type(VentilationObservableCharacteristic()) #fixme: implement
-        # cf.register_characteristic_type(LaboratoryCharacteristic()) #fixme: implement
+        cf.register_characteristic_type(ConditionCharacteristic)
+        cf.register_characteristic_type(AllergyCharacteristic)
+        # cf.register_characteristic_type(RadiologyCharacteristic) #fixme: implement
+        # cf.register_characteristic_type(ProcedureCharacteristic) #fixme: implement
+        # cf.register_characteristic_type(EpisodeOfCareCharacteristic) #fixme: implement
+        # cf.register_characteristic_type(VentilationObservableCharacteristic) #fixme: implement
+        # cf.register_characteristic_type(LaboratoryCharacteristic) #fixme: implement
         return cf
 
     def _parse_characteristics(self, ev: EvidenceVariable) -> CharacteristicCombination:
@@ -94,7 +94,8 @@ class ExecutionEngine:
             comb = CharacteristicCombination(
                 CharacteristicCombination.Code(
                     characteristic.definitionByCombination.code
-                )
+                ),
+                exclude=characteristic.exclude,
             )
             characteristics = characteristic.definitionByCombination.characteristic
             return comb, characteristics
@@ -108,7 +109,7 @@ class ExecutionEngine:
                 if c.definitionByCombination is not None:
                     sub = get_characteristics(*get_characteristic_combination(c))
                 else:
-                    sub = cf.get_characteristic(c.definitionByTypeAndValue)
+                    sub = cf.get_characteristic(c)
                 comb.add(sub)
 
             return comb
@@ -118,7 +119,9 @@ class ExecutionEngine:
         ):
             comb, characteristics = get_characteristic_combination(ev.characteristic[0])
         else:
-            comb = CharacteristicCombination(CharacteristicCombination.Code.ALL_OF)
+            comb = CharacteristicCombination(
+                CharacteristicCombination.Code.ALL_OF, exclude=False
+            )
             characteristics = ev.characteristic
 
         get_characteristics(comb, characteristics)
@@ -132,13 +135,19 @@ class ExecutionEngine:
         AbstractCharacteristic,
         List[Union[AbstractCharacteristic, CharacteristicCombination]],
     ]:
-        """Splits a combination of characteristics into omop primary criterion and inclusion criteria."""
+        """Splits a combination of characteristics into OMOP primary criterion and inclusion criteria."""
 
         primary: Optional[AbstractCharacteristic] = None
         inclusion: List[Union[AbstractCharacteristic, CharacteristicCombination]] = []
 
+        # Find a characteristic that can be used as primary criterion for OMOP Cohort Definition
+        # The primary criterion must be a single (not combined) characteristic that is NOT excluded
         for c in comb:
-            if primary is None and isinstance(c, AbstractCharacteristic):
+            if (
+                primary is None
+                and isinstance(c, AbstractCharacteristic)
+                and not c.exclude
+            ):
                 primary = c
             else:
                 inclusion.append(c)
@@ -169,26 +178,49 @@ class ExecutionEngine:
         cm: ConceptSetManager,
         inclusion: List[Union[AbstractCharacteristic, CharacteristicCombination]],
     ) -> List[InclusionRule]:
-        def to_inclusion_criterion(inc: AbstractCharacteristic) -> InclusionCriterion:
+        def to_inclusion_criterion(
+            inc: AbstractCharacteristic, excluded_by_combination: bool
+        ) -> InclusionCriterion:
             c, inclusionCriterion = inc.to_omop()
             cm.add(c)
-            # fixme : if negative this must be "at most 0"
+
+            if inc.exclude ^ excluded_by_combination:
+                occurrence = Occurrence(Occurrence.Type.AT_MOST, 0)
+            else:
+                occurrence = Occurrence(Occurrence.Type.AT_LEAST, 1)
+
             criterion = InclusionCriterion(
                 inclusionCriterion,
                 startWindow=StartWindow(),
-                occurrence=Occurrence(Occurrence.Type.AT_LEAST, count=1),
+                occurrence=occurrence,
             )
             return criterion
+
+        def combination_code_to_inclusion_type(
+            code: CharacteristicCombination.Code,
+        ) -> InclusionRule.Type:
+            if code == CharacteristicCombination.Code.ALL_OF:
+                ir_type = InclusionRule.Type.ALL
+            elif code == CharacteristicCombination.Code.ANY_OF:
+                ir_type = InclusionRule.Type.ANY
+            elif code == CharacteristicCombination.Code.AT_MOST:
+                ir_type = InclusionRule.Type.AT_MOST
+            elif code == CharacteristicCombination.Code.AT_LEAST:
+                ir_type = InclusionRule.Type.AT_LEAST
+            else:
+                raise Exception(f"Invalid combination code: {code}.")
+            return ir_type
 
         def get_inclusion_rule_from_combination(
             name: str,
             comb: CharacteristicCombination,
             criteria: List[InclusionCriterion],
         ) -> InclusionRule:
+
             return InclusionRule(
                 name,
-                type=InclusionRule.InclusionRuleType.AT_LEAST,  # fixme: adapt to actual case
-                count=1,
+                type=combination_code_to_inclusion_type(comb.code),
+                count=comb.threshold,
                 criteria=criteria,
             )
 
@@ -196,16 +228,17 @@ class ExecutionEngine:
 
         for i, inc in enumerate(inclusion):
             if isinstance(inc, AbstractCharacteristic):
-                criterion = to_inclusion_criterion(inc)
+                criterion = to_inclusion_criterion(inc, False)
                 rule = InclusionRule(
                     f"inclusion-rule-{i}",
-                    type=InclusionRule.InclusionRuleType.AT_LEAST,
+                    type=InclusionRule.Type.AT_LEAST,
                     count=1,
                     criteria=[criterion],
                 )
             elif isinstance(inc, CharacteristicCombination):
-                criteria = []
-                criteria = [to_inclusion_criterion(sub_inc) for sub_inc in inc]
+                criteria = [
+                    to_inclusion_criterion(sub_inc, inc.exclude) for sub_inc in inc
+                ]
                 rule = get_inclusion_rule_from_combination(
                     f"inclusion-rule-{i}", inc, criteria
                 )

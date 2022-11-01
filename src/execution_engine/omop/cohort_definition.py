@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .concepts import ConceptSetManager
 from .criterion import Criterion
@@ -128,18 +128,19 @@ class InclusionCriterion:
 class InclusionRule:
     """An inclusion rule in a cohort definition."""
 
-    class InclusionRuleType(Enum):
+    class Type(Enum):
         """The type of an inclusion rule."""
 
+        ALL = "ALL"
+        ANY = "ANY"
         AT_MOST = "AT_MOST"
         AT_LEAST = "AT_LEAST"
-        EXACTLY = "EXACTLY"
 
     def __init__(
         self,
         name: str,
-        type: InclusionRuleType,
-        count: int,
+        type: Type,
+        count: Optional[int],
         criteria: List[InclusionCriterion],
     ):
         self.name = name
