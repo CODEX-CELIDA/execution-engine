@@ -13,11 +13,13 @@ from fhir.resources.quantity import Quantity
 from fhir.resources.range import Range
 
 from .clients import tx_client
+from .constants import *
 from .omop.cohort_definition.value import AbstractValue, ValueConcept, ValueNumber
 from .omop.concepts import Concept, ConceptSet
 from .omop.criterion import (
     ConditionOccurrence,
     Criterion,
+    Measurement,
     Observation,
     ProcedureOccurrence,
     VisitOccurrence,
@@ -226,17 +228,6 @@ class CharacteristicFactory:
         raise ValueError("No characteristic type matched the FHIR definition.")
 
 
-# fixme move to better place
-SCT_CLINICAL_FINDING = "404684003"  # Clinical finding (finding)
-SCT_ALLERGIC_DISPOSITION = "609328004"  # Allergic disposition (finding)
-SCT_RADIOLOGIC_FINDING = "118247008"  # Radiologic finding (finding)
-LOINC_EPISODE_OF_CARE_TYPE = "78030-4"  # Episode of care Type
-SCT_PROCEDURE = "71388002"  # Procedure (procedure)
-SCT_VENTILATOR_OBSERVABLE = "364698001"  # Ventilator observable (observable entity)
-
-VS_VENTILATOR_OBSERVABLE = "https://medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
-
-
 class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
     """
     An abstract characteristic that uses a CodeableConcept as its value.
@@ -311,26 +302,7 @@ class ProcedureCharacteristic(AbstractCodeableConceptCharacteristic):
     _criterion_class = ProcedureOccurrence
 
 
-class VentilationObservableCharacteristic(AbstractCharacteristic):
-    """A ventilation observable characteristic in the context of CPG-on-EBM-on-FHIR."""
-
-    @staticmethod
-    def valid(
-        char_definition: EvidenceVariableCharacteristic,
-    ) -> bool:
-        """Checks if characteristic is a ventilation observable in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(char_definition.definitionByTypeAndValue.type)
-        ventilationObservablesSCT = tx_client.get_descendents(
-            SNOMEDCT.system_uri, SCT_VENTILATOR_OBSERVABLE
-        )
-        ventilationObservablesLOINC = tx_client.get_value_set(VS_VENTILATOR_OBSERVABLE)
-
-        return (
-            SNOMEDCT.is_system(cc.system) and cc.code in ventilationObservablesSCT
-        ) or (LOINC.is_system(cc.system) and cc.code in ventilationObservablesLOINC)
-
-
-class AbstractValueCharacteristic(AbstractCharacteristic):
+class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
     """An abstract characteristic that is not only defined by a concept but has additionally a value."""
 
     @classmethod
@@ -432,7 +404,7 @@ class EpisodeOfCareCharacteristic(AbstractCodeableConceptCharacteristic):
 class LaboratoryCharacteristic(AbstractValueCharacteristic):
     """A laboratory characteristic in the context of CPG-on-EBM-on-FHIR."""
 
-    _criterion_class = Observation
+    _criterion_class = Measurement
 
     @staticmethod
     def valid(
@@ -442,3 +414,24 @@ class LaboratoryCharacteristic(AbstractValueCharacteristic):
         cc = get_coding(char_definition.definitionByTypeAndValue.type)
         # TODO: Don't just use all LOINC codes, but restrict to subset of important ones (or actually used ones)
         return LOINC.is_system(cc.system)
+
+
+class VentilationObservableCharacteristic(AbstractValueCharacteristic):
+    """A ventilation observable characteristic in the context of CPG-on-EBM-on-FHIR."""
+
+    _criterion_class = Measurement
+
+    @staticmethod
+    def valid(
+        char_definition: EvidenceVariableCharacteristic,
+    ) -> bool:
+        """Checks if characteristic is a ventilation observable in the context of CPG-on-EBM-on-FHIR."""
+        cc = get_coding(char_definition.definitionByTypeAndValue.type)
+        ventilationObservablesSCT = tx_client.get_descendents(
+            SNOMEDCT.system_uri, SCT_VENTILATOR_OBSERVABLE
+        )
+        ventilationObservablesLOINC = tx_client.get_value_set(VS_VENTILATOR_OBSERVABLE)
+
+        return (
+            SNOMEDCT.is_system(cc.system) and cc.code in ventilationObservablesSCT
+        ) or (LOINC.is_system(cc.system) and cc.code in ventilationObservablesLOINC)

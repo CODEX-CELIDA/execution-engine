@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ..concepts import ConceptSetManager
 from ..criterion import Criterion
@@ -152,13 +152,18 @@ class InclusionRule:
 
     def json(self) -> Dict:
         """Return the JSON representation of the inclusion rule."""
+
+        expression: Dict[str, Any] = {
+            "Type": self.type.value,
+            "CriteriaList": [c.json() for c in self.criteria],
+        }
+
+        if self.type in [self.Type.AT_MOST, self.Type.AT_LEAST]:
+            expression["Count"] = self.count
+
         return {
             "name": self.name,
-            "expression": {
-                "Type": self.type.value,
-                "Count": self.count,
-                "CriteriaList": [c.json() for c in self.criteria],
-            },
+            "expression": expression,
             "DemographicCriteriaList": self.demographicCriteria,
             "Groups": self.groups,
         }
