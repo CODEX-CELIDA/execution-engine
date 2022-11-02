@@ -14,7 +14,7 @@ and execute it on a target OMOP CDM database.
 
 ```python
 import os
-from execution_engine.execution_engine import ExecutionEngine
+from execution_engine import ExecutionEngine
 
 # set environment variables (or use a .env file)
 os.environ["FHIR_BASE_URL"] = "http://localhost:8000/fhir"
