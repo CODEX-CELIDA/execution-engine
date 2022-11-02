@@ -1,8 +1,8 @@
 from enum import Enum
 from typing import Dict, List, Optional
 
-from .concepts import ConceptSetManager
-from .criterion import Criterion
+from ..concepts import ConceptSetManager
+from ..criterion import Criterion
 
 
 class ObservationWindow:
@@ -74,7 +74,7 @@ class Occurrence:
     """An occurrence in a cohort definition."""
 
     class Type(Enum):
-        """The type of an occurrence."""
+        """The type of occurrence."""
 
         AT_MOST = 1
         AT_LEAST = 2
@@ -129,7 +129,7 @@ class InclusionRule:
     """An inclusion rule in a cohort definition."""
 
     class Type(Enum):
-        """The type of an inclusion rule."""
+        """The type of inclusion rule."""
 
         ALL = "ALL"
         ANY = "ANY"

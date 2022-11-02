@@ -1,29 +1,26 @@
 import logging
 import os
-from enum import Enum
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
-from fhir.resources.activitydefinition import ActivityDefinition
-from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from fhir.resources.plandefinition import PlanDefinition
 
-from . import LOINC, SNOMEDCT
 from .characteristic import (
     AbstractCharacteristic,
     AllergyCharacteristic,
     CharacteristicCombination,
     CharacteristicFactory,
     ConditionCharacteristic,
+    EpisodeOfCareCharacteristic,
+    LaboratoryCharacteristic,
+    ProcedureCharacteristic,
+    RadiologyCharacteristic,
 )
+from .clients import webapi
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
-from .fhir.terminology import FHIRTerminologyClient
-from .omop import webapi
-from .omop.client import WebAPIClient
 from .omop.cohort_definition import (
     CohortDefinition,
     InclusionCriterion,
@@ -34,9 +31,8 @@ from .omop.cohort_definition import (
     PrimaryCriteriaLimit,
     StartWindow,
 )
-from .omop.concepts import ConceptSet, ConceptSetManager
-from .omop.criterion import ConditionOccurrence
-from .omop.vocabulary import Vocabulary
+from .omop.concepts import ConceptSetManager
+from .omop.webapi import WebAPIClient
 
 
 class ExecutionEngine:
@@ -58,7 +54,8 @@ class ExecutionEngine:
         self._fhir = FHIRClient(fhir_base_url)
         self._omop = WebAPIClient(omop_webapi_url)
 
-    def setup_logging(self) -> None:
+    @staticmethod
+    def setup_logging() -> None:
         """Sets up logging."""
         logging.basicConfig(
             format="%(asctime)s - %(levelname)s - %(message)s",
@@ -73,15 +70,17 @@ class ExecutionEngine:
 
         return cd
 
-    def _init_characteristics_factory(self) -> CharacteristicFactory:
+    @staticmethod
+    def _init_characteristics_factory() -> CharacteristicFactory:
         cf = CharacteristicFactory()
         cf.register_characteristic_type(ConditionCharacteristic)
         cf.register_characteristic_type(AllergyCharacteristic)
-        # cf.register_characteristic_type(RadiologyCharacteristic) #fixme: implement
-        # cf.register_characteristic_type(ProcedureCharacteristic) #fixme: implement
-        # cf.register_characteristic_type(EpisodeOfCareCharacteristic) #fixme: implement
+        cf.register_characteristic_type(RadiologyCharacteristic)
+        cf.register_characteristic_type(ProcedureCharacteristic)
+        cf.register_characteristic_type(EpisodeOfCareCharacteristic)
         # cf.register_characteristic_type(VentilationObservableCharacteristic) #fixme: implement
-        # cf.register_characteristic_type(LaboratoryCharacteristic) #fixme: implement
+        cf.register_characteristic_type(LaboratoryCharacteristic)
+
         return cf
 
     def _parse_characteristics(self, ev: EvidenceVariable) -> CharacteristicCombination:
@@ -102,7 +101,7 @@ class ExecutionEngine:
 
         def get_characteristics(
             comb: CharacteristicCombination,
-            characteristics: EvidenceVariableCharacteristic,
+            characteristics: List[EvidenceVariableCharacteristic],
         ) -> CharacteristicCombination:
             sub: Union[AbstractCharacteristic, CharacteristicCombination]
             for c in characteristics:
@@ -181,16 +180,17 @@ class ExecutionEngine:
         def to_inclusion_criterion(
             inc: AbstractCharacteristic, excluded_by_combination: bool
         ) -> InclusionCriterion:
-            c, inclusionCriterion = inc.to_omop()
+            c, inclusion_criterion = inc.to_omop()
             cm.add(c)
 
             if inc.exclude ^ excluded_by_combination:
+                # excluded by characteristic or excluded by combination
                 occurrence = Occurrence(Occurrence.Type.AT_MOST, 0)
             else:
                 occurrence = Occurrence(Occurrence.Type.AT_LEAST, 1)
 
             criterion = InclusionCriterion(
-                inclusionCriterion,
+                inclusion_criterion,
                 startWindow=StartWindow(),
                 occurrence=occurrence,
             )
@@ -267,8 +267,9 @@ class ExecutionEngine:
 
         return cd
 
+    @staticmethod
     def create_cohort(
-        self, name: str, description: str, definition: CohortDefinition
+        name: str, description: str, definition: CohortDefinition
     ) -> Dict:
         """Creates a cohort in the OMOP CDM."""
         return webapi.create_cohort(

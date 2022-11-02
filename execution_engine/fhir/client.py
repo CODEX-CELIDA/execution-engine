@@ -1,10 +1,7 @@
 import logging
-from pathlib import Path
-from typing import Dict
 
 import requests
-from fhir.resources import construct_fhir_element
-from fhir.resources.resource import Resource
+from fhir.resources import FHIRAbstractModel, construct_fhir_element
 
 
 class FHIRClient:
@@ -17,7 +14,7 @@ class FHIRClient:
     def __init__(self, base_url: str):
         self.base_url = base_url
 
-    def get_resource(self, element_type: str, canonical_url: str) -> Resource:
+    def get_resource(self, element_type: str, canonical_url: str) -> FHIRAbstractModel:
         """
         Get a resource from the FHIR server by its canonical URL.
         """

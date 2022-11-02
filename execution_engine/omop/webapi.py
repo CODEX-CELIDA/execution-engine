@@ -1,13 +1,9 @@
-import json
 import logging
-import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import requests
-import requests_cache
 
 from .concepts import Concept
-from .vocabulary import Vocabulary
 
 
 class WebAPIClient:
@@ -36,7 +32,7 @@ class WebAPIClient:
         ), f"Could not get resource: HTTP status code {r.status_code}"
         return r.json()
 
-    def _post(self, url: str, params: Dict) -> Dict:
+    def _post(self, url: str, params: Union[Dict, List]) -> Dict:
         """
         POST request to OMOP WebAPI
         """
@@ -48,7 +44,7 @@ class WebAPIClient:
             ) from e
         assert (
             r.status_code == 200
-        ), f"Could not get resource: HTTP status code {r.status_code}"
+        ), f"Could not get resource: HTTP status code {r.status_code}\n{r.text}"
         return r.json()
 
     def get_concept_info(self, concept_id: str) -> Concept:
@@ -56,28 +52,26 @@ class WebAPIClient:
         Get the OMOP Standard Vocabulary concept info for the given concept ID.
         """
         logging.info(f"Requesting concept info: {concept_id}")
-        return Concept.from_json(self._get(f"/vocabulary/{concept_id}"))
+        return Concept.from_json(
+            self._post("/vocabulary/lookup/identifiers/", params=[concept_id])[0]
+        )
 
-    def get_standard_concept(self, vocabulary: Vocabulary, code: str) -> Concept:
+    def get_standard_concept(self, vocabulary: str, code: str) -> Concept:
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
-        logging.info(f"Requesting standard concept: {vocabulary.value} {code}")
+        logging.info(f"Requesting standard concept: {vocabulary} #{code}")
         params = {
             "STANDARD_CONCEPT": "S",
-            "VOCABULARY_ID": [vocabulary.value],
+            "VOCABULARY_ID": [vocabulary],
             "QUERY": code,
         }
         c = self._post("/vocabulary/search", params)
 
         if len(c) == 0:
-            raise Exception(
-                f"Could not find standard concept for {vocabulary.name}:{code}"
-            )
+            raise Exception(f"Could not find standard concept for {vocabulary}:{code}")
         elif len(c) > 1:
-            raise Exception(
-                f"Found multiple standard concepts for {vocabulary.name}:{code}"
-            )
+            raise Exception(f"Found multiple standard concepts for {vocabulary}:{code}")
 
         return Concept.from_json(c[0])
 

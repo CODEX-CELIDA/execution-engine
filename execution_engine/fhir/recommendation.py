@@ -1,12 +1,10 @@
 import logging
-from enum import Enum
 from typing import List
 
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
-    EvidenceVariableCharacteristicDefinitionByTypeAndValue,
 )
 from fhir.resources.plandefinition import PlanDefinition
 

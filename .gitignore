@@ -71,7 +71,6 @@ docs/_build
 .vscode/
 .settings/
 *.code-workspace
-.project
 .cproject
 .idea/
 .ipynb_checkpoints/
