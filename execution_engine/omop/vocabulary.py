@@ -49,7 +49,6 @@ class AbstractStandardVocabulary(AbstractVocabulary):
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
-        logging.info(f"Requesting standard concept info: {cls.name()} #{concept}")
         return webapi.get_standard_concept(cls.omop_vocab_name, concept)
 
 
@@ -94,7 +93,6 @@ class AbstractMappedVocabulary(AbstractVocabulary):
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
-        logging.info(f"Requesting mapped concept info: {concept}")
         if concept not in cls.map:
             raise KeyError(
                 f"Concept {concept} not found in {cls.system_uri} vocabulary"

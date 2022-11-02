@@ -17,7 +17,7 @@ class WebAPIClient:
         ), f"Invalid OMOP WebAPI URL: {api_url}"
         self._api_url = api_url
 
-    def _get(self, url: str) -> Dict:
+    def _get(self, url: str) -> Union[List, Dict]:
         """
         GET request to OMOP WebAPI
         """
@@ -32,7 +32,7 @@ class WebAPIClient:
         ), f"Could not get resource: HTTP status code {r.status_code}"
         return r.json()
 
-    def _post(self, url: str, params: Union[Dict, List]) -> Dict:
+    def _post(self, url: str, params: Union[Dict, List]) -> Union[List, Dict]:
         """
         POST request to OMOP WebAPI
         """
@@ -68,6 +68,23 @@ class WebAPIClient:
         }
         c = self._post("/vocabulary/search", params)
 
+        if len(c) > 1:
+            # try to find the exact match
+            c = [x for x in c if x["CONCEPT_CODE"] == code]
+
+        if len(c) == 0:
+            # try a workaround for the OMOP WebAPI bug (mm[Hg] can be found using the GET but not POSt endpoint)
+            c = self._get(f"/vocabulary/search/{code}/")
+            c = [
+                x
+                for x in c
+                if x["STANDARD_CONCEPT"] == "S" and x["VOCABULARY_ID"] == vocabulary
+            ]
+
+            if len(c) > 1:
+                # try to find the exact match
+                c = [x for x in c if x["CONCEPT_CODE"] == code]
+
         if len(c) == 0:
             raise Exception(f"Could not find standard concept for {vocabulary}:{code}")
         elif len(c) > 1:
@@ -81,7 +98,7 @@ class WebAPIClient:
         description: str,
         definition: Dict,
         tags: Optional[List[str]] = None,
-    ) -> Dict:
+    ) -> Union[List, Dict]:
         """Create a cohort defition in the OMOP CDM"""
         params = {
             "name": name,

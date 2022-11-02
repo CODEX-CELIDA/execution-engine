@@ -270,7 +270,7 @@ class ExecutionEngine:
     @staticmethod
     def create_cohort(
         name: str, description: str, definition: CohortDefinition
-    ) -> Dict:
+    ) -> Union[List, Dict]:
         """Creates a cohort in the OMOP CDM."""
         return webapi.create_cohort(
             name=name, description=description, definition=definition.json()
