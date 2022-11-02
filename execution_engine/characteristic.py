@@ -122,7 +122,7 @@ class AbstractCharacteristic(ABC):
         value_min: Optional[float] = None
         value_max: Optional[float] = None
 
-    def __init__(self, exclude: bool) -> None:
+    def __init__(self, exclude: Optional[bool]) -> None:
         self._exclude = exclude
         self._type: Optional[Concept] = None
         self._value: Any = None
@@ -138,6 +138,9 @@ class AbstractCharacteristic(ABC):
     @property
     def exclude(self) -> bool:
         """Returns True if this characteristic is an exclusion."""
+        # is exclude is not set in the FHIR resource, it defaults to False
+        if self._exclude is None:
+            return False
         return self._exclude
 
     @property
