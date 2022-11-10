@@ -3,17 +3,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Iterator, List, Optional, Tuple, Type, Union
 
 from fhir.resources.plandefinition import PlanDefinitionAction, PlanDefinitionGoal
+
 from .fhir.util import get_coding
 from .goal import AbstractGoal, LaboratoryValueGoal, VentilatorManagementGoal
 from .omop.cohort_definition import InclusionRule
 from .omop.concepts import ConceptSet
-from .omop.criterion import (
-    Criterion,
-)
-from .omop.vocabulary import (
-    SNOMEDCT,
-    AbstractVocabulary,
-)
+from .omop.criterion import Criterion
+from .omop.vocabulary import SNOMEDCT, AbstractVocabulary
 
 
 class AbstractAction(ABC):
@@ -44,9 +40,7 @@ class AbstractAction(ABC):
 
     @classmethod
     @abstractmethod
-    def from_fhir(
-        cls, action: PlanDefinitionAction
-    ) -> "AbstractAction":
+    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 
@@ -74,9 +68,7 @@ class ActionFactory:
     def __init__(self) -> None:
         self._action_types: List[Type[AbstractAction]] = []
 
-    def register_action_type(
-        self, action: Type[AbstractAction]
-    ) -> None:
+    def register_action_type(self, action: Type[AbstractAction]) -> None:
         """Register a new action type."""
         self._action_types.append(action)
 
@@ -91,65 +83,60 @@ class ActionFactory:
 
 
 class DrugAdministrationAction(AbstractAction):
+    """
+    A drug administration action.
+    """
+
     _concept_code = "432102000"  # Administration of substance (procedure)
     _concept_vocabulary = SNOMEDCT
     _goal_type = LaboratoryValueGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
 
     @classmethod
-    def from_fhir(
-        cls, action: PlanDefinitionAction
-    ) -> "AbstractAction":
+    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
-        raise NotImplementedError()
-
-    def to_omop(self) -> Tuple[ConceptSet, Criterion]:
-        """Convert this actions to an OMOP criterion."""
         raise NotImplementedError()
 
 
 class VentilatorManagementAction(AbstractAction):
+    """
+    A ventilator management action.
+    """
+
     _concept_code = "410210009"  # Ventilator care management (procedure)
     _concept_vocabulary = SNOMEDCT
     _goal_type = VentilatorManagementGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
     _goal_required = True
 
     @classmethod
-    def from_fhir(
-        cls, action: PlanDefinitionAction
-    ) -> "AbstractAction":
+    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
-        raise NotImplementedError()
-
-    def to_omop(self) -> Tuple[ConceptSet, Criterion]:
-        """Convert this actions to an OMOP criterion."""
         raise NotImplementedError()
 
 
 class BodyPositioningAction(AbstractAction):
+    """
+    A body positioning action.
+    """
+
     _concept_code = "229824005"  # Positioning patient (procedure)
     _concept_vocabulary = SNOMEDCT
 
     @classmethod
-    def from_fhir(
-        cls, action: PlanDefinitionAction
-    ) -> "AbstractAction":
+    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
-        raise NotImplementedError()
-
-    def to_omop(self) -> Tuple[ConceptSet, Criterion]:
-        """Convert this actions to an OMOP criterion."""
         raise NotImplementedError()
 
 
 class ActionSelectionBehavior:
-    """ Mapping from FHIR PlanDefinition.action.selectionBehavior to OMOP InclusionRule Type/Count. """
+    """Mapping from FHIR PlanDefinition.action.selectionBehavior to OMOP InclusionRule Type/Count."""
+
     _map = {
-        'any': {'type': InclusionRule.Type.ANY, 'count': None},
-        'all': {'type': InclusionRule.Type.ALL, 'count': None},
-        'all-or-none': None,
-        'exactly-one': {'type': InclusionRule.Type.ANY, 'count': None},
-        'at-most-one': {'type': InclusionRule.Type.AT_MOST, 'count': 1},
-        'one-or-more': {'type': InclusionRule.Type.AT_LEAST, 'count': 1},
+        "any": {"type": InclusionRule.Type.ANY, "count": None},
+        "all": {"type": InclusionRule.Type.ALL, "count": None},
+        "all-or-none": None,
+        "exactly-one": {"type": InclusionRule.Type.ANY, "count": None},
+        "at-most-one": {"type": InclusionRule.Type.AT_MOST, "count": 1},
+        "one-or-more": {"type": InclusionRule.Type.AT_LEAST, "count": 1},
     }
 
     def __init__(self, behavior: str) -> None:
@@ -158,10 +145,9 @@ class ActionSelectionBehavior:
         elif self._map[behavior] is None:
             raise ValueError(f"Unsupported action selection behavior: {behavior}")
 
-        if behavior == 'exactly-one':
-            warnings.warn("exactly-one selection behavior is not supported by OMOP. Using any instead.")
+        if behavior == "exactly-one":
+            warnings.warn(
+                "exactly-one selection behavior is not supported by OMOP. Using any instead."
+            )
 
         self._behavior = behavior
-
-    def to_inclusion_rule_type(self) -> Tuple[InclusionRule.Type, Optional[int]]:
-        return self._map[self._behavior]['type'], self._map[self._behavior]['count']
