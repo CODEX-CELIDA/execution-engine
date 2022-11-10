@@ -1,12 +1,11 @@
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any, Iterator, List, Optional, Tuple, Type, Union
+from typing import Tuple, Type
 
 from fhir.resources.plandefinition import PlanDefinitionAction, PlanDefinitionGoal
 
 from .fhir.util import get_coding
 from .goal import AbstractGoal, LaboratoryValueGoal, VentilatorManagementGoal
-from .omop.cohort_definition import InclusionRule
 from .omop.concepts import ConceptSet
 from .omop.criterion import Criterion
 from .omop.vocabulary import SNOMEDCT, AbstractVocabulary
@@ -35,8 +34,8 @@ class AbstractAction(ABC):
     _concept_code: str
     _concept_vocabulary: Type[AbstractVocabulary]
     _goal_required: bool
-    _goal_class: Optional[Type[AbstractGoal]]
-    _goal: Optional[AbstractGoal]
+    _goal_class: Type[AbstractGoal] | None
+    _goal: AbstractGoal | None
 
     @classmethod
     @abstractmethod
@@ -66,14 +65,14 @@ class ActionFactory:
     """Factory for creating Action objects from PlanDefinition.action."""
 
     def __init__(self) -> None:
-        self._action_types: List[Type[AbstractAction]] = []
+        self._action_types: list[Type[AbstractAction]] = []
 
     def register_action_type(self, action: Type[AbstractAction]) -> None:
         """Register a new action type."""
         self._action_types.append(action)
 
     def get_action(
-        self, fhir: PlanDefinitionAction, goals: List[PlanDefinitionGoal]
+        self, fhir: PlanDefinitionAction, goals: list[PlanDefinitionGoal]
     ) -> AbstractAction:
         """Get the action type for the given CodeableConcept from PlanDefinition.action.code."""
         for action in self._action_types:
@@ -131,12 +130,12 @@ class ActionSelectionBehavior:
     """Mapping from FHIR PlanDefinition.action.selectionBehavior to OMOP InclusionRule Type/Count."""
 
     _map = {
-        "any": {"type": InclusionRule.Type.ANY, "count": None},
-        "all": {"type": InclusionRule.Type.ALL, "count": None},
-        "all-or-none": None,
-        "exactly-one": {"type": InclusionRule.Type.ANY, "count": None},
-        "at-most-one": {"type": InclusionRule.Type.AT_MOST, "count": 1},
-        "one-or-more": {"type": InclusionRule.Type.AT_LEAST, "count": 1},
+        "any": "ANY",
+        "all": "ALL",
+        "all-or-none": "ALL_OR_NONE",
+        "exactly-one": "EXACTLY_ONE",
+        "at-most-one": "AT_MOST_ONE",
+        "one-or-more": "ONE_OR_MORE",
     }
 
     def __init__(self, behavior: str) -> None:
@@ -144,10 +143,5 @@ class ActionSelectionBehavior:
             raise ValueError(f"Invalid action selection behavior: {behavior}")
         elif self._map[behavior] is None:
             raise ValueError(f"Unsupported action selection behavior: {behavior}")
-
-        if behavior == "exactly-one":
-            warnings.warn(
-                "exactly-one selection behavior is not supported by OMOP. Using any instead."
-            )
 
         self._behavior = behavior

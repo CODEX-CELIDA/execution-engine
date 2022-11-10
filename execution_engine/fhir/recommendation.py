@@ -1,12 +1,15 @@
 import logging
-from typing import List
 
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction, PlanDefinitionGoal
+from fhir.resources.plandefinition import (
+    PlanDefinition,
+    PlanDefinitionAction,
+    PlanDefinitionGoal,
+)
 
 from .client import FHIRClient
 
@@ -15,12 +18,18 @@ class Recommendation:
     """CPG-on-EBM-on-FHIR Recommendation."""
 
     class Action:
+        """
+        Action Definition contained in the PlanDefinition
+        """
 
-        def __init__(self, action_def: PlanDefinitionAction, fhir_connector: FHIRClient) -> None:
+        def __init__(
+            self, action_def: PlanDefinitionAction, fhir_connector: FHIRClient
+        ) -> None:
             """Create a new action from a FHIR PlanDefinition.action."""
             self._action: PlanDefinitionAction = action_def
-            self._activity: ActivityDefinition = fhir_connector.get_resource("ActivityDefinition",
-                                                                             action_def.definitionCanonical)
+            self._activity: ActivityDefinition = fhir_connector.get_resource(
+                "ActivityDefinition", action_def.definitionCanonical
+            )
 
         @property
         def action(self) -> PlanDefinitionAction:
@@ -38,8 +47,8 @@ class Recommendation:
 
         self._recommendation = None
         self._population = None
-        self._actions: List[Recommendation.Action] = []
-        self._goals: List[PlanDefinitionGoal] = []
+        self._actions: list[Recommendation.Action] = []
+        self._goals: list[PlanDefinitionGoal] = []
 
         self.load()
 
@@ -53,7 +62,9 @@ class Recommendation:
 
         self._recommendation = plan_def
         self._population = ev
-        self._actions = [Recommendation.Action(action, self.fhir) for action in plan_def.action]
+        self._actions = [
+            Recommendation.Action(action, self.fhir) for action in plan_def.action
+        ]
         self._goals = plan_def.goal
 
         logging.info("Recommendation loaded.")
@@ -63,8 +74,8 @@ class Recommendation:
         return self.fhir.get_resource("PlanDefinition", canonical_url)
 
     def get_activity_definitions(
-        self, actions: List[PlanDefinitionAction]
-    ) -> List[ActivityDefinition]:
+        self, actions: list[PlanDefinitionAction]
+    ) -> list[ActivityDefinition]:
         """Read the ActivityDefinition resources from the FHIR server."""
         return [
             self.fhir.get_resource("ActivityDefinition", action.definitionCanonical)
@@ -79,14 +90,14 @@ class Recommendation:
         return self._population
 
     @property
-    def actions(self) -> List[PlanDefinitionGoal]:
+    def actions(self) -> list[PlanDefinitionGoal]:
         """
         The actions for the recommendation.
         """
         return self._actions
 
     @property
-    def goals(self) -> List[ActivityDefinition]:
+    def goals(self) -> list[ActivityDefinition]:
         """
         The actions for the recommendation.
         """

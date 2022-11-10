@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 @dataclass
@@ -12,8 +12,8 @@ class Concept:
     domain_id: str
     vocabulary_id: str
     concept_class_id: str
-    standard_concept: Optional[str] = None
-    invalid_reason: Optional[str] = None
+    standard_concept: str | None = None
+    invalid_reason: str | None = None
 
     @staticmethod
     def from_json(json: Dict) -> "Concept":
@@ -61,7 +61,7 @@ class ConceptSet:
           concept: The concept in the concept set.
 
         """
-        self.id: Optional[int] = None
+        self.id: int | None = None
         self.name = name
         self.concept = concept
 
@@ -94,7 +94,7 @@ class ConceptSetManager:
     """
 
     def __init__(self) -> None:
-        self._concept_sets: List[ConceptSet] = []
+        self._concept_sets: list[ConceptSet] = []
 
     def add(self, concept_set: ConceptSet) -> ConceptSet:
         """
@@ -122,7 +122,7 @@ class ConceptSetManager:
         """
         self._concept_sets = []
 
-    def json(self) -> List[Dict]:
+    def json(self) -> list[Dict]:
         """
         Return the JSON representation of the concept sets.
         """

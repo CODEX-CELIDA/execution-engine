@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Tuple, Union
 
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
@@ -105,7 +105,7 @@ class ExecutionEngine:
 
         def get_characteristics(
             comb: CharacteristicCombination,
-            characteristics: List[EvidenceVariableCharacteristic],
+            characteristics: list[EvidenceVariableCharacteristic],
         ) -> CharacteristicCombination:
             sub: Union[AbstractCharacteristic, CharacteristicCombination]
             for c in characteristics:
@@ -132,8 +132,8 @@ class ExecutionEngine:
         return comb
 
     def _parse_actions(
-        self, actions_def: List[Recommendation.Action], goals: List[PlanDefinitionGoal]
-    ) -> Tuple[List[AbstractAction], ActionSelectionBehavior]:
+        self, actions_def: list[Recommendation.Action], goals: list[PlanDefinitionGoal]
+    ) -> Tuple[list[AbstractAction], ActionSelectionBehavior]:
 
         af = self._init_action_factory()
 
@@ -150,6 +150,6 @@ class ExecutionEngine:
 
         return actions, selection_behavior
 
-    def execute(self) -> List[int]:
+    def execute(self) -> list[int]:
         """Executes the Cohort Definition and returns a list of Person IDs."""
         pass

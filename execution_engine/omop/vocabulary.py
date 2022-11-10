@@ -86,7 +86,7 @@ class AbstractMappedVocabulary(AbstractVocabulary):
     This class defines a mapping from the vocabulary to the OMOP Standard Vocabulary.
     """
 
-    map: Dict[str, str]
+    map: dict[str, str]
 
     @classmethod
     def omop_standard_concept(cls, concept: str) -> Concept:
@@ -118,7 +118,7 @@ class VocabularyFactory:
     """
 
     def __init__(self) -> None:
-        self._vocabulary: Dict[str, AbstractVocabulary] = {}
+        self._vocabulary: dict[str, AbstractVocabulary] = {}
         self.init()
 
     def init(self) -> None:

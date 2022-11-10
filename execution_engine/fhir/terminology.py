@@ -15,7 +15,7 @@ class FHIRTerminologyClient:
     def __init__(self, tx_server_url: str):
         self.server_url = tx_server_url
 
-    def get_descendents(self, system: str, code: str) -> List[str]:
+    def get_descendents(self, system: str, code: str) -> list[str]:
         """
         Get the descendents (concepts) of the given code in the given system from an external FHIR terminology server.
         """
@@ -51,7 +51,7 @@ class FHIRTerminologyClient:
         )
         return [c["code"] for c in r.json()["expansion"]["contains"]]
 
-    def get_value_set(self, url: str) -> List[str]:
+    def get_value_set(self, url: str) -> list[str]:
         """
         Expand the given value set from an external FHIR terminology server.
         """

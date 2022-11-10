@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
 
 from .concepts import ConceptSet
 
@@ -23,7 +22,7 @@ class Criterion(ABC):
         return self._concept_set
 
     @abstractmethod
-    def sql(self) -> str:
+    def sql(self, table_in: str | None, table_out: str) -> str:
         """
         Get the SQL representation of the criterion.
         """

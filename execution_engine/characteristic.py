@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterator, List, Optional, Tuple, Type, Union
+from typing import Any, Iterator, List, Tuple, Type, Union
 
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
@@ -49,18 +49,16 @@ class CharacteristicCombination:
         NET_EFFECT = "net-effect"  # net effect of characteristics
         DATASET = "dataset"  # dataset of characteristics
 
-    def __init__(
-        self, code: Code, exclude: bool, threshold: Optional[int] = None
-    ) -> None:
+    def __init__(self, code: Code, exclude: bool, threshold: int | None = None) -> None:
         """
         Creates a new characteristic combination.
         """
         self.code: CharacteristicCombination.Code = code
-        self.characteristics: List[
+        self.characteristics: list[
             Union["AbstractCharacteristic", "CharacteristicCombination"]
         ] = []
         self.exclude: bool = exclude
-        self.threshold: Optional[int] = threshold
+        self.threshold: int | None = threshold
 
     def add(
         self,
@@ -105,13 +103,13 @@ class AbstractCharacteristic(ABC):
         """
 
         unit: Concept
-        value: Optional[float] = None
-        value_min: Optional[float] = None
-        value_max: Optional[float] = None
+        value: float | None = None
+        value_min: float | None = None
+        value_max: float | None = None
 
-    def __init__(self, exclude: Optional[bool]) -> None:
+    def __init__(self, exclude: bool | None) -> None:
         self._exclude = exclude
-        self._type: Optional[Concept] = None
+        self._type: Concept | None = None
         self._value: Any = None
 
     @classmethod
@@ -131,7 +129,7 @@ class AbstractCharacteristic(ABC):
         return self._exclude
 
     @property
-    def type(self) -> Optional[Concept]:
+    def type(self) -> Concept | None:
         """The type of this characteristic."""
         return self._type
 
@@ -195,7 +193,7 @@ class CharacteristicFactory:
     """Factory for creating characteristics objects from EvidenceVariable.characteristic."""
 
     def __init__(self) -> None:
-        self._characteristic_types: List[Type[AbstractCharacteristic]] = []
+        self._characteristic_types: list[Type[AbstractCharacteristic]] = []
 
     def register_characteristic_type(
         self, characteristic: Type[AbstractCharacteristic]
