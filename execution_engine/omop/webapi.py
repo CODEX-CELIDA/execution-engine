@@ -91,22 +91,3 @@ class WebAPIClient:
             raise Exception(f"Found multiple standard concepts for {vocabulary}:{code}")
 
         return Concept.from_json(c[0])
-
-    def create_cohort(
-        self,
-        name: str,
-        description: str,
-        definition: Dict,
-        tags: Optional[List[str]] = None,
-    ) -> Union[List, Dict]:
-        """Create a cohort defition in the OMOP CDM"""
-        params = {
-            "name": name,
-            "description": description,
-            # "hasWriteAccess": True,
-            "tags": tags if tags is not None else [],
-            "expressionType": "SIMPLE_EXPRESSION",
-            "expression": definition,
-        }
-
-        return self._post("/cohortdefinition", params)

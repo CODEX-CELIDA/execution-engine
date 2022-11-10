@@ -14,7 +14,6 @@ from fhir.resources.range import Range
 
 from .clients import tx_client
 from .constants import *
-from .omop.cohort_definition.value import AbstractValue, ValueConcept, ValueNumber
 from .omop.concepts import Concept, ConceptSet
 from .omop.criterion import (
     ConditionOccurrence,
@@ -80,10 +79,6 @@ class CharacteristicCombination:
     def __iter__(self) -> Iterator:
         """Return an iterator for the characteristics of this combination."""
         return iter(self.characteristics)
-
-    def to_omop(self) -> List[Tuple[ConceptSet, Criterion]]:
-        """Convert this characteristic combination to a list of OMOP criteria."""
-        return [c.to_omop() for c in self.characteristics]
 
 
 class AbstractCharacteristic(ABC):
@@ -172,7 +167,7 @@ class AbstractCharacteristic(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def to_omop(self) -> Tuple[ConceptSet, Criterion]:
+    def to_sql(self) -> Tuple[ConceptSet, Criterion]:
         """Convert this characteristic to an OMOP criterion."""
         raise NotImplementedError()
 
@@ -267,11 +262,6 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
 
         return c
 
-    def to_omop(self) -> Tuple[ConceptSet, Criterion]:
-        """Converts this characteristic to an OMOP criterion of type ConditionOccurrence."""
-        cs = ConceptSet(name=self.value.name, concept=self.value)  # fixme
-        return cs, self._criterion_class(cs)
-
 
 class ConditionCharacteristic(AbstractCodeableConceptCharacteristic):
     """A condition characteristic  in the context of CPG-on-EBM-on-FHIR."""
@@ -354,43 +344,6 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
 
         return c
 
-    def to_omop(self) -> Tuple[ConceptSet, Criterion]:
-        """Converts this characteristic to an OMOP criterion."""
-
-        assert self.type is not None, "Characteristic type must be set"
-
-        cs = ConceptSet(name=self.type.name, concept=self.type)
-        value: AbstractValue
-
-        if isinstance(self.value, Concept):
-            value = ValueConcept(self.value)
-        elif isinstance(self.value, AbstractCharacteristic.ValueNumber):
-
-            if self.value.value_min is not None and self.value.value_max is not None:
-                operator = ValueNumber.Operator.BETWEEN
-                value_num = self.value.value_min
-                extent = self.value.value_max
-            elif self.value.value_min is not None:
-                operator = ValueNumber.Operator.GREATER_OR_EQUAL_TO
-                value_num = self.value.value_min
-                extent = None
-            elif self.value.value_max is not None:
-                operator = ValueNumber.Operator.LESS_OR_EQUAL_TO
-                value_num = self.value.value_max
-                extent = None
-            elif self.value.value is not None:
-                operator = ValueNumber.Operator.EQUAL_TO
-                value_num = self.value.value
-                extent = None
-            else:
-                raise ValueError("Value must have either value, or low or high range")
-
-            value = ValueNumber(
-                value=value_num, operator=operator, extent=extent, unit=self.value.unit
-            )
-
-        return cs, self._criterion_class(cs, value=value)
-
 
 class EpisodeOfCareCharacteristic(AbstractCodeableConceptCharacteristic):
     """An episode of care characteristic in the context of CPG-on-EBM-on-FHIR."""
@@ -398,10 +351,6 @@ class EpisodeOfCareCharacteristic(AbstractCodeableConceptCharacteristic):
     _concept_code = LOINC_EPISODE_OF_CARE_TYPE
     _concept_vocabulary = LOINC
     _criterion_class = VisitOccurrence
-
-    def to_omop(self) -> Tuple[ConceptSet, Criterion]:
-        """Converts this characteristic to an OMOP criterion of type ConditionOccurrence."""
-        return super().to_omop()
 
 
 class LaboratoryCharacteristic(AbstractValueCharacteristic):

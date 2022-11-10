@@ -21,16 +21,6 @@ from .characteristic import (
 from .clients import webapi
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
-from .omop.cohort_definition import (
-    CohortDefinition,
-    InclusionCriterion,
-    InclusionRule,
-    ObservationWindow,
-    Occurrence,
-    PrimaryCriteria,
-    PrimaryCriteriaLimit,
-    StartWindow,
-)
 from .omop.concepts import ConceptSetManager
 from .omop.webapi import WebAPIClient
 
@@ -62,13 +52,13 @@ class ExecutionEngine:
             level=logging.INFO,
         )
 
-    def process_recommendation(self, recommendation_url: str) -> CohortDefinition:
+    def process_recommendation(self, recommendation_url: str) -> None:
         """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
-        rec = Recommendation(recommendation_url, self._fhir)
+        # rec = Recommendation(recommendation_url, self._fhir)
 
-        cd = self.generate_population_cohort_definition(rec.population)
+        # generate criterion list
 
-        return cd
+        raise NotImplementedError()
 
     @staticmethod
     def _init_characteristics_factory() -> CharacteristicFactory:
@@ -126,155 +116,6 @@ class ExecutionEngine:
         get_characteristics(comb, characteristics)
 
         return comb
-
-    @staticmethod
-    def _split_characteristics(
-        comb: CharacteristicCombination,
-    ) -> Tuple[
-        AbstractCharacteristic,
-        List[Union[AbstractCharacteristic, CharacteristicCombination]],
-    ]:
-        """Splits a combination of characteristics into OMOP primary criterion and inclusion criteria."""
-
-        primary: Optional[AbstractCharacteristic] = None
-        inclusion: List[Union[AbstractCharacteristic, CharacteristicCombination]] = []
-
-        # Find a characteristic that can be used as primary criterion for OMOP Cohort Definition
-        # The primary criterion must be a single (not combined) characteristic that is NOT excluded
-        for c in comb:
-            if (
-                primary is None
-                and isinstance(c, AbstractCharacteristic)
-                and not c.exclude
-            ):
-                primary = c
-            else:
-                inclusion.append(c)
-
-        if primary is None:
-            raise Exception(
-                "No primary characteristic found."
-            )  # fixme: better error message
-
-        return primary, inclusion
-
-    @staticmethod
-    def _generate_primary_criterion(
-        cm: ConceptSetManager, primary: AbstractCharacteristic
-    ) -> PrimaryCriteria:
-        # generate primary criterion
-        c, primary_criterion = primary.to_omop()
-        cm.add(c)
-
-        return PrimaryCriteria(
-            [primary_criterion],
-            window=ObservationWindow(),
-            limit=PrimaryCriteriaLimit(),
-        )
-
-    @staticmethod
-    def _generate_inclusion_criteria(
-        cm: ConceptSetManager,
-        inclusion: List[Union[AbstractCharacteristic, CharacteristicCombination]],
-    ) -> List[InclusionRule]:
-        def to_inclusion_criterion(
-            inc: AbstractCharacteristic, excluded_by_combination: bool
-        ) -> InclusionCriterion:
-            c, inclusion_criterion = inc.to_omop()
-            cm.add(c)
-
-            if inc.exclude ^ excluded_by_combination:
-                # excluded by characteristic or excluded by combination
-                occurrence = Occurrence(Occurrence.Type.AT_MOST, 0)
-            else:
-                occurrence = Occurrence(Occurrence.Type.AT_LEAST, 1)
-
-            criterion = InclusionCriterion(
-                inclusion_criterion,
-                startWindow=StartWindow(),
-                occurrence=occurrence,
-            )
-            return criterion
-
-        def combination_code_to_inclusion_type(
-            code: CharacteristicCombination.Code,
-        ) -> InclusionRule.Type:
-            if code == CharacteristicCombination.Code.ALL_OF:
-                ir_type = InclusionRule.Type.ALL
-            elif code == CharacteristicCombination.Code.ANY_OF:
-                ir_type = InclusionRule.Type.ANY
-            elif code == CharacteristicCombination.Code.AT_MOST:
-                ir_type = InclusionRule.Type.AT_MOST
-            elif code == CharacteristicCombination.Code.AT_LEAST:
-                ir_type = InclusionRule.Type.AT_LEAST
-            else:
-                raise Exception(f"Invalid combination code: {code}.")
-            return ir_type
-
-        def get_inclusion_rule_from_combination(
-            name: str,
-            comb: CharacteristicCombination,
-            criteria: List[InclusionCriterion],
-        ) -> InclusionRule:
-
-            return InclusionRule(
-                name,
-                type=combination_code_to_inclusion_type(comb.code),
-                count=comb.threshold,
-                criteria=criteria,
-            )
-
-        rules: List[InclusionRule] = []
-
-        for i, inc in enumerate(inclusion):
-            if isinstance(inc, AbstractCharacteristic):
-                criterion = to_inclusion_criterion(inc, False)
-                rule = InclusionRule(
-                    f"inclusion-rule-{i}",
-                    type=InclusionRule.Type.AT_LEAST,
-                    count=1,
-                    criteria=[criterion],
-                )
-            elif isinstance(inc, CharacteristicCombination):
-                criteria = [
-                    to_inclusion_criterion(sub_inc, inc.exclude) for sub_inc in inc
-                ]
-                rule = get_inclusion_rule_from_combination(
-                    f"inclusion-rule-{i}", inc, criteria
-                )
-            else:
-                raise ValueError("Invalid inclusion type")
-
-            rules.append(rule)
-
-        return rules
-
-    def generate_population_cohort_definition(
-        self, population: EvidenceVariable
-    ) -> CohortDefinition:
-        """Generates a population cohort definition from a recommendation."""
-        logging.info("Generating population cohort definition.")
-
-        comb = self._parse_characteristics(population)
-        primary, inclusion = self._split_characteristics(comb)
-
-        cm = ConceptSetManager()
-
-        primary_criterion = self._generate_primary_criterion(cm, primary)
-        inclusion_rules = self._generate_inclusion_criteria(cm, inclusion)
-
-        cd = CohortDefinition(cm, primary_criterion, inclusion_rules)
-
-        return cd
-
-    @staticmethod
-    def create_cohort(
-        name: str, description: str, definition: CohortDefinition
-    ) -> Union[List, Dict]:
-        """Creates a cohort in the OMOP CDM."""
-        return webapi.create_cohort(
-            name=name, description=description, definition=definition.json()
-        )
 
     def execute(self) -> List[int]:
         """Executes the Cohort Definition and returns a list of Person IDs."""
