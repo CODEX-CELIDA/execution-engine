@@ -14,6 +14,7 @@ from fhir.resources.range import Range
 
 from .clients import tx_client
 from .constants import *
+from .fhir.util import get_coding
 from .omop.cohort_definition.value import AbstractValue, ValueConcept, ValueNumber
 from .omop.concepts import Concept, ConceptSet
 from .omop.criterion import (
@@ -31,14 +32,6 @@ from .omop.vocabulary import (
     AbstractVocabulary,
     standard_vocabulary,
 )
-
-
-def get_coding(cc: CodeableConcept) -> Coding:
-    """
-    Get the first (and only one) coding from a CodeableConcept.
-    """
-    assert len(cc.coding) == 1, "CodeableConcept must have exactly one coding"
-    return cc.coding[0]
 
 
 class CharacteristicCombination:
@@ -102,10 +95,10 @@ class AbstractCharacteristic(ABC):
     - Laboratory Value
     Each of these slices from the Implementation Guide is represented by a subclass of this class.
 
-    Subclasses must define the follwing methods:
+    Subclasses must define the following methods:
     - valid: returns True if the supplied characteristic falls within the scope of the subclass
     - to_omop: converts the characteristic to a list of OMOP criteria
-    - from_fhir: creates a new instance of the subclass from a FHIR EvidenceVariable.characteristic elements
+    - from_fhir: creates a new instance of the subclass from a FHIR EvidenceVariable.characteristic element
 
     """
 
@@ -138,7 +131,7 @@ class AbstractCharacteristic(ABC):
     @property
     def exclude(self) -> bool:
         """Returns True if this characteristic is an exclusion."""
-        # is exclude is not set in the FHIR resource, it defaults to False
+        # if exclude is not set in the FHIR resource, it defaults to False
         if self._exclude is None:
             return False
         return self._exclude
@@ -274,7 +267,7 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
 
 
 class ConditionCharacteristic(AbstractCodeableConceptCharacteristic):
-    """A condition characteristic  in the context of CPG-on-EBM-on-FHIR."""
+    """A condition characteristic in the context of CPG-on-EBM-on-FHIR."""
 
     _concept_code = SCT_CLINICAL_FINDING
     _concept_vocabulary = SNOMEDCT

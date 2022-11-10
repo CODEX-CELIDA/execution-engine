@@ -8,13 +8,13 @@ from ..criterion import Criterion
 class ObservationWindow:
     """An observation window in a cohort definition."""
 
-    def __init__(self, priorDays: int = 0, postDays: int = 0):
-        self.priorDays = priorDays
-        self.postDays = postDays
+    def __init__(self, prior_days: int = 0, post_days: int = 0):
+        self.prior_days = prior_days
+        self.post_days = post_days
 
     def json(self) -> Dict:
         """Return the JSON representation of the observation window."""
-        return {"PriorDays": self.priorDays, "PostDays": self.postDays}
+        return {"PriorDays": self.prior_days, "PostDays": self.post_days}
 
 
 class PrimaryCriteriaLimit:
@@ -59,15 +59,15 @@ class StartWindow:
         start_coeff: int = -1,
         end_days: int = 0,
         end_coef: int = -1,
-        useEventEnd: bool = False,
+        use_event_end: bool = False,
     ):
         self.start = {"Days": start_days, "Coeff": start_coeff}
         self.end = {"Days": end_days, "Coeff": end_coef}
-        self.useEventEnd = useEventEnd
+        self.use_event_end = use_event_end
 
     def json(self) -> Dict:
         """Return the JSON representation of the start window."""
-        return {"Start": self.start, "End": self.end, "UseEventEnd": self.useEventEnd}
+        return {"Start": self.start, "End": self.end, "UseEventEnd": self.use_event_end}
 
 
 class Occurrence:
@@ -91,11 +91,11 @@ class Occurrence:
         self,
         type: Type,
         count: int,
-        countColumn: CountColumn = CountColumn.DOMAIN_CONCEPT,
+        count_column: CountColumn = CountColumn.DOMAIN_CONCEPT,
     ):
         self.type = type
         self.count = count
-        self.countColumn = countColumn
+        self.countColumn = count_column
 
     def json(self) -> Dict:
         """Return the JSON representation of the occurrence."""
@@ -110,17 +110,17 @@ class InclusionCriterion:
     """An inclusion criterion in a cohort definition."""
 
     def __init__(
-        self, criterion: Criterion, startWindow: StartWindow, occurrence: Occurrence
+        self, criterion: Criterion, start_window: StartWindow, occurrence: Occurrence
     ):
         self.criterion = criterion
-        self.startWindow = startWindow
+        self.start_window = start_window
         self.occurrence = occurrence
 
     def json(self) -> Dict:
         """Return the JSON representation of the inclusion criterion."""
         return {
             "Criteria": self.criterion.json(),
-            "StartWindow": self.startWindow.json(),
+            "StartWindow": self.start_window.json(),
             "Occurrence": self.occurrence.json(),
         }
 
@@ -172,24 +172,44 @@ class InclusionRule:
 class CohortDefinition:
     """A cohort definition."""
 
+    _concept_set_manager: ConceptSetManager = ConceptSetManager()
+    _primary_criteria: PrimaryCriteria
+    _inclusion_rules: List[InclusionRule]
+
     def __init__(
-        self,
-        conceptSetManager: ConceptSetManager,
-        primaryCriteria: PrimaryCriteria,
-        inclusionRules: List[InclusionRule],
+        self
     ):
-        self.conceptSetManager = conceptSetManager
-        self.primaryCriteria = primaryCriteria
-        self.inclusionRules = inclusionRules
+        self._concept_set_manager: ConceptSetManager = ConceptSetManager()
+        self._inclusion_rules = []
+
+    @property
+    def concept_set_manager(self) -> ConceptSetManager:
+        """Return the concept set manager."""
+        return self._concept_set_manager
+
+    @property
+    def primary_criteria(self) -> PrimaryCriteria:
+        """Return the primary criteria of the cohort definition."""
+        return self._primary_criteria
+
+    @primary_criteria.setter
+    def primary_criteria(self, criteria: PrimaryCriteria) -> None:
+        """Set the primary criteria of the cohort definition."""
+        self._primary_criteria = criteria
+
+    @property
+    def inclusion_rules(self) -> List[InclusionRule]:
+        """Return the inclusion rules of the cohort definition."""
+        return self._inclusion_rules
 
     def json(self) -> Dict:
         """Return the JSON representation of the cohort definition."""
         return {
-            "ConceptSets": self.conceptSetManager.json(),
-            "PrimaryCriteria": self.primaryCriteria.json(),
+            "ConceptSets": self.concept_set_manager.json(),
+            "PrimaryCriteria": self.primary_criteria.json(),
             "QualifiedLimit": {"Type": "First"},
             "ExpressionLimit": {"Type": "First"},
-            "InclusionRules": [r.json() for r in self.inclusionRules],
+            "InclusionRules": [r.json() for r in self.inclusion_rules],
             "CensoringCriteria": [],
             "CollapseSettings": {"CollapseType": "ERA", "EraPad": 0},
             "CensorWindow": {},

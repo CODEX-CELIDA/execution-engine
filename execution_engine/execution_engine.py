@@ -33,6 +33,9 @@ from .omop.cohort_definition import (
 )
 from .omop.concepts import ConceptSetManager
 from .omop.webapi import WebAPIClient
+from fhir.resources.plandefinition import PlanDefinitionAction, PlanDefinitionGoal
+from .action import ActionFactory, DrugAdministrationAction, VentilatorManagementAction, BodyPositioningAction, \
+    AbstractAction, ActionSelectionBehavior
 
 
 class ExecutionEngine:
@@ -66,9 +69,12 @@ class ExecutionEngine:
         """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
         rec = Recommendation(recommendation_url, self._fhir)
 
-        cd = self.generate_population_cohort_definition(rec.population)
+        cohort_def = self.generate_population_cohort_definition(rec.population)
 
-        return cd
+        intervention_rules = self.generate_intervention_rules(rec.actions, rec.goals)
+        cohort_def.inclusion_rules.extend(intervention_rules)
+
+        return cohort_def
 
     @staticmethod
     def _init_characteristics_factory() -> CharacteristicFactory:
@@ -78,10 +84,19 @@ class ExecutionEngine:
         cf.register_characteristic_type(RadiologyCharacteristic)
         cf.register_characteristic_type(ProcedureCharacteristic)
         cf.register_characteristic_type(EpisodeOfCareCharacteristic)
-        # cf.register_characteristic_type(VentilationObservableCharacteristic) #fixme: implement
+        # cf.register_characteristic_type(VentilationObservableCharacteristic) # fixme: implement
         cf.register_characteristic_type(LaboratoryCharacteristic)
 
         return cf
+
+    @staticmethod
+    def _init_action_factory() -> ActionFactory:
+        af = ActionFactory()
+        af.register_action_type(DrugAdministrationAction)
+        af.register_action_type(VentilatorManagementAction)
+        af.register_action_type(BodyPositioningAction)
+
+        return af
 
     def _parse_characteristics(self, ev: EvidenceVariable) -> CharacteristicCombination:
         """Parses the characteristics of an EvidenceVariable and returns a CharacteristicCombination."""
@@ -126,6 +141,20 @@ class ExecutionEngine:
         get_characteristics(comb, characteristics)
 
         return comb
+
+    def _parse_actions(self, actions_def: List[Recommendation.Action], goals: List[PlanDefinitionGoal]) -> Tuple[List[AbstractAction], ActionSelectionBehavior]:
+
+        af = self._init_action_factory()
+
+        assert len(set([a.action.selectionBehavior for a in
+                        actions_def])) == 1, "All actions must have the same selection behaviour."
+        selection_behavior = ActionSelectionBehavior(actions_def[0].action.selectionBehavior)
+
+        actions = []
+        for action_def in actions_def:
+            actions.append(af.get_action(action_def, goals))
+
+        return actions, selection_behavior
 
     @staticmethod
     def _split_characteristics(
@@ -258,14 +287,50 @@ class ExecutionEngine:
         comb = self._parse_characteristics(population)
         primary, inclusion = self._split_characteristics(comb)
 
-        cm = ConceptSetManager()
+        cd = CohortDefinition()
 
-        primary_criterion = self._generate_primary_criterion(cm, primary)
-        inclusion_rules = self._generate_inclusion_criteria(cm, inclusion)
-
-        cd = CohortDefinition(cm, primary_criterion, inclusion_rules)
+        cd.primary_criteria = self._generate_primary_criterion(cd.concept_set_manager, primary)
+        cd.inclusion_rules.extend(self._generate_inclusion_criteria(cd.concept_set_manager, inclusion))
 
         return cd
+
+    def _generate_intervention_inclusion_criteria(
+        cm: ConceptSetManager,
+        actions: List[AbstractAction],
+        selection_behavior: ActionSelectionBehavior,
+    ) -> List[InclusionRule]:
+
+        criteria = []
+
+        for action in actions:
+            c, inclusion_criterion = action.to_omop()
+            cm.add(c)
+
+            criterion = InclusionCriterion(
+                inclusion_criterion,
+                startWindow=StartWindow(),
+                occurrence=Occurrence(Occurrence.Type.AT_LEAST, 1),
+            )
+
+            criteria.append(criterion)
+
+        ir_type, ir_count = ActionSelectionBehavior(selection_behavior).to_inclusion_rule_type()
+
+        rule = InclusionRule(
+            "intervention",
+            type=ir_type, count=ir_count,
+            criteria=criteria,
+        )
+
+        return rule
+
+    def generate_intervention_rules(self, actions: List[Recommendation.Action], goals: List[PlanDefinitionGoal]) -> List[InclusionRule]:
+        """Generates intervention rules from a recommendation."""
+        logging.info("Generating intervention rules.")
+
+        actions, selection_behavior = self._parse_actions(actions, goals)
+
+        return self._generate_intervention_inclusion_criteria(self, actions, selection_behavior)
 
     @staticmethod
     def create_cohort(
