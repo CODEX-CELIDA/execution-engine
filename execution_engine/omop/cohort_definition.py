@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Iterator
 
 from ..execution_map import ExecutionMap
@@ -30,6 +31,18 @@ class CohortDefinition:
         """
         self._criteria.add(criterion)
 
+    @staticmethod
+    def _to_tablename(name: str, temporary: bool = True) -> str:
+        """
+        Convert a name to a valid SQL table name.
+        """
+        name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+
+        if temporary:
+            return f"#{name}"
+
+        return name
+
     def process(self) -> Iterator[str]:
         """
         Process the cohort definition into a single SQL statement.
@@ -39,11 +52,11 @@ class CohortDefinition:
         i: int
         criterion: Criterion
 
-        table_out = f"#{self._base_criterion.name}"
+        table_out = self._to_tablename(f"{self._base_criterion.name}")
         yield self._base_criterion.sql_generate(table_in=None, table_out=table_out)
 
         for i, criterion in enumerate(execution_map.sequential()):
-            table_out = f"#{criterion.name}_{i}"
+            table_out = self._to_tablename(f"{criterion.name}_{i}")
 
             logging.info(
                 f"Processing {criterion.name} (exclude={criterion.exclude}) into {table_out}"

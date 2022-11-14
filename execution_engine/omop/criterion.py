@@ -1,10 +1,12 @@
 import copy
 from abc import ABC, abstractmethod
-from typing import Iterator, Union
+from datetime import datetime
+from typing import Any, Iterator, Union
 
 import sqlparse
 
 from execution_engine.omop import StandardConcepts
+from execution_engine.omop.concepts import Concept
 
 
 class AbstractCriterion(ABC):
@@ -86,7 +88,7 @@ class Criterion(AbstractCriterion):
         """
         self._table_in = table_in
         self._table_out = table_out
-        return f"SELECT DISTINCT person_id\nINTO {table_out}\nFROM {table_in}\n"
+        return f"SELECT DISTINCT person_id\nINTO {table_out} AS table_out \nFROM {table_in} AS table_in\n"
 
     @abstractmethod
     def _sql_generate(self, sql_select: str) -> str:
@@ -172,7 +174,7 @@ class CriterionCombination(AbstractCriterion):
     @property
     def operator(self) -> "CriterionCombination.Operator":
         """
-        Get the operator of the criterion combination.
+        Get the operator of the criterion combination (i.e. the type of combination, e.g. AND, OR, AT_LEAST, etc.).
         """
         return self._operator
 
@@ -184,14 +186,96 @@ class CriterionCombination(AbstractCriterion):
             yield criterion
 
 
-class ActivePatients(Criterion):
+class ConceptCriterion(Criterion):
+    """
+    Abstract class for a criterion based on an OMOP concept and optional value.
+
+    This class is not meant to be instantiated directly. Instead, use one of the subclasses.
+    Subclasses need to set _OMOP_TABLE and _OMOP_COLUMN_PREFIX (e.g. "visit_occurrence" and "visit").
+    These identify the base table in OMOP CDM and the prefix of the concept_id column (e.g. "visit_concept_id").
+
+    """
+
+    _OMOP_TABLE: str
+    _OMOP_COLUMN_PREFIX: str
+
+    def __init__(
+        self,
+        name: str,
+        concept: Concept,
+        exclude: bool = False,
+        value: Any | None = None,
+    ):
+        super().__init__(name, exclude)
+        self._concept = concept
+        self._value = value
+        self._table_in: str | None = None
+        self._table_out: str | None = None
+        self._start_datetime: datetime | None = None
+        self._end_datetime: datetime | None = None
+
+    def _sql_generate(self, sql_select: str) -> str:
+        """
+        Get the SQL representation of the criterion.
+        """
+        sql = sql_select
+        sql += (
+            f"INNER JOIN {self._OMOP_TABLE} co ON (co.person_id = table_in.person_id)\n"
+            f"WHERE {self._OMOP_COLUMN_PREFIX}_concept_id = {self._concept.id}\n"
+        )
+
+        return sql
+
+
+class ConditionOccurrence(ConceptCriterion):
+    """A condition occurrence criterion in a cohort definition."""
+
+    _OMOP_TABLE = "condition_occurrence"
+    _OMOP_COLUMN_PREFIX = "condition"
+
+
+class DrugExposure(ConceptCriterion):
+    """A drug exposure criterion in a cohort definition."""
+
+    _OMOP_TABLE = "drug_exposure"
+    _OMOP_COLUMN_PREFIX = "drug"
+
+
+class Measurement(ConceptCriterion):
+    """A measurement criterion in a cohort definition."""
+
+    _OMOP_TABLE = "measurement"
+    _OMOP_COLUMN_PREFIX = "measurement"
+
+
+class Observation(ConceptCriterion):
+    """An observation criterion in a cohort definition."""
+
+    _OMOP_TABLE = "observation"
+    _OMOP_COLUMN_PREFIX = "observation"
+
+
+class ProcedureOccurrence(ConceptCriterion):
+    """A procedure occurrence criterion in a cohort definition."""
+
+    _OMOP_TABLE = "procedure_occurrence"
+    _OMOP_COLUMN_PREFIX = "procedure"
+
+
+class VisitOccurrence(ConceptCriterion):
+    """A visit criterion in a cohort definition."""
+
+    _OMOP_TABLE = "visit_occurrence"
+    _OMOP_COLUMN_PREFIX = "visit"
+
+
+class ActivePatients(VisitOccurrence):
     """
     Select only patients who are still hospitalized.
     """
 
-    def __init__(self, name: str, hours_back: int):
-        super().__init__(name)
-        self.hours_back = hours_back
+    def __init__(self, name: str):
+        self._name = name
 
     def _sql_generate(self, sql_header: str) -> str:
         """
@@ -199,44 +283,8 @@ class ActivePatients(Criterion):
         """
         if self._table_in is not None:
             raise ValueError("ActivePatients must be the first criterion")
-        sql = self._sql_header("VISIT_OCCURRENCE", self.table_out)
+        sql = self._sql_header(self._OMOP_TABLE, self.table_out)
         sql += f"""
-        WHERE visit_type_concept_id = {StandardConcepts.VISIT_TYPE_STILL_PATIENT.value}
+        WHERE visit_type_concept_id = {self._concept}
         """
         return sql
-
-
-class ConditionOccurrence(Criterion):
-    """A condition occurrence criterion in a cohort definition."""
-
-    pass
-
-
-class DrugExposure(Criterion):
-    """A drug exposure criterion in a cohort definition."""
-
-    pass
-
-
-class Measurement(Criterion):
-    """A measurement criterion in a cohort definition."""
-
-    pass
-
-
-class Observation(Criterion):
-    """An observation criterion in a cohort definition."""
-
-    pass
-
-
-class ProcedureOccurrence(Criterion):
-    """A procedure occurrence criterion in a cohort definition."""
-
-    pass
-
-
-class VisitOccurrence(Criterion):
-    """A visit criterion in a cohort definition."""
-
-    pass

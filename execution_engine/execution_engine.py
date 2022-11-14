@@ -62,11 +62,11 @@ class ExecutionEngine:
             level=logging.INFO,
         )
 
-    def process_recommendation(self, recommendation_url: str) -> None:
+    def process_recommendation(self, recommendation_url: str) -> CohortDefinition:
         """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
         rec = Recommendation(recommendation_url, self._fhir)
 
-        cd = CohortDefinition(ActivePatients(name="active_patients", hours_back=24))
+        cd = CohortDefinition(ActivePatients(name="active_patients"))
 
         characteristics = self._parse_characteristics(rec.population)
         # actions, goals = self._parse_actions(rec.actions, rec.goals)
@@ -97,6 +97,8 @@ class ExecutionEngine:
         # (create execution plan)
         # execute single sqls
         # execute combination sql
+
+        return cd
 
     @staticmethod
     def _init_characteristics_factory() -> CharacteristicFactory:

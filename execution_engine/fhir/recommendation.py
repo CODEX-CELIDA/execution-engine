@@ -27,9 +27,13 @@ class Recommendation:
         ) -> None:
             """Create a new action from a FHIR PlanDefinition.action."""
             self._action: PlanDefinitionAction = action_def
-            self._activity: ActivityDefinition = fhir_connector.get_resource(
-                "ActivityDefinition", action_def.definitionCanonical
-            )
+            self._activity: ActivityDefinition | None = None
+
+            # an action must not necessarily contain an activity definition (e.g. ventilator management)
+            if action_def.definitionCanonical is not None:
+                self._activity = fhir_connector.get_resource(
+                    "ActivityDefinition", action_def.definitionCanonical
+                )
 
         @property
         def action(self) -> PlanDefinitionAction:
@@ -37,7 +41,7 @@ class Recommendation:
             return self._action
 
         @property
-        def activity(self) -> ActivityDefinition:
+        def activity(self) -> ActivityDefinition | None:
             """Get the ActivityDefinition for this action."""
             return self._activity
 

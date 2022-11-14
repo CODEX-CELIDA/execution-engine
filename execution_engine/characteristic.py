@@ -17,6 +17,7 @@ from .constants import *
 from .fhir.util import get_coding
 from .omop.concepts import Concept
 from .omop.criterion import (
+    ConceptCriterion,
     ConditionOccurrence,
     Criterion,
     Measurement,
@@ -108,7 +109,7 @@ class AbstractCharacteristic(ABC):
 
     def __init__(self, exclude: bool | None) -> None:
         self._exclude = exclude
-        self._type: Concept | None = None
+        self._type: Concept
         self._value: Any = None
 
     @classmethod
@@ -128,7 +129,7 @@ class AbstractCharacteristic(ABC):
         return self._exclude
 
     @property
-    def type(self) -> Concept | None:
+    def type(self) -> Concept:
         """The type of this characteristic."""
         return self._type
 
@@ -221,6 +222,7 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
 
     """  # fixme : docstring
 
+    _criterion_class: Type[ConceptCriterion]
     _concept_code: str
     _concept_vocabulary: Type[AbstractVocabulary]
 
@@ -250,6 +252,12 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
         c.value = omop_concept
 
         return c
+
+    def to_criterion(self) -> Criterion:
+        """Converts this characteristic to a Criterion."""
+        return self._criterion_class(
+            name=self.value.name, exclude=self.exclude, concept=self.value, value=None
+        )
 
 
 class ConditionCharacteristic(AbstractCodeableConceptCharacteristic):
@@ -286,6 +294,8 @@ class ProcedureCharacteristic(AbstractCodeableConceptCharacteristic):
 
 class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
     """An abstract characteristic that is not only defined by a concept but has additionally a value."""
+
+    _criterion_class: Type[ConceptCriterion]
 
     @classmethod
     def from_fhir(
@@ -332,6 +342,15 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
             raise NotImplementedError
 
         return c
+
+    def to_criterion(self) -> ConceptCriterion:
+        """Converts this characteristic to a Criterion."""
+        return self._criterion_class(
+            name=self.type.name,
+            exclude=self.exclude,
+            concept=self.type,
+            value=self.value,
+        )
 
 
 class EpisodeOfCareCharacteristic(AbstractCodeableConceptCharacteristic):
