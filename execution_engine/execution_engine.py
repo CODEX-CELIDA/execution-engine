@@ -30,7 +30,10 @@ from .characteristic import (
 from .clients import webapi
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
+from .fhir_omop_mapping import characteristic_code_to_criterion_combination_operator
+from .omop.cohort_definition import CohortDefinition
 from .omop.concepts import ConceptSetManager
+from .omop.criterion import AbstractCriterion, ActivePatients, CriterionCombination
 from .omop.webapi import WebAPIClient
 
 
@@ -63,7 +66,39 @@ class ExecutionEngine:
 
     def process_recommendation(self, recommendation_url: str) -> None:
         """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
-        raise NotImplementedError()
+        rec = Recommendation(recommendation_url, self._fhir)
+
+        cd = CohortDefinition(ActivePatients(name="active_patients", hours_back=24))
+
+        characteristics = self._parse_characteristics(rec.population)
+        # actions, goals = self._parse_actions(rec.actions, rec.goals)
+
+        def to_criterion(
+            characteristic: Union[AbstractCharacteristic, CharacteristicCombination]
+        ) -> AbstractCriterion:
+            if isinstance(characteristic, CharacteristicCombination):
+                operator = characteristic_code_to_criterion_combination_operator(
+                    characteristic.code, characteristic.threshold
+                )
+                comb = CriterionCombination(
+                    name="...", exclude=characteristic.exclude, operator=operator
+                )
+                for c in characteristic:
+                    comb.add(to_criterion(c))
+                return comb
+            else:
+                return characteristic.to_criterion()
+
+        for characteristic in characteristics:
+            cd.add(to_criterion(characteristic))
+
+        # for item in rec.action:
+        #    action
+        #    cd.append(action.to_criterion())
+
+        # (create execution plan)
+        # execute single sqls
+        # execute combination sql
 
     @staticmethod
     def _init_characteristics_factory() -> CharacteristicFactory:

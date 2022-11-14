@@ -91,7 +91,7 @@ class AbstractCharacteristic(ABC):
     Subclasses must define the following methods:
     - valid: returns True if the supplied characteristic falls within the scope of the subclass
     - from_fhir: creates a new instance of the subclass from a FHIR EvidenceVariable.characteristic element
-
+    - to_criterion(): converts the characteristic to a Criterion
     """
 
     _criterion_class: Type[Criterion]
@@ -187,6 +187,11 @@ class AbstractCharacteristic(ABC):
         Gets the standard concept for a unit.
         """
         return standard_vocabulary.get_standard_concept(UCUM.system_uri, code)
+
+    @abstractmethod
+    def to_criterion(self) -> Criterion:
+        """Converts this characteristic to a Criterion."""
+        raise NotImplementedError()
 
 
 class CharacteristicFactory:
