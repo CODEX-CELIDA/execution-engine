@@ -1,5 +1,3 @@
-from typing import List
-
 import requests
 import requests_cache
 

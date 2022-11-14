@@ -39,7 +39,7 @@ class ExecutionMap:
 
         def conjunction_from_operator(
             operator: CriterionCombination.Operator,
-        ) -> sympy.Expr:
+        ) -> sympy.Symbol:
             """
             Convert the criterion's operator into a sympy conjunction (And or Or)
             """

@@ -6,7 +6,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from fhir.resources.plandefinition import PlanDefinitionAction, PlanDefinitionGoal
+from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from .action import (
     AbstractAction,
@@ -27,12 +27,10 @@ from .characteristic import (
     ProcedureCharacteristic,
     RadiologyCharacteristic,
 )
-from .clients import webapi
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
 from .fhir_omop_mapping import characteristic_code_to_criterion_combination_operator
 from .omop.cohort_definition import CohortDefinition
-from .omop.concepts import ConceptSetManager
 from .omop.criterion import AbstractCriterion, ActivePatients, CriterionCombination
 from .omop.webapi import WebAPIClient
 

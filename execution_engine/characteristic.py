@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterator, List, Tuple, Type, Union
+from typing import Any, Iterator, Type, Union
 
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
@@ -15,12 +15,11 @@ from fhir.resources.range import Range
 from .clients import tx_client
 from .constants import *
 from .fhir.util import get_coding
-from .omop.concepts import Concept, ConceptSet
+from .omop.concepts import Concept
 from .omop.criterion import (
     ConditionOccurrence,
     Criterion,
     Measurement,
-    Observation,
     ProcedureOccurrence,
     VisitOccurrence,
 )
