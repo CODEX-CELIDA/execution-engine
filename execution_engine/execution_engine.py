@@ -11,7 +11,6 @@ from fhir.resources.plandefinition import PlanDefinitionGoal
 from .action import (
     AbstractAction,
     ActionFactory,
-    ActionSelectionBehavior,
     BodyPositioningAction,
     DrugAdministrationAction,
     VentilatorManagementAction,
@@ -29,9 +28,9 @@ from .characteristic import (
 )
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
-from .fhir_omop_mapping import characteristic_code_to_criterion_combination_operator
+from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
 from .omop.cohort_definition import CohortDefinition
-from .omop.criterion import AbstractCriterion, ActivePatients, CriterionCombination
+from .omop.criterion import ActivePatients
 from .omop.webapi import WebAPIClient
 
 
@@ -71,24 +70,8 @@ class ExecutionEngine:
         characteristics = self._parse_characteristics(rec.population)
         # actions, goals = self._parse_actions(rec.actions, rec.goals)
 
-        def to_criterion(
-            characteristic: Union[AbstractCharacteristic, CharacteristicCombination]
-        ) -> AbstractCriterion:
-            if isinstance(characteristic, CharacteristicCombination):
-                operator = characteristic_code_to_criterion_combination_operator(
-                    characteristic.code, characteristic.threshold
-                )
-                comb = CriterionCombination(
-                    name="...", exclude=characteristic.exclude, operator=operator
-                )
-                for c in characteristic:
-                    comb.add(to_criterion(c))
-                return comb
-            else:
-                return characteristic.to_criterion()
-
         for characteristic in characteristics:
-            cd.add(to_criterion(characteristic))
+            cd.add(characteristic_to_criterion(characteristic))
 
         # for item in rec.action:
         #    action
@@ -169,16 +152,22 @@ class ExecutionEngine:
     def _parse_actions(
         self, actions_def: list[Recommendation.Action], goals: list[PlanDefinitionGoal]
     ) -> Tuple[list[AbstractAction], ActionSelectionBehavior]:
+        """
+        Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
+        corresponding action selection behavior.
+        """
 
         af = self._init_action_factory()
 
         assert (
             len(set([a.action.selectionBehavior for a in actions_def])) == 1
         ), "All actions must have the same selection behaviour."
+
         selection_behavior = ActionSelectionBehavior(
             actions_def[0].action.selectionBehavior
         )
 
+        # loop through PlanDefinition.action elements and find the corresponding Action object (by action.code)
         actions = []
         for action_def in actions_def:
             actions.append(af.get_action(action_def, goals))

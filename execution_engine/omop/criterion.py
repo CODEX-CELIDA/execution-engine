@@ -1,12 +1,14 @@
 import copy
+import re
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Iterator, Union
+from typing import Iterator, Union
 
 import sqlparse
 
 from execution_engine.omop import StandardConcepts
 from execution_engine.omop.concepts import Concept
+from execution_engine.util import Value
 
 
 class AbstractCriterion(ABC):
@@ -15,7 +17,7 @@ class AbstractCriterion(ABC):
     """
 
     def __init__(self, name: str, exclude: bool = False):
-        self._name: str = name
+        self._name: str = re.sub(r"[ \t]", "-", name)
         self._exclude: bool = exclude
 
     @property
@@ -204,7 +206,7 @@ class ConceptCriterion(Criterion):
         name: str,
         concept: Concept,
         exclude: bool = False,
-        value: Any | None = None,
+        value: Value | None = None,
     ):
         super().__init__(name, exclude)
         self._concept = concept
@@ -247,6 +249,25 @@ class Measurement(ConceptCriterion):
     _OMOP_TABLE = "measurement"
     _OMOP_COLUMN_PREFIX = "measurement"
 
+    def _sql_generate(self, sql_select: str) -> str:
+        """
+        Get the SQL representation of the criterion.
+        """
+
+        if self._value is None:
+            raise ValueError("Value must be set for measurement criteria")
+
+        table_alias = "co"
+
+        sql = sql_select
+        sql += (
+            f"INNER JOIN {self._OMOP_TABLE} {table_alias} ON (co.person_id = table_in.person_id)\n"
+            f"WHERE ({self._OMOP_COLUMN_PREFIX}_concept_id = {self._concept.id})\n"
+            f" AND ({self._value.to_sql(table_alias)})\n"
+        )
+
+        return sql
+
 
 class Observation(ConceptCriterion):
     """An observation criterion in a cohort definition."""
@@ -276,6 +297,7 @@ class ActivePatients(VisitOccurrence):
 
     def __init__(self, name: str):
         self._name = name
+        self._exclude = False
 
     def _sql_generate(self, sql_header: str) -> str:
         """
@@ -285,6 +307,6 @@ class ActivePatients(VisitOccurrence):
             raise ValueError("ActivePatients must be the first criterion")
         sql = self._sql_header(self._OMOP_TABLE, self.table_out)
         sql += f"""
-        WHERE visit_type_concept_id = {self._concept}
+        WHERE visit_type_concept_id = {StandardConcepts.VISIT_TYPE_STILL_PATIENT.value}
         """
         return sql

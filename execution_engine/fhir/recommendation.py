@@ -20,6 +20,10 @@ class Recommendation:
     class Action:
         """
         Action Definition contained in the PlanDefinition
+
+        Helper class to separate the action definition (contained in PlanDefinition), which specifies the goals,
+        type etc., from the activity defininition (contained in ActivityDefinition), which may be referenced by the
+        action in the definitionCanonical elements, but may also be null.
         """
 
         def __init__(
@@ -77,15 +81,6 @@ class Recommendation:
         """Read the PlanDefinition resource from the FHIR server."""
         return self.fhir.get_resource("PlanDefinition", canonical_url)
 
-    def get_activity_definitions(
-        self, actions: list[PlanDefinitionAction]
-    ) -> list[ActivityDefinition]:
-        """Read the ActivityDefinition resources from the FHIR server."""
-        return [
-            self.fhir.get_resource("ActivityDefinition", action.definitionCanonical)
-            for action in actions
-        ]
-
     @property
     def population(self) -> EvidenceVariable:
         """
@@ -94,14 +89,14 @@ class Recommendation:
         return self._population
 
     @property
-    def actions(self) -> list[PlanDefinitionGoal]:
+    def actions(self) -> list[Action]:
         """
         The actions for the recommendation.
         """
         return self._actions
 
     @property
-    def goals(self) -> list[ActivityDefinition]:
+    def goals(self) -> list[PlanDefinitionGoal]:
         """
         The actions for the recommendation.
         """

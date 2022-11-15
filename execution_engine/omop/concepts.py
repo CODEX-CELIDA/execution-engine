@@ -1,9 +1,7 @@
-from dataclasses import dataclass
-from typing import Dict, List
+from pydantic import BaseModel
 
 
-@dataclass
-class Concept:
+class Concept(BaseModel):
     """Represents an OMOP Standard Vocabulary concept."""
 
     id: int
@@ -16,7 +14,7 @@ class Concept:
     invalid_reason: str | None = None
 
     @staticmethod
-    def from_json(json: Dict) -> "Concept":
+    def from_json(json: dict) -> "Concept":
         """Creates a concept from a JSON representation."""
         return Concept(
             id=json["CONCEPT_ID"],
@@ -29,7 +27,7 @@ class Concept:
             invalid_reason=json.get("INVALID_REASON"),
         )
 
-    def json(self) -> Dict:
+    def json(self) -> dict:
         """Returns a JSON representation of the concept."""
         return {
             "CONCEPT_ID": self.id,
@@ -65,7 +63,7 @@ class ConceptSet:
         self.name = name
         self.concept = concept
 
-    def json(self) -> Dict:
+    def json(self) -> dict:
         """Return the JSON representation of the concept set."""
 
         assert self.id is not None, "Concept set ID is None"
@@ -122,7 +120,7 @@ class ConceptSetManager:
         """
         self._concept_sets = []
 
-    def json(self) -> list[Dict]:
+    def json(self) -> list[dict]:
         """
         Return the JSON representation of the concept sets.
         """

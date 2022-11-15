@@ -3,6 +3,7 @@ from typing import Tuple, Type
 
 from fhir.resources.plandefinition import PlanDefinitionAction, PlanDefinitionGoal
 
+from .fhir.recommendation import Recommendation
 from .fhir.util import get_coding
 from .goal import AbstractGoal, LaboratoryValueGoal, VentilatorManagementGoal
 from .omop.concepts import ConceptSet
@@ -38,17 +39,19 @@ class AbstractAction(ABC):
 
     @classmethod
     @abstractmethod
-    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
+    def from_fhir(
+        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
+    ) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 
     @classmethod
     def valid(
         cls,
-        action_definition: PlanDefinitionAction,
+        action_def: Recommendation.Action,
     ) -> bool:
         """Checks if the given FHIR definition is a valid action in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(action_definition.code)
+        cc = get_coding(action_def.action.code)
         return (
             cls._concept_vocabulary.is_system(cc.system)
             and cc.code == cls._concept_code
@@ -71,12 +74,12 @@ class ActionFactory:
         self._action_types.append(action)
 
     def get_action(
-        self, fhir: PlanDefinitionAction, goals: list[PlanDefinitionGoal]
+        self, action_def: Recommendation.Action, goals: list[PlanDefinitionGoal]
     ) -> AbstractAction:
         """Get the action type for the given CodeableConcept from PlanDefinition.action.code."""
         for action in self._action_types:
-            if action.valid(fhir):
-                return action.from_fhir(fhir)
+            if action.valid(action_def):
+                return action.from_fhir(action_def, goals)
         raise ValueError("No action type matched the FHIR definition.")
 
 
@@ -90,7 +93,9 @@ class DrugAdministrationAction(AbstractAction):
     _goal_type = LaboratoryValueGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
 
     @classmethod
-    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
+    def from_fhir(
+        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
+    ) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 
@@ -106,7 +111,9 @@ class VentilatorManagementAction(AbstractAction):
     _goal_required = True
 
     @classmethod
-    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
+    def from_fhir(
+        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
+    ) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 
@@ -120,27 +127,8 @@ class BodyPositioningAction(AbstractAction):
     _concept_vocabulary = SNOMEDCT
 
     @classmethod
-    def from_fhir(cls, action: PlanDefinitionAction) -> "AbstractAction":
+    def from_fhir(
+        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
+    ) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
-
-
-class ActionSelectionBehavior:
-    """Mapping from FHIR PlanDefinition.action.selectionBehavior to OMOP InclusionRule Type/Count."""
-
-    _map = {
-        "any": "ANY",
-        "all": "ALL",
-        "all-or-none": "ALL_OR_NONE",
-        "exactly-one": "EXACTLY_ONE",
-        "at-most-one": "AT_MOST_ONE",
-        "one-or-more": "ONE_OR_MORE",
-    }
-
-    def __init__(self, behavior: str) -> None:
-        if behavior not in self._map:
-            raise ValueError(f"Invalid action selection behavior: {behavior}")
-        elif self._map[behavior] is None:
-            raise ValueError(f"Unsupported action selection behavior: {behavior}")
-
-        self._behavior = behavior

@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Iterator, Type, Union
 
@@ -31,6 +30,7 @@ from .omop.vocabulary import (
     AbstractVocabulary,
     standard_vocabulary,
 )
+from .util import Value, ValueConcept, ValueNumber
 
 
 class CharacteristicCombination:
@@ -96,21 +96,10 @@ class AbstractCharacteristic(ABC):
 
     _criterion_class: Type[Criterion]
 
-    @dataclass
-    class ValueNumber:
-        """
-        A value of type number.
-        """
-
-        unit: Concept
-        value: float | None = None
-        value_min: float | None = None
-        value_max: float | None = None
-
     def __init__(self, exclude: bool | None) -> None:
         self._exclude = exclude
         self._type: Concept
-        self._value: Any = None
+        self._value: Value
 
     @classmethod
     @abstractmethod
@@ -307,16 +296,16 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
         cc = get_coding(characteristic.definitionByTypeAndValue.type)
         type_omop_concept = cls.get_standard_concept(cc)
 
-        c = cls(characteristic.exclude)
+        c: AbstractCharacteristic = cls(characteristic.exclude)
         c.type = type_omop_concept
 
         value = c.select_value(characteristic.definitionByTypeAndValue)
         if isinstance(value, CodeableConcept):
             cc = get_coding(value)
             value_omop_concept = cls.get_standard_concept(cc)
-            c.value = value_omop_concept
+            c.value = ValueConcept(value=value_omop_concept)
         elif isinstance(value, Quantity):
-            c.value = AbstractCharacteristic.ValueNumber(
+            c.value = ValueNumber(
                 value=value.value, unit=cls.get_standard_concept_unit(value.unit)
             )
         elif isinstance(value, Range):
@@ -328,15 +317,16 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
 
             unit_code = value.low.code if value.low is not None else value.high.code
 
-            c.value = AbstractCharacteristic.ValueNumber(
-                unit=cls.get_standard_concept_unit(unit_code)
+            def value_or_none(x: Quantity | None) -> float | None:
+                if x is None:
+                    return None
+                return x.value
+
+            c.value = ValueNumber(
+                unit=cls.get_standard_concept_unit(unit_code),
+                value_min=value_or_none(value.low),
+                value_max=value_or_none(value.high),
             )
-
-            if value.low is not None:
-                c.value.value_min = float(value.low.value)
-
-            if value.high is not None:
-                c.value.value_max = float(value.high.value)
 
         else:
             raise NotImplementedError
