@@ -27,7 +27,10 @@ class Recommendation:
         """
 
         def __init__(
-            self, action_def: PlanDefinitionAction, fhir_connector: FHIRClient
+            self,
+            action_def: PlanDefinitionAction,
+            goals: list[PlanDefinitionGoal],
+            fhir_connector: FHIRClient,
         ) -> None:
             """Create a new action from a FHIR PlanDefinition.action."""
             self._action: PlanDefinitionAction = action_def
@@ -39,6 +42,11 @@ class Recommendation:
                     "ActivityDefinition", action_def.definitionCanonical
                 )
 
+            if action_def.goalId is None:
+                self._goals = []
+            else:
+                self._goals = [g for g in goals if g.id in action_def.goalId]
+
         @property
         def action(self) -> PlanDefinitionAction:
             """Get the FHIR PlanDefinition.action."""
@@ -48,6 +56,11 @@ class Recommendation:
         def activity(self) -> ActivityDefinition | None:
             """Get the ActivityDefinition for this action."""
             return self._activity
+
+        @property
+        def goals(self) -> list[PlanDefinitionGoal]:
+            """Get the goals for this action."""
+            return self._goals
 
     def __init__(self, canonical_url: str, fhir_connector: FHIRClient):
         self.canonical_url = canonical_url
@@ -71,7 +84,8 @@ class Recommendation:
         self._recommendation = plan_def
         self._population = ev
         self._actions = [
-            Recommendation.Action(action, self.fhir) for action in plan_def.action
+            Recommendation.Action(action, goals=plan_def.goal, fhir_connector=self.fhir)
+            for action in plan_def.action
         ]
         self._goals = plan_def.goal
 

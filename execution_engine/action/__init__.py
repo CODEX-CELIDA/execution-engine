@@ -1,14 +1,15 @@
 from abc import ABC, abstractmethod
 from typing import Tuple, Type
 
-from fhir.resources.plandefinition import PlanDefinitionAction, PlanDefinitionGoal
-
-from .fhir.recommendation import Recommendation
-from .fhir.util import get_coding
-from .goal import AbstractGoal, LaboratoryValueGoal, VentilatorManagementGoal
-from .omop.concepts import ConceptSet
-from .omop.criterion import Criterion
-from .omop.vocabulary import SNOMEDCT, AbstractVocabulary
+from ..fhir.recommendation import Recommendation
+from ..fhir.util import get_coding
+from ..goal import AbstractGoal
+from ..omop.concepts import ConceptSet
+from ..omop.criterion import Criterion
+from ..omop.vocabulary import AbstractVocabulary
+from .body_positioning import BodyPositioningAction
+from .drug_administration import DrugAdministrationAction
+from .ventilator_management import VentilatorManagementAction
 
 
 class AbstractAction(ABC):
@@ -39,9 +40,7 @@ class AbstractAction(ABC):
 
     @classmethod
     @abstractmethod
-    def from_fhir(
-        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
-    ) -> "AbstractAction":
+    def from_fhir(cls, action: Recommendation.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 
@@ -73,62 +72,9 @@ class ActionFactory:
         """Register a new action type."""
         self._action_types.append(action)
 
-    def get_action(
-        self, action_def: Recommendation.Action, goals: list[PlanDefinitionGoal]
-    ) -> AbstractAction:
+    def get_action(self, action_def: Recommendation.Action) -> AbstractAction:
         """Get the action type for the given CodeableConcept from PlanDefinition.action.code."""
         for action in self._action_types:
             if action.valid(action_def):
-                return action.from_fhir(action_def, goals)
+                return action.from_fhir(action_def)
         raise ValueError("No action type matched the FHIR definition.")
-
-
-class DrugAdministrationAction(AbstractAction):
-    """
-    A drug administration action.
-    """
-
-    _concept_code = "432102000"  # Administration of substance (procedure)
-    _concept_vocabulary = SNOMEDCT
-    _goal_type = LaboratoryValueGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
-
-    @classmethod
-    def from_fhir(
-        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
-    ) -> "AbstractAction":
-        """Creates a new action from a FHIR PlanDefinition."""
-        raise NotImplementedError()
-
-
-class VentilatorManagementAction(AbstractAction):
-    """
-    A ventilator management action.
-    """
-
-    _concept_code = "410210009"  # Ventilator care management (procedure)
-    _concept_vocabulary = SNOMEDCT
-    _goal_type = VentilatorManagementGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
-    _goal_required = True
-
-    @classmethod
-    def from_fhir(
-        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
-    ) -> "AbstractAction":
-        """Creates a new action from a FHIR PlanDefinition."""
-        raise NotImplementedError()
-
-
-class BodyPositioningAction(AbstractAction):
-    """
-    A body positioning action.
-    """
-
-    _concept_code = "229824005"  # Positioning patient (procedure)
-    _concept_vocabulary = SNOMEDCT
-
-    @classmethod
-    def from_fhir(
-        cls, action: Recommendation.Action, goals: list[PlanDefinitionGoal]
-    ) -> "AbstractAction":
-        """Creates a new action from a FHIR PlanDefinition."""
-        raise NotImplementedError()

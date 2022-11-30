@@ -1,8 +1,8 @@
 import requests
-import requests_cache
 
-# After installation, all requests functions and Session methods will be cached
-requests_cache.install_cache("example_cache", backend="sqlite")
+# fixme use?
+# import requests_cache
+# requests_cache.install_cache("example_cache", backend="sqlite")
 
 
 class FHIRTerminologyClient:

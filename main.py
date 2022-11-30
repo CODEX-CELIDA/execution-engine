@@ -1,8 +1,13 @@
 import os
 
 os.environ["FHIR_BASE_URL"] = "http://localhost:8000/fhir"
-os.environ["OMOP_WEBAPI_URL"] = "http://192.168.200.128:9876/WebAPI"
 os.environ["FHIR_TERMINOLOGY_SERVER_URL"] = "http://tx.fhir.org/R4"
+os.environ["OMOP_DB_USER"] = "postgres"
+os.environ["OMOP_DB_PASSWORD"] = "postgres"  # nosec
+os.environ["OMOP_DB_HOST"] = "localhost"
+os.environ["OMOP_DB_PORT"] = "5432"
+os.environ["OMOP_DB_NAME"] = "ohdsi"
+os.environ["OMOP_DB_SCHEMA"] = "cds_cdm"
 
 from execution_engine import ExecutionEngine
 

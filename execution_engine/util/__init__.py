@@ -53,20 +53,33 @@ class ValueNumber(Value):
                 )
         return values
 
-    def to_sql(self, table_name: str) -> str:
+    def to_sql(
+        self,
+        table_name: str | None,
+        column_name: str = "value_as_number",
+        with_unit: bool = True,
+    ) -> str:
         """
         Get the SQL representation of the value.
         """
 
-        sql = [f"{table_name}.unit_concept_id = {self.unit.id}"]
+        sql = []
+
+        if table_name is not None:
+            table_name = f"{table_name}."
+        else:
+            table_name = ""
+
+        if with_unit:
+            sql.append(f"{table_name}unit_concept_id = {self.unit.id}")
 
         if self.value is not None:
-            sql.append(f"{table_name}.value_as_number = {self.value}")
+            sql.append(f"{table_name}{column_name} = {self.value}")
         else:
             if self.value_min is not None:
-                sql.append(f"{table_name}.value_as_number >= {self.value_min}")
+                sql.append(f"{table_name}{column_name} >= {self.value_min}")
             if self.value_max is not None:
-                sql.append(f"{table_name}.value_as_number <= {self.value_max}")
+                sql.append(f"{table_name}{column_name} <= {self.value_max}")
 
         return " AND ".join(sql)
 

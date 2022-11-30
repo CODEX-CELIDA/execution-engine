@@ -1,7 +1,8 @@
+import pandas as pd
 from pydantic import BaseModel
 
 
-class Concept(BaseModel):
+class Concept(BaseModel, frozen=True):  # type: ignore
     """Represents an OMOP Standard Vocabulary concept."""
 
     id: int
@@ -26,6 +27,11 @@ class Concept(BaseModel):
             standard_concept=json.get("STANDARD_CONCEPT"),
             invalid_reason=json.get("INVALID_REASON"),
         )
+
+    @staticmethod
+    def from_series(series: pd.Series) -> "Concept":
+        """Creates a concept from a pandas Series."""
+        return Concept.from_json({k.upper(): v for k, v in series.to_dict().items()})
 
     def json(self) -> dict:
         """Returns a JSON representation of the concept."""

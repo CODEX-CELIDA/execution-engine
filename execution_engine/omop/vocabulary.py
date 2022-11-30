@@ -1,7 +1,7 @@
 from abc import ABC
 from typing import Type
 
-from ..clients import webapi
+from ..clients import omopdb
 from .concepts import Concept
 
 
@@ -21,11 +21,18 @@ class AbstractVocabulary(ABC):
         return cls.__name__
 
     @classmethod
-    def omop_standard_concept(cls, concept: str) -> Concept:
+    def omop_concept(cls, concept: str, standard: bool = False) -> Concept:
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
         pass
+
+    @classmethod
+    def omop_standard_concept(cls, concept: str) -> Concept:
+        """
+        Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
+        """
+        return cls.omop_concept(concept, standard=True)
 
     @classmethod
     def is_system(cls, system: str) -> bool:
@@ -44,11 +51,16 @@ class AbstractStandardVocabulary(AbstractVocabulary):
     omop_vocab_name: str
 
     @classmethod
-    def omop_standard_concept(cls, concept: str) -> Concept:
+    def omop_concept(cls, concept: str, standard: bool = False) -> Concept:
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
-        return webapi.get_standard_concept(cls.omop_vocab_name, concept)
+        return omopdb.get_concept(cls.omop_vocab_name, concept, standard=standard)
+
+    def atc_to_ingredient(self, atc_code: str) -> Concept:
+        """
+        Get the ingredient for the given ATC code.
+        """
 
 
 class LOINC(AbstractStandardVocabulary):
@@ -67,6 +79,15 @@ class SNOMEDCT(AbstractStandardVocabulary):
 
     system_uri = "http://snomed.info/sct"
     omop_vocab_name = "SNOMED"
+
+
+class ATCDE(AbstractStandardVocabulary):
+    """
+    ATC DE vocabulary.
+    """
+
+    system_uri = "http://fhir.de/CodeSystem/bfarm/atc"
+    omop_vocab_name = "ATC"
 
 
 class UCUM(AbstractStandardVocabulary):
@@ -88,7 +109,7 @@ class AbstractMappedVocabulary(AbstractVocabulary):
     map: dict[str, str]
 
     @classmethod
-    def omop_standard_concept(cls, concept: str) -> Concept:
+    def omop_concept(cls, concept: str, standard: bool = False) -> Concept:
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
@@ -97,7 +118,7 @@ class AbstractMappedVocabulary(AbstractVocabulary):
                 f"Concept {concept} not found in {cls.system_uri} vocabulary"
             )
 
-        return webapi.get_concept_info(cls.map[concept])
+        return omopdb.get_concept_info(cls.map[concept])
 
 
 class KontaktartDE(AbstractMappedVocabulary):
@@ -128,6 +149,7 @@ class VocabularyFactory:
         self.register(SNOMEDCT)
         self.register(KontaktartDE)
         self.register(UCUM)
+        self.register(ATCDE)
 
     def register(self, vocabulary: Type[AbstractVocabulary]) -> None:
         """
@@ -159,6 +181,18 @@ class StandardVocabulary:
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
         return self._vf.get(system_uri).omop_standard_concept(concept)
+
+    def get_concept(self, system_uri: str, concept: str) -> Concept:
+        """
+        Get the OMOP Standard Vocabulary concept for the given code in the given vocabulary.
+        """
+        return self._vf.get(system_uri).omop_concept(concept)
+
+    def get_standard_unit_concept(self, code: str) -> Concept:
+        """
+        Get the OMOP Standard Vocabulary standard unit concept for the given code.
+        """
+        return self.get_standard_concept(UCUM.system_uri, code)
 
 
 standard_vocabulary = StandardVocabulary()

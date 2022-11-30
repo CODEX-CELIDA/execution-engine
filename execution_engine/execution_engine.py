@@ -6,7 +6,6 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from .action import (
     AbstractAction,
@@ -31,7 +30,6 @@ from .fhir.recommendation import Recommendation
 from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
 from .omop.cohort_definition import CohortDefinition
 from .omop.criterion import ActivePatients
-from .omop.webapi import WebAPIClient
 
 
 class ExecutionEngine:
@@ -46,12 +44,8 @@ class ExecutionEngine:
 
         fhir_base_url: str = os.environ["FHIR_BASE_URL"]
 
-        if os.environ.get("OMOP_WEBAPI_URL") is None:
-            raise Exception("OMOP_WEBAPI_URL environment variable not set.")
-        omop_webapi_url: str = os.environ["OMOP_WEBAPI_URL"]
-
+        # todo: init clients here?
         self._fhir = FHIRClient(fhir_base_url)
-        self._omop = WebAPIClient(omop_webapi_url)
 
     @staticmethod
     def setup_logging() -> None:
@@ -68,7 +62,7 @@ class ExecutionEngine:
         cd = CohortDefinition(ActivePatients(name="active_patients"))
 
         characteristics = self._parse_characteristics(rec.population)
-        # actions, goals = self._parse_actions(rec.actions, rec.goals)
+        actions, selection_behavior = self._parse_actions(rec.actions)
 
         for characteristic in characteristics:
             cd.add(characteristic_to_criterion(characteristic))
@@ -150,7 +144,7 @@ class ExecutionEngine:
         return comb
 
     def _parse_actions(
-        self, actions_def: list[Recommendation.Action], goals: list[PlanDefinitionGoal]
+        self, actions_def: list[Recommendation.Action]
     ) -> Tuple[list[AbstractAction], ActionSelectionBehavior]:
         """
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
@@ -170,7 +164,7 @@ class ExecutionEngine:
         # loop through PlanDefinition.action elements and find the corresponding Action object (by action.code)
         actions = []
         for action_def in actions_def:
-            actions.append(af.get_action(action_def, goals))
+            actions.append(af.get_action(action_def))
 
         return actions, selection_behavior
 

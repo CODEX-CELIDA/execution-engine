@@ -175,7 +175,7 @@ class AbstractCharacteristic(ABC):
         """
         Gets the standard concept for a unit.
         """
-        return standard_vocabulary.get_standard_concept(UCUM.system_uri, code)
+        return standard_vocabulary.get_standard_unit_concept(code)
 
     @abstractmethod
     def to_criterion(self) -> Criterion:
