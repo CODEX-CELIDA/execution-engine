@@ -108,6 +108,8 @@ class DrugAdministrationAction(AbstractAction):
         elif len(set(ingredients)) == 0:
             raise ValueError("No ingredient found for productCodeableConcept")
 
+        ingredient = ingredients[0]
+
         logging.info(f"Found ingredient {ingredient.name} id={ingredient.id}")  # type: ignore
 
         # get all drug concept ids for that ingredient

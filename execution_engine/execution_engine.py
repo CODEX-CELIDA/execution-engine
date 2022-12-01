@@ -74,13 +74,14 @@ class ExecutionEngine:
         elif selection_behavior.code == CharacteristicCombination.Code.ALL_OF:
             operator = CriterionCombination.Operator("AND")
         elif selection_behavior.code == CharacteristicCombination.Code.AT_LEAST:
-            warnings.warn("AT_LEAST not supported yet")
-            operator = CriterionCombination.Operator("OR")
-            # operator = CriterionCombination.Operator('AT_LEAST', threshold=1)
+            if selection_behavior.threshold == 1:
+                operator = CriterionCombination.Operator("OR")
+            else:
+                raise NotImplementedError(
+                    f"AT_LEAST with threshold {selection_behavior.threshold} not implemented."
+                )
         elif selection_behavior.code == CharacteristicCombination.Code.AT_MOST:
-            warnings.warn("AT_MOST is not supported yet.")
-            operator = CriterionCombination.Operator("OR")
-            # operator = CriterionCombination.Operator('AT_MOST', threshold=1)
+            raise NotImplementedError("AT_MOST not implemented.")
         else:
             raise NotImplementedError(
                 f"Selection behavior {str(selection_behavior.code)} not implemented."
