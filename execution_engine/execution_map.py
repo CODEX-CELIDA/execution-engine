@@ -4,7 +4,8 @@ from typing import Iterator, Tuple
 
 import sympy
 
-from execution_engine.omop.criterion import Criterion, CriterionCombination
+from .omop.criterion.abstract import Criterion
+from .omop.criterion.combination import CriterionCombination
 
 
 class ExecutionMap:

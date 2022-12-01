@@ -2,7 +2,9 @@ from execution_engine.characteristic import (
     AbstractCharacteristic,
     CharacteristicCombination,
 )
-from execution_engine.omop.criterion import AbstractCriterion, CriterionCombination
+
+from .omop.criterion.abstract import AbstractCriterion
+from .omop.criterion.combination import CriterionCombination
 
 
 def characteristic_code_to_criterion_combination_operator(
@@ -47,12 +49,12 @@ class ActionSelectionBehavior:
     """Mapping from FHIR PlanDefinition.action.selectionBehavior to OMOP InclusionRule Type/Count."""
 
     _map = {
-        "any": "ANY",
-        "all": "ALL",
-        "all-or-none": "ALL_OR_NONE",
-        "exactly-one": "EXACTLY_ONE",
-        "at-most-one": "AT_MOST_ONE",
-        "one-or-more": "ONE_OR_MORE",
+        "any": CharacteristicCombination.Code.ANY_OF,
+        "all": CharacteristicCombination.Code.ALL_OF,
+        "all-or-none": None,
+        "exactly-one": None,
+        "at-most-one": CharacteristicCombination.Code.AT_MOST,
+        "one-or-more": CharacteristicCombination.Code.AT_LEAST,
     }
 
     def __init__(self, behavior: str) -> None:
@@ -62,3 +64,14 @@ class ActionSelectionBehavior:
             raise ValueError(f"Unsupported action selection behavior: {behavior}")
 
         self._behavior = behavior
+
+    @property
+    def code(self) -> CharacteristicCombination.Code:
+        """
+        Get the characteristic combination code.
+        """
+
+        if self._map[self._behavior] is None:
+            raise ValueError(f"Unsupported action selection behavior: {self._behavior}")
+
+        return self._map[self._behavior]  # type: ignore

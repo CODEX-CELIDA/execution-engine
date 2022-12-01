@@ -1,6 +1,6 @@
-from ..action import AbstractAction
 from ..fhir.recommendation import Recommendation
 from ..omop.vocabulary import SNOMEDCT
+from .abstract import AbstractAction
 
 
 class BodyPositioningAction(AbstractAction):

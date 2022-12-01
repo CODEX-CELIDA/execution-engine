@@ -1,3 +1,4 @@
+import logging
 import warnings
 from typing import Tuple
 
@@ -5,13 +6,18 @@ import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.dosage import Dosage
 from fhir.resources.quantity import Quantity
+from sqlalchemy import func, literal_column, select, table, text
+from sqlalchemy.orm import Query
 
-from ..action import AbstractAction
 from ..clients import omopdb
 from ..fhir.recommendation import Recommendation
 from ..goal import LaboratoryValueGoal
+from ..omop.concepts import Concept
+from ..omop.criterion.abstract import Criterion
+from ..omop.criterion.drug_exposure import DrugExposure
 from ..omop.vocabulary import SNOMEDCT, VocabularyFactory, standard_vocabulary
 from ..util import ValueNumber
+from .abstract import AbstractAction
 
 
 class DrugAdministrationAction(AbstractAction):
@@ -22,6 +28,21 @@ class DrugAdministrationAction(AbstractAction):
     _concept_code = "432102000"  # Administration of substance (procedure)
     _concept_vocabulary = SNOMEDCT
     _goal_type = LaboratoryValueGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
+
+    def __init__(
+        self,
+        dose: ValueNumber,
+        frequency: int,
+        interval: str,
+        drug_concepts: pd.DataFrame,
+    ) -> None:
+        """
+        Initialize the drug administration action.
+        """
+        self._dose = dose
+        self._frequency = frequency
+        self._interval = interval
+        self._drug_concepts = drug_concepts
 
     @classmethod
     def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
@@ -34,6 +55,8 @@ class DrugAdministrationAction(AbstractAction):
             assert (
                 action_def.goals
             ), "DrugAdministrationAction without a dosage must have a goal"
+            warnings.warn("implement me")
+            return None  # type: ignore
             raise NotImplementedError(
                 "DrugAdministrationAction without a dosage is not yet implemented"
             )
@@ -47,34 +70,7 @@ class DrugAdministrationAction(AbstractAction):
         dose = cls.process_dosage(dosage)
         frequency, interval = cls.process_timing(dosage)
 
-        warnings.warn(
-            "selecting only drug entries with unit matching to that of the recommendation"
-        )
-        df_drugs = df_drugs.query("amount_unit_concept_id==@dose.unit.id")
-        dose_sql = dose.to_sql(table_name=None, column_name="dose", with_unit=False)
-
-        # fmt: off
-        query = (  # nosec
-            f"""SELECT
-            person_id,
-            date_trunc(drug_exposure_start_datetime, %(interval)s) as interval,
-            count(*) as cnt
-            sum(quantity) as dose
-        FROM drug_exposure de
-        WHERE drug_concept_id IN (%(drug_concept_ids)s)
-         -- AND drug_exposure_start_datetime BETWEEN (.., ...)
-        HAVING
-            {dose_sql}
-            AND cnt = %(frequency)
-        """)
-        # fmt: on
-
-        return omopdb.query(
-            query,
-            interval=interval,
-            frequency=frequency,
-            drug_concept_ids=df_drugs["drug_concept_id"].tolist(),
-        )
+        return cls(dose, frequency, interval, df_drugs)
 
     @classmethod
     def get_drug_concepts(cls, activity: ActivityDefinition) -> pd.DataFrame:
@@ -93,13 +89,29 @@ class DrugAdministrationAction(AbstractAction):
             ingredient = omopdb.drug_vocabulary_to_ingredient(
                 vocab.omop_vocab_name, coding.code  # type: ignore
             )
-            ingredients.append(ingredient)
-        assert len(set(ingredients)) == 1
+            if ingredient is None:
+                if vocab.name() == "SNOMEDCT":
+                    raise ValueError(
+                        f"Could not find ingredient for SNOMEDCT code {coding.code}, but SNOMEDCT is required"
+                    )
+                logging.warning(
+                    f"Could not find ingredient for {vocab.name()} code {coding.code}, skipping"
+                )
+                continue
 
-        print(ingredient)
+            ingredients.append(ingredient)
+
+        if len(set(ingredients)) > 1:
+            raise NotImplementedError(
+                "Multiple ingredients found for productCodeableConcept"
+            )
+        elif len(set(ingredients)) == 0:
+            raise ValueError("No ingredient found for productCodeableConcept")
+
+        logging.info(f"Found ingredient {ingredient.name} id={ingredient.id}")  # type: ignore
 
         # get all drug concept ids for that ingredient
-        df = omopdb.drugs_by_ingredient(ingredient.id, with_unit=True)
+        df = omopdb.drugs_by_ingredient(ingredient.id, with_unit=True)  # type: ignore
 
         # assert drug units are mutually exclusive
         assert (
@@ -130,7 +142,7 @@ class DrugAdministrationAction(AbstractAction):
 
         if dose_and_rate.doseQuantity is not None:
             value = dose_and_rate.doseQuantity
-            ValueNumber(
+            value = ValueNumber(
                 value=value.value,
                 unit=standard_vocabulary.get_standard_unit_concept(value.unit),
             )
@@ -188,3 +200,17 @@ class DrugAdministrationAction(AbstractAction):
             )
 
         return frequency, interval
+
+    def to_criterion(self) -> Criterion:
+        """
+        Returns a criterion that represents this action.
+        """
+        # fixme: name and exclude
+        return DrugExposure(
+            name="test",
+            exclude=False,
+            dose=self._dose,
+            frequency=self._frequency,
+            interval=self._interval,
+            drug_concepts=self._drug_concepts,
+        )

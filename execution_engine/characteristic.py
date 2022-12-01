@@ -15,14 +15,12 @@ from .clients import tx_client
 from .constants import *
 from .fhir.util import get_coding
 from .omop.concepts import Concept
-from .omop.criterion import (
-    ConceptCriterion,
-    ConditionOccurrence,
-    Criterion,
-    Measurement,
-    ProcedureOccurrence,
-    VisitOccurrence,
-)
+from .omop.criterion.abstract import Criterion
+from .omop.criterion.concept import ConceptCriterion
+from .omop.criterion.condition_occurrence import ConditionOccurrence
+from .omop.criterion.measurement import Measurement
+from .omop.criterion.procedure_occurrence import ProcedureOccurrence
+from .omop.criterion.visit_occurrence import VisitOccurrence
 from .omop.vocabulary import (
     LOINC,
     SNOMEDCT,

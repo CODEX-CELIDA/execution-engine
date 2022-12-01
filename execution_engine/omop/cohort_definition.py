@@ -3,7 +3,8 @@ import re
 from typing import Iterator
 
 from ..execution_map import ExecutionMap
-from .criterion import AbstractCriterion, Criterion, CriterionCombination
+from .criterion.abstract import AbstractCriterion, Criterion
+from .criterion.combination import CriterionCombination
 
 
 class CohortDefinition:

@@ -4,6 +4,7 @@ from typing import Any
 import pandas as pd
 import psycopg2  # noqa: F401 -- do not remove - needed for sqlalchemy to work
 import sqlalchemy
+from sqlalchemy.engine import CursorResult
 
 from .concepts import Concept
 
@@ -15,12 +16,35 @@ class OMOPSQLClient:
         self, user: str, password: str, host: str, port: int, database: str, schema: str
     ) -> None:
         """Initialize the OMOP SQL client."""
+
+        self._schema = schema
+
         self._engine = sqlalchemy.create_engine(
             f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}",
             connect_args={"options": "-csearch_path={}".format(schema)},
         )
 
-    def query(self, sql: str, **kwargs: str | int) -> pd.DataFrame:
+        self._reflect()
+
+    def _reflect(self) -> None:
+        """
+        Reflect the OMOP CDM database schema.
+        """
+        self._metadata = sqlalchemy.MetaData(bind=self._engine, schema=self._schema)
+        self._metadata.reflect()
+
+    @property
+    def tables(self) -> dict[str, sqlalchemy.Table]:
+        """Return the tables in the OMOP CDM database."""
+        return self._metadata.tables
+
+    def execute(self, query: Any) -> CursorResult:
+        """
+        Execute the given query against the OMOP CDM database.
+        """
+        return self._engine.execute(query)
+
+    def query(self, sql: Any, **kwargs: str | int) -> pd.DataFrame:
         """
         Run the given SQL query against the OMOP CDM database.
         """
@@ -95,7 +119,9 @@ class OMOPSQLClient:
 
         return self.get_concept_info(df.iloc[0].ingredient_concept_id)
 
-    def drug_vocabulary_to_ingredient(self, vocabulary_id: str, code: str) -> Concept:
+    def drug_vocabulary_to_ingredient(
+        self, vocabulary_id: str, code: str
+    ) -> Concept | None:
         """
         Get the ingredient concept for the given drug code in the given vocabulary.
         """
@@ -127,7 +153,12 @@ class OMOPSQLClient:
 
         df = self.query(query, code=str(code), vocabulary_id=vocabulary_id)
 
-        assert len(df) == 1, f"Expected 1 row, got {len(df)}"
+        if len(df) == 0:
+            return None
+        elif len(df) > 1:
+            raise ValueError(
+                f"Expected concept for {vocabulary_id} #{code}, got {len(df)}"
+            )
 
         return self.get_concept_info(df.iloc[0].ingredient_concept_id)
 

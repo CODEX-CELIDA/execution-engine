@@ -1,7 +1,7 @@
-from ..action import AbstractAction
 from ..fhir.recommendation import Recommendation
 from ..goal import VentilatorManagementGoal
 from ..omop.vocabulary import SNOMEDCT
+from .abstract import AbstractAction
 
 
 class VentilatorManagementAction(AbstractAction):

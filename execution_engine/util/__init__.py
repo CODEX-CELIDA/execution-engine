@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, root_validator
+from sqlalchemy import and_, literal_column
+from sqlalchemy.sql.elements import ClauseList
 
 from execution_engine.omop.concepts import Concept
 
@@ -58,30 +60,34 @@ class ValueNumber(Value):
         table_name: str | None,
         column_name: str = "value_as_number",
         with_unit: bool = True,
-    ) -> str:
+    ) -> ClauseList:
         """
-        Get the SQL representation of the value.
+        Get the sqlalchemy representation of the value.
         """
 
-        sql = []
+        clauses = []
 
         if table_name is not None:
             table_name = f"{table_name}."
         else:
             table_name = ""
 
+        c = literal_column(f"{table_name}{column_name}")
+
         if with_unit:
-            sql.append(f"{table_name}unit_concept_id = {self.unit.id}")
+            c_unit = literal_column(f"{table_name}unit_concept_id")
+            clauses.append(c_unit == self.unit.id)
 
         if self.value is not None:
-            sql.append(f"{table_name}{column_name} = {self.value}")
+            clauses.append(c == self.value)
+
         else:
             if self.value_min is not None:
-                sql.append(f"{table_name}{column_name} >= {self.value_min}")
+                clauses.append(c >= self.value_min)
             if self.value_max is not None:
-                sql.append(f"{table_name}{column_name} <= {self.value_max}")
+                clauses.append(c <= self.value_max)
 
-        return " AND ".join(sql)
+        return and_(*clauses)
 
 
 class ValueConcept(Value):

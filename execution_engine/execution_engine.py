@@ -1,5 +1,6 @@
 import logging
 import os
+import warnings
 from typing import Tuple, Union
 
 from fhir.resources.evidencevariable import (
@@ -29,7 +30,8 @@ from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
 from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
 from .omop.cohort_definition import CohortDefinition
-from .omop.criterion import ActivePatients
+from .omop.criterion.combination import CriterionCombination
+from .omop.criterion.visit_occurrence import ActivePatients
 
 
 class ExecutionEngine:
@@ -67,9 +69,33 @@ class ExecutionEngine:
         for characteristic in characteristics:
             cd.add(characteristic_to_criterion(characteristic))
 
-        # for item in rec.action:
-        #    action
-        #    cd.append(action.to_criterion())
+        if selection_behavior.code == CharacteristicCombination.Code.ANY_OF:
+            operator = CriterionCombination.Operator("OR")
+        elif selection_behavior.code == CharacteristicCombination.Code.ALL_OF:
+            operator = CriterionCombination.Operator("AND")
+        elif selection_behavior.code == CharacteristicCombination.Code.AT_LEAST:
+            warnings.warn("AT_LEAST not supported yet")
+            operator = CriterionCombination.Operator("OR")
+            # operator = CriterionCombination.Operator('AT_LEAST', threshold=1)
+        elif selection_behavior.code == CharacteristicCombination.Code.AT_MOST:
+            warnings.warn("AT_MOST is not supported yet.")
+            operator = CriterionCombination.Operator("OR")
+            # operator = CriterionCombination.Operator('AT_MOST', threshold=1)
+        else:
+            raise NotImplementedError(
+                f"Selection behavior {str(selection_behavior.code)} not implemented."
+            )
+        comb_actions = CriterionCombination(
+            name="...", exclude=characteristic.exclude, operator=operator
+        )
+
+        for action in actions:
+            if action is None:
+                warnings.warn("Action is None")  # type: ignore
+                continue
+            comb_actions.add(action.to_criterion())
+
+        cd.add(comb_actions)
 
         # (create execution plan)
         # execute single sqls
