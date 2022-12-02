@@ -1,8 +1,5 @@
-from execution_engine.characteristic import (
-    AbstractCharacteristic,
-    CharacteristicCombination,
-)
-
+from .converter.characteristic.abstract import AbstractCharacteristic
+from .converter.characteristic.combination import CharacteristicCombination
 from .omop.criterion.abstract import AbstractCriterion
 from .omop.criterion.combination import CriterionCombination
 

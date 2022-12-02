@@ -1,5 +1,6 @@
-from ..fhir.recommendation import Recommendation
-from ..omop.vocabulary import SNOMEDCT
+from execution_engine.fhir.recommendation import Recommendation
+from execution_engine.omop.vocabulary import SNOMEDCT
+
 from .abstract import AbstractAction
 
 

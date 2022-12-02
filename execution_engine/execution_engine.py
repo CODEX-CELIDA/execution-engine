@@ -8,24 +8,22 @@ from fhir.resources.evidencevariable import (
     EvidenceVariableCharacteristic,
 )
 
-from .action import (
+from .converter.action import (
     AbstractAction,
     ActionFactory,
     BodyPositioningAction,
     DrugAdministrationAction,
     VentilatorManagementAction,
 )
-from .characteristic import (
-    AbstractCharacteristic,
-    AllergyCharacteristic,
-    CharacteristicCombination,
-    CharacteristicFactory,
-    ConditionCharacteristic,
-    EpisodeOfCareCharacteristic,
-    LaboratoryCharacteristic,
-    ProcedureCharacteristic,
-    RadiologyCharacteristic,
-)
+from .converter.characteristic.abstract import AbstractCharacteristic
+from .converter.characteristic.allergy import AllergyCharacteristic
+from .converter.characteristic.combination import CharacteristicCombination
+from .converter.characteristic.condition import ConditionCharacteristic
+from .converter.characteristic.episode_of_care import EpisodeOfCareCharacteristic
+from .converter.characteristic.factory import CharacteristicFactory
+from .converter.characteristic.laboratory import LaboratoryCharacteristic
+from .converter.characteristic.procedure import ProcedureCharacteristic
+from .converter.characteristic.radiology import RadiologyCharacteristic
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
 from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
@@ -35,7 +33,9 @@ from .omop.criterion.visit_occurrence import ActivePatients
 
 
 class ExecutionEngine:
-    """The Execution Engine is responsible for reading recommendations in CPG-on-EBM-on-FHIR format and creating an OMOP Cohort Definition from them."""
+    """
+    The Execution Engine is responsible for reading recommendations in CPG-on-EBM-on-FHIR format
+    and creating an OMOP Cohort Definition from them."""
 
     def __init__(self) -> None:
 
@@ -64,31 +64,11 @@ class ExecutionEngine:
         cd = CohortDefinition(ActivePatients(name="active_patients"))
 
         characteristics = self._parse_characteristics(rec.population)
-        actions, selection_behavior = self._parse_actions(rec.actions)
-
         for characteristic in characteristics:
             cd.add(characteristic_to_criterion(characteristic))
 
-        if selection_behavior.code == CharacteristicCombination.Code.ANY_OF:
-            operator = CriterionCombination.Operator("OR")
-        elif selection_behavior.code == CharacteristicCombination.Code.ALL_OF:
-            operator = CriterionCombination.Operator("AND")
-        elif selection_behavior.code == CharacteristicCombination.Code.AT_LEAST:
-            if selection_behavior.threshold == 1:
-                operator = CriterionCombination.Operator("OR")
-            else:
-                raise NotImplementedError(
-                    f"AT_LEAST with threshold {selection_behavior.threshold} not implemented."
-                )
-        elif selection_behavior.code == CharacteristicCombination.Code.AT_MOST:
-            raise NotImplementedError("AT_MOST not implemented.")
-        else:
-            raise NotImplementedError(
-                f"Selection behavior {str(selection_behavior.code)} not implemented."
-            )
-        comb_actions = CriterionCombination(
-            name="...", exclude=characteristic.exclude, operator=operator
-        )
+        actions, selection_behavior = self._parse_actions(rec.actions)
+        comb_actions = self.action_combination(selection_behavior)
 
         for action in actions:
             if action is None:
@@ -198,3 +178,31 @@ class ExecutionEngine:
     def execute(self) -> list[int]:
         """Executes the Cohort Definition and returns a list of Person IDs."""
         pass
+
+    def action_combination(
+        self, selection_behavior: ActionSelectionBehavior
+    ) -> CriterionCombination:
+        """
+        Get the correct action combination based on the action selection behavior.
+        """
+
+        if selection_behavior.code == CharacteristicCombination.Code.ANY_OF:
+            operator = CriterionCombination.Operator("OR")
+        elif selection_behavior.code == CharacteristicCombination.Code.ALL_OF:
+            operator = CriterionCombination.Operator("AND")
+        elif selection_behavior.code == CharacteristicCombination.Code.AT_LEAST:
+            if selection_behavior.threshold == 1:
+                operator = CriterionCombination.Operator("OR")
+            else:
+                raise NotImplementedError(
+                    f"AT_LEAST with threshold {selection_behavior.threshold} not implemented."
+                )
+        elif selection_behavior.code == CharacteristicCombination.Code.AT_MOST:
+            raise NotImplementedError("AT_MOST not implemented.")
+        else:
+            raise NotImplementedError(
+                f"Selection behavior {str(selection_behavior.code)} not implemented."
+            )
+        return CriterionCombination(
+            name="intervention_actions", exclude=False, operator=operator
+        )

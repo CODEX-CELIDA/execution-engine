@@ -1,6 +1,6 @@
-from ..fhir.recommendation import Recommendation
-from ..goal import VentilatorManagementGoal
-from ..omop.vocabulary import SNOMEDCT
+from ...fhir.recommendation import Recommendation
+from ...omop.vocabulary import SNOMEDCT
+from ..goal.ventilator_management import VentilatorManagement
 from .abstract import AbstractAction
 
 
@@ -11,7 +11,7 @@ class VentilatorManagementAction(AbstractAction):
 
     _concept_code = "410210009"  # Ventilator care management (procedure)
     _concept_vocabulary = SNOMEDCT
-    _goal_type = VentilatorManagementGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
+    _goal_type = VentilatorManagement  # todo: Most likely there is no 1:1 relationship between action and goal types
     _goal_required = True
 
     @classmethod

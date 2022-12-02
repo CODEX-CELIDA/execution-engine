@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Type
 
-from ..fhir.recommendation import Recommendation
-from ..fhir.util import get_coding
-from ..goal import AbstractGoal
-from ..omop.criterion.abstract import Criterion
-from ..omop.vocabulary import AbstractVocabulary
+from ...fhir.recommendation import Recommendation
+from ...fhir.util import get_coding
+from ...omop.criterion.abstract import Criterion
+from ...omop.vocabulary import AbstractVocabulary
+from ..goal.abstract import Goal
 
 
 class AbstractAction(ABC):
@@ -31,8 +31,7 @@ class AbstractAction(ABC):
     _concept_code: str
     _concept_vocabulary: Type[AbstractVocabulary]
     _goal_required: bool
-    _goal_class: Type[AbstractGoal] | None
-    _goal: AbstractGoal | None
+    _goal_class: Type[Goal] | None
 
     @classmethod
     @abstractmethod

@@ -6,17 +6,19 @@ import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.dosage import Dosage
 from fhir.resources.quantity import Quantity
-from sqlalchemy import func, literal_column, select, table, text
-from sqlalchemy.orm import Query
 
-from ..clients import omopdb
-from ..fhir.recommendation import Recommendation
-from ..goal import LaboratoryValueGoal
-from ..omop.concepts import Concept
-from ..omop.criterion.abstract import Criterion
-from ..omop.criterion.drug_exposure import DrugExposure
-from ..omop.vocabulary import SNOMEDCT, VocabularyFactory, standard_vocabulary
-from ..util import ValueNumber
+from execution_engine.clients import omopdb
+from execution_engine.fhir.recommendation import Recommendation
+from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.drug_exposure import DrugExposure
+from execution_engine.omop.vocabulary import (
+    SNOMEDCT,
+    VocabularyFactory,
+    standard_vocabulary,
+)
+from execution_engine.util import ValueNumber
+
 from .abstract import AbstractAction
 
 
@@ -27,10 +29,11 @@ class DrugAdministrationAction(AbstractAction):
 
     _concept_code = "432102000"  # Administration of substance (procedure)
     _concept_vocabulary = SNOMEDCT
-    _goal_type = LaboratoryValueGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
 
     def __init__(
         self,
+        name: str,
+        exclude: bool,
         dose: ValueNumber,
         frequency: int,
         interval: str,
@@ -39,6 +42,8 @@ class DrugAdministrationAction(AbstractAction):
         """
         Initialize the drug administration action.
         """
+        self._name = name
+        self._exclude = exclude
         self._dose = dose
         self._frequency = frequency
         self._interval = interval
@@ -55,6 +60,8 @@ class DrugAdministrationAction(AbstractAction):
             assert (
                 action_def.goals
             ), "DrugAdministrationAction without a dosage must have a goal"
+
+            # must return criterion according to goal
             warnings.warn("implement me")
             return None  # type: ignore
             raise NotImplementedError(
@@ -66,14 +73,30 @@ class DrugAdministrationAction(AbstractAction):
             0
         ]  # dosage is bound to 0..1 by drug-administration-action profile
 
-        df_drugs = cls.get_drug_concepts(action_def.activity)
+        df_drugs, ingredient = cls.get_drug_concepts(action_def.activity)
         dose = cls.process_dosage(dosage)
         frequency, interval = cls.process_timing(dosage)
 
-        return cls(dose, frequency, interval, df_drugs)
+        name = f"drug_{ingredient.name}"
+        exclude = (
+            action_def.activity.doNotPerform
+            if action_def.activity.doNotPerform is not None
+            else False
+        )
+
+        return cls(
+            name=name,
+            exclude=exclude,
+            dose=dose,
+            frequency=frequency,
+            interval=interval,
+            drug_concepts=df_drugs,
+        )
 
     @classmethod
-    def get_drug_concepts(cls, activity: ActivityDefinition) -> pd.DataFrame:
+    def get_drug_concepts(
+        cls, activity: ActivityDefinition
+    ) -> Tuple[pd.DataFrame, Concept]:
         """
         Gets all drug concepts that match the given definition in the productCodeableConcept.
         """
@@ -131,7 +154,7 @@ class DrugAdministrationAction(AbstractAction):
             df["numerator_unit_concept_id"], inplace=True
         )
 
-        return df
+        return df, ingredient
 
     @classmethod
     def process_dosage(cls, dosage: Dosage) -> ValueNumber:
@@ -207,10 +230,9 @@ class DrugAdministrationAction(AbstractAction):
         """
         Returns a criterion that represents this action.
         """
-        # fixme: name and exclude
         return DrugExposure(
-            name="test",
-            exclude=False,
+            name=self._name,
+            exclude=self._exclude,
             dose=self._dose,
             frequency=self._frequency,
             interval=self._interval,

@@ -1,6 +1,9 @@
 import logging
 import re
-from typing import Iterator
+from typing import Any, Iterator
+
+import sqlalchemy
+from sqlalchemy.orm import Query
 
 from ..execution_map import ExecutionMap
 from .criterion.abstract import AbstractCriterion, Criterion
@@ -44,17 +47,27 @@ class CohortDefinition:
 
         return name
 
-    def process(self) -> Iterator[str]:
+    def process(self) -> Iterator[sqlalchemy.orm.Query]:
         """
         Process the cohort definition into a single SQL statement.
         """
+
+        def to_sqlalchemy(sql: Any) -> Query:
+            """
+            Convert a SQL statement to a SQLAlchemy expression.
+            """
+            if isinstance(sql, str):
+                return sqlalchemy.text(sql)
+            return sql
+
         execution_map = self.execution_map()
 
         i: int
         criterion: Criterion
 
         table_out = self._to_tablename(f"{self._base_criterion.name}")
-        yield self._base_criterion.sql_generate(table_in=None, table_out=table_out)
+        sql = self._base_criterion.sql_generate(table_in=None, table_out=table_out)
+        yield to_sqlalchemy(sql)
 
         for i, criterion in enumerate(execution_map.sequential()):
             table_out = self._to_tablename(f"{criterion.name}_{i}")
@@ -65,15 +78,15 @@ class CohortDefinition:
 
             sql = criterion.sql_generate(self._base_criterion.table_out, table_out)
 
-            yield sql
+            yield to_sqlalchemy(sql)
 
         logging.info("Yielding combination sql")
         sql_template, criteria = execution_map.combine()
-        yield sql_template.format(*[c.sql_select() for c in criteria])
+        yield to_sqlalchemy(sql_template.format(*[c.sql_select() for c in criteria]))
 
         logging.info("Cleaning up temporary tables")
         for criterion in execution_map.sequential():
             logging.info(f"Cleaning up {criterion.name}")
-            yield criterion.sql_cleanup()
+            yield to_sqlalchemy(criterion.sql_cleanup())
 
-        yield self._base_criterion.sql_cleanup()
+        yield to_sqlalchemy(self._base_criterion.sql_cleanup())

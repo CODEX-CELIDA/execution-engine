@@ -1,6 +1,7 @@
 from typing import Type
 
-from ..fhir.recommendation import Recommendation
+from execution_engine.fhir.recommendation import Recommendation
+
 from .abstract import AbstractAction
 
 

@@ -4,7 +4,9 @@ from typing import Any
 import pandas as pd
 import psycopg2  # noqa: F401 -- do not remove - needed for sqlalchemy to work
 import sqlalchemy
+from sqlalchemy import and_, func
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.orm import Query
 
 from .concepts import Concept
 
@@ -30,7 +32,7 @@ class OMOPSQLClient:
         """
         Reflect the OMOP CDM database schema.
         """
-        self._metadata = sqlalchemy.MetaData(bind=self._engine, schema=self._schema)
+        self._metadata = sqlalchemy.MetaData(bind=self._engine)
         self._metadata.reflect()
 
     @property
@@ -50,12 +52,23 @@ class OMOPSQLClient:
         """
         return pd.read_sql(sql, self._engine, params=kwargs)
 
+    def compile_query(self, query: Query) -> str:
+        """
+        Compile the given query against the OMOP CDM database.
+        """
+        return str(
+            query.compile(
+                dialect=self._engine.dialect, compile_kwargs={"literal_binds": True}
+            )
+        )
+
     def get_concept_info(self, concept_id: str) -> Concept:
         """Get the concept info for the given concept ID."""
-        query = "SELECT * FROM concept WHERE concept_id = %(concept_id)s"
-        df = self.query(query, concept_id=str(concept_id))
+        concept = self.tables["concept"]
+        query = concept.select().where(concept.c.concept_id == str(concept_id))
+        df = self.query(query)
 
-        assert len(df) == 1, f"Expected 1 result, got {len(df)}"
+        assert len(df) == 1, f"Expected 1 Concept, got {len(df)}"
 
         return Concept.from_series(df.iloc[0])
 
@@ -66,19 +79,23 @@ class OMOPSQLClient:
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
         logging.info(f"Requesting standard concept: {vocabulary} #{code}")
-        query = """
-        SELECT *
-        FROM concept
-        WHERE vocabulary_id = %(vocabulary)s
-            AND concept_code = %(code)s
-            AND NOW() BETWEEN valid_start_date AND valid_end_date
-        """
+
+        concept = self.tables["concept"]
+        query = concept.select().where(
+            and_(
+                concept.c.vocabulary_id == vocabulary,
+                concept.c.concept_code == code,
+                func.now() >= concept.c.valid_start_date,
+                func.now() <= concept.c.valid_end_date,
+            )
+        )
+
         if standard:
-            query += "AND standard_concept = 'S'"
+            query = query.where(concept.c.standard_concept == "S")
 
-        df = self.query(query, vocabulary=vocabulary, code=code)
+        df = self.query(query)
 
-        assert len(df) == 1, f"Expected 1 result, got {len(df)}"
+        assert len(df) == 1, f"Expected 1 Concept, got {len(df)}"
 
         return Concept.from_series(df.iloc[0])
 
