@@ -23,10 +23,9 @@ class VentilatorManagementAction(AbstractAction):
         if action_def.activity is not None:
             raise ValueError("VentilatorManagementAction does not support activity")
 
-        assert (
-            len(action_def.goals) == 1
-        ), "VentilatorManagementAction must have a single goal"
+        assert action_def.goals, "VentilatorManagementAction must have goals"
 
+        # only using first goal for name
         goal = action_def.goals[0]
         code = parse_code(goal.target[0].measure)
 

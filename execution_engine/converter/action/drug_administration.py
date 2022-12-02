@@ -16,7 +16,7 @@ from execution_engine.omop.vocabulary import SNOMEDCT, VocabularyFactory
 from execution_engine.util import ValueNumber
 
 from ...omop.criterion.combination import CriterionCombination
-from ..converter import parse_value
+from ..converter import parse_code, parse_value
 from .abstract import AbstractAction
 
 
@@ -36,6 +36,7 @@ class DrugAdministrationAction(AbstractAction):
         dose: ValueNumber | None = None,
         frequency: int | None = None,
         interval: str | None = None,
+        route: Concept | None = None,
     ) -> None:
         """
         Initialize the drug administration action.
@@ -45,6 +46,7 @@ class DrugAdministrationAction(AbstractAction):
         self._dose = dose
         self._frequency = frequency
         self._interval = interval
+        self._route = route
 
     @classmethod
     def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
@@ -77,6 +79,7 @@ class DrugAdministrationAction(AbstractAction):
                 0
             ]  # dosage is bound to 0..1 by drug-administration-action profile
             dose = cls.process_dosage(dosage)
+            route = cls.process_route(dosage)
             frequency, interval = cls.process_timing(dosage)
 
             action = cls(
@@ -86,6 +89,7 @@ class DrugAdministrationAction(AbstractAction):
                 dose=dose,
                 frequency=frequency,
                 interval=interval,
+                route=route,
             )
 
         return action
@@ -174,6 +178,16 @@ class DrugAdministrationAction(AbstractAction):
         return value
 
     @classmethod
+    def process_route(cls, dosage: Dosage) -> Concept | None:
+        """
+        Processes the route of a drug administration action into a ValueNumber.
+        """
+        if dosage.route is None:
+            return None
+
+        return parse_code(dosage.route)
+
+    @classmethod
     def process_timing(cls, dosage: Dosage) -> Tuple[int, str]:
         """
         Returns the frequency and interval of the dosage.
@@ -207,8 +221,9 @@ class DrugAdministrationAction(AbstractAction):
         return DrugExposure(
             name=self._name,
             exclude=self._exclude,
+            drug_concepts=self._drug_concepts,
             dose=self._dose,
             frequency=self._frequency,
             interval=self._interval,
-            drug_concepts=self._drug_concepts,
+            route=self._route,
         )

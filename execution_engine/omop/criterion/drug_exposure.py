@@ -23,6 +23,7 @@ class DrugExposure(Criterion):
         dose: ValueNumber | None,
         frequency: int | None,
         interval: str | None,
+        route: Concept | None,
     ) -> None:
         """
         Initialize the drug administration action.
@@ -32,6 +33,7 @@ class DrugExposure(Criterion):
         self._dose = dose
         self._frequency = frequency
         self._interval = interval
+        self._route = route
 
     @classmethod
     def filter_same_unit(cls, df: pd.DataFrame, unit: Concept) -> pd.DataFrame:
@@ -42,7 +44,7 @@ class DrugExposure(Criterion):
         This is because RxNorm (upon which OMOP is based) seems to use unit (UNT) for international units.
         """
         logging.warning(
-            "selecting only drug entries with unit matching to that of the recommendation"
+            "Selecting only drug entries with unit matching to that of the recommendation"
         )
 
         df_filtered = df.query("amount_unit_concept_id==@unit.id")
@@ -74,6 +76,12 @@ class DrugExposure(Criterion):
             dose_sql = self._dose.to_sql(
                 table_name=None, column_name="sum(de.quantity)", with_unit=False
             )
+
+            if self._route is not None:
+                # route is not implemented yet because it uses HemOnc codes in the standard vocabulary
+                # (cf concept_class_id = 'Route') but these are not standard codes and HemOnc might not be
+                # addressable in FHIR
+                logging.warning("Route specified, but not implemented yet")
 
             drug_concept_ids = df_drugs["drug_concept_id"].tolist()
 
