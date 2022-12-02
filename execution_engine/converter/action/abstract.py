@@ -1,18 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import Type
-
-from fhir.resources.plandefinition import PlanDefinitionGoal
+from typing import Type, final
 
 from ...fhir.recommendation import Recommendation
 from ...fhir.util import get_coding
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.combination import CriterionCombination
 from ...omop.vocabulary import AbstractVocabulary
+from ...util import AbstractPrivateMethods
 from ..converter import CriterionConverter
 from ..goal.abstract import Goal
 
 
-class AbstractAction(CriterionConverter, ABC):
+class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
     """
     An abstract action.
 
@@ -37,16 +36,14 @@ class AbstractAction(CriterionConverter, ABC):
     _goal_required: bool
     _goal_class: Type[Goal] | None
     _goals: list[Goal]
-    _goals_def: list[PlanDefinitionGoal]
 
-    def __init__(self, name: str, exclude: bool, goals_def: list[PlanDefinitionGoal]):
+    def __init__(self, name: str, exclude: bool):
         super().__init__(name=name, exclude=exclude)
-        self._goals_def = goals_def
         self._goals = []
 
     @classmethod
     @abstractmethod
-    def from_fhir(cls, action: Recommendation.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 
@@ -63,9 +60,38 @@ class AbstractAction(CriterionConverter, ABC):
         )
 
     @abstractmethod
-    def to_criterion(self) -> Criterion | CriterionCombination:
+    def _to_criterion(self) -> Criterion | CriterionCombination | None:
         """Converts this characteristic to a Criterion."""
         raise NotImplementedError()
+
+    @final
+    def to_criterion(self) -> Criterion | CriterionCombination:
+        """
+        Converts this action to a criterion.
+        """
+        action = self._to_criterion()
+
+        if action is None:
+            assert (
+                self.goals
+            ), "Action without explicit criterion must have at least one goal"
+
+        if self.goals:
+            combination = CriterionCombination(
+                name=f"{self._name}_plus_goals",
+                exclude=False,
+                operator=CriterionCombination.Operator("AND"),
+            )
+
+            if action is not None:
+                combination.add(action)
+
+            for goal in self.goals:
+                combination.add(goal.to_criterion())
+
+            return combination
+
+        return action  # type: ignore
 
     @property
     def goals(self) -> list[Goal]:

@@ -32,7 +32,6 @@ class DrugAdministrationAction(AbstractAction):
         self,
         name: str,
         exclude: bool,
-        goals_def: list[PlanDefinitionGoal],
         drug_concepts: pd.DataFrame,
         dose: ValueNumber | None = None,
         frequency: int | None = None,
@@ -41,7 +40,7 @@ class DrugAdministrationAction(AbstractAction):
         """
         Initialize the drug administration action.
         """
-        super().__init__(name=name, exclude=exclude, goals_def=goals_def)
+        super().__init__(name=name, exclude=exclude)
         self._drug_concepts = drug_concepts
         self._dose = dose
         self._frequency = frequency
@@ -70,14 +69,7 @@ class DrugAdministrationAction(AbstractAction):
 
             # must return criterion according to goal
             # return combination of drug criterion (any application !) and goal criterion
-            drug_action = cls(
-                name, exclude, goals_def=action_def.goals, drug_concepts=df_drugs
-            )
-            warnings.warn("implement me")
-            return drug_action
-            raise NotImplementedError(
-                "DrugAdministrationAction without a dosage is not yet implemented"
-            )
+            action = cls(name, exclude, drug_concepts=df_drugs)
 
         else:
             # has dosage
@@ -90,7 +82,6 @@ class DrugAdministrationAction(AbstractAction):
             action = cls(
                 name=name,
                 exclude=exclude,
-                goals_def=action_def.goals,
                 drug_concepts=df_drugs,
                 dose=dose,
                 frequency=frequency,
@@ -208,12 +199,12 @@ class DrugAdministrationAction(AbstractAction):
 
         return frequency, interval
 
-    def to_criterion(self) -> Criterion | CriterionCombination:
+    def _to_criterion(self) -> Criterion | CriterionCombination | None:
         """
         Returns a criterion that represents this action.
         """
 
-        drug_action = DrugExposure(
+        return DrugExposure(
             name=self._name,
             exclude=self._exclude,
             dose=self._dose,
@@ -221,19 +212,3 @@ class DrugAdministrationAction(AbstractAction):
             interval=self._interval,
             drug_concepts=self._drug_concepts,
         )
-
-        if self.goals:
-            combination = CriterionCombination(
-                name=f"{self._name}_plus_goals",
-                exclude=False,
-                operator=CriterionCombination.Operator("AND"),
-            )
-
-            combination.add(drug_action)
-
-            for goal in self.goals:
-                combination.add(goal.to_criterion())
-
-            return combination
-
-        return drug_action

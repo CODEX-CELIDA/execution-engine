@@ -1,5 +1,8 @@
 from ...fhir.recommendation import Recommendation
+from ...omop.criterion.abstract import Criterion
+from ...omop.criterion.combination import CriterionCombination
 from ...omop.vocabulary import SNOMEDCT
+from ..converter import parse_code
 from ..goal.ventilator_management import VentilatorManagementGoal
 from .abstract import AbstractAction
 
@@ -15,6 +18,22 @@ class VentilatorManagementAction(AbstractAction):
     _goal_required = True
 
     @classmethod
-    def from_fhir(cls, action: Recommendation.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
-        raise NotImplementedError()
+        if action_def.activity is not None:
+            raise ValueError("VentilatorManagementAction does not support activity")
+
+        assert (
+            len(action_def.goals) == 1
+        ), "VentilatorManagementAction must have a single goal"
+
+        goal = action_def.goals[0]
+        code = parse_code(goal.target[0].measure)
+
+        return cls(
+            name=code.name, exclude=False
+        )  # fixme: no way to exclude goals (e.g. "do not ventilate")
+
+    def _to_criterion(self) -> Criterion | CriterionCombination | None:
+        """Converts this characteristic to a Criterion."""
+        return None

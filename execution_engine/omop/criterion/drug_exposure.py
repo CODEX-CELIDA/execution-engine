@@ -95,10 +95,10 @@ class DrugExposure(Criterion):
         else:
             # no dose specified, so we just count the number of drug exposures
             drug_concept_ids = self._drug_concepts["drug_concept_id"].tolist()
-            query = select(
-                literal_column("de.person_id").select_from(
-                    table("drug_exposure").alias("de")
-                )
-            ).where(literal_column("de.drug_concept_id").in_(drug_concept_ids))
+            query = (
+                select(literal_column("de.person_id"))
+                .select_from(table("drug_exposure").alias("de"))
+                .where(literal_column("de.drug_concept_id").in_(drug_concept_ids))
+            )
 
         return query
