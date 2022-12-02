@@ -5,20 +5,18 @@ from typing import Tuple
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.dosage import Dosage
-from fhir.resources.quantity import Quantity
+from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from execution_engine.clients import omopdb
 from execution_engine.fhir.recommendation import Recommendation
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.omop.vocabulary import (
-    SNOMEDCT,
-    VocabularyFactory,
-    standard_vocabulary,
-)
+from execution_engine.omop.vocabulary import SNOMEDCT, VocabularyFactory
 from execution_engine.util import ValueNumber
 
+from ...omop.criterion.combination import CriterionCombination
+from ..converter import parse_value
 from .abstract import AbstractAction
 
 
@@ -34,20 +32,20 @@ class DrugAdministrationAction(AbstractAction):
         self,
         name: str,
         exclude: bool,
-        dose: ValueNumber,
-        frequency: int,
-        interval: str,
+        goals_def: list[PlanDefinitionGoal],
         drug_concepts: pd.DataFrame,
+        dose: ValueNumber | None = None,
+        frequency: int | None = None,
+        interval: str | None = None,
     ) -> None:
         """
         Initialize the drug administration action.
         """
-        self._name = name
-        self._exclude = exclude
+        super().__init__(name=name, exclude=exclude, goals_def=goals_def)
+        self._drug_concepts = drug_concepts
         self._dose = dose
         self._frequency = frequency
         self._interval = interval
-        self._drug_concepts = drug_concepts
 
     @classmethod
     def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
@@ -56,26 +54,7 @@ class DrugAdministrationAction(AbstractAction):
         if action_def.activity is None:
             raise NotImplementedError("No activity defined for action")
 
-        if action_def.activity.dosage is None:
-            assert (
-                action_def.goals
-            ), "DrugAdministrationAction without a dosage must have a goal"
-
-            # must return criterion according to goal
-            warnings.warn("implement me")
-            return None  # type: ignore
-            raise NotImplementedError(
-                "DrugAdministrationAction without a dosage is not yet implemented"
-            )
-
-        # has dosage
-        dosage = action_def.activity.dosage[
-            0
-        ]  # dosage is bound to 0..1 by drug-administration-action profile
-
         df_drugs, ingredient = cls.get_drug_concepts(action_def.activity)
-        dose = cls.process_dosage(dosage)
-        frequency, interval = cls.process_timing(dosage)
 
         name = f"drug_{ingredient.name}"
         exclude = (
@@ -84,14 +63,41 @@ class DrugAdministrationAction(AbstractAction):
             else False
         )
 
-        return cls(
-            name=name,
-            exclude=exclude,
-            dose=dose,
-            frequency=frequency,
-            interval=interval,
-            drug_concepts=df_drugs,
-        )
+        if action_def.activity.dosage is None:
+            assert (
+                action_def.goals
+            ), "DrugAdministrationAction without a dosage must have a goal"
+
+            # must return criterion according to goal
+            # return combination of drug criterion (any application !) and goal criterion
+            drug_action = cls(
+                name, exclude, goals_def=action_def.goals, drug_concepts=df_drugs
+            )
+            warnings.warn("implement me")
+            return drug_action
+            raise NotImplementedError(
+                "DrugAdministrationAction without a dosage is not yet implemented"
+            )
+
+        else:
+            # has dosage
+            dosage = action_def.activity.dosage[
+                0
+            ]  # dosage is bound to 0..1 by drug-administration-action profile
+            dose = cls.process_dosage(dosage)
+            frequency, interval = cls.process_timing(dosage)
+
+            action = cls(
+                name=name,
+                exclude=exclude,
+                goals_def=action_def.goals,
+                drug_concepts=df_drugs,
+                dose=dose,
+                frequency=frequency,
+                interval=interval,
+            )
+
+        return action
 
     @classmethod
     def get_drug_concepts(
@@ -165,31 +171,7 @@ class DrugAdministrationAction(AbstractAction):
             0
         ]  # todo: should iterate over doseAndRate (could have multiple)
 
-        if dose_and_rate.doseQuantity is not None:
-            value = dose_and_rate.doseQuantity
-            value = ValueNumber(
-                value=value.value,
-                unit=standard_vocabulary.get_standard_unit_concept(value.unit),
-            )
-        elif dose_and_rate.doseRange is not None:
-            value = dose_and_rate.doseRange
-            if value.low is not None and value.high is not None:
-                assert (
-                    value.low.code == value.high.code
-                ), "Range low and high unit must be the same"
-
-            unit_code = value.low.code if value.low is not None else value.high.code
-
-            def value_or_none(x: Quantity) -> float | None:
-                if x is None:
-                    return None
-                return x.value
-
-            value = ValueNumber(
-                unit=standard_vocabulary.get_standard_unit_concept(unit_code),
-                value_min=value_or_none(value.low),
-                value_max=value_or_none(value.high),
-            )
+        value = parse_value(dose_and_rate, value_prefix="dose")
 
         if (
             dose_and_rate.rateRatio is not None
@@ -226,11 +208,12 @@ class DrugAdministrationAction(AbstractAction):
 
         return frequency, interval
 
-    def to_criterion(self) -> Criterion:
+    def to_criterion(self) -> Criterion | CriterionCombination:
         """
         Returns a criterion that represents this action.
         """
-        return DrugExposure(
+
+        drug_action = DrugExposure(
             name=self._name,
             exclude=self._exclude,
             dose=self._dose,
@@ -238,3 +221,19 @@ class DrugAdministrationAction(AbstractAction):
             interval=self._interval,
             drug_concepts=self._drug_concepts,
         )
+
+        if self.goals:
+            combination = CriterionCombination(
+                name=f"{self._name}_plus_goals",
+                exclude=False,
+                operator=CriterionCombination.Operator("AND"),
+            )
+
+            combination.add(drug_action)
+
+            for goal in self.goals:
+                combination.add(goal.to_criterion())
+
+            return combination
+
+        return drug_action

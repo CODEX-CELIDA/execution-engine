@@ -46,6 +46,23 @@ class Concept(BaseModel, frozen=True):  # type: ignore
             "INVALID_REASON": self.invalid_reason,
         }
 
+    def __str__(self) -> str:
+        """
+        Returns a string representation of the concept.
+        """
+        base = f'OMOP Concept: "{self.name}" ({self.id}) [{self.vocabulary_id}#{self.concept_code}]'
+
+        if self.standard_concept is not None and self.standard_concept == "S":
+            return f"{base} (STANDARD)"
+
+        return base
+
+    def __repr__(self) -> str:
+        """
+        Returns a string representation of the concept.
+        """
+        return str(self)
+
 
 class ConceptSet:
     """A set of concepts.

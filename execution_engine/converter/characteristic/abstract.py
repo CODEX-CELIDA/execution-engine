@@ -37,11 +37,11 @@ class AbstractCharacteristic(CriterionConverter, ABC):
     """
 
     _criterion_class: Type[Criterion]
+    _type: Concept
+    _value: Value
 
-    def __init__(self, exclude: bool | None) -> None:
-        self._exclude = exclude
-        self._type: Concept
-        self._value: Value
+    def __init__(self, name: str, exclude: bool) -> None:
+        super().__init__(name=name, exclude=exclude)
 
     @classmethod
     @abstractmethod
@@ -55,8 +55,6 @@ class AbstractCharacteristic(CriterionConverter, ABC):
     def exclude(self) -> bool:
         """Returns True if this characteristic is an exclusion."""
         # if exclude is not set in the FHIR resource, it defaults to False
-        if self._exclude is None:
-            return False
         return self._exclude
 
     @property
@@ -88,36 +86,11 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         raise NotImplementedError()
 
     @staticmethod
-    def select_value(
-        c: EvidenceVariableCharacteristicDefinitionByTypeAndValue,
-    ) -> Concept:
-        """
-        Selects the value of a characteristic by datatype.
-        """
-        if c.valueQuantity:
-            return c.valueQuantity
-        elif c.valueRange:
-            return c.valueRange
-        elif c.valueCodeableConcept:
-            return c.valueCodeableConcept
-        elif c.valueBoolean:
-            return c.valueBoolean
-        else:
-            raise ValueError("No value found")
-
-    @staticmethod
     def get_standard_concept(cc: Coding) -> Concept:
         """
         Gets the standard concept for a CodeableConcept.Coding.
         """
         return standard_vocabulary.get_standard_concept(cc.system, cc.code)
-
-    @staticmethod
-    def get_standard_concept_unit(code: str) -> Concept:
-        """
-        Gets the standard concept for a unit.
-        """
-        return standard_vocabulary.get_standard_unit_concept(code)
 
     @abstractmethod
     def to_criterion(self) -> Criterion:

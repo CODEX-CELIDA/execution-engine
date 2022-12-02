@@ -6,7 +6,7 @@ from ...omop.vocabulary import SNOMEDCT
 from .abstract import Goal
 
 
-class VentilatorManagement(Goal):
+class VentilatorManagementGoal(Goal):
     """
     A ventilator management goal.
     """
@@ -15,14 +15,14 @@ class VentilatorManagement(Goal):
     _concept_code = SCT_VENTILATOR_CARE_AND_ADJUSTMENT
 
     @classmethod
-    def from_fhir(cls, goal: PlanDefinitionGoal) -> "VentilatorManagement":
+    def from_fhir(cls, goal: PlanDefinitionGoal) -> "VentilatorManagementGoal":
         """
         Converts a FHIR goal to a ventilator management goal.
         """
-        pass
+        raise NotImplementedError()
 
     def to_criterion(self) -> Criterion:
         """
         Converts the goal to a criterion.
         """
-        pass
+        raise NotImplementedError()

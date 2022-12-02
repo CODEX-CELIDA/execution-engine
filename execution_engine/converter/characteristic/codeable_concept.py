@@ -41,7 +41,7 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
         cc = get_coding(characteristic.definitionByTypeAndValue.valueCodeableConcept)
         omop_concept = cls.get_standard_concept(cc)
 
-        c = cls(characteristic.exclude)
+        c = cls(name=omop_concept.name, exclude=characteristic.exclude)
         c.value = omop_concept
 
         return c
@@ -49,5 +49,5 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
     def to_criterion(self) -> Criterion:
         """Converts this characteristic to a Criterion."""
         return self._criterion_class(
-            name=self.value.name, exclude=self.exclude, concept=self.value, value=None
+            name=self._name, exclude=self._exclude, concept=self.value, value=None
         )

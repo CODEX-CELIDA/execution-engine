@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Type
 
+from fhir.resources.plandefinition import PlanDefinitionGoal
+
 from ...fhir.recommendation import Recommendation
 from ...fhir.util import get_coding
 from ...omop.criterion.abstract import Criterion
+from ...omop.criterion.combination import CriterionCombination
 from ...omop.vocabulary import AbstractVocabulary
 from ..converter import CriterionConverter
 from ..goal.abstract import Goal
@@ -33,6 +36,13 @@ class AbstractAction(CriterionConverter, ABC):
     _concept_vocabulary: Type[AbstractVocabulary]
     _goal_required: bool
     _goal_class: Type[Goal] | None
+    _goals: list[Goal]
+    _goals_def: list[PlanDefinitionGoal]
+
+    def __init__(self, name: str, exclude: bool, goals_def: list[PlanDefinitionGoal]):
+        super().__init__(name=name, exclude=exclude)
+        self._goals_def = goals_def
+        self._goals = []
 
     @classmethod
     @abstractmethod
@@ -53,6 +63,13 @@ class AbstractAction(CriterionConverter, ABC):
         )
 
     @abstractmethod
-    def to_criterion(self) -> Criterion:
+    def to_criterion(self) -> Criterion | CriterionCombination:
         """Converts this characteristic to a Criterion."""
         raise NotImplementedError()
+
+    @property
+    def goals(self) -> list[Goal]:
+        """
+        Returns the goals as defined in the FHIR PlanDefinition.
+        """
+        return self._goals

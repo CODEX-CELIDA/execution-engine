@@ -103,7 +103,7 @@ class Criterion(AbstractCriterion):
         return sql
 
     def _sql_post_process(self, sql: str) -> str:
-        if self.exclude:
+        if self._exclude:
             sql = f"(SELECT person_id FROM {self.table_in}) EXCEPT ({sql})"  # nosec - this is actual SQL code (generated)
         # sql = sqlparse.format(sql, reindent=True, keyword_case="upper")
         # fixme remove or replace sqlparse (not working due to use of sqlalchemy)

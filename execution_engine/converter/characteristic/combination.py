@@ -28,7 +28,7 @@ class CharacteristicCombination:
         self.characteristics: list[
             Union["AbstractCharacteristic", "CharacteristicCombination"]
         ] = []
-        self.exclude: bool = exclude
+        self._exclude: bool = exclude
         self.threshold: int | None = threshold
 
     def add(
@@ -37,6 +37,11 @@ class CharacteristicCombination:
     ) -> None:
         """Adds a characteristic to this combination."""
         self.characteristics.append(characteristic)
+
+    @property
+    def exclude(self) -> bool:
+        """Returns whether to exclude the combination."""
+        return self._exclude
 
     def __iter__(self) -> Iterator:
         """Return an iterator for the characteristics of this combination."""

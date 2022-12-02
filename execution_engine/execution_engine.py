@@ -23,6 +23,9 @@ from .converter.characteristic.laboratory import LaboratoryCharacteristic
 from .converter.characteristic.procedure import ProcedureCharacteristic
 from .converter.characteristic.radiology import RadiologyCharacteristic
 from .converter.converter import CriterionConverter, CriterionConverterFactory
+from .converter.goal.abstract import Goal
+from .converter.goal.laboratory_value import LaboratoryValueGoal
+from .converter.goal.ventilator_management import VentilatorManagementGoal
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
 from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
@@ -105,6 +108,14 @@ class ExecutionEngine:
 
         return af
 
+    @staticmethod
+    def _init_goal_factory() -> CriterionConverterFactory:
+        gf = CriterionConverterFactory()
+        gf.register(LaboratoryValueGoal)
+        gf.register(VentilatorManagementGoal)
+
+        return gf
+
     def _parse_characteristics(self, ev: EvidenceVariable) -> CharacteristicCombination:
         """Parses the characteristics of an EvidenceVariable and returns a CharacteristicCombination."""
         cf = self._init_characteristics_factory()
@@ -133,7 +144,7 @@ class ExecutionEngine:
                     sub = cf.get(c)
                     sub = cast(
                         AbstractCharacteristic, sub
-                    )  # only for mypy, doesn't do anything
+                    )  # only for mypy, doesn't do anything at runtime
                 comb.add(sub)
 
             return comb
@@ -161,6 +172,7 @@ class ExecutionEngine:
         """
 
         af = self._init_action_factory()
+        gf = self._init_goal_factory()
 
         assert (
             len(set([a.action.selectionBehavior for a in actions_def])) == 1
@@ -174,7 +186,15 @@ class ExecutionEngine:
         actions: list[AbstractAction] = []
         for action_def in actions_def:
             action = af.get(action_def)
-            action = cast(AbstractAction, action)  # only for mypy, doesn't do anything
+            action = cast(
+                AbstractAction, action
+            )  # only for mypy, doesn't do anything at runtime
+
+            for goal_def in action_def.goals:
+                goal = gf.get(goal_def)
+                goal = cast(Goal, goal)
+                action.goals.append(goal)
+
             actions.append(action)
 
         return actions, selection_behavior

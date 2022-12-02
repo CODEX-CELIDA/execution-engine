@@ -55,6 +55,27 @@ class ValueNumber(Value):
                 )
         return values
 
+    def __str__(self) -> str:
+        """
+        Get the string representation of the value.
+        """
+        if self.value is not None:
+            return f"Value == {self.value} {self.unit.name}"
+        elif self.value_min is not None and self.value_max is not None:
+            return f"{self.value_min} <= Value <= {self.value_max} {self.unit.name}"
+        elif self.value_min is not None:
+            return f"Value >= {self.value_min} {self.unit.name}"
+        elif self.value_max is not None:
+            return f"Value <= {self.value_max} {self.unit.name}"
+
+        return "Value (undefined)"
+
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the value.
+        """
+        return str(self)
+
     def to_sql(
         self,
         table_name: str | None,
@@ -102,3 +123,15 @@ class ValueConcept(Value):
         Get the SQL representation of the value.
         """
         return f"{table_name}.value_as_concept_id = {self.value.id}"
+
+    def __str__(self) -> str:
+        """
+        Get the string representation of the value.
+        """
+        return f"Value == {str(self.value)}"
+
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the value.
+        """
+        return str(self)
