@@ -6,3 +6,10 @@ SCT_PROCEDURE = "71388002"  # Procedure (procedure)
 SCT_VENTILATOR_OBSERVABLE = "364698001"  # Ventilator observable (observable entity)
 
 VS_VENTILATOR_OBSERVABLE = "https://medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
+
+SCT_VENTILATOR_CARE_AND_ADJUSTMENT = (
+    "385857005"  # Ventilator care and adjustment (regime/therapy)
+)
+SCT_LAB_FINDINGS_SURVEILLANCE = (
+    "410394004"  # Lab findings surveillance (regime/therapy)
+)

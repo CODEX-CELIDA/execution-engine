@@ -1,7 +1,7 @@
 import logging
 import os
 import warnings
-from typing import Tuple, Union
+from typing import Tuple, Union, cast
 
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
@@ -10,7 +10,6 @@ from fhir.resources.evidencevariable import (
 
 from .converter.action import (
     AbstractAction,
-    ActionFactory,
     BodyPositioningAction,
     DrugAdministrationAction,
     VentilatorManagementAction,
@@ -20,10 +19,10 @@ from .converter.characteristic.allergy import AllergyCharacteristic
 from .converter.characteristic.combination import CharacteristicCombination
 from .converter.characteristic.condition import ConditionCharacteristic
 from .converter.characteristic.episode_of_care import EpisodeOfCareCharacteristic
-from .converter.characteristic.factory import CharacteristicFactory
 from .converter.characteristic.laboratory import LaboratoryCharacteristic
 from .converter.characteristic.procedure import ProcedureCharacteristic
 from .converter.characteristic.radiology import RadiologyCharacteristic
+from .converter.converter import CriterionConverter, CriterionConverterFactory
 from .fhir.client import FHIRClient
 from .fhir.recommendation import Recommendation
 from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
@@ -85,24 +84,24 @@ class ExecutionEngine:
         return cd
 
     @staticmethod
-    def _init_characteristics_factory() -> CharacteristicFactory:
-        cf = CharacteristicFactory()
-        cf.register_characteristic_type(ConditionCharacteristic)
-        cf.register_characteristic_type(AllergyCharacteristic)
-        cf.register_characteristic_type(RadiologyCharacteristic)
-        cf.register_characteristic_type(ProcedureCharacteristic)
-        cf.register_characteristic_type(EpisodeOfCareCharacteristic)
+    def _init_characteristics_factory() -> CriterionConverterFactory:
+        cf = CriterionConverterFactory()
+        cf.register(ConditionCharacteristic)
+        cf.register(AllergyCharacteristic)
+        cf.register(RadiologyCharacteristic)
+        cf.register(ProcedureCharacteristic)
+        cf.register(EpisodeOfCareCharacteristic)
         # cf.register_characteristic_type(VentilationObservableCharacteristic) # fixme: implement
-        cf.register_characteristic_type(LaboratoryCharacteristic)
+        cf.register(LaboratoryCharacteristic)
 
         return cf
 
     @staticmethod
-    def _init_action_factory() -> ActionFactory:
-        af = ActionFactory()
-        af.register_action_type(DrugAdministrationAction)
-        af.register_action_type(VentilatorManagementAction)
-        af.register_action_type(BodyPositioningAction)
+    def _init_action_factory() -> CriterionConverterFactory:
+        af = CriterionConverterFactory()
+        af.register(DrugAdministrationAction)
+        af.register(VentilatorManagementAction)
+        af.register(BodyPositioningAction)
 
         return af
 
@@ -126,12 +125,15 @@ class ExecutionEngine:
             comb: CharacteristicCombination,
             characteristics: list[EvidenceVariableCharacteristic],
         ) -> CharacteristicCombination:
-            sub: Union[AbstractCharacteristic, CharacteristicCombination]
+            sub: Union[CriterionConverter, CharacteristicCombination]
             for c in characteristics:
                 if c.definitionByCombination is not None:
                     sub = get_characteristics(*get_characteristic_combination(c))
                 else:
-                    sub = cf.get_characteristic(c)
+                    sub = cf.get(c)
+                    sub = cast(
+                        AbstractCharacteristic, sub
+                    )  # only for mypy, doesn't do anything
                 comb.add(sub)
 
             return comb
@@ -169,9 +171,11 @@ class ExecutionEngine:
         )
 
         # loop through PlanDefinition.action elements and find the corresponding Action object (by action.code)
-        actions = []
+        actions: list[AbstractAction] = []
         for action_def in actions_def:
-            actions.append(af.get_action(action_def))
+            action = af.get(action_def)
+            action = cast(AbstractAction, action)  # only for mypy, doesn't do anything
+            actions.append(action)
 
         return actions, selection_behavior
 

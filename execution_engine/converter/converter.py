@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Type
 
 from fhir.resources.element import Element
 
@@ -30,3 +31,25 @@ class CriterionConverter(ABC):
     def to_criterion(self) -> Criterion:
         """Converts this characteristic to a Criterion."""
         raise NotImplementedError()
+
+
+class CriterionConverterFactory:
+    """Factory for creating a new instance of a criterion converter."""
+
+    def __init__(self) -> None:
+        self._converters: list[Type[CriterionConverter]] = []
+
+    def register(self, converter: Type[CriterionConverter]) -> None:
+        """Register a new characteristic type."""
+        self._converters.append(converter)
+
+    def get(self, fhir: Element) -> CriterionConverter:
+        """
+        Get a converter for the given FHIR element.
+        """
+        for converter in self._converters:
+            if converter.valid(fhir):
+                return converter.from_fhir(fhir)
+        raise ValueError(
+            f"Cannot find a converter for the given FHIR element: {fhir.name}"
+        )

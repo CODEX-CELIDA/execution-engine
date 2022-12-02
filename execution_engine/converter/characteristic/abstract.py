@@ -1,36 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import Any, Iterator, Type, Union
+from typing import Any, Type
 
-from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.coding import Coding
 from fhir.resources.evidencevariable import (
     EvidenceVariableCharacteristic,
     EvidenceVariableCharacteristicDefinitionByTypeAndValue,
 )
-from fhir.resources.quantity import Quantity
-from fhir.resources.range import Range
 
-from execution_engine.clients import tx_client
-from execution_engine.constants import *
-from execution_engine.fhir.util import get_coding
+from execution_engine.converter.converter import CriterionConverter
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.concept import ConceptCriterion
-from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
-from execution_engine.omop.criterion.measurement import Measurement
-from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
-from execution_engine.omop.criterion.visit_occurrence import VisitOccurrence
-from execution_engine.omop.vocabulary import (
-    LOINC,
-    SNOMEDCT,
-    UCUM,
-    AbstractVocabulary,
-    standard_vocabulary,
-)
-from execution_engine.util import Value, ValueConcept, ValueNumber
+from execution_engine.omop.vocabulary import standard_vocabulary
+from execution_engine.util import Value
 
 
-class AbstractCharacteristic(ABC):
+class AbstractCharacteristic(CriterionConverter, ABC):
     """
     An abstract characteristic.
 

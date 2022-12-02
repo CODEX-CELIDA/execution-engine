@@ -5,10 +5,11 @@ from ...fhir.recommendation import Recommendation
 from ...fhir.util import get_coding
 from ...omop.criterion.abstract import Criterion
 from ...omop.vocabulary import AbstractVocabulary
+from ..converter import CriterionConverter
 from ..goal.abstract import Goal
 
 
-class AbstractAction(ABC):
+class AbstractAction(CriterionConverter, ABC):
     """
     An abstract action.
 
