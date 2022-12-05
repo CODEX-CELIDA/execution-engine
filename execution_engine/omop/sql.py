@@ -6,7 +6,7 @@ import psycopg2  # noqa: F401 -- do not remove - needed for sqlalchemy to work
 import sqlalchemy
 from sqlalchemy import and_, func
 from sqlalchemy.engine import CursorResult
-from sqlalchemy.orm import Query
+from sqlalchemy.orm import Query, Session
 
 from .concepts import Concept
 
@@ -27,6 +27,7 @@ class OMOPSQLClient:
         )
 
         self._reflect()
+        self._session = Session(self._engine)
 
     def _reflect(self) -> None:
         """
@@ -34,6 +35,11 @@ class OMOPSQLClient:
         """
         self._metadata = sqlalchemy.MetaData(bind=self._engine)
         self._metadata.reflect()
+
+    @property
+    def session(self) -> Session:
+        """Get the SQLAlchemy session."""
+        return self._session
 
     @property
     def tables(self) -> dict[str, sqlalchemy.Table]:
@@ -84,7 +90,7 @@ class OMOPSQLClient:
         query = concept.select().where(
             and_(
                 concept.c.vocabulary_id == vocabulary,
-                concept.c.concept_code == code,
+                func.lower(concept.c.concept_code) == code.lower(),
                 func.now() >= concept.c.valid_start_date,
                 func.now() <= concept.c.valid_end_date,
             )

@@ -42,6 +42,9 @@ class ConceptCriterion(Criterion):
     ):
         super().__init__(name, exclude)
 
+        if concept.is_custom():
+            raise ValueError("Custom concepts not supported")
+
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
         self._value = value

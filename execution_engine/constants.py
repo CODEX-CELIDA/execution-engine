@@ -15,3 +15,9 @@ SCT_LAB_FINDINGS_SURVEILLANCE = (
 )
 
 EXT_DOSAGE_CONDITION = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/StructureDefinition/ext-dosage-condition"
+
+OMOP_BODY_WEIGHT = "4099154"  # Body weight (observation)
+OMOP_GENDER_FEMALE = "8532"
+OMOP_GENDER_MALE = "8507"
+
+LOINC_TIDAL_VOLUME = "76222-9"  # Tidal volume ^on ventilator

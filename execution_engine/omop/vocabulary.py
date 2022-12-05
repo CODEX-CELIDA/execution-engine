@@ -2,12 +2,20 @@ from abc import ABC
 from typing import Type
 
 from ..clients import omopdb
-from .concepts import Concept
+from .concepts import Concept, CustomConcept
 
 
 class VocabularyNotFoundError(Exception):
     """
     Exception raised when a vocabulary is not found.
+    """
+
+    pass
+
+
+class VocabularyNotStandardError(Exception):
+    """
+    Exception raised when a vocabulary is not included in the OMOP standard vocabulary.
     """
 
     pass
@@ -146,6 +154,28 @@ class CODEXCELIDA(AbstractVocabulary):
     """
 
     system_uri = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/CodeSystem/codex-celida"
+    vocab_id = "CODEX_CELIDA"
+    map = {
+        "tvpibw": CustomConcept(
+            name="Tidal volume / ideal body weight (ARDSnet)",
+            concept_code="tvpibw",
+            domain_id="Measurement",
+            vocabulary_id=vocab_id,
+        )
+    }
+
+    @classmethod
+    def omop_concept(cls, concept: str, standard: bool = False) -> Concept:
+        """
+        Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
+        """
+
+        if concept not in cls.map:
+            raise KeyError(
+                f"Concept {concept} not found in {cls.system_uri} vocabulary"
+            )
+
+        return cls.map[concept]
 
 
 class VocabularyFactory:

@@ -63,88 +63,42 @@ class Concept(BaseModel, frozen=True):  # type: ignore
         """
         return str(self)
 
-
-class ConceptSet:
-    """A set of concepts.
-
-    This class is used to represent a set of concepts. It can be used to
-    represent a set of concepts in a cohort definition or a set of concepts
-    in a concept set. The class is used to represent the concept set in
-    the OMOP CDM.
-    """
-
-    def __init__(self, name: str, concept: Concept):
+    def is_custom(self) -> bool:
         """
-        Initialize the concept set.
-
-        Args:
-          name: The name of the concept set.
-          concept: The concept in the concept set.
-
+        Returns True if the concept is a custom concept (not a standard concept, i.e. not in the OMOP Standard Vocabulary).
         """
-        self.id: int | None = None
-        self.name = name
-        self.concept = concept
-
-    def json(self) -> dict:
-        """Return the JSON representation of the concept set."""
-
-        assert self.id is not None, "Concept set ID is None"
-
-        return {
-            "id": self.id,
-            "name": self.name,
-            "expression": {
-                "items": [{"concept": self.concept.json(), "includeDescendents": True}]
-            },
-        }
-
-    def __eq__(self, other: object) -> bool:
-        """Return True if the concept sets are equal."""
-        if not isinstance(other, ConceptSet):
-            return False
-
-        return self.name == other.name and self.concept == other.concept
+        return self.id < 0
 
 
-class ConceptSetManager:
-    """
-    Manager for concept sets.
+class CustomConcept(Concept):
+    """Represents a custom concept."""
 
-    Used to keep a set of unique concept sets and to automatically assign numeric, unique IDs to each concept set.
-    """
+    def __init__(
+        self, name: str, concept_code: str, domain_id: str, vocabulary_id: str
+    ) -> None:
+        """Creates a custom concept."""
+        super().__init__(
+            id=-1,
+            name=name,
+            concept_code=concept_code,
+            domain_id=domain_id,
+            vocabulary_id=vocabulary_id,
+            concept_class_id="Custom",
+            standard_concept=None,
+            invalid_reason=None,
+        )
 
-    def __init__(self) -> None:
-        self._concept_sets: list[ConceptSet] = []
-
-    def add(self, concept_set: ConceptSet) -> ConceptSet:
+    @property
+    def id(self) -> int:  # type: ignore # todo: fix this (Signature of "id" incompatible with supertype "Concept")
         """
-        Add a concept set to the manager.
-
-        Args:
-          concept_set: The concept set.
-
-        Returns:
-          The concept set.
+        Returns the concept id.
         """
+        raise ValueError("Custom concepts do not have an id")
 
-        if concept_set in self._concept_sets:
-            return self._concept_sets[self._concept_sets.index(concept_set)]
-
-        concept_set.id = len(self._concept_sets)
-
-        self._concept_sets.append(concept_set)
-
-        return concept_set
-
-    def reset(self) -> None:
+    def __str__(self) -> str:
         """
-        Reset the concept set manager.
+        Returns a string representation of the concept.
         """
-        self._concept_sets = []
-
-    def json(self) -> list[dict]:
-        """
-        Return the JSON representation of the concept sets.
-        """
-        return [concept_set.json() for concept_set in self._concept_sets]
+        return (
+            f'Custom Concept: "{self.name}" [{self.vocabulary_id}#{self.concept_code}]'
+        )

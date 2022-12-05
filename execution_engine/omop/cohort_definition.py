@@ -47,7 +47,7 @@ class CohortDefinition:
 
         return name
 
-    def process(self) -> Iterator[sqlalchemy.orm.Query]:
+    def process(self) -> Iterator[Query]:
         """
         Process the cohort definition into a single SQL statement.
         """

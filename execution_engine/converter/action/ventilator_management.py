@@ -1,8 +1,8 @@
 from ...fhir.recommendation import Recommendation
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.combination import CriterionCombination
-from ...omop.vocabulary import SNOMEDCT, VocabularyNotFoundError
-from ..converter import parse_code
+from ...omop.vocabulary import SNOMEDCT, VocabularyNotStandardError
+from ..converter import code_display, parse_code
 from ..goal.ventilator_management import VentilatorManagementGoal
 from .abstract import AbstractAction
 
@@ -14,8 +14,6 @@ class VentilatorManagementAction(AbstractAction):
 
     _concept_code = "410210009"  # Ventilator care management (procedure)
     _concept_vocabulary = SNOMEDCT
-    _goal_type = VentilatorManagementGoal  # todo: Most likely there is no 1:1 relationship between action and goal types
-    _goal_required = True
 
     @classmethod
     def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
@@ -27,10 +25,14 @@ class VentilatorManagementAction(AbstractAction):
 
         # only using first goal for name
         goal = action_def.goals[0]
-        code = parse_code(goal.target[0].measure)
+
+        try:
+            name = parse_code(goal.target[0].measure).name
+        except VocabularyNotStandardError:
+            name = code_display(goal.target[0].measure)
 
         return cls(
-            name=code.name, exclude=False
+            name=name, exclude=False
         )  # fixme: no way to exclude goals (e.g. "do not ventilate")
 
     def _to_criterion(self) -> Criterion | CriterionCombination | None:

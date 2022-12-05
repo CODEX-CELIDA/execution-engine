@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 
 import sqlalchemy
 from sqlalchemy import literal_column, select, table
-from sqlalchemy.orm import Query
 from sqlalchemy.sql import ClauseElement, Insert, TableClause
 
 
@@ -112,7 +111,7 @@ class Criterion(AbstractCriterion):
         return query
 
     @abstractmethod
-    def _sql_generate(self, sql_header: Insert) -> str | Query:
+    def _sql_generate(self, sql_header: Insert) -> Insert:
         """
         Get the SQL representation of the criterion.
         """

@@ -33,8 +33,6 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
     _criterion_class: Type[Criterion]
     _concept_code: str
     _concept_vocabulary: Type[AbstractVocabulary]
-    _goal_required: bool
-    _goal_class: Type[Goal] | None
     _goals: list[Goal]
 
     def __init__(self, name: str, exclude: bool):

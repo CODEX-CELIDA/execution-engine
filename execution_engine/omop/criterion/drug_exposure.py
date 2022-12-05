@@ -2,6 +2,7 @@ import logging
 
 import pandas as pd
 from sqlalchemy import func, literal_column, select, table, text
+from sqlalchemy.sql import Insert
 
 from ...util import ValueNumber
 from ..concepts import Concept
@@ -65,7 +66,7 @@ class DrugExposure(Criterion):
 
         return df_filtered
 
-    def _sql_generate(self, sql_select: str) -> str:
+    def _sql_generate(self, sql_select: Insert) -> Insert:
 
         # fixme : implement "AND drug_exposure_start_datetime BETWEEN (.., ...)"
 

@@ -47,6 +47,18 @@ def parse_code(code: CodeableConcept) -> Concept:
     return standard_vocabulary.get_standard_concept(cc.system, cc.code)
 
 
+def code_display(code: CodeableConcept) -> str:
+    """
+    Get the display of a CodeableConcept (or the code alternatively).
+    """
+    cc = get_coding(code)
+
+    if cc.display is not None:
+        return cc.display
+
+    return cc.code
+
+
 def parse_value(value_parent: Element, value_prefix: str) -> Value:
     """
     Parses a value from a FHIR element.
