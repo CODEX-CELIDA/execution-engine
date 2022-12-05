@@ -79,7 +79,11 @@ class OMOPSQLClient:
         return Concept.from_series(df.iloc[0])
 
     def get_concept(
-        self, vocabulary: str, code: str, standard: bool = False
+        self,
+        vocabulary: str,
+        code: str,
+        standard: bool = False,
+        name: str | None = None,
     ) -> Concept:
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
@@ -98,6 +102,9 @@ class OMOPSQLClient:
 
         if standard:
             query = query.where(concept.c.standard_concept == "S")
+
+        if name is not None:
+            query = query.where(concept.c.concept_name == name)
 
         df = self.query(query)
 

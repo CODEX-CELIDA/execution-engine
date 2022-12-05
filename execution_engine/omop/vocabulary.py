@@ -114,6 +114,35 @@ class UCUM(AbstractStandardVocabulary):
     system_uri = "http://unitsofmeasure.org"
     omop_vocab_name = "UCUM"
 
+    # Explicit ucum unit code to name mapping to avoid disambiguity (e.g. s could be seconds or Siemens)
+    UCUM_UNITS = {
+        "s": "second",
+        "kg": "kilogram",
+        "m": "meter",
+        "mg": "milligram",
+        "L": "liter",
+        "ml": "milliliter",
+        "mmHg": "millimeter of mercury",
+        "mL/kg": "milliliter per kilogram",
+        "[iU]": "international unit",
+        "[U]": "unit",
+        "h": "hour",
+        "H": "Henry",
+        "S": "Siemens",
+    }
+
+    @classmethod
+    def omop_concept(cls, concept: str, standard: bool = False) -> Concept:
+        """
+        Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
+        """
+        return omopdb.get_concept(
+            cls.omop_vocab_name,
+            concept,
+            standard=standard,
+            name=UCUM.UCUM_UNITS.get(concept),
+        )
+
 
 class AbstractMappedVocabulary(AbstractVocabulary):
     """
