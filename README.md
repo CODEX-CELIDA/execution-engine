@@ -18,8 +18,13 @@ from execution_engine import ExecutionEngine
 
 # set environment variables (or use a .env file)
 os.environ["FHIR_BASE_URL"] = "http://localhost:8000/fhir"
-os.environ["OMOP_WEBAPI_URL"] = "http://192.168.200.128:9876/WebAPI"
 os.environ["FHIR_TERMINOLOGY_SERVER_URL"] = "http://tx.fhir.org/R4"
+os.environ["OMOP_DB_HOST"] = "localhost"
+os.environ["OMOP_DB_PORT"] = "5432"
+os.environ["OMOP_DB_NAME"] = "ohdsi"
+os.environ["OMOP_DB_USER"] = "postgres"
+os.environ["OMOP_DB_PASSWORD"] = "postgres"
+os.environ["OMOP_DB_SCHEMA"] = "cds_cdm"
 
 # canonical URL of a recommendation in CPG-on-EBM-on-FHIR format
 recommendation_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/recommendations/intervention-plan/antithrombotic-prophylaxis-LMWH"
@@ -29,9 +34,6 @@ e = ExecutionEngine()
 # load recommendation from FHIR server and convert it into OMOP cohort definition
 cohort_def = e.process_recommendation(recommendation_url)
 
-# create cohort in OMOP CDM database
-e.create_cohort(
-    name='codex-celida-recommendation-cohort',
-    description=f'Cohort for the CODEX-CELIDA recommendation found at {recommendation_url}',
-    cohort_def
- )
+# get series of SQL statements for selecting patients from OMOP CDM according to the cohort definition
+for statement in cd.process():
+    print(omopdb.compile_query(statement))
