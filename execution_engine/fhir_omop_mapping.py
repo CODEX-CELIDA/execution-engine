@@ -69,9 +69,7 @@ class ActionSelectionBehavior:
         if behavior not in self._map:
             raise ValueError(f"Invalid action selection behavior: {behavior}")
         elif self._map[behavior] is None:
-            warnings.warn("implement me")
-
-            # raise ValueError(f"Unsupported action selection behavior: {behavior}")
+            raise ValueError(f"Unsupported action selection behavior: {behavior}")
 
         self._behavior = behavior
 
@@ -82,9 +80,6 @@ class ActionSelectionBehavior:
         """
 
         if self._map[self._behavior] is None:
-            warnings.warn("implement me")
-            if self._behavior == "exactly-one":
-                return CharacteristicCombination.Code.AT_LEAST
             raise ValueError(f"Unsupported action selection behavior: {self._behavior}")
 
         return self._map[self._behavior]["code"]  # type: ignore
@@ -96,9 +91,6 @@ class ActionSelectionBehavior:
         """
 
         if self._map[self._behavior] is None:
-            warnings.warn("implement me")
-            if self._behavior == "exactly-one":
-                return 1
             raise ValueError(f"Unsupported action selection behavior: {self._behavior}")
 
         return self._map[self._behavior]["threshold"]  # type: ignore

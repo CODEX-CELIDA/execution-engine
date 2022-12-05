@@ -20,7 +20,7 @@ urls = [
     "intervention-plan/therapeutic-anticoagulation",
     "intervention-plan/antithrombotic-prophylaxis-fondaparinux",
     "intervention-plan/no-antithrombotic-prophylaxis",
-    # "intervention-plan/ventilation-plan",
+    "intervention-plan/ventilation-plan",
     "intervention-plan/peep-for-ards-fio2-point3",
     "intervention-plan/abdominal-positioning-ARDS-plan",
 ]
