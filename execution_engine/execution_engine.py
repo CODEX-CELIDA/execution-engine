@@ -1,6 +1,7 @@
 import logging
 import os
 import warnings
+from datetime import datetime
 from typing import Tuple, Union, cast
 
 from fhir.resources.evidencevariable import (

@@ -60,7 +60,12 @@ class VentilatorManagementGoal(Goal):
         """
         if self._code in CUSTOM_GOALS:
             cls = CUSTOM_GOALS[self._code]
-            return cls(name=self._code.name, exclude=False, value=self._value)
+            return cls(
+                name=self._code.name,
+                exclude=False,
+                concept=self._code,
+                value=self._value,
+            )
 
         return Measurement(
             name=self._name,

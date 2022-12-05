@@ -19,18 +19,34 @@ class ConceptCriterion(Criterion):
 
     """
 
-    _OMOP_TABLE: str
-    _OMOP_COLUMN_PREFIX: str
-    _OMOP_VALUE_REQUIRED: bool
-
     DOMAINS: dict[str, dict[str, str | bool]] = {
-        "condition": {"table": "condition_occurrence", "value_required": False},
-        "device": {"table": "device_exposure", "value_required": False},
+        "condition": {
+            "table": "condition_occurrence",
+            "value_required": False,
+            "static": True,
+        },
+        "device": {
+            "table": "device_exposure",
+            "value_required": False,
+            "static": False,
+        },
         # "drug": {'table': "drug_exposure", 'value_required': False}, # has its own class with different logic
-        "measurement": {"table": "measurement", "value_required": True},
-        "observation": {"table": "observation", "value_required": False},
-        "procedure": {"table": "procedure_occurrence", "value_required": False},
-        "visit": {"table": "visit_occurrence", "value_required": False},
+        "measurement": {
+            "table": "measurement",
+            "value_required": True,
+            "static": False,
+        },
+        "observation": {
+            "table": "observation",
+            "value_required": False,
+            "static": False,
+        },
+        "procedure": {
+            "table": "procedure_occurrence",
+            "value_required": False,
+            "static": False,
+        },
+        "visit": {"table": "visit_occurrence", "value_required": False, "static": True},
     }
 
     def __init__(
@@ -41,9 +57,6 @@ class ConceptCriterion(Criterion):
         value: Value | None = None,
     ):
         super().__init__(name, exclude)
-
-        if concept.is_custom():
-            raise ValueError("Custom concepts not supported")
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
@@ -65,6 +78,7 @@ class ConceptCriterion(Criterion):
         self._OMOP_TABLE = cast(str, domain["table"])
         self._OMOP_COLUMN_PREFIX = domain_id.lower()
         self._OMOP_VALUE_REQUIRED = cast(bool, domain["value_required"])
+        self._static = cast(bool, domain["static"])
 
     def _sql_generate(self, base_sql: Insert) -> Insert:
         """

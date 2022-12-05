@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 
 os.environ["FHIR_BASE_URL"] = "http://localhost:8000/fhir"
 os.environ["FHIR_TERMINOLOGY_SERVER_URL"] = "http://tx.fhir.org/R4"
@@ -25,9 +26,12 @@ urls = [
     "intervention-plan/abdominal-positioning-ARDS-plan",
 ]
 
+datetime_start = datetime.today() - timedelta(days=7)
+datetime_end = datetime.today()
+
 e = ExecutionEngine()
 
 for recommendation_url in urls:
     print(recommendation_url)
     cd = e.process_recommendation(base_url + recommendation_url)
-    list(cd.process())
+    list(cd.process(datetime_start, datetime_end))

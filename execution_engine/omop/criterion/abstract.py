@@ -1,9 +1,11 @@
 import copy
 import re
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 import sqlalchemy
-from sqlalchemy import literal_column, select, table
+from sqlalchemy import TypeDecorator, literal_column, select, table
+from sqlalchemy.engine import Dialect
 from sqlalchemy.sql import ClauseElement, Insert, TableClause
 
 
@@ -54,8 +56,27 @@ class AbstractCriterion(ABC):
         return self.type + "_" + self._name
 
 
+class DateTimeType(TypeDecorator):
+    """
+    SQLAlchemy type for datetime columns.
+    """
+
+    impl = sqlalchemy.types.DateTime
+
+    def process_literal_param(self, value: datetime, dialect: Dialect) -> str:
+        """
+        Convert a datetime to a string.
+        """
+        return value.strftime("'%Y-%m-%d %H:%M:%S'")
+
+
 class Criterion(AbstractCriterion):
     """A criterion in a cohort definition."""
+
+    _OMOP_TABLE: str
+    _OMOP_COLUMN_PREFIX: str
+    _OMOP_VALUE_REQUIRED: bool
+    _static: bool
 
     def __init__(self, name: str, exclude: bool = False):
         super().__init__(name, exclude)
@@ -117,13 +138,41 @@ class Criterion(AbstractCriterion):
         """
         raise NotImplementedError()
 
-    def sql_generate(self, table_in: str | None, table_out: str) -> ClauseElement:
+    def sql_generate(
+        self,
+        table_in: str | None,
+        table_out: str,
+        datetime_start: datetime,
+        datetime_end: datetime,
+    ) -> ClauseElement:
         """
         Get the SQL representation of the criterion.
         """
         sql = self._sql_header(table_in, table_out)
         sql = self._sql_generate(sql)
+        sql = self._insert_datetime(sql, datetime_start, datetime_end)
         sql = self._sql_post_process(sql)
+
+        return sql
+
+    def _insert_datetime(
+        self, sql: Insert, datetime_start: datetime, datetime_end: datetime
+    ) -> Insert:
+        """
+        Insert the datetime_start and datetime_end into the query.
+        """
+        if self._static:
+            return sql
+
+        c_start = literal_column(f"{self._OMOP_TABLE}_start_datetime", DateTimeType())
+        # c_end = literal_column(f"{self._OMOP_TABLE}_end_datetime", DateTimeType())
+
+        if isinstance(sql, Insert):
+            sql.select = sql.select.filter(
+                c_start.between(datetime_start, datetime_end)
+            )
+        else:
+            sql = sql.filter(c_start.between(datetime_start, datetime_end))
 
         return sql
 

@@ -8,7 +8,7 @@ from .concept import ConceptCriterion
 class VisitOccurrence(ConceptCriterion):
     """A visit criterion in a cohort definition."""
 
-    pass
+    _static: bool = True
 
 
 class ActivePatients(VisitOccurrence):

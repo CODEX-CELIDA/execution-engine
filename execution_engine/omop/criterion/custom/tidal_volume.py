@@ -9,11 +9,12 @@ from execution_engine.constants import (
     OMOP_GENDER_MALE,
 )
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber
 
 
-class TidalVolumePerIdealBodyWeight(Criterion):
+class TidalVolumePerIdealBodyWeight(ConceptCriterion):
     """
     Tidal volume per ideal body weight
 
@@ -26,9 +27,7 @@ class TidalVolumePerIdealBodyWeight(Criterion):
     per ideal body weight.
     """
 
-    def __init__(self, name: str, exclude: bool, value: ValueNumber):
-        super().__init__(name=name, exclude=exclude)
-        self._value = value
+    _value: ValueNumber
 
     def _sql_generate(self, sql_header: Insert) -> Insert:
         sql_ibw = (

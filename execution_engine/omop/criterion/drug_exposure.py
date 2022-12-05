@@ -15,6 +15,7 @@ class DrugExposure(Criterion):
 
     _OMOP_TABLE = "drug_exposure"
     _OMOP_COLUMN_PREFIX = "drug"
+    _static: bool = False
 
     def __init__(
         self,

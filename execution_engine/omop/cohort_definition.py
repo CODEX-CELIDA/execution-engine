@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 from typing import Any, Iterator
 
 import sqlalchemy
@@ -47,9 +48,11 @@ class CohortDefinition:
 
         return name
 
-    def process(self) -> Iterator[Query]:
+    def process(
+        self, datetime_start: datetime, datetime_end: datetime | None
+    ) -> Iterator[Query]:
         """
-        Process the cohort definition into a single SQL statement.
+        Process the cohort definition into SQL statements.
         """
 
         def to_sqlalchemy(sql: Any) -> Query:
@@ -60,13 +63,21 @@ class CohortDefinition:
                 return sqlalchemy.text(sql)
             return sql
 
+        if datetime_end is None:
+            datetime_end = datetime.now()
+
         execution_map = self.execution_map()
 
         i: int
         criterion: Criterion
 
         table_out = self._to_tablename(f"{self._base_criterion.name}")
-        sql = self._base_criterion.sql_generate(table_in=None, table_out=table_out)
+        sql = self._base_criterion.sql_generate(
+            table_in=None,
+            table_out=table_out,
+            datetime_start=datetime_start,
+            datetime_end=datetime_end,
+        )
         yield to_sqlalchemy(sql)
 
         for i, criterion in enumerate(execution_map.sequential()):
@@ -76,7 +87,9 @@ class CohortDefinition:
                 f"Processing {criterion.name} (exclude={criterion.exclude}) into {table_out}"
             )
 
-            sql = criterion.sql_generate(self._base_criterion.table_out, table_out)
+            sql = criterion.sql_generate(
+                self._base_criterion.table_out, table_out, datetime_start, datetime_end
+            )
 
             yield to_sqlalchemy(sql)
 
