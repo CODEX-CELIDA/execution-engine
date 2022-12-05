@@ -5,6 +5,7 @@ from typing import Tuple
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.dosage import Dosage
+from fhir.resources.extension import Extension
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from execution_engine.clients import omopdb
@@ -13,9 +14,11 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.vocabulary import SNOMEDCT, VocabularyFactory
-from execution_engine.util import ValueNumber
+from execution_engine.util import Value, ValueNumber
 
+from ...constants import EXT_DOSAGE_CONDITION
 from ...omop.criterion.combination import CriterionCombination
+from ...omop.criterion.concept import ConceptCriterion
 from ..converter import parse_code, parse_value
 from .abstract import AbstractAction
 
@@ -37,6 +40,7 @@ class DrugAdministrationAction(AbstractAction):
         frequency: int | None = None,
         interval: str | None = None,
         route: Concept | None = None,
+        extensions: list[dict[str, Concept | Value]] | None = None,
     ) -> None:
         """
         Initialize the drug administration action.
@@ -47,6 +51,7 @@ class DrugAdministrationAction(AbstractAction):
         self._frequency = frequency
         self._interval = interval
         self._route = route
+        self._extensions = extensions
 
     @classmethod
     def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
@@ -82,6 +87,8 @@ class DrugAdministrationAction(AbstractAction):
             route = cls.process_route(dosage)
             frequency, interval = cls.process_timing(dosage)
 
+            extensions = cls.process_dosage_extensions(dosage)
+
             action = cls(
                 name=name,
                 exclude=exclude,
@@ -90,6 +97,7 @@ class DrugAdministrationAction(AbstractAction):
                 frequency=frequency,
                 interval=interval,
                 route=route,
+                extensions=extensions,
             )
 
         return action
@@ -178,6 +186,44 @@ class DrugAdministrationAction(AbstractAction):
         return value
 
     @classmethod
+    def process_dosage_extensions(
+        cls, dosage: Dosage
+    ) -> list[dict[str, Concept | Value]]:
+        """
+        Processes extensions of dosage
+
+        Currently, the following extensions are supported:
+        - dosage-condition: Condition that must be met for the dosage to be applied (e.g. body weight < 70 kg)
+        """
+
+        extensions: list[dict[str, Concept | Value]] = []
+
+        if dosage.extension is None:
+            return extensions
+
+        def extension_field(extensions: list[Extension], url: str) -> Extension:
+            cmpr = [ext for ext in extensions if ext.url == url]
+            assert len(cmpr) == 1
+
+            return cmpr[0]
+
+        for extension in dosage.extension:
+            if extension.url == EXT_DOSAGE_CONDITION:
+                assert (
+                    len(extension.extension) == 2
+                ), "Dosage condition must have 2 sub-extensions (code, value)"
+                condition_value = extension_field(extension.extension, "value")
+                condition_type = extension_field(extension.extension, "type")
+
+                code = parse_code(condition_type.valueCodeableConcept)
+                value = parse_value(condition_value, "value")
+
+                extensions.append({"code": code, "value": value})
+            else:
+                raise NotImplementedError(f"Unknown dosage extension {extension.url}")
+        return extensions
+
+    @classmethod
     def process_route(cls, dosage: Dosage) -> Concept | None:
         """
         Processes the route of a drug administration action into a ValueNumber.
@@ -218,7 +264,7 @@ class DrugAdministrationAction(AbstractAction):
         Returns a criterion that represents this action.
         """
 
-        return DrugExposure(
+        drug_action = DrugExposure(
             name=self._name,
             exclude=self._exclude,
             drug_concepts=self._drug_concepts,
@@ -227,3 +273,25 @@ class DrugAdministrationAction(AbstractAction):
             interval=self._interval,
             route=self._route,
         )
+
+        if self._extensions:
+            comb = CriterionCombination(
+                name=f"{self._name}_extensions",
+                exclude=False,
+                operator=CriterionCombination.Operator("AND"),
+            )
+            comb.add(drug_action)
+
+            for extension in self._extensions:
+                comb.add(
+                    ConceptCriterion(
+                        name=f"{self._name}_ext_{extension['code'].name}",
+                        exclude=False,
+                        concept=extension["code"],
+                        value=extension["value"],
+                    )
+                )
+
+            return comb
+
+        return drug_action

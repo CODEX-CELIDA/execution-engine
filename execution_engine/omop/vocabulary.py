@@ -5,6 +5,14 @@ from ..clients import omopdb
 from .concepts import Concept
 
 
+class VocabularyNotFoundError(Exception):
+    """
+    Exception raised when a vocabulary is not found.
+    """
+
+    pass
+
+
 class AbstractVocabulary(ABC):
     """
     Abstract vocabulary class.
@@ -25,7 +33,7 @@ class AbstractVocabulary(ABC):
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
-        pass
+        raise NotImplementedError()
 
     @classmethod
     def omop_standard_concept(cls, concept: str) -> Concept:
@@ -132,6 +140,14 @@ class KontaktartDE(AbstractMappedVocabulary):
     }
 
 
+class CODEXCELIDA(AbstractVocabulary):
+    """
+    CODEXCELIDA vocabulary.
+    """
+
+    system_uri = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/CodeSystem/codex-celida"
+
+
 class VocabularyFactory:
     """
     Vocabulary factory.
@@ -150,6 +166,7 @@ class VocabularyFactory:
         self.register(KontaktartDE)
         self.register(UCUM)
         self.register(ATCDE)
+        self.register(CODEXCELIDA)
 
     def register(self, vocabulary: Type[AbstractVocabulary]) -> None:
         """
@@ -165,7 +182,7 @@ class VocabularyFactory:
         if system_uri in self._vocabulary:
             return self._vocabulary[system_uri]
         else:
-            raise KeyError(f"Vocabulary {system_uri} not found")
+            raise VocabularyNotFoundError(f"Vocabulary {system_uri} not found")
 
 
 class StandardVocabulary:

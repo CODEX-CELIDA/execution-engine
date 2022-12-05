@@ -1,7 +1,7 @@
 from ...fhir.recommendation import Recommendation
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.combination import CriterionCombination
-from ...omop.vocabulary import SNOMEDCT
+from ...omop.vocabulary import SNOMEDCT, VocabularyNotFoundError
 from ..converter import parse_code
 from ..goal.ventilator_management import VentilatorManagementGoal
 from .abstract import AbstractAction

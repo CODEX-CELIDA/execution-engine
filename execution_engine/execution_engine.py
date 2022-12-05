@@ -74,8 +74,7 @@ class ExecutionEngine:
 
         for action in actions:
             if action is None:
-                warnings.warn("Action is None")  # type: ignore
-                continue
+                raise ValueError("Action is None.")
             comb_actions.add(action.to_criterion())
 
         cd.add(comb_actions)

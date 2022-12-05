@@ -13,3 +13,5 @@ SCT_VENTILATOR_CARE_AND_ADJUSTMENT = (
 SCT_LAB_FINDINGS_SURVEILLANCE = (
     "410394004"  # Lab findings surveillance (regime/therapy)
 )
+
+EXT_DOSAGE_CONDITION = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/StructureDefinition/ext-dosage-condition"
