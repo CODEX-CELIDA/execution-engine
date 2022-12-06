@@ -7,6 +7,16 @@ from sqlalchemy.sql.elements import ClauseList
 
 from execution_engine.omop.concepts import Concept
 
+ucum_to_postgres = {
+    "s": "second",
+    "min": "minute",
+    "h": "hour",
+    "d": "day",
+    "wk": "week",
+    "mo": "month",
+    "a": "year",
+}
+
 
 class Value(BaseModel, ABC):
     """A value in a criterion."""

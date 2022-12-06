@@ -106,6 +106,12 @@ class ExecutionMap:
 
         _flat_traverse(self._nnf.args)
 
+    def nnf(self) -> sympy.Expr:
+        """
+        Return the negation normal form (NNF) of the criterion combination.
+        """
+        return self._nnf
+
     def sequential(self) -> Iterator[Criterion]:
         """
         Traverse the execution map and return a list of criteria that can be executed sequentially.

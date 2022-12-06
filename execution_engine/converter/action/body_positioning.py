@@ -42,15 +42,18 @@ class BodyPositioningAction(AbstractAction):
             raise ValueError("BodyPositioningAction must have an activity")
 
         code = parse_code(action_def.activity.code)
-        value = parse_value(action_def.activity, "timing")
+        timing = parse_value(action_def.activity, "timing")
 
         exclude = action_def.activity.doNotPerform
 
-        return cls(name=code.name, exclude=exclude, code=code, timing=value)
+        return cls(name=code.name, exclude=exclude, code=code, timing=timing)
 
     def _to_criterion(self) -> Criterion | CriterionCombination | None:
         """Converts this characteristic to a Criterion."""
         warnings.warn("timing missing")
         return ProcedureOccurrence(
-            name=self._name, exclude=self._exclude, concept=self._code
+            name=self._name,
+            exclude=self._exclude,
+            concept=self._code,
+            timing=self._timing,
         )

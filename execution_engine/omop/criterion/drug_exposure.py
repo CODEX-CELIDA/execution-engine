@@ -68,9 +68,6 @@ class DrugExposure(Criterion):
         return df_filtered
 
     def _sql_generate(self, sql_select: Insert) -> Insert:
-
-        # fixme : implement "AND drug_exposure_start_datetime BETWEEN (.., ...)"
-
         if self._dose is not None:
             df_drugs = self.filter_same_unit(
                 self._drug_concepts, self._dose.unit

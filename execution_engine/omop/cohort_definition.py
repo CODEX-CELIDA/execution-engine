@@ -66,6 +66,12 @@ class CohortDefinition:
         if datetime_end is None:
             datetime_end = datetime.now()
 
+        date_format = "%Y-%m-%d %H:%M:%S"
+
+        logging.info(
+            f"Observation window from {datetime_start.strftime(date_format)} to {datetime_end.strftime(date_format)}"
+        )
+
         execution_map = self.execution_map()
 
         i: int

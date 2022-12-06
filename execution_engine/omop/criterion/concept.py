@@ -87,23 +87,22 @@ class ConceptCriterion(Criterion):
         if self._OMOP_VALUE_REQUIRED and self._value is None:
             raise ValueError(f'Value must be set for "{self._OMOP_TABLE}" criteria')
 
-        table_alias = "".join([x[0] for x in self._OMOP_TABLE.split("_")])
-
         sql = base_sql.select
 
         concept_id = literal_column(f"{self._OMOP_COLUMN_PREFIX}_concept_id")
         tbl_join = table(
             self._OMOP_TABLE, literal_column("person_id"), concept_id
-        ).alias(table_alias)
+        ).alias(self.table_alias)
 
         sql = sql.join(
-            tbl_join.alias(table_alias),
+            tbl_join.alias(self.table_alias),
             tbl_join.c.person_id == self._table_in.c.person_id,
         ).filter(tbl_join.columns.corresponding_column(concept_id) == self._concept.id)
 
         if self._value is not None:
-            sql = sql.filter(self._value.to_sql(table_alias))
+            sql = sql.filter(self._value.to_sql(self.table_alias))
 
+        # fixme: remove this after making sure the above statement works equivalently
         # sql += (
         #    f"INNER JOIN {self._OMOP_TABLE} {table_alias} ON ({table_alias}.person_id = table_in.person_id)\n"
         #    f"WHERE ({self._OMOP_COLUMN_PREFIX}_concept_id = {self._concept.id})\n"

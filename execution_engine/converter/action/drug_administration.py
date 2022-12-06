@@ -14,7 +14,7 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.vocabulary import SNOMEDCT, VocabularyFactory
-from execution_engine.util import Value, ValueNumber
+from execution_engine.util import Value, ValueNumber, ucum_to_postgres
 
 from ...constants import EXT_DOSAGE_CONDITION
 from ...omop.criterion.combination import CriterionCombination
@@ -238,15 +238,6 @@ class DrugAdministrationAction(AbstractAction):
         """
         Returns the frequency and interval of the dosage.
         """
-        ucum_to_postgres = {
-            "s": "second",
-            "min": "minute",
-            "h": "hour",
-            "d": "day",
-            "wk": "week",
-            "mo": "month",
-            "a": "year",
-        }
         timing = dosage.timing
         frequency = timing.repeat.frequency
         period = timing.repeat.period
