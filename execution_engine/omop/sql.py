@@ -50,7 +50,15 @@ class OMOPSQLClient:
         """
         Execute the given query against the OMOP CDM database.
         """
-        return self._engine.execute(query)
+        return self._session.execute(query)
+
+    def commit(self) -> None:
+        """Commit the current transaction."""
+        self._session.commit()
+
+    def rollback(self) -> None:
+        """Rollback the current transaction."""
+        self._session.rollback()
 
     def query(self, sql: Any, **kwargs: str | int) -> pd.DataFrame:
         """

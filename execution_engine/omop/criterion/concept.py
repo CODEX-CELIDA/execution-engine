@@ -5,6 +5,7 @@ from sqlalchemy import literal_column, table
 from sqlalchemy.sql import Insert, TableClause
 
 from ...util import Value
+from ...util.sql import SelectInto
 from ..concepts import Concept
 from .abstract import Criterion
 
@@ -80,14 +81,14 @@ class ConceptCriterion(Criterion):
         self._OMOP_VALUE_REQUIRED = cast(bool, domain["value_required"])
         self._static = cast(bool, domain["static"])
 
-    def _sql_generate(self, base_sql: Insert) -> Insert:
+    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
         """
         Get the SQL representation of the criterion.
         """
         if self._OMOP_VALUE_REQUIRED and self._value is None:
             raise ValueError(f'Value must be set for "{self._OMOP_TABLE}" criteria')
 
-        sql = base_sql.select
+        sql = base_sql
 
         concept_id = literal_column(f"{self._OMOP_COLUMN_PREFIX}_concept_id")
         tbl_join = table(
@@ -111,6 +112,4 @@ class ConceptCriterion(Criterion):
         # if self._value is not None:
         #    sql += f" AND ({self._value.to_sql(table_alias)})\n"
 
-        base_sql.select = sql
-
-        return base_sql
+        return sql

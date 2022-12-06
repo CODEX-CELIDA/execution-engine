@@ -1,6 +1,7 @@
 from sqlalchemy import literal_column, table
-from sqlalchemy.sql import Insert
+from sqlalchemy.sql import Insert, Select
 
+from ...util.sql import SelectInto
 from .. import StandardConcepts
 from .concept import ConceptCriterion
 
@@ -30,11 +31,11 @@ class ActivePatients(VisitOccurrence):
 
         return super()._sql_header(self._OMOP_TABLE, table_out)
 
-    def _sql_generate(self, sql_header: Insert) -> Insert:
+    def _sql_generate(self, sql_header: SelectInto) -> SelectInto:
         """
         Get the SQL representation of the criterion.
         """
-        sql_header.select = sql_header.select.filter(
+        sql_header = sql_header.filter(
             literal_column("visit_type_concept_id")
             == StandardConcepts.VISIT_TYPE_STILL_PATIENT.value
         )

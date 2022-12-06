@@ -43,9 +43,6 @@ class CohortDefinition:
         """
         name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
 
-        if temporary:
-            return f"#{name}"
-
         return name
 
     def process(

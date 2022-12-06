@@ -8,6 +8,8 @@ from sqlalchemy import TypeDecorator, literal_column, select, table
 from sqlalchemy.engine import Dialect
 from sqlalchemy.sql import ClauseElement, Insert, TableClause
 
+from execution_engine.util.sql import select_into
+
 
 class AbstractCriterion(ABC):
     """
@@ -134,12 +136,11 @@ class Criterion(AbstractCriterion):
         else:
             self._table_out = table_out
 
-        sel = select(self._table_in.c.person_id).select_from(self._table_in).distinct()
-        query = self._table_out.original.insert().from_select(
-            [self._table_out.c.person_id], sel
-        )
+        sel = select_into(
+            self._table_in.c.person_id, into=self._table_out, temporary=True
+        ).distinct()
 
-        return query
+        return sel
 
     @abstractmethod
     def _sql_generate(self, sql_header: Insert) -> Insert:

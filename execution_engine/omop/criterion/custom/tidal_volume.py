@@ -12,6 +12,7 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber
+from execution_engine.util.sql import SelectInto
 
 
 class TidalVolumePerIdealBodyWeight(ConceptCriterion):
@@ -29,7 +30,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
     _value: ValueNumber
 
-    def _sql_generate(self, sql_header: Insert) -> Insert:
+    def _sql_generate(self, sql_header: SelectInto) -> SelectInto:
         sql_ibw = (
             text(  # nosec
                 f"""
@@ -69,7 +70,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         # ''')
 
         tbl_meas = omopdb.tables["measurement"]
-        sql_select = sql_header.select
+        sql_select = sql_header
         sql_select = sql_select.join(
             sql_ibw, sql_ibw.c.person_id == tbl_meas.c.person_id
         )
@@ -81,9 +82,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         )
         sql_select = sql_select.filter(sql_value)
 
-        sql_header.select = sql_select
-
-        return sql_header
+        return sql_select
 
     @staticmethod
     def predicted_body_weight_ardsnet(gender: int, height_in_cm: float) -> float:

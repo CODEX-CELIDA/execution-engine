@@ -2,6 +2,7 @@ from sqlalchemy import func, literal_column, table, text
 from sqlalchemy.sql import Insert, extract
 
 from ...util import ValueNumber, ucum_to_postgres
+from ...util.sql import SelectInto
 from ..concepts import Concept
 from .abstract import Criterion
 from .concept import ConceptCriterion
@@ -25,11 +26,11 @@ class ProcedureOccurrence(ConceptCriterion):
         super().__init__(name=name, exclude=exclude, concept=concept, value=value)
         self._timing = timing
 
-    def _sql_generate(self, base_sql: Insert) -> Insert:
+    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
         """
         Get the SQL representation of the criterion.
         """
-        sql = base_sql.select
+        sql = base_sql
 
         concept_id = literal_column(f"{self._OMOP_COLUMN_PREFIX}_concept_id")
         start_datetime = literal_column(f"{self._OMOP_COLUMN_PREFIX}_datetime")
@@ -58,7 +59,5 @@ class ProcedureOccurrence(ConceptCriterion):
                     table_name=self.table_alias, column_name="duration", with_unit=False
                 )
             )
-
-        base_sql.select = sql
 
         return base_sql
