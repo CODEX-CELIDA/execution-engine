@@ -9,7 +9,7 @@ from .concept import ConceptCriterion
 class VisitOccurrence(ConceptCriterion):
     """A visit criterion in a cohort definition."""
 
-    _static: bool = True
+    pass
 
 
 class ActivePatients(VisitOccurrence):
@@ -31,13 +31,16 @@ class ActivePatients(VisitOccurrence):
 
         return super()._sql_header(self._OMOP_TABLE, table_out)
 
-    def _sql_generate(self, sql_header: SelectInto) -> SelectInto:
+    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
         """
         Get the SQL representation of the criterion.
         """
-        sql_header = sql_header.filter(
+        sql = base_sql.select
+        sql = sql.filter(
             literal_column("visit_type_concept_id")
             == StandardConcepts.VISIT_TYPE_STILL_PATIENT.value
         )
 
-        return sql_header
+        base_sql.select = sql
+
+        return base_sql

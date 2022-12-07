@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Iterator
 
 import sqlalchemy
+from sqlalchemy import text
 from sqlalchemy.orm import Query
 
 from ..execution_map import ExecutionMap
@@ -46,7 +47,10 @@ class CohortDefinition:
         return name
 
     def process(
-        self, datetime_start: datetime, datetime_end: datetime | None
+        self,
+        datetime_start: datetime,
+        datetime_end: datetime | None,
+        cleanup: bool = True,
     ) -> Iterator[Query]:
         """
         Process the cohort definition into SQL statements.
@@ -93,16 +97,23 @@ class CohortDefinition:
             sql = criterion.sql_generate(
                 self._base_criterion.table_out, table_out, datetime_start, datetime_end
             )
-
+            print(sql)
             yield to_sqlalchemy(sql)
+
+        yield text("COMMIT")
 
         logging.info("Yielding combination sql")
         sql_template, criteria = execution_map.combine()
         yield to_sqlalchemy(sql_template.format(*[c.sql_select() for c in criteria]))
 
-        logging.info("Cleaning up temporary tables")
-        for criterion in execution_map.sequential():
-            logging.info(f"Cleaning up {criterion.name}")
-            yield to_sqlalchemy(criterion.sql_cleanup())
+        yield text("COMMIT")
 
-        yield to_sqlalchemy(self._base_criterion.sql_cleanup())
+        if cleanup:
+            logging.info("Cleaning up temporary tables")
+            for criterion in execution_map.sequential():
+                logging.info(f"Cleaning up {criterion.name}")
+                yield to_sqlalchemy(criterion.sql_cleanup())
+
+            yield to_sqlalchemy(self._base_criterion.sql_cleanup())
+
+            yield text("COMMIT")

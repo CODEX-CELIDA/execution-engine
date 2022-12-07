@@ -11,6 +11,7 @@ os.environ["OMOP_DB_NAME"] = "ohdsi"
 os.environ["OMOP_DB_SCHEMA"] = "cds_cdm"
 
 from execution_engine import ExecutionEngine
+from execution_engine.clients import omopdb
 
 base_url = (
     "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/recommendations/"
@@ -34,4 +35,5 @@ e = ExecutionEngine()
 for recommendation_url in urls:
     print(recommendation_url)
     cd = e.process_recommendation(base_url + recommendation_url)
-    list(cd.process(datetime_start, datetime_end))
+    for statement in cd.process(datetime_start, datetime_end):
+        omopdb.execute(statement)

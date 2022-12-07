@@ -20,36 +20,6 @@ class ConceptCriterion(Criterion):
 
     """
 
-    DOMAINS: dict[str, dict[str, str | bool]] = {
-        "condition": {
-            "table": "condition_occurrence",
-            "value_required": False,
-            "static": True,
-        },
-        "device": {
-            "table": "device_exposure",
-            "value_required": False,
-            "static": False,
-        },
-        # "drug": {'table': "drug_exposure", 'value_required': False}, # has its own class with different logic
-        "measurement": {
-            "table": "measurement",
-            "value_required": True,
-            "static": False,
-        },
-        "observation": {
-            "table": "observation",
-            "value_required": False,
-            "static": False,
-        },
-        "procedure": {
-            "table": "procedure_occurrence",
-            "value_required": False,
-            "static": False,
-        },
-        "visit": {"table": "visit_occurrence", "value_required": False, "static": True},
-    }
-
     def __init__(
         self,
         name: str,
@@ -67,38 +37,23 @@ class ConceptCriterion(Criterion):
         self._start_datetime: datetime | None = None
         self._end_datetime: datetime | None = None
 
-    def _set_omop_variables_from_domain(self, domain_id: str) -> None:
-        """
-        Set the OMOP table and column prefix based on the domain ID.
-        """
-        if domain_id.lower() not in self.DOMAINS:
-            raise ValueError(f"Domain {domain_id} not supported")
-
-        domain = self.DOMAINS[domain_id.lower()]
-
-        self._OMOP_TABLE = cast(str, domain["table"])
-        self._OMOP_COLUMN_PREFIX = domain_id.lower()
-        self._OMOP_VALUE_REQUIRED = cast(bool, domain["value_required"])
-        self._static = cast(bool, domain["static"])
-
     def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
         """
         Get the SQL representation of the criterion.
         """
         if self._OMOP_VALUE_REQUIRED and self._value is None:
-            raise ValueError(f'Value must be set for "{self._OMOP_TABLE}" criteria')
+            raise ValueError(
+                f'Value must be set for "{self._OMOP_TABLE.__tablename__}" criteria'
+            )
 
-        sql = base_sql
+        sql = base_sql.select
 
-        concept_id = literal_column(f"{self._OMOP_COLUMN_PREFIX}_concept_id")
-        tbl_join = table(
-            self._OMOP_TABLE, literal_column("person_id"), concept_id
-        ).alias(self.table_alias)
+        concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
 
         sql = sql.join(
-            tbl_join.alias(self.table_alias),
-            tbl_join.c.person_id == self._table_in.c.person_id,
-        ).filter(tbl_join.columns.corresponding_column(concept_id) == self._concept.id)
+            self._table_join,
+            self._table_join.c.person_id == self._table_in.c.person_id,
+        ).filter(self._table_join.c[concept_column_name] == self._concept.id)
 
         if self._value is not None:
             sql = sql.filter(self._value.to_sql(self.table_alias))
@@ -112,4 +67,6 @@ class ConceptCriterion(Criterion):
         # if self._value is not None:
         #    sql += f" AND ({self._value.to_sql(table_alias)})\n"
 
-        return sql
+        base_sql.select = sql
+
+        return base_sql

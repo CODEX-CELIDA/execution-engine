@@ -1,10 +1,10 @@
 import logging
 
 import pandas as pd
-from sqlalchemy import func, literal_column, select, table, text
-from sqlalchemy.sql import Insert
+from sqlalchemy import func, literal_column, select, table
 
 from ...util import ValueNumber
+from ...util.sql import SelectInto
 from ..concepts import Concept
 from ..vocabulary import standard_vocabulary
 from .abstract import Criterion
@@ -12,10 +12,6 @@ from .abstract import Criterion
 
 class DrugExposure(Criterion):
     """A drug exposure criterion in a cohort definition."""
-
-    _OMOP_TABLE = "drug_exposure"
-    _OMOP_COLUMN_PREFIX = "drug"
-    _static: bool = False
 
     def __init__(
         self,
@@ -31,6 +27,7 @@ class DrugExposure(Criterion):
         Initialize the drug administration action.
         """
         super().__init__(name, exclude)
+        self._set_omop_variables_from_domain("drug")
         self._drug_concepts = drug_concepts
         self._dose = dose
         self._frequency = frequency
@@ -67,7 +64,7 @@ class DrugExposure(Criterion):
 
         return df_filtered
 
-    def _sql_generate(self, sql_select: Insert) -> Insert:
+    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
         if self._dose is not None:
             df_drugs = self.filter_same_unit(
                 self._drug_concepts, self._dose.unit
@@ -84,18 +81,20 @@ class DrugExposure(Criterion):
 
             drug_concept_ids = df_drugs["drug_concept_id"].tolist()
 
+            drug_exposure = self._table_join
+
             query = (
                 select(
-                    literal_column("de.person_id"),
+                    drug_exposure.c.person_id,
                     func.date_trunc(
-                        "day", literal_column("de.drug_exposure_start_datetime")
+                        "day", drug_exposure.c.drug_exposure_start_datetime
                     ).label("interval"),
                     func.count(literal_column("de.*")).label("cnt"),
-                    func.sum(literal_column("de.quantity")).label("dose"),
+                    func.sum(drug_exposure.c.quantity).label("dose"),
                 )
-                .select_from(table("drug_exposure").alias("de"))
-                .where(literal_column("de.drug_concept_id").in_(drug_concept_ids))
-                .group_by(literal_column("de.person_id"), literal_column("interval"))
+                .select_from(drug_exposure)
+                .where(drug_exposure.c.drug_concept_id.in_(drug_concept_ids))
+                .group_by(drug_exposure.c.person_id, literal_column("interval"))
                 .having(dose_sql)
                 .having(func.count(literal_column("de.*")) == self._frequency)
             )
@@ -107,5 +106,6 @@ class DrugExposure(Criterion):
                 .select_from(table("drug_exposure").alias("de"))
                 .where(literal_column("de.drug_concept_id").in_(drug_concept_ids))
             )
+        base_sql.select = query
 
-        return query
+        return base_sql

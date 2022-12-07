@@ -20,9 +20,12 @@ class OMOPSQLClient:
         """Initialize the OMOP SQL client."""
 
         self._schema = schema
+        connection_string = (
+            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
+        )
 
         self._engine = sqlalchemy.create_engine(
-            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}",
+            connection_string,
             connect_args={"options": "-csearch_path={}".format(schema)},
         )
 

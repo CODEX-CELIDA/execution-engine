@@ -22,7 +22,12 @@ class Value(BaseModel, ABC):
     """A value in a criterion."""
 
     @abstractmethod
-    def to_sql(self, table_name: str) -> str:
+    def to_sql(
+        self,
+        table_name: str | None,
+        column_name: str = "value_as_number",
+        with_unit: bool = True,
+    ) -> str:
         """
         Get the SQL representation of the value.
         """
@@ -129,7 +134,12 @@ class ValueConcept(Value):
 
     value: Concept
 
-    def to_sql(self, table_name: str) -> str:
+    def to_sql(
+        self,
+        table_name: str | None,
+        column_name: str = "value_as_number",
+        with_unit: bool = True,
+    ) -> str:
         """
         Get the SQL representation of the value.
         """

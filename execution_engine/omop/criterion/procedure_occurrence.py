@@ -1,19 +1,14 @@
-from sqlalchemy import func, literal_column, table, text
-from sqlalchemy.sql import Insert, extract
+from sqlalchemy import literal_column
+from sqlalchemy.sql import extract
 
 from ...util import ValueNumber, ucum_to_postgres
 from ...util.sql import SelectInto
 from ..concepts import Concept
-from .abstract import Criterion
 from .concept import ConceptCriterion
 
 
 class ProcedureOccurrence(ConceptCriterion):
     """A procedure occurrence criterion in a cohort definition."""
-
-    _OMOP_TABLE = "procedure_occurrence"
-    _OMOP_COLUMN_PREFIX = "procedure"
-    _static: bool = False
 
     def __init__(
         self,
@@ -24,6 +19,8 @@ class ProcedureOccurrence(ConceptCriterion):
         timing: ValueNumber | None = None,
     ) -> None:
         super().__init__(name=name, exclude=exclude, concept=concept, value=value)
+
+        self._set_omop_variables_from_domain("procedure")
         self._timing = timing
 
     def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
@@ -36,13 +33,7 @@ class ProcedureOccurrence(ConceptCriterion):
         start_datetime = literal_column(f"{self._OMOP_COLUMN_PREFIX}_datetime")
         end_datetime = literal_column(f"{self._OMOP_COLUMN_PREFIX}_end_datetime")
 
-        tbl_join = table(
-            self._OMOP_TABLE,
-            literal_column("person_id"),
-            concept_id,
-            start_datetime,
-            end_datetime,
-        ).alias(self.table_alias)
+        tbl_join = self._OMOP_TABLE.alias(self.table_alias)
 
         sql = sql.join(
             tbl_join,
