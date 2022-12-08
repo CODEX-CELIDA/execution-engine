@@ -21,35 +21,14 @@ Base: DeclarativeMeta = declarative_base()
 metadata = Base.metadata
 
 
-t_cdm_source = Table(
-    "cdm_source",
+t_cohort = Table(
+    "cohort",
     metadata,
-    Column("cdm_source_name", String(255), nullable=False),
-    Column("cdm_source_abbreviation", String(25)),
-    Column("cdm_holder", String(255)),
-    Column("source_description", Text),
-    Column("source_documentation_reference", String(255)),
-    Column("cdm_etl_reference", String(255)),
-    Column("source_release_date", Date),
-    Column("cdm_release_date", Date),
-    Column("cdm_version", String(10)),
-    Column("vocabulary_version", String(20)),
+    Column("cohort_definition_id", Integer, nullable=False),
+    Column("subject_id", Integer, nullable=False),
+    Column("cohort_start_date", Date, nullable=False),
+    Column("cohort_end_date", Date, nullable=False),
 )
-
-
-class Cohort(Base):
-    """
-    OMOP CDM Table: Cohort
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#COHORT
-    """
-
-    __tablename__ = "cohort"
-
-    cohort_definition_id = Column(Integer, primary_key=True, nullable=False, index=True)
-    subject_id = Column(Integer, primary_key=True, nullable=False, index=True)
-    cohort_start_date = Column(Date, primary_key=True, nullable=False)
-    cohort_end_date = Column(Date, primary_key=True, nullable=False)
 
 
 class Concept(Base):
@@ -61,7 +40,7 @@ class Concept(Base):
 
     __tablename__ = "concept"
 
-    concept_id = Column(Integer, primary_key=True, unique=True)
+    concept_id = Column(Integer, primary_key=True, index=True)
     concept_name = Column(String(255), nullable=False)
     domain_id = Column(ForeignKey("domain.domain_id"), nullable=False, index=True)
     vocabulary_id = Column(
@@ -86,7 +65,17 @@ class Concept(Base):
     )
 
 
-class ConceptClas(Base):
+t_concept_ancestor = Table(
+    "concept_ancestor",
+    metadata,
+    Column("ancestor_concept_id", Integer, nullable=False, index=True),
+    Column("descendant_concept_id", Integer, nullable=False, index=True),
+    Column("min_levels_of_separation", Integer, nullable=False),
+    Column("max_levels_of_separation", Integer, nullable=False),
+)
+
+
+class ConceptClass(Base):
     """
     OMOP CDM Table: Concept Class
 
@@ -95,7 +84,7 @@ class ConceptClas(Base):
 
     __tablename__ = "concept_class"
 
-    concept_class_id = Column(String(20), primary_key=True, unique=True)
+    concept_class_id = Column(String(20), primary_key=True, index=True)
     concept_class_name = Column(String(255), nullable=False)
     concept_class_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
 
@@ -114,79 +103,13 @@ class Domain(Base):
 
     __tablename__ = "domain"
 
-    domain_id = Column(String(20), primary_key=True, unique=True)
+    domain_id = Column(String(20), primary_key=True, index=True)
     domain_name = Column(String(255), nullable=False)
     domain_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
 
     domain_concept = relationship(
         "Concept", primaryjoin="Domain.domain_concept_id == Concept.concept_id"
     )
-
-
-class Location(Base):
-    """
-    OMOP CDM Table: Location
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#LOCATION
-    """
-
-    __tablename__ = "location"
-
-    location_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text("nextval('location_location_id_seq'::regclass)"),
-    )
-    address_1 = Column(String(50))
-    address_2 = Column(String(50))
-    city = Column(String(50))
-    state = Column(String(2))
-    zip = Column(String(9))
-    county = Column(String(20))
-    location_source_value = Column(String(50))
-
-
-t_metadata_ = Table(
-    "metadata",
-    metadata,
-    Column("metadata_concept_id", Integer, nullable=False),
-    Column("metadata_type_concept_id", Integer, nullable=False),
-    Column("name", String(250), nullable=False),
-    Column("value_as_string", Text),
-    Column("value_as_concept_id", Integer),
-    Column("metadata_date", Date),
-    Column("metadata_datetime", DateTime),
-)
-
-
-class SourceToConceptMap(Base):
-    """
-    OMOP CDM Table: Source to Concept Map
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#SOURCE_TO_CONCEPT_MAP
-    """
-
-    __tablename__ = "source_to_concept_map"
-
-    source_code = Column(String(50), primary_key=True, nullable=False, index=True)
-    source_concept_id = Column(Integer, nullable=False)
-    source_vocabulary_id = Column(
-        String(20), primary_key=True, nullable=False, index=True
-    )
-    source_code_description = Column(String(255))
-    target_concept_id = Column(Integer, primary_key=True, nullable=False, index=True)
-    target_vocabulary_id = Column(String(20), nullable=False, index=True)
-    valid_start_date = Column(Date, nullable=False)
-    valid_end_date = Column(Date, primary_key=True, nullable=False)
-    invalid_reason = Column(String(1))
-
-
-t_test = Table(
-    "test",
-    metadata,
-    Column("index", BigInteger, index=True),
-    Column("drug_concept_id", BigInteger),
-)
 
 
 class Vocabulary(Base):
@@ -198,7 +121,7 @@ class Vocabulary(Base):
 
     __tablename__ = "vocabulary"
 
-    vocabulary_id = Column(String(20), primary_key=True, unique=True)
+    vocabulary_id = Column(String(20), primary_key=True, index=True)
     vocabulary_name = Column(String(255), nullable=False)
     vocabulary_reference = Column(String(255))
     vocabulary_version = Column(String(255))
@@ -209,156 +132,121 @@ class Vocabulary(Base):
     )
 
 
-class AttributeDefinition(Base):
-    """
-    OMOP CDM Table: Attribute Definition
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#ATTRIBUTE_DEFINITION
-    """
-
-    __tablename__ = "attribute_definition"
-
-    attribute_definition_id = Column(Integer, primary_key=True, index=True)
-    attribute_name = Column(String(255), nullable=False)
-    attribute_description = Column(Text)
-    attribute_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
-    attribute_syntax = Column(Text)
-
-    attribute_type_concept = relationship("Concept")
-
-
-class CareSite(Base):
-    """
-    OMOP CDM Table: Care Site
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#CARE_SITE
-    """
-
-    __tablename__ = "care_site"
-
-    care_site_id = Column(Integer, primary_key=True)
-    care_site_name = Column(String(255))
-    place_of_service_concept_id = Column(ForeignKey("concept.concept_id"))
-    location_id = Column(ForeignKey("location.location_id"))
-    care_site_source_value = Column(String(50))
-    place_of_service_source_value = Column(String(50))
-
-    location = relationship("Location")
-    place_of_service_concept = relationship("Concept")
+t_cdm_source = Table(
+    "cdm_source",
+    metadata,
+    Column("cdm_source_name", String(255), nullable=False),
+    Column("cdm_source_abbreviation", String(25), nullable=False),
+    Column("cdm_holder", String(255), nullable=False),
+    Column("source_description", Text),
+    Column("source_documentation_reference", String(255)),
+    Column("cdm_etl_reference", String(255)),
+    Column("source_release_date", Date, nullable=False),
+    Column("cdm_release_date", Date, nullable=False),
+    Column("cdm_version", String(10)),
+    Column("cdm_version_concept_id", ForeignKey("concept.concept_id"), nullable=False),
+    Column("vocabulary_version", String(20), nullable=False),
+)
 
 
-class CohortDefinition(Base):
-    """
-    OMOP CDM Table: Cohort Definition
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#COHORT_DEFINITION
-    """
-
-    __tablename__ = "cohort_definition"
-
-    cohort_definition_id = Column(Integer, primary_key=True, index=True)
-    cohort_definition_name = Column(String(255), nullable=False)
-    cohort_definition_description = Column(Text)
-    definition_type_concept_id = Column(
-        ForeignKey("concept.concept_id"), nullable=False
-    )
-    cohort_definition_syntax = Column(Text)
-    subject_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
-    cohort_initiation_date = Column(Date)
-
-    definition_type_concept = relationship(
-        "Concept",
-        primaryjoin="CohortDefinition.definition_type_concept_id == Concept.concept_id",
-    )
-    subject_concept = relationship(
-        "Concept",
-        primaryjoin="CohortDefinition.subject_concept_id == Concept.concept_id",
-    )
-
-
-class ConceptAncestor(Base):
-    """
-    OMOP CDM Table: Concept Ancestor
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#CONCEPT_ANCESTOR
-    """
-
-    __tablename__ = "concept_ancestor"
-
-    ancestor_concept_id = Column(
-        ForeignKey("concept.concept_id"), primary_key=True, nullable=False, index=True
-    )
-    descendant_concept_id = Column(
-        ForeignKey("concept.concept_id"), primary_key=True, nullable=False, index=True
-    )
-    min_levels_of_separation = Column(Integer, nullable=False)
-    max_levels_of_separation = Column(Integer, nullable=False)
-
-    ancestor_concept = relationship(
-        "Concept",
-        primaryjoin="ConceptAncestor.ancestor_concept_id == Concept.concept_id",
-    )
-    descendant_concept = relationship(
-        "Concept",
-        primaryjoin="ConceptAncestor.descendant_concept_id == Concept.concept_id",
-    )
+t_cohort_definition = Table(
+    "cohort_definition",
+    metadata,
+    Column("cohort_definition_id", Integer, nullable=False),
+    Column("cohort_definition_name", String(255), nullable=False),
+    Column("cohort_definition_description", Text),
+    Column(
+        "definition_type_concept_id", ForeignKey("concept.concept_id"), nullable=False
+    ),
+    Column("cohort_definition_syntax", Text),
+    Column("subject_concept_id", ForeignKey("concept.concept_id"), nullable=False),
+    Column("cohort_initiation_date", Date),
+)
 
 
 t_concept_synonym = Table(
     "concept_synonym",
     metadata,
-    Column("concept_id", ForeignKey("concept.concept_id"), nullable=False, index=True),
+    Column("concept_id", Integer, nullable=False, index=True),
     Column("concept_synonym_name", String(1000), nullable=False),
     Column("language_concept_id", ForeignKey("concept.concept_id"), nullable=False),
-    UniqueConstraint("concept_id", "concept_synonym_name", "language_concept_id"),
 )
 
 
-class DrugStrength(Base):
+class Cost(Base):
     """
-    OMOP CDM Table: Drug Strength
+    OMOP CDM Table: Cost
 
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#DRUG_STRENGTH
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#COST
     """
 
-    __tablename__ = "drug_strength"
+    __tablename__ = "cost"
 
-    drug_concept_id = Column(
-        ForeignKey("concept.concept_id"), primary_key=True, nullable=False, index=True
+    cost_id = Column(
+        Integer,
+        primary_key=True,
+        server_default=text("nextval('cost_id_seq'::regclass)"),
     )
-    ingredient_concept_id = Column(
-        ForeignKey("concept.concept_id"), primary_key=True, nullable=False, index=True
-    )
-    amount_value = Column(Numeric)
-    amount_unit_concept_id = Column(ForeignKey("concept.concept_id"))
-    numerator_value = Column(Numeric)
-    numerator_unit_concept_id = Column(ForeignKey("concept.concept_id"))
-    denominator_value = Column(Numeric)
-    denominator_unit_concept_id = Column(ForeignKey("concept.concept_id"))
-    box_size = Column(Integer)
-    valid_start_date = Column(Date, nullable=False)
-    valid_end_date = Column(Date, nullable=False)
-    invalid_reason = Column(String(1))
+    cost_event_id = Column(Integer, nullable=False, index=True)
+    cost_domain_id = Column(ForeignKey("domain.domain_id"), nullable=False)
+    cost_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
+    currency_concept_id = Column(ForeignKey("concept.concept_id"))
+    total_charge = Column(Numeric)
+    total_cost = Column(Numeric)
+    total_paid = Column(Numeric)
+    paid_by_payer = Column(Numeric)
+    paid_by_patient = Column(Numeric)
+    paid_patient_copay = Column(Numeric)
+    paid_patient_coinsurance = Column(Numeric)
+    paid_patient_deductible = Column(Numeric)
+    paid_by_primary = Column(Numeric)
+    paid_ingredient_cost = Column(Numeric)
+    paid_dispensing_fee = Column(Numeric)
+    payer_plan_period_id = Column(Integer)
+    amount_allowed = Column(Numeric)
+    revenue_code_concept_id = Column(ForeignKey("concept.concept_id"))
+    revenue_code_source_value = Column(String(50))
+    drg_concept_id = Column(ForeignKey("concept.concept_id"))
+    drg_source_value = Column(String(3))
 
-    amount_unit_concept = relationship(
-        "Concept",
-        primaryjoin="DrugStrength.amount_unit_concept_id == Concept.concept_id",
+    cost_domain = relationship("Domain")
+    cost_type_concept = relationship(
+        "Concept", primaryjoin="Cost.cost_type_concept_id == Concept.concept_id"
     )
-    denominator_unit_concept = relationship(
-        "Concept",
-        primaryjoin="DrugStrength.denominator_unit_concept_id == Concept.concept_id",
+    currency_concept = relationship(
+        "Concept", primaryjoin="Cost.currency_concept_id == Concept.concept_id"
     )
-    drug_concept = relationship(
-        "Concept", primaryjoin="DrugStrength.drug_concept_id == Concept.concept_id"
+    drg_concept = relationship(
+        "Concept", primaryjoin="Cost.drg_concept_id == Concept.concept_id"
     )
-    ingredient_concept = relationship(
-        "Concept",
-        primaryjoin="DrugStrength.ingredient_concept_id == Concept.concept_id",
+    revenue_code_concept = relationship(
+        "Concept", primaryjoin="Cost.revenue_code_concept_id == Concept.concept_id"
     )
-    numerator_unit_concept = relationship(
-        "Concept",
-        primaryjoin="DrugStrength.numerator_unit_concept_id == Concept.concept_id",
-    )
+
+
+t_drug_strength = Table(
+    "drug_strength",
+    metadata,
+    Column(
+        "drug_concept_id", ForeignKey("concept.concept_id"), nullable=False, index=True
+    ),
+    Column(
+        "ingredient_concept_id",
+        ForeignKey("concept.concept_id"),
+        nullable=False,
+        index=True,
+    ),
+    Column("amount_value", Numeric),
+    Column("amount_unit_concept_id", ForeignKey("concept.concept_id")),
+    Column("numerator_value", Numeric),
+    Column("numerator_unit_concept_id", ForeignKey("concept.concept_id")),
+    Column("denominator_value", Numeric),
+    Column("denominator_unit_concept_id", ForeignKey("concept.concept_id")),
+    Column("box_size", Integer),
+    Column("valid_start_date", Date, nullable=False),
+    Column("valid_end_date", Date, nullable=False),
+    Column("invalid_reason", String(1)),
+)
 
 
 t_fact_relationship = Table(
@@ -387,6 +275,100 @@ t_fact_relationship = Table(
 )
 
 
+class Location(Base):
+    """
+    OMOP CDM Table: Location
+
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#LOCATION
+    """
+
+    __tablename__ = "location"
+
+    location_id = Column(Integer, primary_key=True, index=True)
+    address_1 = Column(String(50))
+    address_2 = Column(String(50))
+    city = Column(String(50))
+    state = Column(String(2))
+    zip = Column(String(9))
+    county = Column(String(20))
+    location_source_value = Column(String(50))
+    country_concept_id = Column(ForeignKey("concept.concept_id"))
+    country_source_value = Column(String(80))
+    latitude = Column(Numeric)
+    longitude = Column(Numeric)
+
+    country_concept = relationship("Concept")
+
+
+class Metadatum(Base):
+    """
+    OMOP CDM Table: Metadata
+
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#METADATA
+    """
+
+    __tablename__ = "metadata"
+
+    metadata_id = Column(Integer, primary_key=True)
+    metadata_concept_id = Column(
+        ForeignKey("concept.concept_id"), nullable=False, index=True
+    )
+    metadata_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
+    name = Column(String(250), nullable=False)
+    value_as_string = Column(String(250))
+    value_as_concept_id = Column(ForeignKey("concept.concept_id"))
+    value_as_number = Column(Numeric)
+    metadata_date = Column(Date)
+    metadata_datetime = Column(DateTime)
+
+    metadata_concept = relationship(
+        "Concept", primaryjoin="Metadatum.metadata_concept_id == Concept.concept_id"
+    )
+    metadata_type_concept = relationship(
+        "Concept",
+        primaryjoin="Metadatum.metadata_type_concept_id == Concept.concept_id",
+    )
+    value_as_concept = relationship(
+        "Concept", primaryjoin="Metadatum.value_as_concept_id == Concept.concept_id"
+    )
+
+
+class NoteNlp(Base):
+    """
+    OMOP CDM Table: Note NLP
+
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#NOTE_NLP
+    """
+
+    __tablename__ = "note_nlp"
+
+    note_nlp_id = Column(Integer, primary_key=True)
+    note_id = Column(Integer, nullable=False, index=True)
+    section_concept_id = Column(ForeignKey("concept.concept_id"))
+    snippet = Column(String(250))
+    offset = Column(String(50))
+    lexical_variant = Column(String(250), nullable=False)
+    note_nlp_concept_id = Column(ForeignKey("concept.concept_id"), index=True)
+    note_nlp_source_concept_id = Column(ForeignKey("concept.concept_id"))
+    nlp_system = Column(String(250))
+    nlp_date = Column(Date, nullable=False)
+    nlp_datetime = Column(DateTime)
+    term_exists = Column(String(1))
+    term_temporal = Column(String(50))
+    term_modifiers = Column(String(2000))
+
+    note_nlp_concept = relationship(
+        "Concept", primaryjoin="NoteNlp.note_nlp_concept_id == Concept.concept_id"
+    )
+    note_nlp_source_concept = relationship(
+        "Concept",
+        primaryjoin="NoteNlp.note_nlp_source_concept_id == Concept.concept_id",
+    )
+    section_concept = relationship(
+        "Concept", primaryjoin="NoteNlp.section_concept_id == Concept.concept_id"
+    )
+
+
 class Relationship(Base):
     """
     OMOP CDM Table: Relationship
@@ -396,82 +378,71 @@ class Relationship(Base):
 
     __tablename__ = "relationship"
 
-    relationship_id = Column(String(20), primary_key=True, unique=True)
+    relationship_id = Column(String(20), primary_key=True, index=True)
     relationship_name = Column(String(255), nullable=False)
     is_hierarchical = Column(String(1), nullable=False)
     defines_ancestry = Column(String(1), nullable=False)
-    reverse_relationship_id = Column(
-        ForeignKey("relationship.relationship_id"), nullable=False
-    )
+    reverse_relationship_id = Column(String(20), nullable=False)
     relationship_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
 
     relationship_concept = relationship("Concept")
-    reverse_relationship = relationship("Relationship", remote_side=[relationship_id])
 
 
-class CohortAttribute(Base):
-    """
-    OMOP CDM Table: Cohort Attribute
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#COHORT_ATTRIBUTE
-    """
-
-    __tablename__ = "cohort_attribute"
-
-    cohort_definition_id = Column(
-        ForeignKey("cohort_definition.cohort_definition_id"),
-        primary_key=True,
+t_source_to_concept_map = Table(
+    "source_to_concept_map",
+    metadata,
+    Column("source_code", String(50), nullable=False, index=True),
+    Column("source_concept_id", ForeignKey("concept.concept_id"), nullable=False),
+    Column("source_vocabulary_id", String(20), nullable=False, index=True),
+    Column("source_code_description", String(255)),
+    Column("target_concept_id", Integer, nullable=False, index=True),
+    Column(
+        "target_vocabulary_id",
+        ForeignKey("vocabulary.vocabulary_id"),
         nullable=False,
         index=True,
-    )
-    subject_id = Column(Integer, primary_key=True, nullable=False, index=True)
-    cohort_start_date = Column(Date, primary_key=True, nullable=False)
-    cohort_end_date = Column(Date, primary_key=True, nullable=False)
-    attribute_definition_id = Column(
-        ForeignKey("attribute_definition.attribute_definition_id"),
-        primary_key=True,
-        nullable=False,
-    )
-    value_as_number = Column(Numeric)
-    value_as_concept_id = Column(ForeignKey("concept.concept_id"))
-
-    attribute_definition = relationship("AttributeDefinition")
-    cohort_definition = relationship("CohortDefinition")
-    value_as_concept = relationship("Concept")
+    ),
+    Column("valid_start_date", Date, nullable=False),
+    Column("valid_end_date", Date, nullable=False),
+    Column("invalid_reason", String(1)),
+)
 
 
-class ConceptRelationship(Base):
+class CareSite(Base):
     """
-    OMOP CDM Table: Concept Relationship
+    OMOP CDM Table: Care Site
 
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#CONCEPT_RELATIONSHIP
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#CARE_SITE
     """
 
-    __tablename__ = "concept_relationship"
+    __tablename__ = "care_site"
 
-    concept_id_1 = Column(
-        ForeignKey("concept.concept_id"), primary_key=True, nullable=False, index=True
-    )
-    concept_id_2 = Column(
-        ForeignKey("concept.concept_id"), primary_key=True, nullable=False, index=True
-    )
-    relationship_id = Column(
+    care_site_id = Column(Integer, primary_key=True, index=True)
+    care_site_name = Column(String(255))
+    place_of_service_concept_id = Column(ForeignKey("concept.concept_id"))
+    location_id = Column(ForeignKey("location.location_id"))
+    care_site_source_value = Column(String(50))
+    place_of_service_source_value = Column(String(50))
+
+    location = relationship("Location")
+    place_of_service_concept = relationship("Concept")
+
+
+t_concept_relationship = Table(
+    "concept_relationship",
+    metadata,
+    Column("concept_id_1", Integer, nullable=False, index=True),
+    Column("concept_id_2", Integer, nullable=False, index=True),
+    Column(
+        "relationship_id",
         ForeignKey("relationship.relationship_id"),
-        primary_key=True,
         nullable=False,
         index=True,
-    )
-    valid_start_date = Column(Date, nullable=False)
-    valid_end_date = Column(Date, nullable=False)
-    invalid_reason = Column(String(1))
-
-    concept = relationship(
-        "Concept", primaryjoin="ConceptRelationship.concept_id_1 == Concept.concept_id"
-    )
-    concept1 = relationship(
-        "Concept", primaryjoin="ConceptRelationship.concept_id_2 == Concept.concept_id"
-    )
-    relationship = relationship("Relationship")
+    ),
+    Column("valid_start_date", Date, nullable=False),
+    Column("valid_end_date", Date, nullable=False),
+    Column("invalid_reason", String(1)),
+)
 
 
 class Provider(Base):
@@ -486,7 +457,8 @@ class Provider(Base):
     provider_id = Column(
         Integer,
         primary_key=True,
-        server_default=text("nextval('provider_provider_id_seq'::regclass)"),
+        index=True,
+        server_default=text("nextval('provider_id_seq'::regclass)"),
     )
     provider_name = Column(String(255))
     npi = Column(String(20))
@@ -526,13 +498,10 @@ class Person(Base):
 
     __tablename__ = "person"
 
-    person_id = Column(
-        Integer,
-        primary_key=True,
-        unique=True,
-        server_default=text("nextval('person_person_id_seq'::regclass)"),
+    person_id = Column(Integer, primary_key=True, index=True)
+    gender_concept_id = Column(
+        ForeignKey("concept.concept_id"), nullable=False, index=True
     )
-    gender_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
     year_of_birth = Column(Integer, nullable=False)
     month_of_birth = Column(Integer)
     day_of_birth = Column(Integer)
@@ -574,31 +543,65 @@ class Person(Base):
     )
 
 
-class Death(Person):
+class PayerPlanPeriod(Person):
     """
-    OMOP CDM Table: Death
+    OMOP CDM Table: Payer Plan Period
 
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#DEATH
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#PAYER_PLAN_PERIOD
     """
 
-    __tablename__ = "death"
+    __tablename__ = "payer_plan_period"
 
-    person_id = Column(ForeignKey("person.person_id"), primary_key=True, index=True)
-    death_date = Column(Date, nullable=False)
-    death_datetime = Column(DateTime)
-    death_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
-    cause_concept_id = Column(ForeignKey("concept.concept_id"))
-    cause_source_value = Column(String(50))
-    cause_source_concept_id = Column(ForeignKey("concept.concept_id"))
+    payer_plan_period_id = Column(ForeignKey("person.person_id"), primary_key=True)
+    person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
+    payer_plan_period_start_date = Column(Date, nullable=False)
+    payer_plan_period_end_date = Column(Date, nullable=False)
+    payer_concept_id = Column(ForeignKey("concept.concept_id"))
+    payer_source_value = Column(String(50))
+    payer_source_concept_id = Column(ForeignKey("concept.concept_id"))
+    plan_concept_id = Column(ForeignKey("concept.concept_id"))
+    plan_source_value = Column(String(50))
+    plan_source_concept_id = Column(ForeignKey("concept.concept_id"))
+    sponsor_concept_id = Column(ForeignKey("concept.concept_id"))
+    sponsor_source_value = Column(String(50))
+    sponsor_source_concept_id = Column(ForeignKey("concept.concept_id"))
+    family_source_value = Column(String(50))
+    stop_reason_concept_id = Column(ForeignKey("concept.concept_id"))
+    stop_reason_source_value = Column(String(50))
+    stop_reason_source_concept_id = Column(ForeignKey("concept.concept_id"))
 
-    cause_concept = relationship(
-        "Concept", primaryjoin="Death.cause_concept_id == Concept.concept_id"
+    payer_concept = relationship(
+        "Concept", primaryjoin="PayerPlanPeriod.payer_concept_id == Concept.concept_id"
     )
-    cause_source_concept = relationship(
-        "Concept", primaryjoin="Death.cause_source_concept_id == Concept.concept_id"
+    payer_source_concept = relationship(
+        "Concept",
+        primaryjoin="PayerPlanPeriod.payer_source_concept_id == Concept.concept_id",
     )
-    death_type_concept = relationship(
-        "Concept", primaryjoin="Death.death_type_concept_id == Concept.concept_id"
+    person = relationship(
+        "Person", primaryjoin="PayerPlanPeriod.person_id == Person.person_id"
+    )
+    plan_concept = relationship(
+        "Concept", primaryjoin="PayerPlanPeriod.plan_concept_id == Concept.concept_id"
+    )
+    plan_source_concept = relationship(
+        "Concept",
+        primaryjoin="PayerPlanPeriod.plan_source_concept_id == Concept.concept_id",
+    )
+    sponsor_concept = relationship(
+        "Concept",
+        primaryjoin="PayerPlanPeriod.sponsor_concept_id == Concept.concept_id",
+    )
+    sponsor_source_concept = relationship(
+        "Concept",
+        primaryjoin="PayerPlanPeriod.sponsor_source_concept_id == Concept.concept_id",
+    )
+    stop_reason_concept = relationship(
+        "Concept",
+        primaryjoin="PayerPlanPeriod.stop_reason_concept_id == Concept.concept_id",
+    )
+    stop_reason_source_concept = relationship(
+        "Concept",
+        primaryjoin="PayerPlanPeriod.stop_reason_source_concept_id == Concept.concept_id",
     )
 
 
@@ -616,12 +619,25 @@ class ConditionEra(Base):
     condition_concept_id = Column(
         ForeignKey("concept.concept_id"), nullable=False, index=True
     )
-    condition_era_start_date = Column(Date, nullable=False)
-    condition_era_end_date = Column(Date, nullable=False)
+    condition_era_start_date = Column(DateTime, nullable=False)
+    condition_era_end_date = Column(DateTime, nullable=False)
     condition_occurrence_count = Column(Integer)
 
     condition_concept = relationship("Concept")
     person = relationship("Person")
+
+
+t_death = Table(
+    "death",
+    metadata,
+    Column("person_id", ForeignKey("person.person_id"), nullable=False, index=True),
+    Column("death_date", Date, nullable=False),
+    Column("death_datetime", DateTime),
+    Column("death_type_concept_id", ForeignKey("concept.concept_id")),
+    Column("cause_concept_id", ForeignKey("concept.concept_id")),
+    Column("cause_source_value", String(50)),
+    Column("cause_source_concept_id", ForeignKey("concept.concept_id")),
+)
 
 
 class DoseEra(Base):
@@ -640,8 +656,8 @@ class DoseEra(Base):
     )
     unit_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
     dose_value = Column(Numeric, nullable=False)
-    dose_era_start_date = Column(Date, nullable=False)
-    dose_era_end_date = Column(Date, nullable=False)
+    dose_era_start_date = Column(DateTime, nullable=False)
+    dose_era_end_date = Column(DateTime, nullable=False)
 
     drug_concept = relationship(
         "Concept", primaryjoin="DoseEra.drug_concept_id == Concept.concept_id"
@@ -666,12 +682,50 @@ class DrugEra(Base):
     drug_concept_id = Column(
         ForeignKey("concept.concept_id"), nullable=False, index=True
     )
-    drug_era_start_date = Column(Date, nullable=False)
-    drug_era_end_date = Column(Date, nullable=False)
+    drug_era_start_date = Column(DateTime, nullable=False)
+    drug_era_end_date = Column(DateTime, nullable=False)
     drug_exposure_count = Column(Integer)
     gap_days = Column(Integer)
 
     drug_concept = relationship("Concept")
+    person = relationship("Person")
+
+
+class Episode(Base):
+    """
+    OMOP CDM Table: Episode
+
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#EPISODE
+    """
+
+    __tablename__ = "episode"
+
+    episode_id = Column(BigInteger, primary_key=True)
+    person_id = Column(ForeignKey("person.person_id"), nullable=False)
+    episode_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
+    episode_start_date = Column(Date, nullable=False)
+    episode_start_datetime = Column(DateTime)
+    episode_end_date = Column(Date)
+    episode_end_datetime = Column(DateTime)
+    episode_parent_id = Column(BigInteger)
+    episode_number = Column(Integer)
+    episode_object_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
+    episode_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
+    episode_source_value = Column(String(50))
+    episode_source_concept_id = Column(ForeignKey("concept.concept_id"))
+
+    episode_concept = relationship(
+        "Concept", primaryjoin="Episode.episode_concept_id == Concept.concept_id"
+    )
+    episode_object_concept = relationship(
+        "Concept", primaryjoin="Episode.episode_object_concept_id == Concept.concept_id"
+    )
+    episode_source_concept = relationship(
+        "Concept", primaryjoin="Episode.episode_source_concept_id == Concept.concept_id"
+    )
+    episode_type_concept = relationship(
+        "Concept", primaryjoin="Episode.episode_type_concept_id == Concept.concept_id"
+    )
     person = relationship("Person")
 
 
@@ -684,49 +738,13 @@ class ObservationPeriod(Base):
 
     __tablename__ = "observation_period"
 
-    observation_period_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text(
-            "nextval('observation_period_observation_period_id_seq'::regclass)"
-        ),
-    )
+    observation_period_id = Column(Integer, primary_key=True)
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
     observation_period_start_date = Column(Date, nullable=False)
     observation_period_end_date = Column(Date, nullable=False)
     period_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
 
     period_type_concept = relationship("Concept")
-    person = relationship("Person")
-
-
-class PayerPlanPeriod(Base):
-    """
-    OMOP CDM Table: Payer Plan Period
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#PAYER_PLAN_PERIOD
-    """
-
-    __tablename__ = "payer_plan_period"
-
-    payer_plan_period_id = Column(Integer, primary_key=True)
-    person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
-    payer_plan_period_start_date = Column(Date, nullable=False)
-    payer_plan_period_end_date = Column(Date, nullable=False)
-    payer_concept_id = Column(Integer)
-    payer_source_value = Column(String(50))
-    payer_source_concept_id = Column(Integer)
-    plan_concept_id = Column(Integer)
-    plan_source_value = Column(String(50))
-    plan_source_concept_id = Column(Integer)
-    sponsor_concept_id = Column(Integer)
-    sponsor_source_value = Column(String(50))
-    sponsor_source_concept_id = Column(Integer)
-    family_source_value = Column(String(50))
-    stop_reason_concept_id = Column(Integer)
-    stop_reason_source_value = Column(String(50))
-    stop_reason_source_concept_id = Column(Integer)
-
     person = relationship("Person")
 
 
@@ -739,11 +757,7 @@ class Speciman(Base):
 
     __tablename__ = "specimen"
 
-    specimen_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text("nextval('specimen_specimen_id_seq'::regclass)"),
-    )
+    specimen_id = Column(Integer, primary_key=True)
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
     specimen_concept_id = Column(
         ForeignKey("concept.concept_id"), nullable=False, index=True
@@ -789,15 +803,11 @@ class VisitOccurrence(Base):
 
     __tablename__ = "visit_occurrence"
 
-    visit_occurrence_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text(
-            "nextval('visit_occurrence_visit_occurrence_id_seq'::regclass)"
-        ),
-    )
+    visit_occurrence_id = Column(Integer, primary_key=True)
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
-    visit_concept_id = Column(Integer, nullable=False, index=True)
+    visit_concept_id = Column(
+        ForeignKey("concept.concept_id"), nullable=False, index=True
+    )
     visit_start_date = Column(Date, nullable=False)
     visit_start_datetime = Column(DateTime)
     visit_end_date = Column(Date, nullable=False)
@@ -807,28 +817,31 @@ class VisitOccurrence(Base):
     care_site_id = Column(ForeignKey("care_site.care_site_id"))
     visit_source_value = Column(String(50))
     visit_source_concept_id = Column(ForeignKey("concept.concept_id"))
-    admitting_source_concept_id = Column(ForeignKey("concept.concept_id"))
-    admitting_source_value = Column(String(50))
-    discharge_to_concept_id = Column(ForeignKey("concept.concept_id"))
-    discharge_to_source_value = Column(String(50))
+    admitted_from_concept_id = Column(ForeignKey("concept.concept_id"))
+    admitted_from_source_value = Column(String(50))
+    discharged_to_concept_id = Column(ForeignKey("concept.concept_id"))
+    discharged_to_source_value = Column(String(50))
     preceding_visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id")
     )
 
-    admitting_source_concept = relationship(
+    admitted_from_concept = relationship(
         "Concept",
-        primaryjoin="VisitOccurrence.admitting_source_concept_id == Concept.concept_id",
+        primaryjoin="VisitOccurrence.admitted_from_concept_id == Concept.concept_id",
     )
     care_site = relationship("CareSite")
-    discharge_to_concept = relationship(
+    discharged_to_concept = relationship(
         "Concept",
-        primaryjoin="VisitOccurrence.discharge_to_concept_id == Concept.concept_id",
+        primaryjoin="VisitOccurrence.discharged_to_concept_id == Concept.concept_id",
     )
     person = relationship("Person")
     preceding_visit_occurrence = relationship(
         "VisitOccurrence", remote_side=[visit_occurrence_id]
     )
     provider = relationship("Provider")
+    visit_concept = relationship(
+        "Concept", primaryjoin="VisitOccurrence.visit_concept_id == Concept.concept_id"
+    )
     visit_source_concept = relationship(
         "Concept",
         primaryjoin="VisitOccurrence.visit_source_concept_id == Concept.concept_id",
@@ -837,6 +850,94 @@ class VisitOccurrence(Base):
         "Concept",
         primaryjoin="VisitOccurrence.visit_type_concept_id == Concept.concept_id",
     )
+
+
+t_episode_event = Table(
+    "episode_event",
+    metadata,
+    Column("episode_id", ForeignKey("episode.episode_id"), nullable=False),
+    Column("event_id", BigInteger, nullable=False),
+    Column(
+        "episode_event_field_concept_id",
+        ForeignKey("concept.concept_id"),
+        nullable=False,
+    ),
+)
+
+
+class VisitDetail(Base):
+    """
+    OMOP CDM Table: Visit Detail
+
+    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#VISIT_DETAIL
+    """
+
+    __tablename__ = "visit_detail"
+
+    visit_detail_id = Column(
+        Integer,
+        primary_key=True,
+        server_default=text("nextval('visit_detail_id_seq'::regclass)"),
+    )
+    person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
+    visit_detail_concept_id = Column(
+        ForeignKey("concept.concept_id"), nullable=False, index=True
+    )
+    visit_detail_start_date = Column(Date, nullable=False)
+    visit_detail_start_datetime = Column(DateTime)
+    visit_detail_end_date = Column(Date, nullable=False)
+    visit_detail_end_datetime = Column(DateTime)
+    visit_detail_type_concept_id = Column(
+        ForeignKey("concept.concept_id"), nullable=False
+    )
+    provider_id = Column(ForeignKey("provider.provider_id"))
+    care_site_id = Column(ForeignKey("care_site.care_site_id"))
+    visit_detail_source_value = Column(String(50))
+    visit_detail_source_concept_id = Column(ForeignKey("concept.concept_id"))
+    admitted_from_concept_id = Column(ForeignKey("concept.concept_id"))
+    admitted_from_source_value = Column(String(50))
+    discharged_to_source_value = Column(String(50))
+    discharged_to_concept_id = Column(ForeignKey("concept.concept_id"))
+    preceding_visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
+    parent_visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
+    visit_occurrence_id = Column(
+        ForeignKey("visit_occurrence.visit_occurrence_id"), nullable=False, index=True
+    )
+
+    admitted_from_concept = relationship(
+        "Concept",
+        primaryjoin="VisitDetail.admitted_from_concept_id == Concept.concept_id",
+    )
+    care_site = relationship("CareSite")
+    discharged_to_concept = relationship(
+        "Concept",
+        primaryjoin="VisitDetail.discharged_to_concept_id == Concept.concept_id",
+    )
+    parent_visit_detail = relationship(
+        "VisitDetail",
+        remote_side=[visit_detail_id],
+        primaryjoin="VisitDetail.parent_visit_detail_id == VisitDetail.visit_detail_id",
+    )
+    person = relationship("Person")
+    preceding_visit_detail = relationship(
+        "VisitDetail",
+        remote_side=[visit_detail_id],
+        primaryjoin="VisitDetail.preceding_visit_detail_id == VisitDetail.visit_detail_id",
+    )
+    provider = relationship("Provider")
+    visit_detail_concept = relationship(
+        "Concept",
+        primaryjoin="VisitDetail.visit_detail_concept_id == Concept.concept_id",
+    )
+    visit_detail_source_concept = relationship(
+        "Concept",
+        primaryjoin="VisitDetail.visit_detail_source_concept_id == Concept.concept_id",
+    )
+    visit_detail_type_concept = relationship(
+        "Concept",
+        primaryjoin="VisitDetail.visit_detail_type_concept_id == Concept.concept_id",
+    )
+    visit_occurrence = relationship("VisitOccurrence")
 
 
 class ConditionOccurrence(Base):
@@ -848,13 +949,7 @@ class ConditionOccurrence(Base):
 
     __tablename__ = "condition_occurrence"
 
-    condition_occurrence_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text(
-            "nextval('condition_occurrence_condition_occurrence_id_seq'::regclass)"
-        ),
-    )
+    condition_occurrence_id = Column(Integer, primary_key=True)
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
     condition_concept_id = Column(
         ForeignKey("concept.concept_id"), nullable=False, index=True
@@ -864,16 +959,16 @@ class ConditionOccurrence(Base):
     condition_end_date = Column(Date)
     condition_end_datetime = Column(DateTime)
     condition_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
+    condition_status_concept_id = Column(ForeignKey("concept.concept_id"))
     stop_reason = Column(String(20))
     provider_id = Column(ForeignKey("provider.provider_id"))
     visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(Integer)
+    visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
     condition_source_value = Column(String(50))
     condition_source_concept_id = Column(ForeignKey("concept.concept_id"))
     condition_status_source_value = Column(String(50))
-    condition_status_concept_id = Column(ForeignKey("concept.concept_id"))
 
     condition_concept = relationship(
         "Concept",
@@ -893,52 +988,8 @@ class ConditionOccurrence(Base):
     )
     person = relationship("Person")
     provider = relationship("Provider")
+    visit_detail = relationship("VisitDetail")
     visit_occurrence = relationship("VisitOccurrence")
-
-
-class Cost(Base):
-    """
-    OMOP CDM Table: Cost
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#COST
-    """
-
-    __tablename__ = "cost"
-
-    cost_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text("nextval('cost_cost_id_seq'::regclass)"),
-    )
-    cost_event_id = Column(Integer, nullable=False)
-    cost_domain_id = Column(String(20), nullable=False)
-    cost_type_concept_id = Column(Integer, nullable=False)
-    currency_concept_id = Column(ForeignKey("concept.concept_id"))
-    total_charge = Column(Numeric)
-    total_cost = Column(Numeric)
-    total_paid = Column(Numeric)
-    paid_by_payer = Column(Numeric)
-    paid_by_patient = Column(Numeric)
-    paid_patient_copay = Column(Numeric)
-    paid_patient_coinsurance = Column(Numeric)
-    paid_patient_deductible = Column(Numeric)
-    paid_by_primary = Column(Numeric)
-    paid_ingredient_cost = Column(Numeric)
-    paid_dispensing_fee = Column(Numeric)
-    payer_plan_period_id = Column(ForeignKey("payer_plan_period.payer_plan_period_id"))
-    amount_allowed = Column(Numeric)
-    revenue_code_concept_id = Column(Integer)
-    reveue_code_source_value = Column(String(50))
-    drg_concept_id = Column(ForeignKey("concept.concept_id"))
-    drg_source_value = Column(String(3))
-
-    currency_concept = relationship(
-        "Concept", primaryjoin="Cost.currency_concept_id == Concept.concept_id"
-    )
-    drg_concept = relationship(
-        "Concept", primaryjoin="Cost.drg_concept_id == Concept.concept_id"
-    )
-    payer_plan_period = relationship("PayerPlanPeriod")
 
 
 class DeviceExposure(Base):
@@ -960,15 +1011,19 @@ class DeviceExposure(Base):
     device_exposure_end_date = Column(Date)
     device_exposure_end_datetime = Column(DateTime)
     device_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
-    unique_device_id = Column(String(50))
+    unique_device_id = Column(String(255))
+    production_id = Column(String(255))
     quantity = Column(Integer)
     provider_id = Column(ForeignKey("provider.provider_id"))
     visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(Integer)
-    device_source_value = Column(String(100))
+    visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
+    device_source_value = Column(String(50))
     device_source_concept_id = Column(ForeignKey("concept.concept_id"))
+    unit_concept_id = Column(ForeignKey("concept.concept_id"))
+    unit_source_value = Column(String(50))
+    unit_source_concept_id = Column(ForeignKey("concept.concept_id"))
 
     device_concept = relationship(
         "Concept", primaryjoin="DeviceExposure.device_concept_id == Concept.concept_id"
@@ -983,6 +1038,14 @@ class DeviceExposure(Base):
     )
     person = relationship("Person")
     provider = relationship("Provider")
+    unit_concept = relationship(
+        "Concept", primaryjoin="DeviceExposure.unit_concept_id == Concept.concept_id"
+    )
+    unit_source_concept = relationship(
+        "Concept",
+        primaryjoin="DeviceExposure.unit_source_concept_id == Concept.concept_id",
+    )
+    visit_detail = relationship("VisitDetail")
     visit_occurrence = relationship("VisitOccurrence")
 
 
@@ -998,7 +1061,7 @@ class DrugExposure(Base):
     drug_exposure_id = Column(
         Integer,
         primary_key=True,
-        server_default=text("nextval('drug_exposure_drug_exposure_id_seq'::regclass)"),
+        server_default=text("nextval('drug_exposure_id_seq'::regclass)"),
     )
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
     drug_concept_id = Column(
@@ -1021,7 +1084,7 @@ class DrugExposure(Base):
     visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(Integer)
+    visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
     drug_source_value = Column(String(50))
     drug_source_concept_id = Column(ForeignKey("concept.concept_id"))
     route_source_value = Column(String(50))
@@ -1042,6 +1105,7 @@ class DrugExposure(Base):
     route_concept = relationship(
         "Concept", primaryjoin="DrugExposure.route_concept_id == Concept.concept_id"
     )
+    visit_detail = relationship("VisitDetail")
     visit_occurrence = relationship("VisitOccurrence")
 
 
@@ -1054,11 +1118,7 @@ class Measurement(Base):
 
     __tablename__ = "measurement"
 
-    measurement_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text("nextval('measurement_measurement_id_seq'::regclass)"),
-    )
+    measurement_id = Column(Integer, primary_key=True)
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
     measurement_concept_id = Column(
         ForeignKey("concept.concept_id"), nullable=False, index=True
@@ -1079,12 +1139,19 @@ class Measurement(Base):
     visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(Integer)
+    visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
     measurement_source_value = Column(String(50))
     measurement_source_concept_id = Column(ForeignKey("concept.concept_id"))
     unit_source_value = Column(String(50))
+    unit_source_concept_id = Column(ForeignKey("concept.concept_id"))
     value_source_value = Column(String(50))
+    measurement_event_id = Column(BigInteger)
+    meas_event_field_concept_id = Column(ForeignKey("concept.concept_id"))
 
+    meas_event_field_concept = relationship(
+        "Concept",
+        primaryjoin="Measurement.meas_event_field_concept_id == Concept.concept_id",
+    )
     measurement_concept = relationship(
         "Concept",
         primaryjoin="Measurement.measurement_concept_id == Concept.concept_id",
@@ -1105,9 +1172,14 @@ class Measurement(Base):
     unit_concept = relationship(
         "Concept", primaryjoin="Measurement.unit_concept_id == Concept.concept_id"
     )
+    unit_source_concept = relationship(
+        "Concept",
+        primaryjoin="Measurement.unit_source_concept_id == Concept.concept_id",
+    )
     value_as_concept = relationship(
         "Concept", primaryjoin="Measurement.value_as_concept_id == Concept.concept_id"
     )
+    visit_detail = relationship("VisitDetail")
     visit_occurrence = relationship("VisitOccurrence")
 
 
@@ -1129,15 +1201,17 @@ class Note(Base):
     )
     note_class_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
     note_title = Column(String(250))
-    note_text = Column(Text)
+    note_text = Column(Text, nullable=False)
     encoding_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
     language_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
     provider_id = Column(ForeignKey("provider.provider_id"))
     visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(Integer)
+    visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
     note_source_value = Column(String(50))
+    note_event_id = Column(BigInteger)
+    note_event_field_concept_id = Column(ForeignKey("concept.concept_id"))
 
     encoding_concept = relationship(
         "Concept", primaryjoin="Note.encoding_concept_id == Concept.concept_id"
@@ -1148,11 +1222,15 @@ class Note(Base):
     note_class_concept = relationship(
         "Concept", primaryjoin="Note.note_class_concept_id == Concept.concept_id"
     )
+    note_event_field_concept = relationship(
+        "Concept", primaryjoin="Note.note_event_field_concept_id == Concept.concept_id"
+    )
     note_type_concept = relationship(
         "Concept", primaryjoin="Note.note_type_concept_id == Concept.concept_id"
     )
     person = relationship("Person")
     provider = relationship("Provider")
+    visit_detail = relationship("VisitDetail")
     visit_occurrence = relationship("VisitOccurrence")
 
 
@@ -1165,11 +1243,7 @@ class Observation(Base):
 
     __tablename__ = "observation"
 
-    observation_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text("nextval('observation_observation_id_seq'::regclass)"),
-    )
+    observation_id = Column(Integer, primary_key=True)
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
     observation_concept_id = Column(
         ForeignKey("concept.concept_id"), nullable=False, index=True
@@ -1188,12 +1262,19 @@ class Observation(Base):
     visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(Integer)
+    visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
     observation_source_value = Column(String(50))
     observation_source_concept_id = Column(ForeignKey("concept.concept_id"))
     unit_source_value = Column(String(50))
     qualifier_source_value = Column(String(50))
+    value_source_value = Column(String(50))
+    observation_event_id = Column(BigInteger)
+    obs_event_field_concept_id = Column(ForeignKey("concept.concept_id"))
 
+    obs_event_field_concept = relationship(
+        "Concept",
+        primaryjoin="Observation.obs_event_field_concept_id == Concept.concept_id",
+    )
     observation_concept = relationship(
         "Concept",
         primaryjoin="Observation.observation_concept_id == Concept.concept_id",
@@ -1217,6 +1298,7 @@ class Observation(Base):
     value_as_concept = relationship(
         "Concept", primaryjoin="Observation.value_as_concept_id == Concept.concept_id"
     )
+    visit_detail = relationship("VisitDetail")
     visit_occurrence = relationship("VisitOccurrence")
 
 
@@ -1229,19 +1311,15 @@ class ProcedureOccurrence(Base):
 
     __tablename__ = "procedure_occurrence"
 
-    procedure_occurrence_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text(
-            "nextval('procedure_occurrence_procedure_occurrence_id_seq'::regclass)"
-        ),
-    )
+    procedure_occurrence_id = Column(Integer, primary_key=True)
     person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
     procedure_concept_id = Column(
         ForeignKey("concept.concept_id"), nullable=False, index=True
     )
     procedure_date = Column(Date, nullable=False)
     procedure_datetime = Column(DateTime)
+    procedure_end_date = Column(Date)
+    procedure_end_datetime = Column(DateTime)
     procedure_type_concept_id = Column(ForeignKey("concept.concept_id"), nullable=False)
     modifier_concept_id = Column(ForeignKey("concept.concept_id"))
     quantity = Column(Integer)
@@ -1249,7 +1327,7 @@ class ProcedureOccurrence(Base):
     visit_occurrence_id = Column(
         ForeignKey("visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(Integer)
+    visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
     procedure_source_value = Column(String(50))
     procedure_source_concept_id = Column(ForeignKey("concept.concept_id"))
     modifier_source_value = Column(String(50))
@@ -1272,106 +1350,5 @@ class ProcedureOccurrence(Base):
         primaryjoin="ProcedureOccurrence.procedure_type_concept_id == Concept.concept_id",
     )
     provider = relationship("Provider")
+    visit_detail = relationship("VisitDetail")
     visit_occurrence = relationship("VisitOccurrence")
-
-
-class VisitDetail(Base):
-    """
-    OMOP CDM Table: Visit Detail
-
-    Reference: https://ohdsi.github.io/CommonDataModel/cdm54.html#VISIT_DETAIL
-    """
-
-    __tablename__ = "visit_detail"
-
-    visit_detail_id = Column(
-        Integer,
-        primary_key=True,
-        server_default=text("nextval('visit_detail_visit_detail_id_seq'::regclass)"),
-    )
-    person_id = Column(ForeignKey("person.person_id"), nullable=False, index=True)
-    visit_detail_concept_id = Column(Integer, nullable=False, index=True)
-    visit_detail_start_date = Column(Date, nullable=False)
-    visit_detail_start_datetime = Column(DateTime)
-    visit_detail_end_date = Column(Date, nullable=False)
-    visit_detail_end_datetime = Column(DateTime)
-    visit_detail_type_concept_id = Column(
-        ForeignKey("concept.concept_id"), nullable=False
-    )
-    provider_id = Column(ForeignKey("provider.provider_id"))
-    care_site_id = Column(ForeignKey("care_site.care_site_id"))
-    admitting_source_concept_id = Column(ForeignKey("concept.concept_id"))
-    discharge_to_concept_id = Column(ForeignKey("concept.concept_id"))
-    preceding_visit_detail_id = Column(ForeignKey("visit_detail.visit_detail_id"))
-    visit_detail_source_value = Column(String(50))
-    visit_detail_source_concept_id = Column(ForeignKey("concept.concept_id"))
-    admitting_source_value = Column(String(50))
-    discharge_to_source_value = Column(String(50))
-    visit_detail_parent_id = Column(ForeignKey("visit_detail.visit_detail_id"))
-    visit_occurrence_id = Column(
-        ForeignKey("visit_occurrence.visit_occurrence_id"), nullable=False
-    )
-
-    admitting_source_concept = relationship(
-        "Concept",
-        primaryjoin="VisitDetail.admitting_source_concept_id == Concept.concept_id",
-    )
-    care_site = relationship("CareSite")
-    discharge_to_concept = relationship(
-        "Concept",
-        primaryjoin="VisitDetail.discharge_to_concept_id == Concept.concept_id",
-    )
-    person = relationship("Person")
-    preceding_visit_detail = relationship(
-        "VisitDetail",
-        remote_side=[visit_detail_id],
-        primaryjoin="VisitDetail.preceding_visit_detail_id == VisitDetail.visit_detail_id",
-    )
-    provider = relationship("Provider")
-    visit_detail_parent = relationship(
-        "VisitDetail",
-        remote_side=[visit_detail_id],
-        primaryjoin="VisitDetail.visit_detail_parent_id == VisitDetail.visit_detail_id",
-    )
-    visit_detail_source_concept = relationship(
-        "Concept",
-        primaryjoin="VisitDetail.visit_detail_source_concept_id == Concept.concept_id",
-    )
-    visit_detail_type_concept = relationship(
-        "Concept",
-        primaryjoin="VisitDetail.visit_detail_type_concept_id == Concept.concept_id",
-    )
-    visit_occurrence = relationship("VisitOccurrence")
-
-
-class NoteNlp(Base):
-    """
-    Note NLP table
-
-    Ref: https://ohdsi.github.io/CommonDataModel/cdm54.html#NOTE_NLP
-    """
-
-    __tablename__ = "note_nlp"
-
-    note_nlp_id = Column(Integer, primary_key=True)
-    note_id = Column(ForeignKey("note.note_id"), nullable=False, index=True)
-    section_concept_id = Column(ForeignKey("concept.concept_id"))
-    snippet = Column(String(250))
-    offset = Column(String(250))
-    lexical_variant = Column(String(250), nullable=False)
-    note_nlp_concept_id = Column(ForeignKey("concept.concept_id"), index=True)
-    note_nlp_source_concept_id = Column(Integer)
-    nlp_system = Column(String(250))
-    nlp_date = Column(Date, nullable=False)
-    nlp_datetime = Column(DateTime)
-    term_exists = Column(String(1))
-    term_temporal = Column(String(50))
-    term_modifiers = Column(String(2000))
-
-    note = relationship("Note")
-    note_nlp_concept = relationship(
-        "Concept", primaryjoin="NoteNlp.note_nlp_concept_id == Concept.concept_id"
-    )
-    section_concept = relationship(
-        "Concept", primaryjoin="NoteNlp.section_concept_id == Concept.concept_id"
-    )
