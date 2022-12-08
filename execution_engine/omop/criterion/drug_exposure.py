@@ -65,6 +65,9 @@ class DrugExposure(Criterion):
         return df_filtered
 
     def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
+
+        drug_exposure = self._table_join
+
         if self._dose is not None:
             df_drugs = self.filter_same_unit(
                 self._drug_concepts, self._dose.unit
@@ -80,8 +83,6 @@ class DrugExposure(Criterion):
                 logging.warning("Route specified, but not implemented yet")
 
             drug_concept_ids = df_drugs["drug_concept_id"].tolist()
-
-            drug_exposure = self._table_join
 
             query = (
                 select(
@@ -102,9 +103,9 @@ class DrugExposure(Criterion):
             # no dose specified, so we just count the number of drug exposures
             drug_concept_ids = self._drug_concepts["drug_concept_id"].tolist()
             query = (
-                select(literal_column("de.person_id"))
-                .select_from(table("drug_exposure").alias("de"))
-                .where(literal_column("de.drug_concept_id").in_(drug_concept_ids))
+                select(drug_exposure.c.person_id)
+                .select_from(drug_exposure)
+                .where(drug_exposure.c.drug_concept_id.in_(drug_concept_ids))
             )
         base_sql.select = query
 

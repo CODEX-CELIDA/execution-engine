@@ -68,22 +68,27 @@ class ExecutionMap:
                 if isinstance(entry, CriterionCombination):
                     symbols.append(_traverse(entry, hashmap))
                 else:
-                    s = sympy.Symbol(str(entry))
+                    entry_name = f"{entry}_{hash(entry)}"
+                    s = sympy.Symbol(entry_name)
                     hashmap[s] = entry
                     if entry.exclude:
                         s = sympy.Not(s)
                     symbols.append(s)
 
             c = conjunction(*symbols)
+
             if comb.exclude:
                 c = sympy.Not(c)
 
             return c
 
         hashmap: dict[sympy.Expr, Criterion] = {}
-        nnf = _traverse(comb, hashmap).to_nnf()
+        conj = _traverse(comb, hashmap)
 
-        return nnf, hashmap
+        for atom in conj.atoms():
+            assert conj.count(atom) == 1, f'Duplicate criterion name "{atom}"'
+
+        return conj.to_nnf(), hashmap
 
     def _push_negation_in_criterion(self) -> None:
         """

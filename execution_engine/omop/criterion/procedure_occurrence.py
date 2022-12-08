@@ -27,18 +27,16 @@ class ProcedureOccurrence(ConceptCriterion):
         """
         Get the SQL representation of the criterion.
         """
-        sql = base_sql
+        sql = base_sql.select
 
-        concept_id = literal_column(f"{self._OMOP_COLUMN_PREFIX}_concept_id")
-        start_datetime = literal_column(f"{self._OMOP_COLUMN_PREFIX}_datetime")
-        end_datetime = literal_column(f"{self._OMOP_COLUMN_PREFIX}_end_datetime")
-
-        tbl_join = self._OMOP_TABLE.alias(self.table_alias)
+        concept_id = self._table_join.c[f"{self._OMOP_COLUMN_PREFIX}_concept_id"]
+        start_datetime = self._table_join.c[f"{self._OMOP_COLUMN_PREFIX}_datetime"]
+        end_datetime = self._table_join.c[f"{self._OMOP_COLUMN_PREFIX}_end_datetime"]
 
         sql = sql.join(
-            tbl_join,
-            tbl_join.c.person_id == self._table_in.c.person_id,
-        ).filter(tbl_join.columns.corresponding_column(concept_id) == self._concept.id)
+            self._table_join,
+            self._table_join.c.person_id == self._table_in.c.person_id,
+        ).filter(concept_id == self._concept.id)
 
         if self._timing is not None:
             interval = ucum_to_postgres[self._timing.unit.concept_code]
@@ -50,5 +48,7 @@ class ProcedureOccurrence(ConceptCriterion):
                     table_name=self.table_alias, column_name="duration", with_unit=False
                 )
             )
+
+        base_sql.select = sql
 
         return base_sql

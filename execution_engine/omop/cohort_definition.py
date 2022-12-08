@@ -97,10 +97,9 @@ class CohortDefinition:
             sql = criterion.sql_generate(
                 self._base_criterion.table_out, table_out, datetime_start, datetime_end
             )
-            print(sql)
+            # fixme: remove (used for debugging only)
+            str(sql)
             yield to_sqlalchemy(sql)
-
-        yield text("COMMIT")
 
         logging.info("Yielding combination sql")
         sql_template, criteria = execution_map.combine()

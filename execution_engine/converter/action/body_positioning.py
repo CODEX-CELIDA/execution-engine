@@ -50,7 +50,7 @@ class BodyPositioningAction(AbstractAction):
 
     def _to_criterion(self) -> Criterion | CriterionCombination | None:
         """Converts this characteristic to a Criterion."""
-        warnings.warn("timing missing")
+
         return ProcedureOccurrence(
             name=self._name,
             exclude=self._exclude,

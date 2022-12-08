@@ -28,11 +28,16 @@ def s_into(element: SelectInto, compiler: SQLCompiler, **kwargs: dict) -> str:
     table_into = compiler.process(element.into, asfrom=True, **kwargs)
     select = compiler.process(element.select, **kwargs)
 
-    select = select.replace(
-        "FROM",
-        f"INTO {'TEMPORARY' if element.temporary else ''} TABLE {table_into} FROM",
-        1,
-    )  # replace only the first occurrence, as CompoundSelects may contain multiple FROMs (e.g. UNION, EXCEPT)
+    assert (
+        len(element.select.froms) == 1
+    ), "SelectInto only supports single table selects (in from clause)"
+    from_clause = "FROM " + compiler.process(element.select.froms[0], asfrom=True)
+    assert from_clause in select, "FROM clause not found in select"
+    idx_from = select.index(from_clause)
+
+    replace = f"INTO {'TEMPORARY' if element.temporary else ''} TABLE {table_into} FROM"
+
+    select = select[:idx_from] + replace + select[idx_from + 4 :]
 
     return select
 

@@ -40,9 +40,9 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         WHEN p.gender_concept_id = :omop_gender_female THEN 45.5 + 0.91 * (m.value_as_number - 152.4)
         ELSE 47.75 + 0.91 * (m.value_as_number - 152.4)
         END ) AS ideal_body_weight
-        FROM measurements m
-        INNER JOIN person p ON m.person_id = p.person_id
-        INNER JOIN {self.table_out.original.name} t ON m.person_id = t.person_id
+        FROM measurement m
+        INNER JOIN "person" p ON m.person_id = p.person_id
+        INNER JOIN "{self.table_in.original.name}" t ON m.person_id = t.person_id
         WHERE m.measurement_concept_id = :omop_body_weight
         """
             )
@@ -64,18 +64,19 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
             column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
             with_unit=False,
         )
+        # fixme: remove this when it's clear that the above statement works
         # sql_tv = text(f'''
         # INNER JOIN meausurement m ON (table_out.person_id = m.person_id)
         # INNER JOIN ({sql_ibw}) i ON m.person_id = i.person_id)
         # ''')
 
-        tbl_meas = omopdb.tables["measurement"]
+        tbl_meas = self._table_join
         sql_select = base_sql.select
         sql_select = sql_select.join(
-            sql_ibw, sql_ibw.c.person_id == tbl_meas.c.person_id
+            tbl_meas, tbl_meas.c.person_id == self.table_out.c.person_id
         )
         sql_select = sql_select.join(
-            tbl_meas, tbl_meas.c.person_id == self.table_out.c.person_id
+            sql_ibw, sql_ibw.c.person_id == tbl_meas.c.person_id
         )
         sql_select = sql_select.filter(
             tbl_meas.c.measurement_concept_id == concept_tv.id
