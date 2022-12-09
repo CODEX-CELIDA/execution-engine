@@ -3,6 +3,8 @@ import logging
 from typing import Iterator, Tuple
 
 import sympy
+from sqlalchemy import intersect, union
+from sqlalchemy.sql import CompoundSelect
 
 from .omop.criterion.abstract import Criterion
 from .omop.criterion.combination import CriterionCombination
@@ -143,36 +145,29 @@ class ExecutionMap:
         Generate the combined SQL query for all criteria in the execution map.
         """
 
-        def _traverse(combination: sympy.Symbol) -> Tuple[str, list[Criterion]]:
+        def _traverse(combination: sympy.Symbol) -> CompoundSelect:
             """
             Traverse the execution map and return a combined SQL query for all criteria in the execution map.
             """
-            criteria: list[Criterion] = []
-            s_components = []
+            criteria: list[CompoundSelect] = []
 
             if type(combination) == sympy.And:
-                conjunction = "INTERSECT"
+                conjunction = intersect
             elif type(combination) == sympy.Or:
-                conjunction = "UNION"
+                conjunction = union
             else:
                 raise ValueError(f"Unknown type {type(combination)}")
 
             for arg in combination.args:
                 if arg.is_Atom:
-                    s_components.append("{}")
                     criteria.append(self._hashmap[arg])
                 elif arg.is_Not:
                     # exclude flag is already pushed into the criterion (i.e. inverted) in _push_negation_in_criterion()
-                    s_components.append("{}")
                     criteria.append(self._hashmap[arg.args[0]])
                 else:
-                    s_sub, criteria_sub = _traverse(arg)
-                    criteria += criteria_sub
-                    s_components.append(s_sub)
+                    compound_select = _traverse(arg)
+                    criteria.append(compound_select)
 
-            s = f") {conjunction} (".join(s_components)
-            s = f"({s})"
-
-            return s, criteria
+            return conjunction(*[c.sql_select(with_alias=False) for c in criteria])
 
         return _traverse(self._nnf)

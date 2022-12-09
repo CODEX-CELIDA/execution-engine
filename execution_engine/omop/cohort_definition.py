@@ -120,9 +120,7 @@ class CohortDefinition:
             raise Exception("Execution map not initialized - run process() first")
 
         logging.info("Yielding combination sql")
-        sql_template, criteria = self._execution_map.combine()
-
-        return to_sqlalchemy(sql_template.format(*[c.sql_select() for c in criteria]))
+        return self._execution_map.combine()
 
     def cleanup(self) -> Iterator[Query]:
         """
@@ -176,7 +174,7 @@ class CohortDefinitionCombination:
             )
 
             stmt = cohort_definition.combine()
-            stmt = stmt.columns(person_id=Integer)
+            # stmt = stmt.columns(person_id=Integer)
             stmt = stmt.alias(f"cd{i}")
             table_cd = table(f"cd{i}_combined", literal_column("person_id"))
             stmt_into = select_into(select(stmt.c.person_id), table_cd, temporary=True)
