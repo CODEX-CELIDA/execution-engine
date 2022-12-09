@@ -14,7 +14,9 @@ class FHIRClient:
     def __init__(self, base_url: str):
         self.base_url = base_url
 
-    def get_resource(self, element_type: str, canonical_url: str) -> FHIRAbstractModel:
+    def fetch_resource(
+        self, element_type: str, canonical_url: str
+    ) -> FHIRAbstractModel:
         """
         Get a resource from the FHIR server by its canonical URL.
         """

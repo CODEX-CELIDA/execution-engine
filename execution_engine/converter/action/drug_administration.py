@@ -9,7 +9,7 @@ from fhir.resources.extension import Extension
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from execution_engine.clients import omopdb
-from execution_engine.fhir.recommendation import Recommendation
+from execution_engine.fhir.recommendation import Recommendation, RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
@@ -54,7 +54,7 @@ class DrugAdministrationAction(AbstractAction):
         self._extensions = extensions
 
     @classmethod
-    def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
 
         if action_def.activity is None:

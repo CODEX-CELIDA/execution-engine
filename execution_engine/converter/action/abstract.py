@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Type, final
 
-from ...fhir.recommendation import Recommendation
+from ...fhir.recommendation import Recommendation, RecommendationPlan
 from ...fhir.util import get_coding
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.combination import CriterionCombination
@@ -41,14 +41,14 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
     @classmethod
     @abstractmethod
-    def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 
     @classmethod
     def valid(
         cls,
-        action_def: Recommendation.Action,
+        action_def: RecommendationPlan.Action,
     ) -> bool:
         """Checks if the given FHIR definition is a valid action in the context of CPG-on-EBM-on-FHIR."""
         cc = get_coding(action_def.action.code)

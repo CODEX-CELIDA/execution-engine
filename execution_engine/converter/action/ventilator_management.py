@@ -1,4 +1,4 @@
-from ...fhir.recommendation import Recommendation
+from ...fhir.recommendation import Recommendation, RecommendationPlan
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.combination import CriterionCombination
 from ...omop.vocabulary import SNOMEDCT, VocabularyNotStandardError
@@ -16,7 +16,7 @@ class VentilatorManagementAction(AbstractAction):
     _concept_vocabulary = SNOMEDCT
 
     @classmethod
-    def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         if action_def.activity is not None:
             raise ValueError("VentilatorManagementAction does not support activity")

@@ -23,14 +23,17 @@ from .converter.characteristic.episode_of_care import EpisodeOfCareCharacteristi
 from .converter.characteristic.laboratory import LaboratoryCharacteristic
 from .converter.characteristic.procedure import ProcedureCharacteristic
 from .converter.characteristic.radiology import RadiologyCharacteristic
+from .converter.characteristic.ventilation_observable import (
+    VentilationObservableCharacteristic,
+)
 from .converter.converter import CriterionConverter, CriterionConverterFactory
 from .converter.goal.abstract import Goal
 from .converter.goal.laboratory_value import LaboratoryValueGoal
 from .converter.goal.ventilator_management import VentilatorManagementGoal
 from .fhir.client import FHIRClient
-from .fhir.recommendation import Recommendation
+from .fhir.recommendation import Recommendation, RecommendationPlan
 from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
-from .omop.cohort_definition import CohortDefinition
+from .omop.cohort_definition import CohortDefinition, CohortDefinitionCombination
 from .omop.criterion.combination import CriterionCombination
 from .omop.criterion.visit_occurrence import ActivePatients
 
@@ -60,31 +63,34 @@ class ExecutionEngine:
             level=logging.INFO,
         )
 
-    def process_recommendation(self, recommendation_url: str) -> CohortDefinition:
+    def process_recommendation(
+        self, recommendation_url: str
+    ) -> CohortDefinitionCombination:
         """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
         rec = Recommendation(recommendation_url, self._fhir)
 
-        cd = CohortDefinition(ActivePatients(name="active_patients"))
+        rec_plan_cohorts: list[CohortDefinition] = []
 
-        characteristics = self._parse_characteristics(rec.population)
-        for characteristic in characteristics:
-            cd.add(characteristic_to_criterion(characteristic))
+        for rec_plan in rec.plans():
+            cd = CohortDefinition(ActivePatients(name="active_patients"))
 
-        actions, selection_behavior = self._parse_actions(rec.actions)
-        comb_actions = self.action_combination(selection_behavior)
+            characteristics = self._parse_characteristics(rec_plan.population)
+            for characteristic in characteristics:
+                cd.add(characteristic_to_criterion(characteristic))
 
-        for action in actions:
-            if action is None:
-                raise ValueError("Action is None.")
-            comb_actions.add(action.to_criterion())
+            actions, selection_behavior = self._parse_actions(rec_plan.actions)
+            comb_actions = self.action_combination(selection_behavior)
 
-        cd.add(comb_actions)
+            for action in actions:
+                if action is None:
+                    raise ValueError("Action is None.")
+                comb_actions.add(action.to_criterion())
 
-        # (create execution plan)
-        # execute single sqls
-        # execute combination sql
+            cd.add(comb_actions)
 
-        return cd
+            rec_plan_cohorts.append(cd)
+
+        return CohortDefinitionCombination(rec_plan_cohorts)
 
     @staticmethod
     def _init_characteristics_factory() -> CriterionConverterFactory:
@@ -94,7 +100,7 @@ class ExecutionEngine:
         cf.register(RadiologyCharacteristic)
         cf.register(ProcedureCharacteristic)
         cf.register(EpisodeOfCareCharacteristic)
-        # cf.register_characteristic_type(VentilationObservableCharacteristic) # fixme: implement
+        # cf.register(VentilationObservableCharacteristic) # fixme: implement
         cf.register(LaboratoryCharacteristic)
 
         return cf
@@ -149,7 +155,7 @@ class ExecutionEngine:
 
             return comb
 
-        if len(ev.characteristic) == 1 and Recommendation.is_combination_definition(
+        if len(ev.characteristic) == 1 and RecommendationPlan.is_combination_definition(
             ev.characteristic[0]
         ):
             comb, characteristics = get_characteristic_combination(ev.characteristic[0])
@@ -164,7 +170,7 @@ class ExecutionEngine:
         return comb
 
     def _parse_actions(
-        self, actions_def: list[Recommendation.Action]
+        self, actions_def: list[RecommendationPlan.Action]
     ) -> Tuple[list[AbstractAction], ActionSelectionBehavior]:
         """
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the

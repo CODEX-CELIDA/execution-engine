@@ -11,18 +11,87 @@ from fhir.resources.plandefinition import (
     PlanDefinitionGoal,
 )
 
+from ..constants import CS_PLAN_DEFINITION_TYPE, EXT_CPG_PARTOF
 from .client import FHIRClient
+from .util import get_coding, get_extension
 
 
 class Recommendation:
     """CPG-on-EBM-on-FHIR Recommendation."""
+
+    def __init__(self, canonical_url: str, fhir_connector: FHIRClient) -> None:
+        self.canonical_url = canonical_url
+        self.fhir = fhir_connector
+
+        self._recommendation: PlanDefinition | None = None
+        self._recommendation_plans: list[RecommendationPlan] = []
+
+        self.load()
+
+    def plans(self) -> list["RecommendationPlan"]:
+        """
+        Return the recommendation plans of this recommendation (i.e. the individual,
+        non-overlapping parts or steps of the recommendation).
+        """
+        return self._recommendation_plans
+
+    def load(self) -> None:
+        """
+        Load the recommendation from the FHIR server.
+        """
+        self._recommendation = self.fetch_recommendation(self.canonical_url)
+
+        for rec_action in self._recommendation.action:
+            rec_plan = RecommendationPlan(rec_action.definitionCanonical, self.fhir)
+            self._recommendation_plans.append(rec_plan)
+
+        logging.info("Recommendation loaded.")
+
+    def fetch_recommendation(self, canonical_url: str) -> PlanDefinition:
+        """
+        Fetch the recommendation specified by the canonical URL from the FHIR server.
+
+        This method checks if the PlanDefinition resource referenced by the canonical
+        URL is a recommendation (i.e. PlanDefinition.type = #workflow-definition). If
+        it is an recommendation-plan instead (i.e. PlanDefinition.type = #eca-rule),
+        it will fetch the PlanDefinition that is referenced by the extension[partOf].
+
+        :param canonical_url: Canonical URL of the recommendation
+        :return: FHIR PlanDefinition
+        """
+        rec = self.fhir.fetch_resource("PlanDefinition", canonical_url)
+        cc = get_coding(rec.type, CS_PLAN_DEFINITION_TYPE)
+
+        if cc.code == "eca-rule":
+            # this is a recommendation-plan resource, try to fetch the actual recommendation
+            logging.info("Found recommendation-plan, trying to fetch recommendation.")
+            ext = get_extension(rec, EXT_CPG_PARTOF)
+            if ext is None:
+                raise ValueError(
+                    "No partOf extension found in PlanDefinition, can't fetch recommendation."
+                )
+            assert (
+                ext.valueCanonical is not None
+            ), "partOf extension has no valueCanonical"
+
+            rec = self.fhir.fetch_resource("PlanDefinition", ext.valueCanonical)
+            cc = get_coding(rec.type, CS_PLAN_DEFINITION_TYPE)
+
+        if cc.code != "workflow-definition":
+            raise ValueError(f"Unknown recommendation type: {cc.code}")
+
+        return rec
+
+
+class RecommendationPlan:
+    """CPG-on-EBM-on-FHIR RecommendationPlan."""
 
     class Action:
         """
         Action Definition contained in the PlanDefinition
 
         Helper class to separate the action definition (contained in PlanDefinition), which specifies the goals,
-        type etc., from the activity defininition (contained in ActivityDefinition), which may be referenced by the
+        type etc., from the activity definition (contained in ActivityDefinition), which may be referenced by the
         action in the definitionCanonical elements, but may also be null.
         """
 
@@ -38,7 +107,7 @@ class Recommendation:
 
             # an action must not necessarily contain an activity definition (e.g. ventilator management)
             if action_def.definitionCanonical is not None:
-                self._activity = fhir_connector.get_resource(
+                self._activity = fhir_connector.fetch_resource(
                     "ActivityDefinition", action_def.definitionCanonical
                 )
 
@@ -68,7 +137,7 @@ class Recommendation:
 
         self._recommendation = None
         self._population = None
-        self._actions: list[Recommendation.Action] = []
+        self._actions: list[RecommendationPlan.Action] = []
         self._goals: list[PlanDefinitionGoal] = []
 
         self.load()
@@ -78,22 +147,41 @@ class Recommendation:
         Load the recommendation from the FHIR server.
         """
 
-        plan_def = self.get_recommendation(self.canonical_url)
-        ev = self.fhir.get_resource("EvidenceVariable", plan_def.subjectCanonical)
+        plan_def = self.fetch_recommendation_plan(self.canonical_url)
+
+        ev = self.fhir.fetch_resource("EvidenceVariable", plan_def.subjectCanonical)
 
         self._recommendation = plan_def
         self._population = ev
         self._actions = [
-            Recommendation.Action(action, goals=plan_def.goal, fhir_connector=self.fhir)
+            RecommendationPlan.Action(
+                action, goals=plan_def.goal, fhir_connector=self.fhir
+            )
             for action in plan_def.action
         ]
         self._goals = plan_def.goal
 
-        logging.info("Recommendation loaded.")
+        logging.info(f'Recommendation plan "{plan_def.id}" loaded.')
 
-    def get_recommendation(self, canonical_url: str) -> PlanDefinition:
-        """Read the PlanDefinition resource from the FHIR server."""
-        return self.fhir.get_resource("PlanDefinition", canonical_url)
+    def fetch_recommendation_plan(self, canonical_url: str) -> PlanDefinition:
+        """
+        Fetch the recommendation specified by the canonical URL from the FHIR server.
+
+        This method checks if the PlanDefinition resource referenced by the canonical
+        URL is a recommendation (i.e. PlanDefinition.type = #workflow-definition). If
+        it is an recommendation-plan instead (i.e. PlanDefinition.type = #eca-rule),
+        it will fetch the PlanDefinition that is referenced by the extension[partOf].
+
+        :param canonical_url: Canonical URL of the recommendation
+        :return: FHIR PlanDefinition
+        """
+        rec = self.fhir.fetch_resource("PlanDefinition", canonical_url)
+        cc = get_coding(rec.type, CS_PLAN_DEFINITION_TYPE)
+
+        if cc.code != "eca-rule":
+            raise ValueError(f"Unknown recommendation type: {cc.code}")
+
+        return rec
 
     @property
     def population(self) -> EvidenceVariable:

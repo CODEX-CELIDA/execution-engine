@@ -1,6 +1,6 @@
 import warnings
 
-from execution_engine.fhir.recommendation import Recommendation
+from execution_engine.fhir.recommendation import Recommendation, RecommendationPlan
 from execution_engine.omop.vocabulary import SNOMEDCT
 
 from ...omop.concepts import Concept
@@ -35,7 +35,7 @@ class BodyPositioningAction(AbstractAction):
         self._timing = timing
 
     @classmethod
-    def from_fhir(cls, action_def: Recommendation.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
 
         if action_def.activity is None:
