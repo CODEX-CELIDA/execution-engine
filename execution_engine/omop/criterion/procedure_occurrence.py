@@ -40,12 +40,11 @@ class ProcedureOccurrence(ConceptCriterion):
 
         if self._timing is not None:
             interval = ucum_to_postgres[self._timing.unit.concept_code]
-            sql = sql.add_columns(
-                extract(interval, start_datetime - end_datetime).label("duration")
-            )
+            column = extract(interval, start_datetime - end_datetime).label("duration")
+            sql = sql.add_columns(column)
             sql = sql.filter(
                 self._timing.to_sql(
-                    table_name=self.table_alias, column_name="duration", with_unit=False
+                    table_name=None, column_name=column, with_unit=False
                 )
             )
 

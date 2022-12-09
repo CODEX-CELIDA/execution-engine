@@ -1,25 +1,43 @@
 # coding: utf-8
+from datetime import datetime
+
+import sqlalchemy
 from sqlalchemy import (
     BigInteger,
     Column,
     Date,
-    DateTime,
     ForeignKey,
     Integer,
     Numeric,
     String,
     Table,
     Text,
+    TypeDecorator,
     UniqueConstraint,
     text,
 )
+from sqlalchemy.engine import Dialect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.decl_api import DeclarativeMeta
 
+
+class DateTime(TypeDecorator):
+    """
+    SQLAlchemy type for datetime columns.
+    """
+
+    impl = sqlalchemy.types.DateTime
+
+    def process_literal_param(self, value: datetime, dialect: Dialect) -> str:
+        """
+        Convert a datetime to a string.
+        """
+        return value.strftime("'%Y-%m-%d %H:%M:%S'")
+
+
 Base: DeclarativeMeta = declarative_base()
 metadata = Base.metadata
-
 
 t_cohort = Table(
     "cohort",
@@ -543,7 +561,7 @@ class Person(Base):
     )
 
 
-class PayerPlanPeriod(Person):
+class PayerPlanPeriod(Base):
     """
     OMOP CDM Table: Payer Plan Period
 

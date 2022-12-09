@@ -1,7 +1,7 @@
 from typing import Any
 
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.sql import Alias, Select, TableClause
+from sqlalchemy.sql import Alias, CompoundSelect, Select, TableClause
 from sqlalchemy.sql.compiler import SQLCompiler
 from sqlalchemy.sql.expression import ClauseElement, Executable
 
@@ -28,10 +28,16 @@ def s_into(element: SelectInto, compiler: SQLCompiler, **kwargs: dict) -> str:
     table_into = compiler.process(element.into, asfrom=True, **kwargs)
     select = compiler.process(element.select, **kwargs)
 
+    if isinstance(element.select, CompoundSelect):
+        # take first select from compound selects (EXCEPT, INTERSECT, UNION)
+        froms = element.select.selects[0].froms
+    else:
+        froms = element.select.froms
+
     assert (
-        len(element.select.froms) == 1
+        len(froms) == 1
     ), "SelectInto only supports single table selects (in from clause)"
-    from_clause = "FROM " + compiler.process(element.select.froms[0], asfrom=True)
+    from_clause = "FROM " + compiler.process(froms[0], asfrom=True)
     assert from_clause in select, "FROM clause not found in select"
     idx_from = select.index(from_clause)
 

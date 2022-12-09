@@ -69,20 +69,6 @@ class AbstractCriterion(ABC):
         return self.type + "_" + self._name
 
 
-class DateTimeType(TypeDecorator):
-    """
-    SQLAlchemy type for datetime columns.
-    """
-
-    impl = sqlalchemy.types.DateTime
-
-    def process_literal_param(self, value: datetime, dialect: Dialect) -> str:
-        """
-        Convert a datetime to a string.
-        """
-        return value.strftime("'%Y-%m-%d %H:%M:%S'")
-
-
 class Criterion(AbstractCriterion):
     """A criterion in a cohort definition."""
 
