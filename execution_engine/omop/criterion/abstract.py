@@ -5,8 +5,7 @@ from datetime import datetime
 from typing import cast
 
 import sqlalchemy
-from sqlalchemy import TypeDecorator, literal_column, select, table
-from sqlalchemy.engine import Dialect
+from sqlalchemy import literal_column, select, table
 from sqlalchemy.sql import ClauseElement, Insert, TableClause
 
 from execution_engine.omop.models import (

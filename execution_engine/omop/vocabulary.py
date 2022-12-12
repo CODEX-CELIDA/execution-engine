@@ -10,15 +10,11 @@ class VocabularyNotFoundError(Exception):
     Exception raised when a vocabulary is not found.
     """
 
-    pass
-
 
 class VocabularyNotStandardError(Exception):
     """
     Exception raised when a vocabulary is not included in the OMOP standard vocabulary.
     """
-
-    pass
 
 
 class AbstractVocabulary(ABC):
@@ -72,11 +68,6 @@ class AbstractStandardVocabulary(AbstractVocabulary):
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
         return omopdb.get_concept(cls.omop_vocab_name, concept, standard=standard)
-
-    def atc_to_ingredient(self, atc_code: str) -> Concept:
-        """
-        Get the ingredient for the given ATC code.
-        """
 
 
 class LOINC(AbstractStandardVocabulary):

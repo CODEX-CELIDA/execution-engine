@@ -31,7 +31,6 @@ class Value(BaseModel, ABC):
         """
         Get the SQL representation of the value.
         """
-        pass
 
 
 class ValueNumber(Value):

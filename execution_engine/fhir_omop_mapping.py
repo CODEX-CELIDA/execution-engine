@@ -1,5 +1,3 @@
-import warnings
-
 from .converter.characteristic.abstract import AbstractCharacteristic
 from .converter.characteristic.combination import CharacteristicCombination
 from .omop.criterion.abstract import AbstractCriterion

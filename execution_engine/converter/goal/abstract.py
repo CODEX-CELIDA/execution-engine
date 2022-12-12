@@ -22,7 +22,6 @@ class Goal(CriterionConverter, ABC):
         """
         Creates a new goal from a FHIR PlanDefinition.
         """
-        pass
 
     @classmethod
     def valid(cls, goal: PlanDefinitionGoal) -> bool:

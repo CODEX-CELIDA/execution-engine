@@ -1,7 +1,7 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Type, final
 
-from ...fhir.recommendation import Recommendation, RecommendationPlan
+from ...fhir.recommendation import RecommendationPlan
 from ...fhir.util import get_coding
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.combination import CriterionCombination

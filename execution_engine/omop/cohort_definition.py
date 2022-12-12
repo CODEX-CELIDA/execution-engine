@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any, Iterator
 
 import sqlalchemy
-from sqlalchemy import Integer, literal_column, select, table, text, union
+from sqlalchemy import literal_column, select, table, union
 from sqlalchemy.orm import Query
 
 from ..execution_map import ExecutionMap

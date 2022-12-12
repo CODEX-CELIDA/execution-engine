@@ -1,15 +1,13 @@
 import logging
-import warnings
-from typing import Tuple
+from typing import Tuple, TypedDict, cast
 
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.dosage import Dosage
 from fhir.resources.extension import Extension
-from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from execution_engine.clients import omopdb
-from execution_engine.fhir.recommendation import Recommendation, RecommendationPlan
+from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
@@ -21,6 +19,15 @@ from ...omop.criterion.combination import CriterionCombination
 from ...omop.criterion.concept import ConceptCriterion
 from ..converter import parse_code, parse_value
 from .abstract import AbstractAction
+
+
+class ExtensionType(TypedDict):
+    """
+    A type for the extension dictionary.
+    """
+
+    code: Concept
+    value: Value
 
 
 class DrugAdministrationAction(AbstractAction):
@@ -40,7 +47,7 @@ class DrugAdministrationAction(AbstractAction):
         frequency: int | None = None,
         interval: str | None = None,
         route: Concept | None = None,
-        extensions: list[dict[str, Concept | Value]] | None = None,
+        extensions: list[ExtensionType] | None = None,
     ) -> None:
         """
         Initialize the drug administration action.
@@ -174,7 +181,7 @@ class DrugAdministrationAction(AbstractAction):
             0
         ]  # todo: should iterate over doseAndRate (could have multiple)
 
-        value = parse_value(dose_and_rate, value_prefix="dose")
+        value = cast(ValueNumber, parse_value(dose_and_rate, value_prefix="dose"))
 
         if (
             dose_and_rate.rateRatio is not None
@@ -186,9 +193,7 @@ class DrugAdministrationAction(AbstractAction):
         return value
 
     @classmethod
-    def process_dosage_extensions(
-        cls, dosage: Dosage
-    ) -> list[dict[str, Concept | Value]]:
+    def process_dosage_extensions(cls, dosage: Dosage) -> list[ExtensionType]:
         """
         Processes extensions of dosage
 
@@ -196,7 +201,7 @@ class DrugAdministrationAction(AbstractAction):
         - dosage-condition: Condition that must be met for the dosage to be applied (e.g. body weight < 70 kg)
         """
 
-        extensions: list[dict[str, Concept | Value]] = []
+        extensions: list[ExtensionType] = []
 
         if dosage.extension is None:
             return extensions

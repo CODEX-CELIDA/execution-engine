@@ -13,7 +13,6 @@ from sqlalchemy import (
     Table,
     Text,
     TypeDecorator,
-    UniqueConstraint,
     text,
 )
 from sqlalchemy.engine import Dialect

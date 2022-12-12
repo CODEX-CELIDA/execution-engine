@@ -1,5 +1,3 @@
-from typing import Any
-
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql import Alias, CompoundSelect, Select, TableClause
 from sqlalchemy.sql.compiler import SQLCompiler

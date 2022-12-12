@@ -6,7 +6,7 @@ from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.measurement import Measurement
 from ...omop.vocabulary import SNOMEDCT
 from ...util import Value
-from ..converter import parse_code_value, parse_value
+from ..converter import parse_code_value
 from .abstract import Goal
 
 

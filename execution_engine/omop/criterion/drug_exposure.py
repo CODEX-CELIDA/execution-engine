@@ -1,7 +1,7 @@
 import logging
 
 import pandas as pd
-from sqlalchemy import func, literal_column, select, table
+from sqlalchemy import func, literal_column, select
 
 from ...util import ValueNumber
 from ...util.sql import SelectInto

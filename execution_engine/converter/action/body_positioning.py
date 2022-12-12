@@ -1,6 +1,6 @@
-import warnings
+from typing import cast
 
-from execution_engine.fhir.recommendation import Recommendation, RecommendationPlan
+from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.vocabulary import SNOMEDCT
 
 from ...omop.concepts import Concept
@@ -42,7 +42,7 @@ class BodyPositioningAction(AbstractAction):
             raise ValueError("BodyPositioningAction must have an activity")
 
         code = parse_code(action_def.activity.code)
-        timing = parse_value(action_def.activity, "timing")
+        timing = cast(ValueNumber, parse_value(action_def.activity, "timing"))
 
         exclude = action_def.activity.doNotPerform
 

@@ -1,5 +1,5 @@
-from sqlalchemy import literal_column, table
-from sqlalchemy.sql import Insert, Select
+from sqlalchemy import literal_column
+from sqlalchemy.sql import Insert
 
 from ...util.sql import SelectInto
 from .. import StandardConcepts
@@ -8,8 +8,6 @@ from .concept import ConceptCriterion
 
 class VisitOccurrence(ConceptCriterion):
     """A visit criterion in a cohort definition."""
-
-    pass
 
 
 class ActivePatients(VisitOccurrence):

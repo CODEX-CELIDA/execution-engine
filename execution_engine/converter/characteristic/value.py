@@ -3,7 +3,6 @@ from typing import Type
 
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
-from ...fhir.util import get_coding
 from ...omop.criterion.concept import ConceptCriterion
 from ..converter import parse_code, parse_value
 from .abstract import AbstractCharacteristic

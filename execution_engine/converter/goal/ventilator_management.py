@@ -1,17 +1,18 @@
+from typing import Type
+
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from ...constants import SCT_VENTILATOR_CARE_AND_ADJUSTMENT
-from ...fhir.util import get_coding
-from ...omop.concepts import Concept, CustomConcept
+from ...omop.concepts import Concept
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.custom.tidal_volume import TidalVolumePerIdealBodyWeight
 from ...omop.criterion.measurement import Measurement
-from ...omop.vocabulary import CODEXCELIDA, SNOMEDCT, VocabularyNotStandardError
+from ...omop.vocabulary import CODEXCELIDA, SNOMEDCT
 from ...util import Value
-from ..converter import parse_code, parse_code_value, parse_value
+from ..converter import parse_code, parse_value
 from .abstract import Goal
 
-CUSTOM_GOALS = {
+CUSTOM_GOALS: dict[Concept, Type] = {
     CODEXCELIDA.map["tvpibw"]: TidalVolumePerIdealBodyWeight,
 }
 

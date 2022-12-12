@@ -64,6 +64,7 @@ def parse_value(value_parent: Element, value_prefix: str) -> Value:
     Parses a value from a FHIR element.
     """
     value = select_value(value_parent, value_prefix)
+    value_obj: Value
 
     if isinstance(value, CodeableConcept):
         cc = get_coding(value)

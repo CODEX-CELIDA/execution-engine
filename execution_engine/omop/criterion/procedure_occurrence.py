@@ -1,4 +1,3 @@
-from sqlalchemy import literal_column
 from sqlalchemy.sql import extract
 
 from ...util import ValueNumber, ucum_to_postgres

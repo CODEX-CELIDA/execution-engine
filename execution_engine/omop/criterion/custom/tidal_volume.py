@@ -1,14 +1,11 @@
 from sqlalchemy import Float, Integer, literal_column, text
-from sqlalchemy.sql import Insert
 
-from execution_engine.clients import omopdb
 from execution_engine.constants import (
     LOINC_TIDAL_VOLUME,
     OMOP_BODY_WEIGHT,
     OMOP_GENDER_FEMALE,
     OMOP_GENDER_MALE,
 )
-from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber

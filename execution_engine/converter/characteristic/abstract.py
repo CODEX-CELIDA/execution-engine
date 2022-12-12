@@ -2,10 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Type
 
 from fhir.resources.coding import Coding
-from fhir.resources.evidencevariable import (
-    EvidenceVariableCharacteristic,
-    EvidenceVariableCharacteristicDefinitionByTypeAndValue,
-)
+from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
 from execution_engine.converter.converter import CriterionConverter
 from execution_engine.omop.concepts import Concept
@@ -73,7 +70,7 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         return self._value
 
     @value.setter
-    def value(self, value: Concept) -> None:
+    def value(self, value: Value) -> None:
         """Sets the value of this characteristic."""
         self._value = value
 

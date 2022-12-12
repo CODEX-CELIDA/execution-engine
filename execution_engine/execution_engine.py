@@ -1,7 +1,5 @@
 import logging
 import os
-import warnings
-from datetime import datetime
 from typing import Tuple, Union, cast
 
 from fhir.resources.evidencevariable import (
@@ -23,9 +21,6 @@ from .converter.characteristic.episode_of_care import EpisodeOfCareCharacteristi
 from .converter.characteristic.laboratory import LaboratoryCharacteristic
 from .converter.characteristic.procedure import ProcedureCharacteristic
 from .converter.characteristic.radiology import RadiologyCharacteristic
-from .converter.characteristic.ventilation_observable import (
-    VentilationObservableCharacteristic,
-)
 from .converter.converter import CriterionConverter, CriterionConverterFactory
 from .converter.goal.abstract import Goal
 from .converter.goal.laboratory_value import LaboratoryValueGoal
@@ -207,7 +202,7 @@ class ExecutionEngine:
 
     def execute(self) -> list[int]:
         """Executes the Cohort Definition and returns a list of Person IDs."""
-        pass
+        raise NotImplementedError()
 
     def action_combination(
         self, selection_behavior: ActionSelectionBehavior

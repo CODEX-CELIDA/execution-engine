@@ -33,7 +33,7 @@ class Concept(BaseModel, frozen=True):  # type: ignore
         """Creates a concept from a pandas Series."""
         return Concept.from_json({k.upper(): v for k, v in series.to_dict().items()})
 
-    def json(self) -> dict:
+    def json(self) -> dict:  # type: ignore
         """Returns a JSON representation of the concept."""
         return {
             "CONCEPT_ID": self.id,
