@@ -25,11 +25,11 @@ class CriterionCombination(AbstractCriterion):
                 ), f"Threshold must be set for operator {operator}"
             self.threshold = threshold
 
-    def __init__(self, name: str, exclude: bool, operator: Operator):
+    def __init__(self, name: str, exclude: bool, operator: Operator, category: str):
         """
         Initialize the criterion combination.
         """
-        super().__init__(name, exclude)
+        super().__init__(name=name, exclude=exclude, category=category)
         self._operator = operator
         self._criteria: list[AbstractCriterion] = []
 

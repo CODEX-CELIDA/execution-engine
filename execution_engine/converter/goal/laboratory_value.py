@@ -54,6 +54,7 @@ class LaboratoryValueGoal(Goal):
         return Measurement(
             name=self._name,
             exclude=self._exclude,
+            category="intervention",
             concept=self._code,
             value=self._value,
         )

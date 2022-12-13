@@ -78,6 +78,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
             combination = CriterionCombination(
                 name=f"{self._name}_plus_goals",
                 exclude=False,
+                category="intervention",
                 operator=CriterionCombination.Operator("AND"),
             )
 

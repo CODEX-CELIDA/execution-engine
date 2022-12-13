@@ -31,7 +31,8 @@ class VentilatorManagementAction(AbstractAction):
             name = code_display(goal.target[0].measure)
 
         return cls(
-            name=name, exclude=False
+            name=name,
+            exclude=False,
         )  # fixme: no way to exclude goals (e.g. "do not ventilate")
 
     def _to_criterion(self) -> Criterion | CriterionCombination | None:

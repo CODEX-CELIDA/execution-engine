@@ -229,5 +229,8 @@ class ExecutionEngine:
                 f"Selection behavior {str(selection_behavior.code)} not implemented."
             )
         return CriterionCombination(
-            name="intervention_actions", exclude=False, operator=operator
+            name="intervention_actions",
+            category="intervention",
+            exclude=False,
+            operator=operator,
         )

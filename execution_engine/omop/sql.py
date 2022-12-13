@@ -48,7 +48,6 @@ class OMOPSQLClient:
         if not self._engine.dialect.has_schema(self._engine, schema):
             self.execute(sqlalchemy.schema.CreateSchema(schema))
             self.commit()
-            logging.info(f"Created result schema '{schema}'")
 
         result_tables = [
             self._metadata.tables[t]
@@ -56,7 +55,6 @@ class OMOPSQLClient:
             if t.startswith("celida.")
         ]
         assert len(result_tables) > 0, "No results tables found"
-        logging.info("Creating result tables (if not exist)")
 
         self._metadata.create_all(tables=result_tables, bind=self._engine)
         self.commit()

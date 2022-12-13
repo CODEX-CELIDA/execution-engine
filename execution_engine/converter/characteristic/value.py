@@ -38,6 +38,7 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
         return self._criterion_class(
             name=self._name,
             exclude=self._exclude,
+            category="population",
             concept=self.type,
             value=self.value,
         )

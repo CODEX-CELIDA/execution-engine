@@ -54,6 +54,7 @@ class BodyPositioningAction(AbstractAction):
         return ProcedureOccurrence(
             name=self._name,
             exclude=self._exclude,
+            category="intervention",
             concept=self._code,
             timing=self._timing,
         )

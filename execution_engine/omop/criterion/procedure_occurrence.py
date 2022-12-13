@@ -13,11 +13,14 @@ class ProcedureOccurrence(ConceptCriterion):
         self,
         name: str,
         exclude: bool,
+        category: str,
         concept: Concept,
         value: ValueNumber | None = None,
         timing: ValueNumber | None = None,
     ) -> None:
-        super().__init__(name=name, exclude=exclude, concept=concept, value=value)
+        super().__init__(
+            name=name, exclude=exclude, category=category, concept=concept, value=value
+        )
 
         self._set_omop_variables_from_domain("procedure")
         self._timing = timing

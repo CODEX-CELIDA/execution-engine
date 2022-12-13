@@ -33,7 +33,10 @@ class CohortDefinition:
     def __init__(self, base_criterion: Criterion) -> None:
         self._base_criterion = base_criterion
         self._criteria = CriterionCombination(
-            "root", False, CriterionCombination.Operator("AND")
+            name="root",
+            exclude=False,
+            category="base",
+            operator=CriterionCombination.Operator("AND"),
         )
         self._execution_map: ExecutionMap | None = None
 

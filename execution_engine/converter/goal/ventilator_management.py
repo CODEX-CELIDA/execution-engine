@@ -64,6 +64,7 @@ class VentilatorManagementGoal(Goal):
             return cls(
                 name=self._code.name,
                 exclude=False,
+                category="intervention",
                 concept=self._code,
                 value=self._value,
             )
@@ -71,6 +72,7 @@ class VentilatorManagementGoal(Goal):
         return Measurement(
             name=self._name,
             exclude=self._exclude,
+            category="intervention",
             concept=self._code,
             value=self._value,
         )

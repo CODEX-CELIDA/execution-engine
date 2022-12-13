@@ -57,5 +57,9 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
     def to_criterion(self) -> Criterion:
         """Converts this characteristic to a Criterion."""
         return self._criterion_class(
-            name=self._name, exclude=self._exclude, concept=self.value, value=None
+            name=self._name,
+            exclude=self._exclude,
+            category="population",
+            concept=self.value,
+            value=None,
         )

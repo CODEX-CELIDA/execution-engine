@@ -33,7 +33,10 @@ def characteristic_to_criterion(
             characteristic.code, characteristic.threshold
         )
         comb = CriterionCombination(
-            name="...", exclude=characteristic.exclude, operator=operator
+            name="characteristics_combination",
+            category="population",
+            exclude=characteristic.exclude,
+            operator=operator,
         )
         for c in characteristic:
             comb.add(characteristic_to_criterion(c))

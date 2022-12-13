@@ -17,6 +17,7 @@ class DrugExposure(Criterion):
         self,
         name: str,
         exclude: bool,
+        category: str,
         drug_concepts: pd.DataFrame,
         dose: ValueNumber | None,
         frequency: int | None,
@@ -26,7 +27,7 @@ class DrugExposure(Criterion):
         """
         Initialize the drug administration action.
         """
-        super().__init__(name, exclude)
+        super().__init__(name=name, exclude=exclude, category=category)
         self._set_omop_variables_from_domain("drug")
         self._drug_concepts = drug_concepts
         self._dose = dose

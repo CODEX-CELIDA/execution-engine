@@ -44,6 +44,7 @@ class RecommendationPersonDatum(Base):  # noqa: D101
     )
     recommendation_run_id = Column(Integer, nullable=False, index=True)
     person_id = Column(Integer, nullable=False, index=True)
+    cohort_type = Column(String(20), nullable=False)
     criterion_name = Column(String(255), nullable=False)
     domain_id = Column(String(20), nullable=False)
     parameter_concept_id = Column(Integer, nullable=False, index=True)

@@ -26,14 +26,20 @@ class AbstractCriterion(ABC):
     Abstract base class for Criterion and CriterionCombination.
     """
 
-    def __init__(self, name: str, exclude: bool = False):
+    def __init__(self, name: str, exclude: bool, category: str) -> None:
         self._name: str = re.sub(r"[ \t]", "-", name)
         self._exclude: bool = exclude
+        self._category: str = category
 
     @property
     def exclude(self) -> bool:
         """Return the exclude flag."""
         return self._exclude
+
+    @property
+    def category(self) -> str:
+        """Return the category value."""
+        return self._category
 
     @property
     def type(self) -> str:
@@ -106,8 +112,8 @@ class Criterion(AbstractCriterion):
         "visit": {"table": VisitOccurrence, "value_required": False, "static": True},
     }
 
-    def __init__(self, name: str, exclude: bool = False):
-        super().__init__(name, exclude)
+    def __init__(self, name: str, exclude: bool, category: str) -> None:
+        super().__init__(name=name, exclude=exclude, category=category)
         self._table_in: TableClause | None = None
         self._table_out: TableClause | None = None
         self._table_join: TableClause
@@ -179,6 +185,9 @@ class Criterion(AbstractCriterion):
             into=self._table_out.original,
             temporary=True,
         )
+
+        # from execution_engine.omop.db.result import RecommendationPersonDatum, RecommendationResult
+        # sql_insert = insert(RecommendationPersonDatum).from_select(sel.select.columns, sel.select)
 
         return sel
 

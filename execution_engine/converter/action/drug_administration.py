@@ -263,6 +263,7 @@ class DrugAdministrationAction(AbstractAction):
         drug_action = DrugExposure(
             name=self._name,
             exclude=self._exclude,
+            category="intervention",
             drug_concepts=self._drug_concepts,
             dose=self._dose,
             frequency=self._frequency,
@@ -274,6 +275,7 @@ class DrugAdministrationAction(AbstractAction):
             comb = CriterionCombination(
                 name=f"{self._name}_extensions",
                 exclude=False,
+                category="intervention",
                 operator=CriterionCombination.Operator("AND"),
             )
             comb.add(drug_action)
@@ -283,6 +285,7 @@ class DrugAdministrationAction(AbstractAction):
                     ConceptCriterion(
                         name=f"{self._name}_ext_{extension['code'].name}",
                         exclude=False,
+                        category="intervention",
                         concept=extension["code"],
                         value=extension["value"],
                     )

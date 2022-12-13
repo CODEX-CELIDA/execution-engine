@@ -18,6 +18,7 @@ class ActivePatients(VisitOccurrence):
     def __init__(self, name: str):
         self._name = name
         self._exclude = False
+        self._category = "base"
         self._set_omop_variables_from_domain("visit")
 
     def _sql_header(self, table_in: str | None, table_out: str) -> Insert:
