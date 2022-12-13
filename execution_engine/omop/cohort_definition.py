@@ -6,9 +6,10 @@ from typing import Any, Iterator
 import sqlalchemy
 from sqlalchemy import literal_column, select, table, union
 from sqlalchemy.orm import Query
+from sqlalchemy.sql import Alias, CompoundSelect, Join, Select
 
 from ..execution_map import ExecutionMap
-from ..util.sql import select_into
+from ..util.sql import SelectInto, select_into
 from .criterion.abstract import AbstractCriterion, Criterion
 from .criterion.combination import CriterionCombination
 
@@ -57,6 +58,43 @@ class CohortDefinition:
 
         return name
 
+    @staticmethod
+    def _assert_base_table_in_select(
+        sql: CompoundSelect | Select | SelectInto, base_table_out: str
+    ) -> None:
+        """
+        Assert that the base table is used in the select statement.
+
+        Joining the base table ensures that always just a subset of potients are selected,
+        not all.
+        """
+        if isinstance(sql, SelectInto):
+            sql = sql.select
+
+        def _base_table_in_select(sql_select: Join | Select | Alias) -> bool:
+            """
+            Check if the base table is used in the select statement.
+            """
+            if isinstance(sql_select, Join):
+                return _base_table_in_select(sql_select.left) or _base_table_in_select(
+                    sql_select.right
+                )
+            elif isinstance(sql_select, Select):
+                return any(_base_table_in_select(f) for f in sql_select.froms)
+            elif isinstance(sql_select, Alias):
+                return sql_select.original.name == base_table_out
+            else:
+                raise NotImplementedError(f"Unknown type {type(sql_select)}")
+
+        if isinstance(sql, CompoundSelect):
+            raise NotImplementedError("CompoundSelect not supported")
+        elif isinstance(sql, Select):
+            assert _base_table_in_select(
+                sql
+            ), f"Base table {base_table_out} not found in select"
+        else:
+            raise NotImplementedError(f"Unknown type {type(sql)}")
+
     def process(
         self,
         datetime_start: datetime,
@@ -83,10 +121,12 @@ class CohortDefinition:
         i: int
         criterion: Criterion
 
-        table_out = self._to_tablename(f"{table_prefix}{self._base_criterion.name}")
+        base_table_out = self._to_tablename(
+            f"{table_prefix}{self._base_criterion.name}"
+        )
         sql = self._base_criterion.sql_generate(
             table_in=None,
-            table_out=table_out,
+            table_out=base_table_out,
             datetime_start=datetime_start,
             datetime_end=datetime_end,
         )
@@ -104,6 +144,9 @@ class CohortDefinition:
             )
             # fixme: remove (used for debugging only)
             str(sql)
+
+            self._assert_base_table_in_select(sql, base_table_out)
+
             yield to_sqlalchemy(sql)
 
         if combine:
@@ -194,5 +237,10 @@ class CohortDefinitionCombination:
         yield stmt_into
 
         if cleanup:
+            for combination_table in combination_tables:
+                assert (
+                    len(combination_table.froms) == 1
+                ), "Unexpected number of froms in combination table"
+                yield to_sqlalchemy(f'DROP TABLE "{str(combination_table.froms[0])}"')
             for cohort_definition in self._cohort_definitions:
                 yield from cohort_definition.cleanup()
