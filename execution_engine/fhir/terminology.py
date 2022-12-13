@@ -1,8 +1,24 @@
 import requests
 
-# fixme use?
+# fixme use caching?
 # import requests_cache
 # requests_cache.install_cache("example_cache", backend="sqlite")
+
+
+class FHIRTerminologyServerException(Exception):
+    """
+    Raised when a terminology server returns an error.
+    """
+
+    pass
+
+
+class ValueSetEmptyException(FHIRTerminologyServerException):
+    """
+    Raised when a value set retrieved from the terminology server has no entries.
+    """
+
+    pass
 
 
 class FHIRTerminologyClient:
@@ -57,9 +73,25 @@ class FHIRTerminologyClient:
             f"{self.server_url}/ValueSet/?url={url}",
             headers={"ACCEPT": "application/fhir+json"},
         )
+
+        assert r.status_code == 200, f"Error getting value set {url}: {r.text}"
+
+        json = r.json()
+        if json["resourceType"] != "Bundle":
+            raise FHIRTerminologyServerException(
+                f"Error getting value set {url}: Found resource type {json['resourceType']}, expected Bundle"
+            )
+        if json["type"] != "searchset":
+            raise FHIRTerminologyServerException(
+                f"Error getting value set {url}: Found bundle type {json['type']}, expected searchset"
+            )
+
+        if "entry" not in json:
+            raise ValueSetEmptyException(
+                f"Error getting value set {url}: No entries found in bundle"
+            )
+
         return [
             c["code"]
-            for c in r.json()["entry"][0]["resource"]["compose"]["include"][0][
-                "concept"
-            ]
+            for c in json["entry"][0]["resource"]["compose"]["include"][0]["concept"]
         ]

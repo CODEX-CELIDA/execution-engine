@@ -26,6 +26,10 @@ class ProcedureOccurrence(ConceptCriterion):
         """
         Get the SQL representation of the criterion.
         """
+        import warnings
+
+        warnings.warn("Make sure that base table is joined for subselects")
+
         sql = base_sql.select
 
         concept_id = self._table_join.c[f"{self._OMOP_COLUMN_PREFIX}_concept_id"]

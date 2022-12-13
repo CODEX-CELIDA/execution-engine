@@ -95,7 +95,7 @@ class ExecutionEngine:
         cf.register(RadiologyCharacteristic)
         cf.register(ProcedureCharacteristic)
         cf.register(EpisodeOfCareCharacteristic)
-        # cf.register(VentilationObservableCharacteristic) # fixme: implement
+        # cf.register(VentilationObservableCharacteristic) # fixme: implement (valueset retrieval / caching)
         cf.register(LaboratoryCharacteristic)
 
         return cf

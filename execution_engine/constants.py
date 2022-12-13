@@ -5,7 +5,8 @@ LOINC_EPISODE_OF_CARE_TYPE = "78030-4"  # Episode of care Type
 SCT_PROCEDURE = "71388002"  # Procedure (procedure)
 SCT_VENTILATOR_OBSERVABLE = "364698001"  # Ventilator observable (observable entity)
 
-VS_VENTILATOR_OBSERVABLE = "https://medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
+VS_VENTILATOR_OBSERVATIONS = "https://medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
+VS_LABORATORY_OBSERVATIONS = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/ValueSet/vs-laboratory-observations"
 
 SCT_VENTILATOR_CARE_AND_ADJUSTMENT = (
     "385857005"  # Ventilator care and adjustment (regime/therapy)

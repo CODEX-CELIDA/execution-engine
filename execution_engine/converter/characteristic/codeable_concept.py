@@ -11,9 +11,17 @@ from .abstract import AbstractCharacteristic
 
 class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
     """
-    An abstract characteristic that uses a CodeableConcept as its value.
+    A characteristic from FHIR EvidenceVariable that is defined by a valueCodeableConcept.
 
-    """  # fixme : docstring
+    This is a base class for characteristics that are defined by a valueCodeableConcept.
+    Inheriting classes must define the _concept_code and _concept_vocabulary attributes,
+    which are used to determine whether an EvidenceVariable.characteristic belongs
+    to that class (by comparing characteristic.typeCodeableConcept to the attributes).
+
+    The _criterion_class attribute is used to determine the type of criterion to create
+    when converting the characteristic to a criterion. The concept specified in
+    EvidenceVariable.characteristic.valueCodeableConcept is used to initialize the criterion.
+    """
 
     _criterion_class: Type[ConceptCriterion]
     _concept_code: str

@@ -8,6 +8,12 @@ from sqlalchemy import and_, func
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Query, Session
 
+from execution_engine.omop.db import (  # noqa: F401 -- do not remove - needed for metadata to work
+    base,
+    cdm,
+    result,
+)
+
 from .concepts import Concept
 
 
@@ -29,15 +35,31 @@ class OMOPSQLClient:
             connect_args={"options": "-csearch_path={}".format(schema)},
         )
 
-        self._reflect()
         self._session = Session(self._engine)
+        self._metadata = base.metadata
+        self._metadata.bind = self._engine
 
-    def _reflect(self) -> None:
+        self._init_result_tables()
+
+    def _init_result_tables(self, schema: str = "celida") -> None:
         """
-        Reflect the OMOP CDM database schema.
+        Initialize the result schema.
         """
-        self._metadata = sqlalchemy.MetaData(bind=self._engine)
-        self._metadata.reflect()
+        if not self._engine.dialect.has_schema(self._engine, schema):
+            self.execute(sqlalchemy.schema.CreateSchema(schema))
+            self.commit()
+            logging.info(f"Created result schema '{schema}'")
+
+        result_tables = [
+            self._metadata.tables[t]
+            for t in self._metadata.tables
+            if t.startswith("celida.")
+        ]
+        assert len(result_tables) > 0, "No results tables found"
+        logging.info("Creating result tables (if not exist)")
+
+        self._metadata.create_all(tables=result_tables, bind=self._engine)
+        self.commit()
 
     @property
     def session(self) -> Session:
@@ -81,7 +103,7 @@ class OMOPSQLClient:
 
     def get_concept_info(self, concept_id: str) -> Concept:
         """Get the concept info for the given concept ID."""
-        concept = self.tables["concept"]
+        concept = self.tables["cds_cdm.concept"]
         query = concept.select().where(concept.c.concept_id == str(concept_id))
         df = self.query(query)
 
@@ -101,7 +123,7 @@ class OMOPSQLClient:
         """
         logging.info(f"Requesting standard concept: {vocabulary} #{code}")
 
-        concept = self.tables["concept"]
+        concept = self.tables["cds_cdm.concept"]
         query = concept.select().where(
             and_(
                 concept.c.vocabulary_id == vocabulary,

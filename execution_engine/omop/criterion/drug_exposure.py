@@ -68,6 +68,10 @@ class DrugExposure(Criterion):
 
         drug_exposure = self._table_join
 
+        import warnings
+
+        warnings.warn("Make sure that base table is joined for subselects")
+
         if self._dose is not None:
             df_drugs = self.filter_same_unit(
                 self._drug_concepts, self._dose.unit

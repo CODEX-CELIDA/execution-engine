@@ -8,7 +8,7 @@ import sqlalchemy
 from sqlalchemy import literal_column, select, table
 from sqlalchemy.sql import ClauseElement, Insert, TableClause
 
-from execution_engine.omop.models import (
+from execution_engine.omop.db.cdm import (
     Base,
     ConditionOccurrence,
     DeviceExposure,

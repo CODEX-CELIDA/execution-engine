@@ -56,15 +56,6 @@ class ConceptCriterion(Criterion):
         if self._value is not None:
             sql = sql.filter(self._value.to_sql(self.table_alias))
 
-        # fixme: remove this after making sure the above statement works equivalently
-        # sql += (
-        #    f"INNER JOIN {self._OMOP_TABLE} {table_alias} ON ({table_alias}.person_id = table_in.person_id)\n"
-        #    f"WHERE ({self._OMOP_COLUMN_PREFIX}_concept_id = {self._concept.id})\n"
-        # )
-        #
-        # if self._value is not None:
-        #    sql += f" AND ({self._value.to_sql(table_alias)})\n"
-
         base_sql.select = sql
 
         return base_sql

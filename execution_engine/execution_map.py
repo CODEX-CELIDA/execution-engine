@@ -149,7 +149,7 @@ class ExecutionMap:
             """
             Traverse the execution map and return a combined SQL query for all criteria in the execution map.
             """
-            criteria: list[CompoundSelect] = []
+            criteria: list[Criterion] = []
 
             if type(combination) == sympy.And:
                 conjunction = intersect

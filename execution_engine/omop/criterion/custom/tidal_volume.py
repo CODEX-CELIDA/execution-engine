@@ -28,6 +28,10 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
     _value: ValueNumber
 
     def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
+        import warnings
+
+        warnings.warn("Make sure that base table is joined for subselects")
+
         sql_ibw = (
             text(  # nosec
                 f"""
