@@ -1,8 +1,10 @@
 from datetime import datetime
+from typing import Any, Dict
 
 from sqlalchemy.sql import TableClause
 
-from ...util import Value
+from ...constants import CohortCategory
+from ...util import Value, ValueNumber
 from ...util.sql import SelectInto
 from ..concepts import Concept
 from .abstract import Criterion
@@ -22,7 +24,7 @@ class ConceptCriterion(Criterion):
         self,
         name: str,
         exclude: bool,
-        category: str,
+        category: CohortCategory,
         concept: Concept,
         value: Value | None = None,
     ):
@@ -60,3 +62,29 @@ class ConceptCriterion(Criterion):
         base_sql.select = sql
 
         return base_sql
+
+    def dict(self) -> dict[str, Any]:
+        """
+        Get a JSON representation of the criterion.
+        """
+        return {
+            "name": self.name,
+            "exclude": self.exclude,
+            "category": self._category.value,
+            "concept": self._concept.json(),
+            "value": self._value.json() if self._value is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ConceptCriterion":
+        """
+        Create a criterion from a JSON representation.
+        """
+        # fixeme ValueNUmber could be ValueConcept
+        return cls(
+            name=data["name"],
+            exclude=data["exclude"],
+            category=data["category"],
+            concept=Concept.from_dict(data["concept"]),
+            value=ValueNumber(**data["value"]) if data["value"] is not None else None,
+        )

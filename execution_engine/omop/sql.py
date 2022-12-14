@@ -8,7 +8,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Query, Session
 
-from execution_engine.omop.db import (  # noqa: F401 -- do not remove - needed for metadata to work
+from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
     base,
     cdm,
     result,

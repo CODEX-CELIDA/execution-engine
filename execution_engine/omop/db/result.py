@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, LargeBinary, Numeric, String
+from sqlalchemy import Column, Enum, Integer, LargeBinary, Numeric, String
 
-from .base import Base, DateTime
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.db.base import Base, DateTime
 
 
 class CohortDefinition(Base):  # noqa: D101
@@ -12,8 +13,9 @@ class CohortDefinition(Base):  # noqa: D101
         primary_key=True,
         index=True,
     )
-    recommendation_canonical_url = Column(String(255), nullable=False, index=True)
+    recommendation_url = Column(String(255), nullable=False, index=True)
     recommendation_version = Column(String(255), nullable=False)
+    cohort_definition_hash = Column(String(64), nullable=False, index=True, unique=True)
     cohort_definition_pickle = Column(LargeBinary, nullable=False)
     create_datetime = Column(DateTime, nullable=False)
 
@@ -65,6 +67,6 @@ class RecommendationResult(Base):  # noqa: D101
         index=True,
     )
     recommendation_run_id = Column(Integer, nullable=False, index=True)
-    cohort_type = Column(String(20), nullable=False)
+    cohort_category = Column(Enum(CohortCategory), nullable=False)
     criterion_name = Column(String(255), nullable=False)
     person_id = Column(Integer, nullable=False, index=True)

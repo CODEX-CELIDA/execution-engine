@@ -2,12 +2,13 @@ import copy
 import re
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import cast
+from typing import Any, Dict, cast
 
 import sqlalchemy
 from sqlalchemy import literal_column, select, table
 from sqlalchemy.sql import ClauseElement, Insert, TableClause
 
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.db.cdm import (
     Base,
     ConditionOccurrence,
@@ -26,10 +27,10 @@ class AbstractCriterion(ABC):
     Abstract base class for Criterion and CriterionCombination.
     """
 
-    def __init__(self, name: str, exclude: bool, category: str) -> None:
+    def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
         self._name: str = re.sub(r"[ \t]", "-", name)
         self._exclude: bool = exclude
-        self._category: str = category
+        self._category: CohortCategory = category
 
     @property
     def exclude(self) -> bool:
@@ -37,7 +38,7 @@ class AbstractCriterion(ABC):
         return self._exclude
 
     @property
-    def category(self) -> str:
+    def category(self) -> CohortCategory:
         """Return the category value."""
         return self._category
 
@@ -53,7 +54,7 @@ class AbstractCriterion(ABC):
         """
         Get the name of the criterion.
         """
-        return str(self)
+        return self.type + "_" + self._name
 
     def invert_exclude(self, inplace: bool = False) -> "AbstractCriterion":
         """
@@ -67,11 +68,34 @@ class AbstractCriterion(ABC):
             criterion._exclude = not criterion._exclude
             return criterion
 
+    def __repr__(self) -> str:
+        """
+        Get the respresentation of the criterion.
+        """
+        return (
+            f"{self.type}.{self._category.name}.{self._name}(exclude={self._exclude})"
+        )
+
     def __str__(self) -> str:
         """
         Get the name of the criterion.
         """
-        return self.type + "_" + self._name
+        return self.name
+
+    @abstractmethod
+    def dict(self) -> dict[str, Any]:
+        """
+        Get the JSON representation of the criterion.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    @abstractmethod
+    def from_dict(self, data: Dict[str, Any]) -> "AbstractCriterion":
+        """
+        Create a criterion from a JSON object.
+        """
+        raise NotImplementedError()
 
 
 class Criterion(AbstractCriterion):
@@ -112,7 +136,7 @@ class Criterion(AbstractCriterion):
         "visit": {"table": VisitOccurrence, "value_required": False, "static": True},
     }
 
-    def __init__(self, name: str, exclude: bool, category: str) -> None:
+    def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
         super().__init__(name=name, exclude=exclude, category=category)
         self._table_in: TableClause | None = None
         self._table_out: TableClause | None = None
@@ -299,3 +323,11 @@ class Criterion(AbstractCriterion):
         """
         # fixme: use proper sqlalchemy syntax
         return f'DROP TABLE "{str(self.table_out.original.name)}"'  # nosec - this is actual SQL code (generated)
+
+    @classmethod
+    @abstractmethod
+    def from_dict(self, data: Dict[str, Any]) -> "Criterion":
+        """
+        Create a criterion from a JSON object.
+        """
+        raise NotImplementedError()

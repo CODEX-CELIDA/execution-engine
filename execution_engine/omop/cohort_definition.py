@@ -1,13 +1,14 @@
 import logging
 import re
 from datetime import datetime
-from typing import Any, Iterator
+from typing import Any, Dict, Iterator
 
 import sqlalchemy
 from sqlalchemy import literal_column, select, table, union
 from sqlalchemy.orm import Query
 from sqlalchemy.sql import Alias, CompoundSelect, Join, Select
 
+from ..constants import CohortCategory
 from ..execution_map import ExecutionMap
 from ..util.sql import SelectInto, select_into
 from .criterion.abstract import AbstractCriterion, Criterion
@@ -35,10 +36,37 @@ class CohortDefinition:
         self._criteria = CriterionCombination(
             name="root",
             exclude=False,
-            category="base",
+            category=CohortCategory.BASE,
             operator=CriterionCombination.Operator("AND"),
         )
         self._execution_map: ExecutionMap | None = None
+
+    def dict(self) -> Dict[str, Any]:
+        """
+        Get a dictionary representation of the cohort definition.
+        """
+        return {
+            "base_criterion": self._base_criterion.dict(),
+            "criteria": self._criteria.dict(),
+        }
+
+    def __iter__(self) -> Iterator[Criterion | CriterionCombination]:
+        """
+        Iterate over the criteria in the cohort definition.
+        """
+        return iter(self._criteria)
+
+    def __len__(self) -> int:
+        """
+        Get the number of criteria in the cohort definition.
+        """
+        return len(self._criteria)
+
+    def __getitem__(self, item: int) -> AbstractCriterion:
+        """
+        Get a criterion by index.
+        """
+        return self._criteria[item]
 
     def execution_map(self) -> ExecutionMap:
         """
@@ -46,7 +74,7 @@ class CohortDefinition:
         """
         return ExecutionMap(self._criteria)
 
-    def add(self, criterion: AbstractCriterion) -> None:
+    def add(self, criterion: Criterion | CriterionCombination) -> None:
         """
         Add a criterion to the cohort definition.
         """
@@ -191,9 +219,66 @@ class CohortDefinitionCombination:
     """
 
     _cohort_definitions: list[CohortDefinition]
+    _id: int  # The id is used in the cohort_definition_id field in the result tables.
+    _recommendation_url: str
+    _recommendation_version: str
 
-    def __init__(self, cohort_definitions: list[CohortDefinition]) -> None:
+    def __init__(
+        self, cohort_definitions: list[CohortDefinition], url: str, version: str
+    ) -> None:
         self._cohort_definitions = cohort_definitions
+        self._url = url
+        self._version = version
+
+    @property
+    def id(self) -> int:
+        """
+        Get the id of the cohort definition combination.
+
+        The id is used in the cohort_definition_id field in the result tables.
+        """
+        return self._id
+
+    @id.setter
+    def id(self, value: int) -> None:
+        """
+        Set the id of the cohort definition.
+
+        The id is used in the cohort_definition_id field in the result tables.
+        """
+        self._id = value
+
+    @property
+    def url(self) -> str:
+        """
+        Get the url of the cohort definition combination.
+        """
+        return self._url
+
+    @property
+    def version(self) -> str:
+        """
+        Get the version of the cohort definition combination.
+        """
+        return self._version
+
+    def __iter__(self) -> Iterator[CohortDefinition]:
+        """
+        Iterate over the cohort definitions.
+        """
+        yield from self._cohort_definitions
+
+    def __len__(self) -> int:
+        """
+        Get the number of cohort definitions.
+        """
+        return len(self._cohort_definitions)
+
+    def __getitem__(self, index: int) -> CohortDefinition:
+        """
+        Get the cohort definition at the given index.
+        """
+        return self._cohort_definitions[index]
 
     def process(
         self,

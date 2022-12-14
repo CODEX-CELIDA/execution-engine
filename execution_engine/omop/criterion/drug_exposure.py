@@ -1,8 +1,10 @@
 import logging
+from typing import Any, Dict
 
 import pandas as pd
 from sqlalchemy import func, literal_column, select
 
+from ...constants import CohortCategory
 from ...util import ValueNumber
 from ...util.sql import SelectInto
 from ..concepts import Concept
@@ -17,7 +19,7 @@ class DrugExposure(Criterion):
         self,
         name: str,
         exclude: bool,
-        category: str,
+        category: CohortCategory,
         drug_concepts: pd.DataFrame,
         dose: ValueNumber | None,
         frequency: int | None,
@@ -115,3 +117,36 @@ class DrugExposure(Criterion):
         base_sql.select = query
 
         return base_sql
+
+    def dict(self) -> dict:
+        """
+        Return a dictionary representation of the criterion.
+        """
+        return {
+            "name": self._name,
+            "exclude": self._exclude,
+            "category": self._category.value,
+            "drug_concepts": self._drug_concepts.json(),
+            "dose": self._dose.json() if self._dose is not None else None,
+            "frequency": self._frequency,
+            "interval": self._interval,
+            "route": self._route.json() if self._route is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DrugExposure":
+        """
+        Create a drug exposure criterion from a dictionary representation.
+        """
+        return cls(
+            name=data["name"],
+            exclude=data["exclude"],
+            category=data["category"],
+            drug_concepts=pd.DataFrame.from_dict(data["drug_concepts"]),
+            dose=ValueNumber(**data["dose"]) if data["dose"] is not None else None,
+            frequency=data["frequency"],
+            interval=data["interval"],
+            route=Concept.from_dict(data["route"])
+            if data["route"] is not None
+            else None,
+        )

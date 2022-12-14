@@ -1,6 +1,7 @@
+from .constants import CohortCategory
 from .converter.characteristic.abstract import AbstractCharacteristic
 from .converter.characteristic.combination import CharacteristicCombination
-from .omop.criterion.abstract import AbstractCriterion
+from .omop.criterion.abstract import Criterion
 from .omop.criterion.combination import CriterionCombination
 
 
@@ -24,7 +25,7 @@ def characteristic_code_to_criterion_combination_operator(
 
 def characteristic_to_criterion(
     characteristic: AbstractCharacteristic | CharacteristicCombination,
-) -> AbstractCriterion:
+) -> Criterion | CriterionCombination:
     """
     Convert a characteristic to a criterion.
     """
@@ -34,7 +35,7 @@ def characteristic_to_criterion(
         )
         comb = CriterionCombination(
             name="characteristics_combination",
-            category="population",
+            category=CohortCategory.POPULATION,
             exclude=characteristic.exclude,
             operator=operator,
         )

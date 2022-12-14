@@ -1,5 +1,8 @@
+import hashlib
 import logging
 import os
+import pickle  # nosec
+from datetime import datetime
 from typing import Tuple, Union, cast
 
 from fhir.resources.evidencevariable import (
@@ -7,30 +10,52 @@ from fhir.resources.evidencevariable import (
     EvidenceVariableCharacteristic,
 )
 
-from .converter.action import (
+pass
+
+from execution_engine.clients import omopdb
+from execution_engine.constants import CohortCategory
+from execution_engine.converter.action import (
     AbstractAction,
     BodyPositioningAction,
     DrugAdministrationAction,
     VentilatorManagementAction,
 )
-from .converter.characteristic.abstract import AbstractCharacteristic
-from .converter.characteristic.allergy import AllergyCharacteristic
-from .converter.characteristic.combination import CharacteristicCombination
-from .converter.characteristic.condition import ConditionCharacteristic
-from .converter.characteristic.episode_of_care import EpisodeOfCareCharacteristic
-from .converter.characteristic.laboratory import LaboratoryCharacteristic
-from .converter.characteristic.procedure import ProcedureCharacteristic
-from .converter.characteristic.radiology import RadiologyCharacteristic
-from .converter.converter import CriterionConverter, CriterionConverterFactory
-from .converter.goal.abstract import Goal
-from .converter.goal.laboratory_value import LaboratoryValueGoal
-from .converter.goal.ventilator_management import VentilatorManagementGoal
-from .fhir.client import FHIRClient
-from .fhir.recommendation import Recommendation, RecommendationPlan
-from .fhir_omop_mapping import ActionSelectionBehavior, characteristic_to_criterion
-from .omop.cohort_definition import CohortDefinition, CohortDefinitionCombination
-from .omop.criterion.combination import CriterionCombination
-from .omop.criterion.visit_occurrence import ActivePatients
+from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
+from execution_engine.converter.characteristic.allergy import AllergyCharacteristic
+from execution_engine.converter.characteristic.combination import (
+    CharacteristicCombination,
+)
+from execution_engine.converter.characteristic.condition import ConditionCharacteristic
+from execution_engine.converter.characteristic.episode_of_care import (
+    EpisodeOfCareCharacteristic,
+)
+from execution_engine.converter.characteristic.laboratory import (
+    LaboratoryCharacteristic,
+)
+from execution_engine.converter.characteristic.procedure import ProcedureCharacteristic
+from execution_engine.converter.characteristic.radiology import RadiologyCharacteristic
+from execution_engine.converter.converter import (
+    CriterionConverter,
+    CriterionConverterFactory,
+)
+from execution_engine.converter.goal.abstract import Goal
+from execution_engine.converter.goal.laboratory_value import LaboratoryValueGoal
+from execution_engine.converter.goal.ventilator_management import (
+    VentilatorManagementGoal,
+)
+from execution_engine.fhir.client import FHIRClient
+from execution_engine.fhir.recommendation import Recommendation, RecommendationPlan
+from execution_engine.fhir_omop_mapping import (
+    ActionSelectionBehavior,
+    characteristic_to_criterion,
+)
+from execution_engine.omop.cohort_definition import (
+    CohortDefinition,
+    CohortDefinitionCombination,
+)
+from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.visit_occurrence import ActivePatients
+from execution_engine.omop.db import result as result_db
 
 
 class ExecutionEngine:
@@ -49,6 +74,7 @@ class ExecutionEngine:
 
         # todo: init clients here?
         self._fhir = FHIRClient(fhir_base_url)
+        self._db = omopdb
 
     @staticmethod
     def setup_logging() -> None:
@@ -57,35 +83,6 @@ class ExecutionEngine:
             format="%(asctime)s - %(levelname)s - %(message)s",
             level=logging.INFO,
         )
-
-    def process_recommendation(
-        self, recommendation_url: str
-    ) -> CohortDefinitionCombination:
-        """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
-        rec = Recommendation(recommendation_url, self._fhir)
-
-        rec_plan_cohorts: list[CohortDefinition] = []
-
-        for rec_plan in rec.plans():
-            cd = CohortDefinition(ActivePatients(name="active_patients"))
-
-            characteristics = self._parse_characteristics(rec_plan.population)
-            for characteristic in characteristics:
-                cd.add(characteristic_to_criterion(characteristic))
-
-            actions, selection_behavior = self._parse_actions(rec_plan.actions)
-            comb_actions = self.action_combination(selection_behavior)
-
-            for action in actions:
-                if action is None:
-                    raise ValueError("Action is None.")
-                comb_actions.add(action.to_criterion())
-
-            cd.add(comb_actions)
-
-            rec_plan_cohorts.append(cd)
-
-        return CohortDefinitionCombination(rec_plan_cohorts)
 
     @staticmethod
     def _init_characteristics_factory() -> CriterionConverterFactory:
@@ -200,11 +197,7 @@ class ExecutionEngine:
 
         return actions, selection_behavior
 
-    def execute(self) -> list[int]:
-        """Executes the Cohort Definition and returns a list of Person IDs."""
-        raise NotImplementedError()
-
-    def action_combination(
+    def _action_combination(
         self, selection_behavior: ActionSelectionBehavior
     ) -> CriterionCombination:
         """
@@ -230,7 +223,89 @@ class ExecutionEngine:
             )
         return CriterionCombination(
             name="intervention_actions",
-            category="intervention",
+            category=CohortCategory.INTERVENTION,
             exclude=False,
             operator=operator,
         )
+
+    def load_recommendation(
+        self, recommendation_url: str, force_reload: bool = False
+    ) -> CohortDefinitionCombination:
+        """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
+        rec = Recommendation(recommendation_url, self._fhir)
+
+        rec_plan_cohorts: list[CohortDefinition] = []
+
+        for rec_plan in rec.plans():
+            cd = CohortDefinition(ActivePatients(name="active_patients"))
+
+            characteristics = self._parse_characteristics(rec_plan.population)
+            for characteristic in characteristics:
+                cd.add(characteristic_to_criterion(characteristic))
+
+            actions, selection_behavior = self._parse_actions(rec_plan.actions)
+            comb_actions = self._action_combination(selection_behavior)
+
+            for action in actions:
+                if action is None:
+                    raise ValueError("Action is None.")
+                comb_actions.add(action.to_criterion())
+
+            cd.add(comb_actions)
+
+            rec_plan_cohorts.append(cd)
+
+        return CohortDefinitionCombination(
+            rec_plan_cohorts, url=rec.url, version=rec.version
+        )
+
+    def execute(self, cd: CohortDefinitionCombination) -> None:
+        """Executes the Cohort Definition and returns a list of Person IDs."""
+
+        with self._db.session.begin():
+            cd_id = self.register_cohort_definition(cd)
+            self.register_run(cd, cd_id)
+            self.execute_cohort_definition(cd, cd_id)
+
+    def register_cohort_definition(self, cd: CohortDefinitionCombination) -> int:
+        """Registers the Cohort Definition in the result database."""
+
+        cd_table = result_db.CohortDefinition.__table__
+
+        cd_pickle = pickle.dumps(cd)
+        cd_hash = hashlib.sha256(cd_pickle).hexdigest()
+
+        cd_db = (
+            cd_table.select()
+            .where(cd_table.c.cohort_definition_hash == cd_hash)
+            .execute()
+            .fetchone()
+        )
+
+        if cd_db is not None:
+            return cd_db.cohort_definition_id
+
+        sql = (
+            result_db.CohortDefinition.__table__.insert()
+            .values(
+                recommendation_url=cd.url,
+                recommendation_version=cd.version,
+                cohort_definition_hash=cd_hash,
+                cohort_definition_pickle=cd_pickle,
+                create_datetime=datetime.now(),
+            )
+            .returning(result_db.CohortDefinition.cohort_definition_id)
+        )
+
+        result = self._db.execute(sql)
+        return result.fetchone()[0]
+
+    def register_run(self, cd: CohortDefinitionCombination, cd_id: int) -> None:
+        """Registers the run in the result database."""
+        pass
+
+    def execute_cohort_definition(
+        self, cd: CohortDefinitionCombination, cd_id: int
+    ) -> None:
+        """Executes the Cohort Definition"""
+        pass

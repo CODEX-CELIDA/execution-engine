@@ -19,14 +19,35 @@ from .util import get_coding, get_extension
 class Recommendation:
     """CPG-on-EBM-on-FHIR Recommendation."""
 
-    def __init__(self, canonical_url: str, fhir_connector: FHIRClient) -> None:
-        self.canonical_url = canonical_url
+    def __init__(self, url: str, fhir_connector: FHIRClient) -> None:
         self.fhir = fhir_connector
 
         self._recommendation: PlanDefinition | None = None
         self._recommendation_plans: list[RecommendationPlan] = []
 
-        self.load()
+        self.load(url)
+
+    @property
+    def url(self) -> str:
+        """Canonical URL of the recommendation."""
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        if self._recommendation.url is None:
+            raise ValueError("Recommendation has no URL.")
+
+        return self._recommendation.url
+
+    @property
+    def version(self) -> str:
+        """Version of the recommendation."""
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        if self._recommendation.version is None:
+            raise ValueError("Recommendation has no version.")
+
+        return self._recommendation.version
 
     def plans(self) -> list["RecommendationPlan"]:
         """
@@ -35,11 +56,11 @@ class Recommendation:
         """
         return self._recommendation_plans
 
-    def load(self) -> None:
+    def load(self, url: str) -> None:
         """
         Load the recommendation from the FHIR server.
         """
-        self._recommendation = self.fetch_recommendation(self.canonical_url)
+        self._recommendation = self.fetch_recommendation(url)
 
         for rec_action in self._recommendation.action:
             rec_plan = RecommendationPlan(rec_action.definitionCanonical, self.fhir)

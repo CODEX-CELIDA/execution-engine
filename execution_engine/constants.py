@@ -1,3 +1,5 @@
+from enum import Enum
+
 SCT_CLINICAL_FINDING = "404684003"  # Clinical finding (finding)
 SCT_ALLERGIC_DISPOSITION = "609328004"  # Allergic disposition (finding)
 SCT_RADIOLOGIC_FINDING = "118247008"  # Radiologic finding (finding)
@@ -24,3 +26,13 @@ OMOP_GENDER_FEMALE = "8532"
 OMOP_GENDER_MALE = "8507"
 
 LOINC_TIDAL_VOLUME = "76222-9"  # Tidal volume ^on ventilator
+
+
+class CohortCategory(Enum):
+    """
+    The category of a cohort.
+    """
+
+    BASE = "base"
+    POPULATION = "population"
+    INTERVENTION = "intervention"

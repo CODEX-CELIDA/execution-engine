@@ -3,9 +3,10 @@ from typing import Type
 
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
-from ...omop.criterion.concept import ConceptCriterion
-from ..converter import parse_code, parse_value
-from .abstract import AbstractCharacteristic
+from execution_engine.constants import CohortCategory
+from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
+from execution_engine.converter.converter import parse_code, parse_value
+from execution_engine.omop.criterion.concept import ConceptCriterion
 
 
 class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
@@ -38,7 +39,7 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
         return self._criterion_class(
             name=self._name,
             exclude=self._exclude,
-            category="population",
+            category=CohortCategory.POPULATION,
             concept=self.type,
             value=self.value,
         )

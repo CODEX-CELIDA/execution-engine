@@ -2,11 +2,12 @@ from typing import Type
 
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
-from ...fhir.util import get_coding
-from ...omop.criterion.abstract import Criterion
-from ...omop.criterion.concept import ConceptCriterion
-from ...omop.vocabulary import AbstractVocabulary
-from .abstract import AbstractCharacteristic
+from execution_engine.constants import CohortCategory
+from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
+from execution_engine.fhir.util import get_coding
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.omop.vocabulary import AbstractVocabulary
 
 
 class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
@@ -59,7 +60,7 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
         return self._criterion_class(
             name=self._name,
             exclude=self._exclude,
-            category="population",
+            category=CohortCategory.POPULATION,
             concept=self.value,
             value=None,
         )

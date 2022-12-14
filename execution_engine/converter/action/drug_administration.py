@@ -14,7 +14,7 @@ from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.vocabulary import SNOMEDCT, VocabularyFactory
 from execution_engine.util import Value, ValueNumber, ucum_to_postgres
 
-from ...constants import EXT_DOSAGE_CONDITION
+from ...constants import EXT_DOSAGE_CONDITION, CohortCategory
 from ...omop.criterion.combination import CriterionCombination
 from ...omop.criterion.concept import ConceptCriterion
 from ..converter import parse_code, parse_value
@@ -263,7 +263,7 @@ class DrugAdministrationAction(AbstractAction):
         drug_action = DrugExposure(
             name=self._name,
             exclude=self._exclude,
-            category="intervention",
+            category=CohortCategory.INTERVENTION,
             drug_concepts=self._drug_concepts,
             dose=self._dose,
             frequency=self._frequency,
@@ -275,7 +275,7 @@ class DrugAdministrationAction(AbstractAction):
             comb = CriterionCombination(
                 name=f"{self._name}_extensions",
                 exclude=False,
-                category="intervention",
+                category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("AND"),
             )
             comb.add(drug_action)
@@ -285,7 +285,7 @@ class DrugAdministrationAction(AbstractAction):
                     ConceptCriterion(
                         name=f"{self._name}_ext_{extension['code'].name}",
                         exclude=False,
-                        category="intervention",
+                        category=CohortCategory.INTERVENTION,
                         concept=extension["code"],
                         value=extension["value"],
                     )

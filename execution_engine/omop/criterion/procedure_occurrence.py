@@ -1,5 +1,8 @@
+from typing import Any, Dict
+
 from sqlalchemy.sql import extract
 
+from ...constants import CohortCategory
 from ...util import ValueNumber, ucum_to_postgres
 from ...util.sql import SelectInto
 from ..concepts import Concept
@@ -13,7 +16,7 @@ class ProcedureOccurrence(ConceptCriterion):
         self,
         name: str,
         exclude: bool,
-        category: str,
+        category: CohortCategory,
         concept: Concept,
         value: ValueNumber | None = None,
         timing: ValueNumber | None = None,
@@ -35,9 +38,9 @@ class ProcedureOccurrence(ConceptCriterion):
 
         sql = base_sql.select
 
-        concept_id = self._table_join.c[f"{self._OMOP_COLUMN_PREFIX}_concept_id"]
-        start_datetime = self._table_join.c[f"{self._OMOP_COLUMN_PREFIX}_datetime"]
-        end_datetime = self._table_join.c[f"{self._OMOP_COLUMN_PREFIX}_end_datetime"]
+        concept_id = self._table_join.c["procedure_concept_id"]
+        start_datetime = self._table_join.c["procedure_datetime"]
+        end_datetime = self._table_join.c["procedure_end_datetime"]
 
         sql = sql.join(
             self._table_join,
@@ -57,3 +60,32 @@ class ProcedureOccurrence(ConceptCriterion):
         base_sql.select = sql
 
         return base_sql
+
+    def dict(self) -> dict:
+        """
+        Return a dictionary representation of the criterion.
+        """
+        return {
+            "name": self._name,
+            "exclude": self._exclude,
+            "category": self._category.value,
+            "concept": self._concept.json(),
+            "value": self._value.json() if self._value is not None else None,
+            "timing": self._timing.json() if self._timing is not None else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ProcedureOccurrence":
+        """
+        Create a procedure occurrence criterion from a dictionary representation.
+        """
+        return cls(
+            name=data["name"],
+            exclude=data["exclude"],
+            category=data["category"],
+            concept=Concept.from_dict(data["concept"]),
+            value=ValueNumber(**data["value"]) if data["value"] is not None else None,
+            timing=ValueNumber(**data["timing"])
+            if data["timing"] is not None
+            else None,
+        )

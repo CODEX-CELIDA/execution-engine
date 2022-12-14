@@ -3,6 +3,7 @@ from typing import cast
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.vocabulary import SNOMEDCT
 
+from ...constants import CohortCategory
 from ...omop.concepts import Concept
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.combination import CriterionCombination
@@ -54,7 +55,7 @@ class BodyPositioningAction(AbstractAction):
         return ProcedureOccurrence(
             name=self._name,
             exclude=self._exclude,
-            category="intervention",
+            category=CohortCategory.INTERVENTION,
             concept=self._code,
             timing=self._timing,
         )

@@ -1,6 +1,9 @@
+from typing import Any, Dict
+
 from sqlalchemy import literal_column
 from sqlalchemy.sql import Insert
 
+from ...constants import CohortCategory
 from ...util.sql import SelectInto
 from .. import StandardConcepts
 from .concept import ConceptCriterion
@@ -18,7 +21,7 @@ class ActivePatients(VisitOccurrence):
     def __init__(self, name: str):
         self._name = name
         self._exclude = False
-        self._category = "base"
+        self._category = CohortCategory.BASE
         self._set_omop_variables_from_domain("visit")
 
     def _sql_header(self, table_in: str | None, table_out: str) -> Insert:
@@ -43,3 +46,16 @@ class ActivePatients(VisitOccurrence):
         base_sql.select = sql
 
         return base_sql
+
+    def dict(self) -> dict[str, Any]:
+        """
+        Get a JSON representation of the criterion.
+        """
+        return {"name": self._name}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ActivePatients":
+        """
+        Create a criterion from a JSON representation.
+        """
+        return cls(data["name"])

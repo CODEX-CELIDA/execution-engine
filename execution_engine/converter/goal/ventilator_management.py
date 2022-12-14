@@ -2,15 +2,20 @@ from typing import Type
 
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from ...constants import SCT_VENTILATOR_CARE_AND_ADJUSTMENT
-from ...omop.concepts import Concept
-from ...omop.criterion.abstract import Criterion
-from ...omop.criterion.custom.tidal_volume import TidalVolumePerIdealBodyWeight
-from ...omop.criterion.measurement import Measurement
-from ...omop.vocabulary import CODEXCELIDA, SNOMEDCT
-from ...util import Value
-from ..converter import parse_code, parse_value
-from .abstract import Goal
+from execution_engine.constants import (
+    SCT_VENTILATOR_CARE_AND_ADJUSTMENT,
+    CohortCategory,
+)
+from execution_engine.converter.converter import parse_code, parse_value
+from execution_engine.converter.goal.abstract import Goal
+from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.custom.tidal_volume import (
+    TidalVolumePerIdealBodyWeight,
+)
+from execution_engine.omop.criterion.measurement import Measurement
+from execution_engine.omop.vocabulary import CODEXCELIDA, SNOMEDCT
+from execution_engine.util import Value
 
 CUSTOM_GOALS: dict[Concept, Type] = {
     CODEXCELIDA.map["tvpibw"]: TidalVolumePerIdealBodyWeight,
@@ -64,7 +69,7 @@ class VentilatorManagementGoal(Goal):
             return cls(
                 name=self._code.name,
                 exclude=False,
-                category="intervention",
+                category=CohortCategory.INTERVENTION,
                 concept=self._code,
                 value=self._value,
             )
@@ -72,7 +77,7 @@ class VentilatorManagementGoal(Goal):
         return Measurement(
             name=self._name,
             exclude=self._exclude,
-            category="intervention",
+            category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,
         )

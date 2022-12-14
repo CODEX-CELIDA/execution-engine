@@ -1,6 +1,6 @@
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from ...constants import SCT_LAB_FINDINGS_SURVEILLANCE
+from ...constants import SCT_LAB_FINDINGS_SURVEILLANCE, CohortCategory
 from ...omop.concepts import Concept
 from ...omop.criterion.abstract import Criterion
 from ...omop.criterion.measurement import Measurement
@@ -54,7 +54,7 @@ class LaboratoryValueGoal(Goal):
         return Measurement(
             name=self._name,
             exclude=self._exclude,
-            category="intervention",
+            category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,
         )

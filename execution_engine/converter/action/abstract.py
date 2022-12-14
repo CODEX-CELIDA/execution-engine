@@ -1,14 +1,15 @@
 from abc import abstractmethod
 from typing import Type, final
 
-from ...fhir.recommendation import RecommendationPlan
-from ...fhir.util import get_coding
-from ...omop.criterion.abstract import Criterion
-from ...omop.criterion.combination import CriterionCombination
-from ...omop.vocabulary import AbstractVocabulary
-from ...util import AbstractPrivateMethods
-from ..converter import CriterionConverter
-from ..goal.abstract import Goal
+from execution_engine.constants import CohortCategory
+from execution_engine.converter.converter import CriterionConverter
+from execution_engine.converter.goal.abstract import Goal
+from execution_engine.fhir.recommendation import RecommendationPlan
+from execution_engine.fhir.util import get_coding
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.vocabulary import AbstractVocabulary
+from execution_engine.util import AbstractPrivateMethods
 
 
 class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
@@ -78,7 +79,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
             combination = CriterionCombination(
                 name=f"{self._name}_plus_goals",
                 exclude=False,
-                category="intervention",
+                category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("AND"),
             )
 
