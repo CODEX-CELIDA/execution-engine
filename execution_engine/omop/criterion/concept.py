@@ -4,10 +4,12 @@ from typing import Any, Dict
 from sqlalchemy.sql import TableClause
 
 from ...constants import CohortCategory
-from ...util import Value, ValueNumber
+from ...util import Value, value_factory
 from ...util.sql import SelectInto
 from ..concepts import Concept
 from .abstract import Criterion
+
+__all__ = ["ConceptCriterion"]
 
 
 class ConceptCriterion(Criterion):
@@ -54,7 +56,7 @@ class ConceptCriterion(Criterion):
         sql = sql.join(
             self._table_join,
             self._table_join.c.person_id == self._table_in.c.person_id,
-        ).filter(self._table_join.c[concept_column_name] == self._concept.id)
+        ).filter(self._table_join.c[concept_column_name] == self._concept.concept_id)
 
         if self._value is not None:
             sql = sql.filter(self._value.to_sql(self.table_alias))
@@ -68,11 +70,11 @@ class ConceptCriterion(Criterion):
         Get a JSON representation of the criterion.
         """
         return {
-            "name": self.name,
-            "exclude": self.exclude,
+            "name": self._name,
+            "exclude": self._exclude,
             "category": self._category.value,
-            "concept": self._concept.json(),
-            "value": self._value.json() if self._value is not None else None,
+            "concept": self._concept.dict(),
+            "value": self._value.dict() if self._value is not None else None,
         }
 
     @classmethod
@@ -80,11 +82,11 @@ class ConceptCriterion(Criterion):
         """
         Create a criterion from a JSON representation.
         """
-        # fixeme ValueNUmber could be ValueConcept
+
         return cls(
             name=data["name"],
             exclude=data["exclude"],
-            category=data["category"],
-            concept=Concept.from_dict(data["concept"]),
-            value=ValueNumber(**data["value"]) if data["value"] is not None else None,
+            category=CohortCategory(data["category"]),
+            concept=Concept(**data["concept"]),
+            value=value_factory(**data["value"]) if data["value"] is not None else None,
         )

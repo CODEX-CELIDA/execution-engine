@@ -47,7 +47,7 @@ class BodyPositioningAction(AbstractAction):
 
         exclude = action_def.activity.doNotPerform
 
-        return cls(name=code.name, exclude=exclude, code=code, timing=timing)
+        return cls(name=code.concept_name, exclude=exclude, code=code, timing=timing)
 
     def _to_criterion(self) -> Criterion | CriterionCombination | None:
         """Converts this characteristic to a Criterion."""

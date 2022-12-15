@@ -32,6 +32,15 @@ class Value(BaseModel, ABC):
         Get the SQL representation of the value.
         """
 
+    def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        """
+        Get the JSON representation of the value.
+        """
+        return {
+            "class_name": self.__class__.__name__,
+            "data": super().dict(*args, **kwargs),
+        }
+
 
 class ValueNumber(Value):
     """
@@ -75,13 +84,13 @@ class ValueNumber(Value):
         Get the string representation of the value.
         """
         if self.value is not None:
-            return f"Value == {self.value} {self.unit.name}"
+            return f"Value == {self.value} {self.unit.concept_name}"
         elif self.value_min is not None and self.value_max is not None:
-            return f"{self.value_min} <= Value <= {self.value_max} {self.unit.name}"
+            return f"{self.value_min} <= Value <= {self.value_max} {self.unit.concept_name}"
         elif self.value_min is not None:
-            return f"Value >= {self.value_min} {self.unit.name}"
+            return f"Value >= {self.value_min} {self.unit.concept_name}"
         elif self.value_max is not None:
-            return f"Value <= {self.value_max} {self.unit.name}"
+            return f"Value <= {self.value_max} {self.unit.concept_name}"
 
         return "Value (undefined)"
 
@@ -112,7 +121,7 @@ class ValueNumber(Value):
 
         if with_unit:
             c_unit = literal_column(f"{table_name}unit_concept_id")
-            clauses.append(c_unit == self.unit.id)
+            clauses.append(c_unit == self.unit.concept_id)
 
         if self.value is not None:
             clauses.append(c == self.value)
@@ -142,7 +151,7 @@ class ValueConcept(Value):
         """
         Get the SQL representation of the value.
         """
-        return f"{table_name}.value_as_concept_id = {self.value.id}"
+        return f"{table_name}.value_as_concept_id = {self.value.concept_id}"
 
     def __str__(self) -> str:
         """
@@ -180,3 +189,36 @@ class AbstractPrivateMethods(ABCMeta):
             message = ", ".join([f"{v}.{k}" for k, v in private.items()])
             raise RuntimeError(f"Methods {message} may not be overriden")
         return super().__new__(mcs, name, bases, class_dict)
+
+
+def value_factory(class_name: str, data: dict) -> Value:
+    """
+    Get a value object from a class name and data.
+
+    Parameters
+    ----------
+    class_name : str
+        The name of the class to instantiate.
+    data : dict
+        The data to pass to the class constructor.
+
+    Returns
+    -------
+    Value
+        The value object.
+
+    Raises
+    ------
+    ValueError
+        If the class name is not recognized.
+    """
+    class_map = {
+        "ValueNumber": ValueNumber,
+        "ValueConcept": ValueConcept,
+    }
+
+    """Create a value from a dictionary."""
+    if class_name not in class_map:
+        raise ValueError(f"Unknown value class {class_name}")
+
+    return class_map[class_name](**data)

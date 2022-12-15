@@ -45,7 +45,7 @@ class LaboratoryValueGoal(Goal):
 
         code, value = parse_code_value(target.measure, target, value_prefix="detail")
 
-        return cls(code.name, exclude=False, code=code, value=value)
+        return cls(code.concept_name, exclude=False, code=code, value=value)
 
     def to_criterion(self) -> Criterion:
         """

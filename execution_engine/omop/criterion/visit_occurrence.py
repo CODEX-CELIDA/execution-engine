@@ -8,6 +8,8 @@ from ...util.sql import SelectInto
 from .. import StandardConcepts
 from .concept import ConceptCriterion
 
+__all__ = ["VisitOccurrence", "ActivePatients"]
+
 
 class VisitOccurrence(ConceptCriterion):
     """A visit criterion in a cohort definition."""
@@ -51,7 +53,7 @@ class ActivePatients(VisitOccurrence):
         """
         Get a JSON representation of the criterion.
         """
-        return {"name": self._name}
+        return {"class_name": self.__class__.__name__, "data": {"name": self._name}}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ActivePatients":

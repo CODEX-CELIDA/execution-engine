@@ -27,7 +27,7 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
         )
 
         c: AbstractCharacteristic = cls(
-            name=type_omop_concept.name, exclude=characteristic.exclude
+            name=type_omop_concept.concept_name, exclude=characteristic.exclude
         )
         c.type = type_omop_concept
         c.value = value

@@ -26,7 +26,7 @@ class VentilatorManagementAction(AbstractAction):
         goal = action_def.goals[0]
 
         try:
-            name = parse_code(goal.target[0].measure).name
+            name = parse_code(goal.target[0].measure).concept_name
         except VocabularyNotStandardError:
             name = code_display(goal.target[0].measure)
 

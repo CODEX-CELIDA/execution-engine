@@ -5,11 +5,13 @@ import pandas as pd
 from sqlalchemy import func, literal_column, select
 
 from ...constants import CohortCategory
-from ...util import ValueNumber
+from ...util import ValueNumber, value_factory
 from ...util.sql import SelectInto
 from ..concepts import Concept
 from ..vocabulary import standard_vocabulary
 from .abstract import Criterion
+
+__all__ = ["DrugExposure"]
 
 
 class DrugExposure(Criterion):
@@ -52,14 +54,14 @@ class DrugExposure(Criterion):
         df_filtered = df.query("amount_unit_concept_id==@unit.id")
 
         other_unit = None
-        if unit.name == "unit":
+        if unit.concept_name == "unit":
             other_unit = standard_vocabulary.get_standard_unit_concept("[iU]")
-        elif unit.name == "international unit":
+        elif unit.concept_name == "international unit":
             other_unit = standard_vocabulary.get_standard_unit_concept("[U]")
 
         if other_unit is not None:
             logging.info(
-                f'Detected unit "{unit.name}", also selecting "{other_unit.name}"'
+                f'Detected unit "{unit.concept_name}", also selecting "{other_unit.concept_name}"'
             )
             df_filtered = pd.concat(
                 [df_filtered, df.query("amount_unit_concept_id==@other_unit.id")]
@@ -118,7 +120,7 @@ class DrugExposure(Criterion):
 
         return base_sql
 
-    def dict(self) -> dict:
+    def dict(self) -> dict[str, Any]:
         """
         Return a dictionary representation of the criterion.
         """
@@ -126,11 +128,11 @@ class DrugExposure(Criterion):
             "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
-            "drug_concepts": self._drug_concepts.json(),
-            "dose": self._dose.json() if self._dose is not None else None,
+            "drug_concepts": self._drug_concepts.to_dict(orient="list"),
+            "dose": self._dose.dict() if self._dose is not None else None,
             "frequency": self._frequency,
             "interval": self._interval,
-            "route": self._route.json() if self._route is not None else None,
+            "route": self._route.dict() if self._route is not None else None,
         }
 
     @classmethod
@@ -138,15 +140,18 @@ class DrugExposure(Criterion):
         """
         Create a drug exposure criterion from a dictionary representation.
         """
+
+        dose = value_factory(**data["dose"]) if data["dose"] is not None else None
+
+        assert dose is None or isinstance(dose, ValueNumber), "Dose must be a number"
+
         return cls(
             name=data["name"],
             exclude=data["exclude"],
-            category=data["category"],
+            category=CohortCategory(data["category"]),
             drug_concepts=pd.DataFrame.from_dict(data["drug_concepts"]),
-            dose=ValueNumber(**data["dose"]) if data["dose"] is not None else None,
+            dose=dose,
             frequency=data["frequency"],
             interval=data["interval"],
-            route=Concept.from_dict(data["route"])
-            if data["route"] is not None
-            else None,
+            route=Concept(**data["route"]) if data["route"] is not None else None,
         )

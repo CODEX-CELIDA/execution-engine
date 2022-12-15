@@ -5,8 +5,8 @@ from pydantic import BaseModel
 class Concept(BaseModel, frozen=True):  # type: ignore
     """Represents an OMOP Standard Vocabulary concept."""
 
-    id: int
-    name: str
+    concept_id: int
+    concept_name: str
     concept_code: str
     domain_id: str
     vocabulary_id: str
@@ -15,42 +15,15 @@ class Concept(BaseModel, frozen=True):  # type: ignore
     invalid_reason: str | None = None
 
     @staticmethod
-    def from_dict(data: dict) -> "Concept":
-        """Creates a concept from a dict representation."""
-        return Concept(
-            id=data["CONCEPT_ID"],
-            name=data["CONCEPT_NAME"],
-            domain_id=data["DOMAIN_ID"],
-            vocabulary_id=data["VOCABULARY_ID"],
-            concept_code=data["CONCEPT_CODE"],
-            concept_class_id=data["CONCEPT_CLASS_ID"],
-            standard_concept=data.get("STANDARD_CONCEPT"),
-            invalid_reason=data.get("INVALID_REASON"),
-        )
-
-    @staticmethod
     def from_series(series: pd.Series) -> "Concept":
         """Creates a concept from a pandas Series."""
-        return Concept.from_dict({k.upper(): v for k, v in series.to_dict().items()})
-
-    def dict(self) -> dict:  # type: ignore
-        """Returns a dict representation of the concept."""
-        return {
-            "CONCEPT_ID": self.id,
-            "CONCEPT_NAME": self.name,
-            "DOMAIN_ID": self.domain_id,
-            "VOCABULARY_ID": self.vocabulary_id,
-            "CONCEPT_CODE": self.concept_code,
-            "CONCEPT_CLASS_ID": self.concept_class_id,
-            "STANDARD_CONCEPT": self.standard_concept,
-            "INVALID_REASON": self.invalid_reason,
-        }
+        return Concept(**series.to_dict())
 
     def __str__(self) -> str:
         """
         Returns a string representation of the concept.
         """
-        base = f'OMOP Concept: "{self.name}" ({self.id}) [{self.vocabulary_id}#{self.concept_code}]'
+        base = f'OMOP Concept: "{self.concept_name}" ({self.concept_id}) [{self.vocabulary_id}#{self.concept_code}]'
 
         if self.standard_concept is not None and self.standard_concept == "S":
             return f"{base} (STANDARD)"
@@ -67,7 +40,7 @@ class Concept(BaseModel, frozen=True):  # type: ignore
         """
         Returns True if the concept is a custom concept (not a standard concept, i.e. not in the OMOP Standard Vocabulary).
         """
-        return self.id < 0
+        return self.concept_id < 0
 
 
 class CustomConcept(Concept):
@@ -78,8 +51,8 @@ class CustomConcept(Concept):
     ) -> None:
         """Creates a custom concept."""
         super().__init__(
-            id=-1,
-            name=name,
+            concept_id=-1,
+            concept_name=name,
             concept_code=concept_code,
             domain_id=domain_id,
             vocabulary_id=vocabulary_id,
@@ -99,6 +72,4 @@ class CustomConcept(Concept):
         """
         Returns a string representation of the concept.
         """
-        return (
-            f'Custom Concept: "{self.name}" [{self.vocabulary_id}#{self.concept_code}]'
-        )
+        return f'Custom Concept: "{self.concept_name}" [{self.vocabulary_id}#{self.concept_code}]'

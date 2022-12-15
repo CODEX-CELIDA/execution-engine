@@ -69,7 +69,7 @@ class DrugAdministrationAction(AbstractAction):
 
         df_drugs, ingredient = cls.get_drug_concepts(action_def.activity)
 
-        name = f"drug_{ingredient.name}"
+        name = f"drug_{ingredient.concept_name}"
         exclude = (
             action_def.activity.doNotPerform
             if action_def.activity.doNotPerform is not None
@@ -149,10 +149,10 @@ class DrugAdministrationAction(AbstractAction):
 
         ingredient = ingredients[0]
 
-        logging.info(f"Found ingredient {ingredient.name} id={ingredient.id}")  # type: ignore
+        logging.info(f"Found ingredient {ingredient.concept_name} id={ingredient.concept_id}")  # type: ignore
 
         # get all drug concept ids for that ingredient
-        df = omopdb.drugs_by_ingredient(ingredient.id, with_unit=True)  # type: ignore
+        df = omopdb.drugs_by_ingredient(ingredient.concept_id, with_unit=True)  # type: ignore
 
         # assert drug units are mutually exclusive
         assert (
@@ -283,7 +283,7 @@ class DrugAdministrationAction(AbstractAction):
             for extension in self._extensions:
                 comb.add(
                     ConceptCriterion(
-                        name=f"{self._name}_ext_{extension['code'].name}",
+                        name=f"{self._name}_ext_{extension['code'].concept_name}",
                         exclude=False,
                         category=CohortCategory.INTERVENTION,
                         concept=extension["code"],

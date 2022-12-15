@@ -11,6 +11,8 @@ from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber
 from execution_engine.util.sql import SelectInto
 
+__all__ = ["TidalVolumePerIdealBodyWeight"]
+
 
 class TidalVolumePerIdealBodyWeight(ConceptCriterion):
     """
@@ -43,7 +45,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         END ) AS ideal_body_weight
         FROM measurement m
         INNER JOIN "person" p ON m.person_id = p.person_id
-        INNER JOIN "{self.table_in.original.name}" t ON m.person_id = t.person_id
+        INNER JOIN "{self.table_in.original.concept_name}" t ON m.person_id = t.person_id
         WHERE m.measurement_concept_id = :omop_body_weight
         """
             )
@@ -80,7 +82,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
             sql_ibw, sql_ibw.c.person_id == tbl_meas.c.person_id
         )
         sql_select = sql_select.filter(
-            tbl_meas.c.measurement_concept_id == concept_tv.id
+            tbl_meas.c.measurement_concept_id == concept_tv.concept_id
         )
         base_sql.select = sql_select.filter(sql_value)
 

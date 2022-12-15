@@ -10,15 +10,11 @@ class FHIRTerminologyServerException(Exception):
     Raised when a terminology server returns an error.
     """
 
-    pass
-
 
 class ValueSetEmptyException(FHIRTerminologyServerException):
     """
     Raised when a value set retrieved from the terminology server has no entries.
     """
-
-    pass
 
 
 class FHIRTerminologyClient:

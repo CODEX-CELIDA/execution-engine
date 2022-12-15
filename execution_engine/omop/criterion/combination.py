@@ -1,7 +1,9 @@
 from typing import Any, Dict, Iterator, Union
 
-from ...constants import CohortCategory
-from .abstract import AbstractCriterion, Criterion
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.criterion.abstract import AbstractCriterion, Criterion
+
+__all__ = ["CriterionCombination"]
 
 
 class CriterionCombination(AbstractCriterion):
@@ -36,7 +38,7 @@ class CriterionCombination(AbstractCriterion):
         self._operator = operator
         self._criteria: list[Criterion | CriterionCombination] = []
 
-    def add(self, criterion: Criterion | "CriterionCombination") -> None:
+    def add(self, criterion: Union[Criterion, "CriterionCombination"]) -> None:
         """
         Add a criterion to the combination.
         """
@@ -81,18 +83,18 @@ class CriterionCombination(AbstractCriterion):
         """
         return str(self)
 
-    def dict(self) -> dict:
+    def dict(self) -> dict[str, Any]:
         """
         Get the dictionary representation of the criterion combination.
         """
         return {
-            "name": self.name,
-            "exclude": self.exclude,
+            "name": self._name,
+            "exclude": self._exclude,
             "operator": self._operator.operator,
             "threshold": self._operator.threshold,
-            "category": self.category.value,
+            "category": self._category.value,
             "criteria": [
-                {"class": criterion.__class__.__name__, "data": criterion.dict()}
+                {"class_name": criterion.__class__.__name__, "data": criterion.dict()}
                 for criterion in self._criteria
             ],
         }
@@ -102,18 +104,22 @@ class CriterionCombination(AbstractCriterion):
         """
         Create a criterion combination from a dictionary.
         """
+
+        from execution_engine.omop.criterion.factory import (
+            criterion_factory,  # needs to be here to avoid circular import
+        )
+
         operator = cls.Operator(data["operator"], data["threshold"])
+        category = CohortCategory(data["category"])
+
         combination = cls(
             name=data["name"],
             exclude=data["exclude"],
             operator=operator,
-            category=data["category"],
+            category=category,
         )
-        # FIXME: Use correct criterion class !
+
         for criterion in data["criteria"]:
-            if criterion["class"] == "CriterionCombination":
-                combination.add(CriterionCombination.from_dict(criterion["data"]))
-            else:
-                combination.add(Criterion.from_dict(criterion["data"]))
+            combination.add(criterion_factory(**criterion))
 
         return combination

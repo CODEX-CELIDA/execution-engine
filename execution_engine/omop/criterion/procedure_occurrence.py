@@ -2,11 +2,13 @@ from typing import Any, Dict
 
 from sqlalchemy.sql import extract
 
-from ...constants import CohortCategory
-from ...util import ValueNumber, ucum_to_postgres
-from ...util.sql import SelectInto
-from ..concepts import Concept
-from .concept import ConceptCriterion
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.util import ValueNumber, ucum_to_postgres, value_factory
+from execution_engine.util.sql import SelectInto
+
+__all__ = ["ProcedureOccurrence"]
 
 
 class ProcedureOccurrence(ConceptCriterion):
@@ -45,7 +47,7 @@ class ProcedureOccurrence(ConceptCriterion):
         sql = sql.join(
             self._table_join,
             self._table_join.c.person_id == self._table_in.c.person_id,
-        ).filter(concept_id == self._concept.id)
+        ).filter(concept_id == self._concept.concept_id)
 
         if self._timing is not None:
             interval = ucum_to_postgres[self._timing.unit.concept_code]
@@ -61,7 +63,7 @@ class ProcedureOccurrence(ConceptCriterion):
 
         return base_sql
 
-    def dict(self) -> dict:
+    def dict(self) -> dict[str, Any]:
         """
         Return a dictionary representation of the criterion.
         """
@@ -69,9 +71,9 @@ class ProcedureOccurrence(ConceptCriterion):
             "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
-            "concept": self._concept.json(),
-            "value": self._value.json() if self._value is not None else None,
-            "timing": self._timing.json() if self._timing is not None else None,
+            "concept": self._concept.dict(),
+            "value": self._value.dict() if self._value is not None else None,
+            "timing": self._timing.dict() if self._timing is not None else None,
         }
 
     @classmethod
@@ -79,13 +81,22 @@ class ProcedureOccurrence(ConceptCriterion):
         """
         Create a procedure occurrence criterion from a dictionary representation.
         """
+
+        value = value_factory(**data["value"]) if data["value"] is not None else None
+        timing = value_factory(**data["timing"]) if data["timing"] is not None else None
+
+        assert (
+            isinstance(value, ValueNumber) or value is None
+        ), "value must be a ValueNumber"
+        assert (
+            isinstance(timing, ValueNumber) or timing is None
+        ), "timing must be a ValueNumber"
+
         return cls(
             name=data["name"],
             exclude=data["exclude"],
-            category=data["category"],
-            concept=Concept.from_dict(data["concept"]),
-            value=ValueNumber(**data["value"]) if data["value"] is not None else None,
-            timing=ValueNumber(**data["timing"])
-            if data["timing"] is not None
-            else None,
+            category=CohortCategory(data["category"]),
+            concept=Concept(**data["concept"]),
+            value=value,
+            timing=timing,
         )

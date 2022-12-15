@@ -8,11 +8,12 @@ from sqlalchemy import literal_column, select, table, union
 from sqlalchemy.orm import Query
 from sqlalchemy.sql import Alias, CompoundSelect, Join, Select
 
-from ..constants import CohortCategory
-from ..execution_map import ExecutionMap
-from ..util.sql import SelectInto, select_into
-from .criterion.abstract import AbstractCriterion, Criterion
-from .criterion.combination import CriterionCombination
+from execution_engine.constants import CohortCategory
+from execution_engine.execution_map import ExecutionMap
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.factory import criterion_factory
+from execution_engine.util.sql import SelectInto, select_into
 
 
 def to_sqlalchemy(sql: Any) -> Query:
@@ -31,24 +32,29 @@ class CohortDefinition:
 
     _criteria: CriterionCombination
 
-    def __init__(self, base_criterion: Criterion) -> None:
+    def __init__(
+        self, base_criterion: Criterion, criteria: CriterionCombination | None = None
+    ) -> None:
         self._base_criterion = base_criterion
-        self._criteria = CriterionCombination(
-            name="root",
-            exclude=False,
-            category=CohortCategory.BASE,
-            operator=CriterionCombination.Operator("AND"),
-        )
-        self._execution_map: ExecutionMap | None = None
 
-    def dict(self) -> Dict[str, Any]:
-        """
-        Get a dictionary representation of the cohort definition.
-        """
-        return {
-            "base_criterion": self._base_criterion.dict(),
-            "criteria": self._criteria.dict(),
-        }
+        if criteria is None:
+            self._criteria = CriterionCombination(
+                name="root",
+                exclude=False,
+                category=CohortCategory.BASE,
+                operator=CriterionCombination.Operator("AND"),
+            )
+        else:
+            assert isinstance(
+                criteria, CriterionCombination
+            ), f"Invalid criteria - expected CriterionCombination, got {type(criteria)}"
+            assert (
+                criteria.category == CohortCategory.BASE
+            ), f"Invalid criteria - expected category {CohortCategory.BASE}, got {criteria.category}"
+
+            self._criteria = criteria
+
+        self._execution_map: ExecutionMap | None = None
 
     def __iter__(self) -> Iterator[Criterion | CriterionCombination]:
         """
@@ -62,7 +68,7 @@ class CohortDefinition:
         """
         return len(self._criteria)
 
-    def __getitem__(self, item: int) -> AbstractCriterion:
+    def __getitem__(self, item: int) -> Criterion | CriterionCombination:
         """
         Get a criterion by index.
         """
@@ -113,7 +119,7 @@ class CohortDefinition:
             elif isinstance(sql_select, Select):
                 return any(_base_table_in_select(f) for f in sql_select.froms)
             elif isinstance(sql_select, Alias):
-                return sql_select.original.name == base_table_out
+                return sql_select.original.concept_name == base_table_out
             else:
                 raise NotImplementedError(f"Unknown type {type(sql_select)}")
 
@@ -205,12 +211,37 @@ class CohortDefinition:
 
         logging.info("Cleaning up temporary tables")
         for criterion in self._execution_map.sequential():
-            logging.info(f"Cleaning up {criterion.table_out.original.name}")
+            logging.info(f"Cleaning up {criterion.table_out.original.concept_name}")
             yield to_sqlalchemy(criterion.sql_cleanup())
 
         yield to_sqlalchemy(self._base_criterion.sql_cleanup())
 
         self._execution_map = None
+
+    def dict(self) -> dict[str, Any]:
+        """
+        Get a dictionary representation of the cohort definition.
+        """
+        return {
+            "base_criterion": self._base_criterion.dict(),
+            "criteria": self._criteria.dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CohortDefinition":
+        """
+        Create a cohort definition from a dictionary.
+        """
+
+        base_criterion = criterion_factory(**data["base_criterion"])
+        assert isinstance(
+            base_criterion, Criterion
+        ), "Base criterion must be a Criterion"
+
+        return cls(
+            base_criterion=base_criterion,
+            criteria=CriterionCombination.from_dict(data["criteria"]),
+        )
 
 
 class CohortDefinitionCombination:
@@ -219,16 +250,21 @@ class CohortDefinitionCombination:
     """
 
     _cohort_definitions: list[CohortDefinition]
-    _id: int  # The id is used in the cohort_definition_id field in the result tables.
+    _id: int | None  # The id is used in the cohort_definition_id field in the result tables.
     _recommendation_url: str
     _recommendation_version: str
 
     def __init__(
-        self, cohort_definitions: list[CohortDefinition], url: str, version: str
+        self,
+        cohort_definitions: list[CohortDefinition],
+        url: str,
+        version: str,
+        cohort_definition_id: int | None = None,
     ) -> None:
         self._cohort_definitions = cohort_definitions
         self._url = url
         self._version = version
+        self._id = cohort_definition_id
 
     @property
     def id(self) -> int:
@@ -237,6 +273,8 @@ class CohortDefinitionCombination:
 
         The id is used in the cohort_definition_id field in the result tables.
         """
+        if self._id is None:
+            raise Exception("Id not set")
         return self._id
 
     @id.setter
@@ -332,3 +370,28 @@ class CohortDefinitionCombination:
                 yield to_sqlalchemy(f'DROP TABLE "{str(combination_table.froms[0])}"')
             for cohort_definition in self._cohort_definitions:
                 yield from cohort_definition.cleanup()
+
+    def dict(self) -> dict:
+        """
+        Get the combination as a dictionary.
+        """
+        return {
+            "id": self._id,
+            "cohort_definitions": [c.dict() for c in self._cohort_definitions],
+            "recommendation_url": self._url,
+            "recommendation_version": self._version,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "CohortDefinitionCombination":
+        """
+        Create a combination from a dictionary.
+        """
+        return cls(
+            cohort_definitions=[
+                CohortDefinition.from_dict(c) for c in data["cohort_definitions"]
+            ],
+            url=data["recommendation_url"],
+            version=data["recommendation_version"],
+            cohort_definition_id=data["id"],
+        )

@@ -50,7 +50,7 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
         cc = get_coding(characteristic.definitionByTypeAndValue.valueCodeableConcept)
         omop_concept = cls.get_standard_concept(cc)
 
-        c = cls(name=omop_concept.name, exclude=characteristic.exclude)
+        c = cls(name=omop_concept.concept_name, exclude=characteristic.exclude)
         c.value = omop_concept
 
         return c

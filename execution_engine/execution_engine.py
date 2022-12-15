@@ -10,14 +10,14 @@ from fhir.resources.evidencevariable import (
     EvidenceVariableCharacteristic,
 )
 
-pass
-
 from execution_engine.clients import omopdb
 from execution_engine.constants import CohortCategory
-from execution_engine.converter.action import (
-    AbstractAction,
-    BodyPositioningAction,
+from execution_engine.converter.action.abstract import AbstractAction
+from execution_engine.converter.action.body_positioning import BodyPositioningAction
+from execution_engine.converter.action.drug_administration import (
     DrugAdministrationAction,
+)
+from execution_engine.converter.action.ventilator_management import (
     VentilatorManagementAction,
 )
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
@@ -302,10 +302,10 @@ class ExecutionEngine:
 
     def register_run(self, cd: CohortDefinitionCombination, cd_id: int) -> None:
         """Registers the run in the result database."""
-        pass
+        raise NotImplementedError()
 
     def execute_cohort_definition(
         self, cd: CohortDefinitionCombination, cd_id: int
     ) -> None:
         """Executes the Cohort Definition"""
-        pass
+        raise NotImplementedError()

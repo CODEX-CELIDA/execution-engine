@@ -12,20 +12,16 @@ os.environ["OMOP_DB_SCHEMA"] = "cds_cdm"
 
 from execution_engine import ExecutionEngine
 
-pass
-
-base_url = (
-    "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/recommendations/"
-)
+base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
 
 urls = [
-    # "intervention-plan/antithrombotic-prophylaxis-LMWH",
-    # "intervention-plan/therapeutic-anticoagulation",
-    # "intervention-plan/antithrombotic-prophylaxis-fondaparinux",
-    # "intervention-plan/no-antithrombotic-prophylaxis",
-    # "intervention-plan/ventilation-plan",
-    "intervention-plan/peep-for-ards-fio2-point3",
-    # "intervention-plan/abdominal-positioning-ARDS-plan",
+    "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
+    "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
+    "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
+    "covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-ards-peep",
+    "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation",
+    "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation",
+    "covid19-inpatient-therapy/recommendation/covid19-abdominal-positioning-ards",
 ]
 
 datetime_start = datetime.today() - timedelta(days=7)
@@ -35,10 +31,17 @@ table_name_output = "recommendation_patients"
 
 e = ExecutionEngine()
 
+from execution_engine.omop.cohort_definition import CohortDefinitionCombination
+
 for recommendation_url in urls:
     print(recommendation_url)
-    cd = e.load_recommendation(base_url + recommendation_url, force_reload=False)
-    e.execute(cd)
+    cdd = e.load_recommendation(base_url + recommendation_url, force_reload=False)
+
+    a = cdd.dict()
+
+    cde = CohortDefinitionCombination.from_dict(a)
+
+    # e.execute(cd)
     # for statement in cd.process(table_name_output, datetime_start, datetime_end):
     #    print(statement)
     #    omopdb.execute(statement)
