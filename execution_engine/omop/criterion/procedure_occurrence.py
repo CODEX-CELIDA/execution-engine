@@ -35,29 +35,16 @@ class ProcedureOccurrence(ConceptCriterion):
         """
         Get the SQL representation of the criterion.
         """
-        import warnings
-
-        warnings.warn("Make sure that base table is joined for subselects")
-
         concept_id = self._table.c["procedure_concept_id"]
         start_datetime = self._table.c["procedure_datetime"]
         end_datetime = self._table.c["procedure_end_datetime"]
 
         query = query.filter(concept_id == self._concept.concept_id)
 
-        query = query.add_columns(concept_id.label("parameter_concept_id"))
-        query = query.add_columns(start_datetime.label("start_datetetime"))
-        query = query.add_columns(end_datetime.label("end_datetetime"))
-
         if self._value is not None:
             query = query.filter(self._value.to_sql(self.table_alias))
 
         if self._timing is not None:
-            # need to add value column to select (and unit !)
-            import warnings
-
-            warnings.warn("# need to add value column to select (and unit !)")
-
             interval = ucum_to_postgres[self._timing.unit.concept_code]
             column = extract(interval, start_datetime - end_datetime).label("duration")
             query = query.add_columns(column)
@@ -68,6 +55,29 @@ class ProcedureOccurrence(ConceptCriterion):
             )
 
         return query
+
+    def _sql_select_data(self, query: Select) -> Select:
+
+        import warnings
+
+        concept_id = self._table.c["procedure_concept_id"]
+        start_datetime = self._table.c["procedure_datetime"]
+        end_datetime = self._table.c["procedure_end_datetime"]
+
+        query = query.add_columns(concept_id.label("parameter_concept_id"))
+        query = query.add_columns(start_datetime.label("start_datetetime"))
+        query = query.add_columns(end_datetime.label("end_datetetime"))
+
+        if self._value is not None:
+            warnings.warn("# need to add value column to select (and unit !)")
+
+        if self._timing is not None:
+            # need to add value column to select (and unit !)
+            warnings.warn("# need to add value column to select (and unit !)")
+
+        # return query
+
+        raise NotImplementedError()
 
     def dict(self) -> dict[str, Any]:
         """

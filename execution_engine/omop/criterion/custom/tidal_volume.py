@@ -32,9 +32,6 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
     _value: ValueNumber
 
     def _sql_generate(self, query: Select) -> Select:
-        import warnings
-
-        warnings.warn("Make sure that base table is joined for subselects")
 
         sql_ibw = (
             text(  # nosec
@@ -69,19 +66,11 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
             column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
             with_unit=False,
         )
-        # fixme: remove this when it's clear that the above statement works
-        # sql_tv = text(f'''
-        # INNER JOIN meausurement m ON (table_out.person_id = m.person_id)
-        # INNER JOIN ({sql_ibw}) i ON m.person_id = i.person_id)
-        # ''')
 
-        tbl_meas = self._table
-
-        query = query.join(
-            tbl_meas, tbl_meas.c.person_id == self._base_table.c.person_id
+        query = query.join(sql_ibw, sql_ibw.c.person_id == self._table.c.person_id)
+        query = query.filter(
+            self._table.c.measurement_concept_id == concept_tv.concept_id
         )
-        query = query.join(sql_ibw, sql_ibw.c.person_id == tbl_meas.c.person_id)
-        query = query.filter(tbl_meas.c.measurement_concept_id == concept_tv.concept_id)
         query = query.filter(sql_value)
 
         return query

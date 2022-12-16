@@ -1,14 +1,10 @@
 import copy
-
-pass
 import re
 from abc import ABC, abstractmethod
-
-pass
 from typing import Any, Dict, cast
 
 import sqlalchemy
-from sqlalchemy import bindparam, literal_column, select
+from sqlalchemy import Table, bindparam, literal_column, select
 from sqlalchemy.sql import Select, TableClause
 
 from execution_engine.constants import CohortCategory
@@ -22,8 +18,6 @@ from execution_engine.omop.db.cdm import (
     ProcedureOccurrence,
     VisitOccurrence,
 )
-
-pass
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]
@@ -127,8 +121,8 @@ class Criterion(AbstractCriterion):
     _OMOP_DOMAIN: str
     _static: bool
 
-    _table: TableClause
-    _base_table: TableClause
+    _table: Table
+    _base_table: Table
 
     DOMAINS: dict[str, dict[str, Base | bool]] = {
         "condition": {
@@ -233,7 +227,7 @@ class Criterion(AbstractCriterion):
 
         return sql
 
-    def set_base_table(self, base_table: TableClause) -> None:
+    def set_base_table(self, base_table: Table) -> None:
         """
         Set the base table for the criterion.
 
@@ -242,8 +236,8 @@ class Criterion(AbstractCriterion):
         This could be the currently active patients.
         """
         assert isinstance(
-            base_table, TableClause
-        ), f"base_table must be a TableClause, not {type(base_table)}"
+            base_table, Table
+        ), f"base_table must be a Table, not {type(base_table)}"
         self._base_table = base_table
 
     def _get_datetime_column(self, table: TableClause) -> sqlalchemy.Column:

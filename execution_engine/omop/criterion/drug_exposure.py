@@ -41,10 +41,6 @@ class DrugExposure(Criterion):
 
         drug_exposure = self._table
 
-        import warnings
-
-        warnings.warn("Make sure that base table is joined for subselects")
-
         if self._dose is not None:
 
             dose_sql = self._dose.to_sql(

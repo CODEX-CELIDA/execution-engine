@@ -1,12 +1,20 @@
 import json
 import logging
 import re
-
-pass
 from typing import Any, Dict, Iterator
 
 import sqlalchemy
-from sqlalchemy import and_, bindparam, literal_column, select, table, union
+from sqlalchemy import (
+    Column,
+    Integer,
+    MetaData,
+    Table,
+    and_,
+    bindparam,
+    literal_column,
+    select,
+    union,
+)
 from sqlalchemy.orm import Query
 from sqlalchemy.sql import (
     Alias,
@@ -17,6 +25,7 @@ from sqlalchemy.sql import (
     Subquery,
     TableClause,
 )
+from sqlalchemy.sql.ddl import DropTable
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
@@ -50,9 +59,10 @@ def add_result_insert(
 
     query_select: Select
 
-    if isinstance(query, CompoundSelect):
+    if isinstance(query, CompoundSelect) or len(query.columns) > 1:
         # CompoundSelect requires the same number of columns for each select, so we need
         # to create a new select with the CompoundSelect as a subquery.
+        # Likewise, if the query has more than one column, we need to only select person_id
         query_select = select(literal_column("person_id")).select_from(query)
     else:
         query_select = query
@@ -144,13 +154,13 @@ class CohortDefinition:
         self._criteria.add(criterion)
 
     @staticmethod
-    def _to_table(name: str) -> TableClause:
+    def _base_table(name: str) -> Table:
         """
         Convert a name to a valid SQL table name.
         """
         name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
-
-        return table(name, literal_column("person_id"))
+        metadata = MetaData()
+        return Table(name, metadata, Column("person_id", Integer, primary_key=True))
 
     @staticmethod
     def _assert_base_table_in_select(
@@ -208,7 +218,8 @@ class CohortDefinition:
         i: int
         criterion: Criterion
 
-        base_table = self._to_table(f"{table_prefix}{self._base_criterion.name}")
+        base_table = self._base_table(f"{table_prefix}{self._base_criterion.name}")
+
         query = self._base_criterion.sql_generate(base_table=base_table)
         query = self._base_criterion.sql_insert_into_table(
             query, base_table, temporary=True
@@ -220,8 +231,6 @@ class CohortDefinition:
         yield to_sqlalchemy(query)
 
         for i, criterion in enumerate(self._execution_map.sequential()):
-            # table_out = self._to_table(f"{table_prefix}{criterion.name}_{i}")
-
             logging.info(f"Processing {criterion.name} (exclude={criterion.exclude})")
 
             sql = criterion.sql_generate(base_table=base_table)
@@ -239,6 +248,15 @@ class CohortDefinition:
             yield to_sqlalchemy(sql)
 
         yield from self.combine()
+
+        yield self.cleanup(base_table)
+
+    @staticmethod
+    def cleanup(base_table: Table) -> Query:
+        """
+        Generate a query to clean up the temporary tables.
+        """
+        return DropTable(base_table)
 
     def get_criterion_combination_name(self, criterion: Criterion) -> str:
         """
@@ -289,6 +307,7 @@ class CohortDefinition:
         Get a dictionary representation of the cohort definition.
         """
         return {
+            "name": self.name,
             "base_criterion": self._base_criterion.dict(),
             "criteria": self._criteria.dict(),
         }

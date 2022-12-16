@@ -1,7 +1,7 @@
 pass
 from typing import Any, Dict
 
-from sqlalchemy.sql import Select, TableClause
+from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
@@ -36,7 +36,6 @@ class ConceptCriterion(Criterion):
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
         self._value = value
-        self._table_in: TableClause
 
     def _sql_generate(self, sql: Select) -> Select:
         """
