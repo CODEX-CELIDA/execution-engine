@@ -1,12 +1,13 @@
 from typing import Any, Dict
 
-from sqlalchemy.sql import extract
+from sqlalchemy.sql import Select, extract
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.util import ValueNumber, ucum_to_postgres, value_factory
-from execution_engine.util.sql import SelectInto
+
+pass
 
 __all__ = ["ProcedureOccurrence"]
 
@@ -30,7 +31,7 @@ class ProcedureOccurrence(ConceptCriterion):
         self._set_omop_variables_from_domain("procedure")
         self._timing = timing
 
-    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
+    def _sql_generate(self, query: Select) -> Select:
         """
         Get the SQL representation of the criterion.
         """
@@ -38,30 +39,35 @@ class ProcedureOccurrence(ConceptCriterion):
 
         warnings.warn("Make sure that base table is joined for subselects")
 
-        sql = base_sql.select
+        concept_id = self._table.c["procedure_concept_id"]
+        start_datetime = self._table.c["procedure_datetime"]
+        end_datetime = self._table.c["procedure_end_datetime"]
 
-        concept_id = self._table_join.c["procedure_concept_id"]
-        start_datetime = self._table_join.c["procedure_datetime"]
-        end_datetime = self._table_join.c["procedure_end_datetime"]
+        query = query.filter(concept_id == self._concept.concept_id)
 
-        sql = sql.join(
-            self._table_join,
-            self._table_join.c.person_id == self._table_in.c.person_id,
-        ).filter(concept_id == self._concept.concept_id)
+        query = query.add_columns(concept_id.label("parameter_concept_id"))
+        query = query.add_columns(start_datetime.label("start_datetetime"))
+        query = query.add_columns(end_datetime.label("end_datetetime"))
+
+        if self._value is not None:
+            query = query.filter(self._value.to_sql(self.table_alias))
 
         if self._timing is not None:
+            # need to add value column to select (and unit !)
+            import warnings
+
+            warnings.warn("# need to add value column to select (and unit !)")
+
             interval = ucum_to_postgres[self._timing.unit.concept_code]
             column = extract(interval, start_datetime - end_datetime).label("duration")
-            sql = sql.add_columns(column)
-            sql = sql.filter(
+            query = query.add_columns(column)
+            query = query.filter(
                 self._timing.to_sql(
                     table_name=None, column_name=column, with_unit=False
                 )
             )
 
-        base_sql.select = sql
-
-        return base_sql
+        return query
 
     def dict(self) -> dict[str, Any]:
         """

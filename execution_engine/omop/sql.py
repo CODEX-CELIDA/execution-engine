@@ -6,7 +6,8 @@ import psycopg2  # noqa: F401 -- do not remove - needed for sqlalchemy to work
 import sqlalchemy
 from sqlalchemy import and_, func
 from sqlalchemy.engine import CursorResult
-from sqlalchemy.orm import Query, Session
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import Insert, Select
 
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
     base,
@@ -89,13 +90,14 @@ class OMOPSQLClient:
         """
         return pd.read_sql(sql, self._engine, params=kwargs)
 
-    def compile_query(self, query: Query) -> str:
+    def compile_query(self, query: Select | Insert) -> str:
         """
         Compile the given query against the OMOP CDM database.
         """
         return str(
             query.compile(
-                dialect=self._engine.dialect, compile_kwargs={"literal_binds": True}
+                dialect=self._engine.dialect,
+                compile_kwargs={"literal_binds": True},
             )
         )
 

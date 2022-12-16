@@ -37,3 +37,5 @@ for recommendation_url in urls:
     cdd = e.load_recommendation(base_url + recommendation_url, force_reload=False)
 
     e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)
+
+    break

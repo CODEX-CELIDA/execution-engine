@@ -246,7 +246,10 @@ class ExecutionEngine:
         rec_plan_cohorts: list[CohortDefinition] = []
 
         for rec_plan in rec.plans():
-            cd = CohortDefinition(ActivePatients(name="active_patients"))
+            cd = CohortDefinition(
+                name=rec_plan.name,
+                base_criterion=ActivePatients(name="active_patients"),
+            )
 
             characteristics = self._parse_characteristics(rec_plan.population)
             for characteristic in characteristics:
@@ -382,5 +385,23 @@ class ExecutionEngine:
         start_datetime: datetime,
         end_datetime: datetime,
     ) -> None:
+        """
+        Executes the Cohort Definition and stores the results in the result tables.
+        """
+
+        date_format = "%Y-%m-%d %H:%M:%S"
+
+        logging.info(
+            f"Observation window from {start_datetime.strftime(date_format)} to {end_datetime.strftime(date_format)}"
+        )
+
         """Executes the Cohort Definition"""
-        pass
+        for statement in cd.process():
+            self._db.session.execute(
+                statement,
+                {
+                    "run_id": run_id,
+                    "start_datetime": start_datetime,
+                    "end_datetime": end_datetime,
+                },
+            )

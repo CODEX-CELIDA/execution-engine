@@ -2,12 +2,12 @@ import logging
 from typing import Any, Dict
 
 from sqlalchemy import func, literal_column, select
+from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.util import ValueNumber, value_factory
-from execution_engine.util.sql import SelectInto
 
 __all__ = ["DrugExposure"]
 
@@ -37,9 +37,9 @@ class DrugExposure(Criterion):
         self._interval = interval
         self._route = route
 
-    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
+    def _sql_generate(self, sql: Select) -> Select:
 
-        drug_exposure = self._table_join
+        drug_exposure = self._table
 
         import warnings
 
@@ -67,6 +67,10 @@ class DrugExposure(Criterion):
                     func.sum(drug_exposure.c.quantity).label("dose"),
                 )
                 .select_from(drug_exposure)
+                .join(
+                    self._base_table,
+                    self._base_table.c.person_id == drug_exposure.c.person_id,
+                )
                 .where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
                 .group_by(drug_exposure.c.person_id, literal_column("interval"))
                 .having(dose_sql)
@@ -77,11 +81,14 @@ class DrugExposure(Criterion):
             query = (
                 select(drug_exposure.c.person_id)
                 .select_from(drug_exposure)
+                .join(
+                    self._base_table,
+                    self._base_table.c.person_id == drug_exposure.c.person_id,
+                )
                 .where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
             )
-        base_sql.select = query
 
-        return base_sql
+        return query
 
     def dict(self) -> dict[str, Any]:
         """

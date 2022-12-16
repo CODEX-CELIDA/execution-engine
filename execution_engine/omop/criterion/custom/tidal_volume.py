@@ -1,4 +1,5 @@
 from sqlalchemy import Float, Integer, literal_column, text
+from sqlalchemy.sql import Select
 
 from execution_engine.constants import (
     LOINC_TIDAL_VOLUME,
@@ -9,7 +10,8 @@ from execution_engine.constants import (
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber
-from execution_engine.util.sql import SelectInto
+
+pass
 
 __all__ = ["TidalVolumePerIdealBodyWeight"]
 
@@ -29,7 +31,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
     _value: ValueNumber
 
-    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
+    def _sql_generate(self, query: Select) -> Select:
         import warnings
 
         warnings.warn("Make sure that base table is joined for subselects")
@@ -45,7 +47,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         END ) AS ideal_body_weight
         FROM measurement m
         INNER JOIN "person" p ON m.person_id = p.person_id
-        INNER JOIN "{self.table_in.original.concept_name}" t ON m.person_id = t.person_id
+        INNER JOIN "{self._base_table.name}" t ON m.person_id = t.person_id
         WHERE m.measurement_concept_id = :omop_body_weight
         """
             )
@@ -73,20 +75,16 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         # INNER JOIN ({sql_ibw}) i ON m.person_id = i.person_id)
         # ''')
 
-        tbl_meas = self._table_join
-        sql_select = base_sql.select
-        sql_select = sql_select.join(
-            tbl_meas, tbl_meas.c.person_id == self.table_out.c.person_id
-        )
-        sql_select = sql_select.join(
-            sql_ibw, sql_ibw.c.person_id == tbl_meas.c.person_id
-        )
-        sql_select = sql_select.filter(
-            tbl_meas.c.measurement_concept_id == concept_tv.concept_id
-        )
-        base_sql.select = sql_select.filter(sql_value)
+        tbl_meas = self._table
 
-        return base_sql
+        query = query.join(
+            tbl_meas, tbl_meas.c.person_id == self._base_table.c.person_id
+        )
+        query = query.join(sql_ibw, sql_ibw.c.person_id == tbl_meas.c.person_id)
+        query = query.filter(tbl_meas.c.measurement_concept_id == concept_tv.concept_id)
+        query = query.filter(sql_value)
+
+        return query
 
     @staticmethod
     def predicted_body_weight_ardsnet(gender: int, height_in_cm: float) -> float:

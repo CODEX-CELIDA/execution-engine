@@ -1,13 +1,14 @@
-from datetime import datetime
+pass
 from typing import Any, Dict
 
-from sqlalchemy.sql import TableClause
+from sqlalchemy.sql import Select, TableClause
 
-from ...constants import CohortCategory
-from ...util import Value, value_factory
-from ...util.sql import SelectInto
-from ..concepts import Concept
-from .abstract import Criterion
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.util import Value, value_factory
+
+pass
 
 __all__ = ["ConceptCriterion"]
 
@@ -36,11 +37,8 @@ class ConceptCriterion(Criterion):
         self._concept = concept
         self._value = value
         self._table_in: TableClause
-        self._table_out: TableClause
-        self._start_datetime: datetime | None = None
-        self._end_datetime: datetime | None = None
 
-    def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
+    def _sql_generate(self, sql: Select) -> Select:
         """
         Get the SQL representation of the criterion.
         """
@@ -49,21 +47,31 @@ class ConceptCriterion(Criterion):
                 f'Value must be set for "{self._OMOP_TABLE.__tablename__}" criteria'
             )
 
-        sql = base_sql.select
-
         concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
 
-        sql = sql.join(
-            self._table_join,
-            self._table_join.c.person_id == self._table_in.c.person_id,
-        ).filter(self._table_join.c[concept_column_name] == self._concept.concept_id)
+        sql = sql.filter(self._table.c[concept_column_name] == self._concept.concept_id)
 
         if self._value is not None:
             sql = sql.filter(self._value.to_sql(self.table_alias))
 
-        base_sql.select = sql
+        return sql
 
-        return base_sql
+    def _sql_select_data(self, query: Select) -> Select:
+        c_start = self._get_datetime_column(self._table)
+        concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
+
+        query = query.add_columns(
+            self._table.c[concept_column_name].label("parameter_concept_id")
+        )
+        query = query.add_columns(c_start.label("start_datetime"))
+
+        if self._value is not None:
+            # need to add value column to select (and unit !)
+            import warnings
+
+            warnings.warn("# need to add value column to select (and unit !)")
+
+        return query
 
     def dict(self) -> dict[str, Any]:
         """

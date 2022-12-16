@@ -3,11 +3,13 @@ import logging
 from typing import Iterator, Tuple
 
 import sympy
-from sqlalchemy import intersect, union
-from sqlalchemy.sql import CompoundSelect
+from sqlalchemy import bindparam, intersect, select, union
+from sqlalchemy.sql import CompoundSelect, Select
 
+from .constants import CohortCategory
 from .omop.criterion.abstract import Criterion
 from .omop.criterion.combination import CriterionCombination
+from .omop.db.result import RecommendationResult
 
 
 class ExecutionMap:
@@ -140,16 +142,30 @@ class ExecutionMap:
 
         yield from _flat_traverse(self._nnf.args)
 
-    def combine(self) -> Tuple[str, list[Criterion]]:
+    def combine(self, cohort_category: CohortCategory) -> CompoundSelect:
         """
         Generate the combined SQL query for all criteria in the execution map.
         """
+
+        def sql_select(criterion: Criterion | CompoundSelect) -> Select:
+            """
+            Generate the SQL query for a single criterion.
+            """
+            if isinstance(criterion, CompoundSelect):
+                return criterion
+            table = RecommendationResult.__table__
+            return (
+                select(table.c.person_id)
+                .select_from(table)
+                .filter(table.c.recommendation_run_id == bindparam("run_id"))
+                .filter(table.c.criterion_name == criterion.unique_name())
+            )
 
         def _traverse(combination: sympy.Symbol) -> CompoundSelect:
             """
             Traverse the execution map and return a combined SQL query for all criteria in the execution map.
             """
-            criteria: list[Criterion] = []
+            criteria: list[Criterion | CompoundSelect] = []
 
             if type(combination) == sympy.And:
                 conjunction = intersect
@@ -158,16 +174,28 @@ class ExecutionMap:
             else:
                 raise ValueError(f"Unknown type {type(combination)}")
 
+            criterion: Criterion | CompoundSelect
+
             for arg in combination.args:
                 if arg.is_Atom:
-                    criteria.append(self._hashmap[arg])
+                    criterion = self._hashmap[arg]
                 elif arg.is_Not:
                     # exclude flag is already pushed into the criterion (i.e. inverted) in _push_negation_in_criterion()
-                    criteria.append(self._hashmap[arg.args[0]])
+                    criterion = self._hashmap[arg.args[0]]
                 else:
-                    compound_select = _traverse(arg)
-                    criteria.append(compound_select)
+                    criterion = _traverse(arg)
 
-            return conjunction(*[c.sql_select(with_alias=False) for c in criteria])
+                if isinstance(criterion, Criterion):
+                    if (
+                        cohort_category is not CohortCategory.POPULATION_INTERVENTION
+                        and criterion.category != cohort_category
+                    ):
+                        continue
+                elif isinstance(criterion, CompoundSelect):
+                    if len(criterion.selects) == 0:
+                        continue
+                criteria.append(criterion)
+
+            return conjunction(*[sql_select(c) for c in criteria])
 
         return _traverse(self._nnf)

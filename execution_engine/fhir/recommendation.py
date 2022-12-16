@@ -28,6 +28,19 @@ class Recommendation:
         self.load(url)
 
     @property
+    def name(self) -> str:
+        """
+        Return the name of the recommendation.
+        """
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        if self._recommendation.name is None:
+            raise ValueError("Recommendation has no name.")
+
+        return self._recommendation.name
+
+    @property
     def url(self) -> str:
         """Canonical URL of the recommendation."""
         if self._recommendation is None:
@@ -156,8 +169,8 @@ class RecommendationPlan:
         self.canonical_url = canonical_url
         self.fhir = fhir_connector
 
-        self._recommendation = None
-        self._population = None
+        self._recommendation: PlanDefinition | None = None
+        self._population: EvidenceVariable | None = None
         self._actions: list[RecommendationPlan.Action] = []
         self._goals: list[PlanDefinitionGoal] = []
 
@@ -203,6 +216,19 @@ class RecommendationPlan:
             raise ValueError(f"Unknown recommendation type: {cc.code}")
 
         return rec
+
+    @property
+    def name(self) -> str:
+        """
+        Get the name of the recommendation plan.
+        """
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        if self._recommendation.name is None:
+            raise ValueError("Recommendation has no name.")
+
+        return self._recommendation.name
 
     @property
     def population(self) -> EvidenceVariable:

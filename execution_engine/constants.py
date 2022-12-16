@@ -36,3 +36,4 @@ class CohortCategory(Enum):
     BASE = "base"
     POPULATION = "population"
     INTERVENTION = "intervention"
+    POPULATION_INTERVENTION = "population_intervention"
