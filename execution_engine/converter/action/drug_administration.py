@@ -7,18 +7,21 @@ from fhir.resources.dosage import Dosage
 from fhir.resources.extension import Extension
 
 from execution_engine.clients import omopdb
+from execution_engine.constants import EXT_DOSAGE_CONDITION, CohortCategory
+from execution_engine.converter.action.abstract import AbstractAction
+from execution_engine.converter.converter import parse_code, parse_value
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.omop.vocabulary import SNOMEDCT, VocabularyFactory
+from execution_engine.omop.vocabulary import (
+    SNOMEDCT,
+    VocabularyFactory,
+    standard_vocabulary,
+)
 from execution_engine.util import Value, ValueNumber, ucum_to_postgres
-
-from ...constants import EXT_DOSAGE_CONDITION, CohortCategory
-from ...omop.criterion.combination import CriterionCombination
-from ...omop.criterion.concept import ConceptCriterion
-from ..converter import parse_code, parse_value
-from .abstract import AbstractAction
 
 
 class ExtensionType(TypedDict):
@@ -83,7 +86,7 @@ class DrugAdministrationAction(AbstractAction):
 
             # must return criterion according to goal
             # return combination of drug criterion (any application !) and goal criterion
-            action = cls(name, exclude, drug_concepts=df_drugs)
+            action = cls(name, exclude, drug_concepts=cls.drug_concept_ids(df_drugs))
 
         else:
             # has dosage
@@ -96,10 +99,14 @@ class DrugAdministrationAction(AbstractAction):
 
             extensions = cls.process_dosage_extensions(dosage)
 
+            df_drugs = cls.filter_same_unit(
+                df_drugs, dose.unit
+            )  # todo: we should not filter here, but perform conversions of values instead (if possible)
+
             action = cls(
                 name=name,
                 exclude=exclude,
-                drug_concepts=df_drugs,
+                drug_concepts=cls.drug_concept_ids(df_drugs),
                 dose=dose,
                 frequency=frequency,
                 interval=interval,
@@ -171,6 +178,13 @@ class DrugAdministrationAction(AbstractAction):
         )
 
         return df, ingredient
+
+    @classmethod
+    def drug_concept_ids(cls, df_drugs: pd.DataFrame) -> list[int]:
+        """
+        Returns a list of drug concept ids.
+        """
+        return df_drugs["drug_concept_id"].sort_values().tolist()
 
     @classmethod
     def process_dosage(cls, dosage: Dosage) -> ValueNumber:
@@ -254,6 +268,39 @@ class DrugAdministrationAction(AbstractAction):
             )
 
         return frequency, interval
+
+    @classmethod
+    def filter_same_unit(cls, df: pd.DataFrame, unit: Concept) -> pd.DataFrame:
+        """
+        Filters the given dataframe to only include rows with the given unit.
+
+        If the unit is "international unit" or "unit" then the respective other unit is also included.
+        This is because RxNorm (upon which OMOP is based) seems to use unit (UNT) for international units.
+        """
+        logging.warning(
+            "Selecting only drug entries with unit matching to that of the recommendation"
+        )
+
+        df_filtered = df.query("amount_unit_concept_id==@unit.concept_id")
+
+        other_unit = None
+        if unit.concept_name == "unit":
+            other_unit = standard_vocabulary.get_standard_unit_concept("[iU]")
+        elif unit.concept_name == "international unit":
+            other_unit = standard_vocabulary.get_standard_unit_concept("[U]")
+
+        if other_unit is not None:
+            logging.info(
+                f'Detected unit "{unit.concept_name}", also selecting "{other_unit.concept_name}"'
+            )
+            df_filtered = pd.concat(
+                [
+                    df_filtered,
+                    df.query("amount_unit_concept_id==@other_unit.concept_id"),
+                ]
+            )
+
+        return df_filtered
 
     def _to_criterion(self) -> Criterion | CriterionCombination | None:
         """

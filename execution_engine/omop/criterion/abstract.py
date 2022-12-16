@@ -233,15 +233,15 @@ class Criterion(AbstractCriterion):
         self,
         table_in: str | None,
         table_out: str,
-        datetime_start: datetime,
-        datetime_end: datetime,
+        start_datetime: datetime,
+        end_datetime: datetime,
     ) -> ClauseElement:
         """
         Get the SQL representation of the criterion.
         """
         sql = self._sql_header(table_in, table_out)
         sql = self._sql_generate(sql)
-        sql = self._insert_datetime(sql, datetime_start, datetime_end)
+        sql = self._insert_datetime(sql, start_datetime, end_datetime)
         sql = self._sql_post_process(sql)
 
         return sql
@@ -266,10 +266,10 @@ class Criterion(AbstractCriterion):
         return table.c[f"{column_prefix}_datetime"]
 
     def _insert_datetime(
-        self, sql: SelectInto, datetime_start: datetime, datetime_end: datetime
+        self, sql: SelectInto, start_datetime: datetime, end_datetime: datetime
     ) -> SelectInto:
         """
-        Insert the datetime_start and datetime_end into the query.
+        Insert the start_datetime and end_datetime into the query.
         """
         if self._static:
             return sql
@@ -278,11 +278,11 @@ class Criterion(AbstractCriterion):
 
         if isinstance(sql, SelectInto):
             sql.select = sql.select.filter(
-                c_start.between(datetime_start, datetime_end)
+                c_start.between(start_datetime, end_datetime)
             )
         else:
             raise ValueError("sql must be a SelectInto")
-            # sql = sql.filter(c_start.between(datetime_start, datetime_end))
+            # sql = sql.filter(c_start.between(start_datetime, end_datetime))
 
         return sql
 

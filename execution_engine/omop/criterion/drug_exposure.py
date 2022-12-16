@@ -1,15 +1,13 @@
 import logging
 from typing import Any, Dict
 
-import pandas as pd
 from sqlalchemy import func, literal_column, select
 
-from ...constants import CohortCategory
-from ...util import ValueNumber, value_factory
-from ...util.sql import SelectInto
-from ..concepts import Concept
-from ..vocabulary import standard_vocabulary
-from .abstract import Criterion
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.util import ValueNumber, value_factory
+from execution_engine.util.sql import SelectInto
 
 __all__ = ["DrugExposure"]
 
@@ -22,7 +20,7 @@ class DrugExposure(Criterion):
         name: str,
         exclude: bool,
         category: CohortCategory,
-        drug_concepts: pd.DataFrame,
+        drug_concepts: list[str],
         dose: ValueNumber | None,
         frequency: int | None,
         interval: str | None,
@@ -39,36 +37,6 @@ class DrugExposure(Criterion):
         self._interval = interval
         self._route = route
 
-    @classmethod
-    def filter_same_unit(cls, df: pd.DataFrame, unit: Concept) -> pd.DataFrame:
-        """
-        Filters the given dataframe to only include rows with the given unit.
-
-        If the unit is "international unit" or "unit" then the respective other unit is also included.
-        This is because RxNorm (upon which OMOP is based) seems to use unit (UNT) for international units.
-        """
-        logging.warning(
-            "Selecting only drug entries with unit matching to that of the recommendation"
-        )
-
-        df_filtered = df.query("amount_unit_concept_id==@unit.id")
-
-        other_unit = None
-        if unit.concept_name == "unit":
-            other_unit = standard_vocabulary.get_standard_unit_concept("[iU]")
-        elif unit.concept_name == "international unit":
-            other_unit = standard_vocabulary.get_standard_unit_concept("[U]")
-
-        if other_unit is not None:
-            logging.info(
-                f'Detected unit "{unit.concept_name}", also selecting "{other_unit.concept_name}"'
-            )
-            df_filtered = pd.concat(
-                [df_filtered, df.query("amount_unit_concept_id==@other_unit.id")]
-            )
-
-        return df_filtered
-
     def _sql_generate(self, base_sql: SelectInto) -> SelectInto:
 
         drug_exposure = self._table_join
@@ -78,9 +46,7 @@ class DrugExposure(Criterion):
         warnings.warn("Make sure that base table is joined for subselects")
 
         if self._dose is not None:
-            df_drugs = self.filter_same_unit(
-                self._drug_concepts, self._dose.unit
-            )  # todo: we should not filter here, but perform conversions of values instead (if possible)
+
             dose_sql = self._dose.to_sql(
                 table_name=None, column_name="sum(de.quantity)", with_unit=False
             )
@@ -90,8 +56,6 @@ class DrugExposure(Criterion):
                 # (cf concept_class_id = 'Route') but these are not standard codes and HemOnc might not be
                 # addressable in FHIR
                 logging.warning("Route specified, but not implemented yet")
-
-            drug_concept_ids = df_drugs["drug_concept_id"].tolist()
 
             query = (
                 select(
@@ -103,18 +67,17 @@ class DrugExposure(Criterion):
                     func.sum(drug_exposure.c.quantity).label("dose"),
                 )
                 .select_from(drug_exposure)
-                .where(drug_exposure.c.drug_concept_id.in_(drug_concept_ids))
+                .where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
                 .group_by(drug_exposure.c.person_id, literal_column("interval"))
                 .having(dose_sql)
                 .having(func.count(literal_column("de.*")) == self._frequency)
             )
         else:
             # no dose specified, so we just count the number of drug exposures
-            drug_concept_ids = self._drug_concepts["drug_concept_id"].tolist()
             query = (
                 select(drug_exposure.c.person_id)
                 .select_from(drug_exposure)
-                .where(drug_exposure.c.drug_concept_id.in_(drug_concept_ids))
+                .where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
             )
         base_sql.select = query
 
@@ -128,7 +91,7 @@ class DrugExposure(Criterion):
             "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
-            "drug_concepts": self._drug_concepts.to_dict(orient="list"),
+            "drug_concepts": self._drug_concepts,
             "dose": self._dose.dict() if self._dose is not None else None,
             "frequency": self._frequency,
             "interval": self._interval,
@@ -149,7 +112,7 @@ class DrugExposure(Criterion):
             name=data["name"],
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
-            drug_concepts=pd.DataFrame.from_dict(data["drug_concepts"]),
+            drug_concepts=data["drug_concepts"],
             dose=dose,
             frequency=data["frequency"],
             interval=data["interval"],

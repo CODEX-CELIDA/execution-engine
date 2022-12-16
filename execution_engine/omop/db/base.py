@@ -14,6 +14,7 @@ class DateTime(TypeDecorator):
     """
 
     impl = sqlalchemy.types.DateTime
+    cache_ok = True
 
     def process_literal_param(self, value: datetime, dialect: Dialect) -> str:
         """

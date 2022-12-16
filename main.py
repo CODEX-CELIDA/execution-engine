@@ -24,24 +24,16 @@ urls = [
     "covid19-inpatient-therapy/recommendation/covid19-abdominal-positioning-ards",
 ]
 
-datetime_start = datetime.today() - timedelta(days=7)
-datetime_end = datetime.today()
+start_datetime = datetime.today() - timedelta(days=7)
+end_datetime = datetime.today()
 table_name_output = "recommendation_patients"
 
 
 e = ExecutionEngine()
 
-from execution_engine.omop.cohort_definition import CohortDefinitionCombination
 
 for recommendation_url in urls:
     print(recommendation_url)
     cdd = e.load_recommendation(base_url + recommendation_url, force_reload=False)
 
-    a = cdd.dict()
-
-    cde = CohortDefinitionCombination.from_dict(a)
-
-    # e.execute(cd)
-    # for statement in cd.process(table_name_output, datetime_start, datetime_end):
-    #    print(statement)
-    #    omopdb.execute(statement)
+    e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)

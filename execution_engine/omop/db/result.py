@@ -16,7 +16,7 @@ class CohortDefinition(Base):  # noqa: D101
     recommendation_url = Column(String(255), nullable=False, index=True)
     recommendation_version = Column(String(255), nullable=False)
     cohort_definition_hash = Column(String(64), nullable=False, index=True, unique=True)
-    cohort_definition_pickle = Column(LargeBinary, nullable=False)
+    cohort_definition_json = Column(LargeBinary, nullable=False)
     create_datetime = Column(DateTime, nullable=False)
 
 

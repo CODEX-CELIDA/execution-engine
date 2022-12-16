@@ -1,7 +1,7 @@
 import hashlib
+import json
 import logging
 import os
-import pickle  # nosec
 from datetime import datetime
 from typing import Tuple, Union, cast
 
@@ -232,6 +232,15 @@ class ExecutionEngine:
         self, recommendation_url: str, force_reload: bool = False
     ) -> CohortDefinitionCombination:
         """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
+
+        if not force_reload:
+            cdd = self.load_recommendation_from_database(recommendation_url)
+            if cdd is not None:
+                logging.info(
+                    f"Loaded recommendation {recommendation_url} (version={cdd.version}) from database."
+                )
+                return cdd
+
         rec = Recommendation(recommendation_url, self._fhir)
 
         rec_plan_cohorts: list[CohortDefinition] = []
@@ -259,21 +268,64 @@ class ExecutionEngine:
             rec_plan_cohorts, url=rec.url, version=rec.version
         )
 
-    def execute(self, cd: CohortDefinitionCombination) -> None:
+    def execute(
+        self,
+        cd: CohortDefinitionCombination,
+        start_datetime: datetime,
+        end_datetime: datetime | None,
+    ) -> None:
         """Executes the Cohort Definition and returns a list of Person IDs."""
 
+        if end_datetime is None:
+            end_datetime = datetime.now()
+
         with self._db.session.begin():
-            cd_id = self.register_cohort_definition(cd)
-            self.register_run(cd, cd_id)
-            self.execute_cohort_definition(cd, cd_id)
+            self.register_cohort_definition(cd)
+            run_id = self.register_run(
+                cd, start_datetime=start_datetime, end_datetime=end_datetime
+            )
+            self.execute_cohort_definition(
+                cd,
+                run_id=run_id,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+
+    @staticmethod
+    def load_recommendation_from_database(
+        url: str, version: str | None = None
+    ) -> CohortDefinitionCombination | None:
+        """
+        Loads a recommendation from the database. If version is None, the latest created recommendation is returned.
+        """
+        cd_table = result_db.CohortDefinition.__table__
+
+        query = (
+            cd_table.select()
+            .where(cd_table.c.recommendation_url == url)
+            .order_by(cd_table.c.create_datetime.desc())
+        )
+        if version is not None:
+            query.where(cd_table.c.recommendation_version == version)
+
+        cd_db = query.execute().fetchone()
+
+        if cd_db is not None:
+            cd = CohortDefinitionCombination.from_json(
+                cd_db["cohort_definition_json"].decode()
+            )
+            cd.id = cd_db["cohort_definition_id"]
+            return cd
+
+        return None
 
     def register_cohort_definition(self, cd: CohortDefinitionCombination) -> int:
         """Registers the Cohort Definition in the result database."""
 
         cd_table = result_db.CohortDefinition.__table__
 
-        cd_pickle = pickle.dumps(cd)
-        cd_hash = hashlib.sha256(cd_pickle).hexdigest()
+        cd_json = json.dumps(cd.dict(), sort_keys=True).encode()
+        cd_hash = hashlib.sha256(cd_json).hexdigest()
 
         cd_db = (
             cd_table.select()
@@ -285,27 +337,50 @@ class ExecutionEngine:
         if cd_db is not None:
             return cd_db.cohort_definition_id
 
-        sql = (
+        query = (
             result_db.CohortDefinition.__table__.insert()
             .values(
                 recommendation_url=cd.url,
                 recommendation_version=cd.version,
                 cohort_definition_hash=cd_hash,
-                cohort_definition_pickle=cd_pickle,
+                cohort_definition_json=cd_json,
                 create_datetime=datetime.now(),
             )
             .returning(result_db.CohortDefinition.cohort_definition_id)
         )
 
-        result = self._db.execute(sql)
-        return result.fetchone()[0]
+        result = self._db.execute(query)
+        cd.id = result.fetchone()[0]
 
-    def register_run(self, cd: CohortDefinitionCombination, cd_id: int) -> None:
+        return cd.id
+
+    def register_run(
+        self,
+        cd: CohortDefinitionCombination,
+        start_datetime: datetime,
+        end_datetime: datetime,
+    ) -> int:
         """Registers the run in the result database."""
-        raise NotImplementedError()
+
+        query = (
+            result_db.RecommendationRun.__table__.insert()
+            .values(
+                cohort_definition_id=cd.id,
+                observation_start_datetime=start_datetime,
+                observation_end_datetime=end_datetime,
+                run_datetime=datetime.now(),
+            )
+            .returning(result_db.RecommendationRun.recommendation_run_id)
+        )
+
+        return self._db.execute(query).fetchone()[0]
 
     def execute_cohort_definition(
-        self, cd: CohortDefinitionCombination, cd_id: int
+        self,
+        cd: CohortDefinitionCombination,
+        run_id: int,
+        start_datetime: datetime,
+        end_datetime: datetime,
     ) -> None:
         """Executes the Cohort Definition"""
-        raise NotImplementedError()
+        pass

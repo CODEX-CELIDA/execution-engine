@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from datetime import datetime
@@ -134,8 +135,8 @@ class CohortDefinition:
 
     def process(
         self,
-        datetime_start: datetime,
-        datetime_end: datetime | None,
+        start_datetime: datetime,
+        end_datetime: datetime,
         cleanup: bool = True,
         combine: bool = True,
         table_prefix: str = "",
@@ -144,13 +145,10 @@ class CohortDefinition:
         Process the cohort definition into SQL statements.
         """
 
-        if datetime_end is None:
-            datetime_end = datetime.now()
-
         date_format = "%Y-%m-%d %H:%M:%S"
 
         logging.info(
-            f"Observation window from {datetime_start.strftime(date_format)} to {datetime_end.strftime(date_format)}"
+            f"Observation window from {start_datetime.strftime(date_format)} to {end_datetime.strftime(date_format)}"
         )
 
         self._execution_map = self.execution_map()
@@ -164,8 +162,8 @@ class CohortDefinition:
         sql = self._base_criterion.sql_generate(
             table_in=None,
             table_out=base_table_out,
-            datetime_start=datetime_start,
-            datetime_end=datetime_end,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
         yield to_sqlalchemy(sql)
 
@@ -177,7 +175,7 @@ class CohortDefinition:
             )
 
             sql = criterion.sql_generate(
-                self._base_criterion.table_out, table_out, datetime_start, datetime_end
+                self._base_criterion.table_out, table_out, start_datetime, end_datetime
             )
             # fixme: remove (used for debugging only)
             str(sql)
@@ -249,11 +247,6 @@ class CohortDefinitionCombination:
     A cohort definition combination in OMOP as a collection of separate cohort definitions
     """
 
-    _cohort_definitions: list[CohortDefinition]
-    _id: int | None  # The id is used in the cohort_definition_id field in the result tables.
-    _recommendation_url: str
-    _recommendation_version: str
-
     def __init__(
         self,
         cohort_definitions: list[CohortDefinition],
@@ -261,10 +254,11 @@ class CohortDefinitionCombination:
         version: str,
         cohort_definition_id: int | None = None,
     ) -> None:
-        self._cohort_definitions = cohort_definitions
-        self._url = url
-        self._version = version
-        self._id = cohort_definition_id
+        self._cohort_definitions: list[CohortDefinition] = cohort_definitions
+        self._url: str = url
+        self._version: str = version
+        # The id is used in the cohort_definition_id field in the result tables.
+        self._id: int | None = cohort_definition_id
 
     @property
     def id(self) -> int:
@@ -321,8 +315,8 @@ class CohortDefinitionCombination:
     def process(
         self,
         table_output: str,
-        datetime_start: datetime,
-        datetime_end: datetime | None,
+        start_datetime: datetime,
+        end_datetime: datetime,
         table_output_temporary: bool = True,
         cleanup: bool = True,
     ) -> Iterator[Query]:
@@ -335,8 +329,8 @@ class CohortDefinitionCombination:
         for i, cohort_definition in enumerate(self._cohort_definitions):
 
             yield from cohort_definition.process(
-                datetime_start,
-                datetime_end,
+                start_datetime,
+                end_datetime,
                 combine=False,
                 cleanup=False,
                 table_prefix=f"cd{i}_",
@@ -395,3 +389,10 @@ class CohortDefinitionCombination:
             version=data["recommendation_version"],
             cohort_definition_id=data["id"],
         )
+
+    @classmethod
+    def from_json(cls, data: str) -> "CohortDefinitionCombination":
+        """
+        Create a combination from a JSON string.
+        """
+        return cls.from_dict(json.loads(data))
