@@ -281,6 +281,8 @@ class ExecutionEngine:
 
         if end_datetime is None:
             end_datetime = datetime.now()
+        # fixme: set start_datetime and end_datetime as class variables
+        # fixme: potentially also register run_id as class variable
 
         with self._db.session.begin():
             self.register_cohort_definition(cd)
@@ -288,6 +290,12 @@ class ExecutionEngine:
                 cd, start_datetime=start_datetime, end_datetime=end_datetime
             )
             self.execute_cohort_definition(
+                cd,
+                run_id=run_id,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            self.select_patient_data(
                 cd,
                 run_id=run_id,
                 start_datetime=start_datetime,
@@ -405,3 +413,28 @@ class ExecutionEngine:
                     "end_datetime": end_datetime,
                 },
             )
+
+    def select_patient_data(
+        self,
+        cd: CohortDefinitionCombination,
+        run_id: int,
+        start_datetime: datetime,
+        end_datetime: datetime,
+    ) -> None:
+        """Selects the patient data and stores it in the result tables."""
+
+        for category in [
+            CohortCategory.POPULATION,
+            CohortCategory.POPULATION_INTERVENTION,
+        ]:
+            logging.info(f"Retrieving patient data for {category.name}...")
+
+            for statement in cd.retrieve_patient_data(category):
+                self._db.session.execute(
+                    statement,
+                    {
+                        "run_id": run_id,
+                        "start_datetime": start_datetime,
+                        "end_datetime": end_datetime,
+                    },
+                )

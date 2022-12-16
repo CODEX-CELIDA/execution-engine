@@ -16,8 +16,8 @@ base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guide
 
 urls = [
     "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
-    "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
-    "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
+    # "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
+    # "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
     "covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-ards-peep",
     "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation",
     "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation",
@@ -26,11 +26,8 @@ urls = [
 
 start_datetime = datetime.today() - timedelta(days=7)
 end_datetime = datetime.today()
-table_name_output = "recommendation_patients"
-
 
 e = ExecutionEngine()
-
 
 for recommendation_url in urls:
     print(recommendation_url)

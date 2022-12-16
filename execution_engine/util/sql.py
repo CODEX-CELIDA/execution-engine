@@ -1,5 +1,5 @@
 from sqlalchemy.ext.compiler import compiles
-from sqlalchemy.sql import Alias, CompoundSelect, Select, TableClause
+from sqlalchemy.sql import Alias, CompoundSelect, Select
 from sqlalchemy.sql.compiler import SQLCompiler
 from sqlalchemy.sql.expression import ClauseElement, Executable
 
@@ -11,8 +11,8 @@ class SelectInto(Executable, ClauseElement):
 
     inherit_cache = True
 
-    def __init__(self, select: Select, into: Alias, temporary: bool) -> None:
-        self.select = select
+    def __init__(self, query: Select, into: Alias, temporary: bool) -> None:
+        self.select = query
         self.into = into
         self.temporary = temporary
 
@@ -47,14 +47,3 @@ def s_into(element: SelectInto, compiler: SQLCompiler, **kwargs: dict) -> str:
 
 
 select_into = SelectInto
-
-
-def Xselect_into(*expr: list, into: TableClause, temporary: bool = False) -> SelectInto:
-    """
-    Create a SelectInto object that compiles to a SELECT INTO TEMPORARY statement.
-    """
-    cls = SelectInto._create_future_select(*expr)
-    cls.into = into
-    cls.temporary = temporary
-
-    return cls

@@ -34,7 +34,14 @@ class ConceptCriterion(Criterion):
         self._concept = concept
         self._value = value
 
-    def _sql_generate(self, sql: Select) -> Select:
+    def _sql_filter_concept(self, query: Select) -> Select:
+        concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
+
+        return query.filter(
+            self._table.c[concept_column_name] == self._concept.concept_id
+        )
+
+    def _sql_generate(self, query: Select) -> Select:
         """
         Get the SQL representation of the criterion.
         """
@@ -43,29 +50,24 @@ class ConceptCriterion(Criterion):
                 f'Value must be set for "{self._OMOP_TABLE.__tablename__}" criteria'
             )
 
-        concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
-
-        sql = sql.filter(self._table.c[concept_column_name] == self._concept.concept_id)
+        query = self._sql_filter_concept(query)
 
         if self._value is not None:
-            sql = sql.filter(self._value.to_sql(self.table_alias))
+            query = query.filter(self._value.to_sql(self.table_alias))
 
-        return sql
+        return query
 
     def _sql_select_data(self, query: Select) -> Select:
         c_start = self._get_datetime_column(self._table)
         concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
 
         query = query.add_columns(
-            self._table.c[concept_column_name].label("parameter_concept_id")
+            self._table.c[concept_column_name].label("parameter_concept_id"),
+            c_start.label("start_datetime"),
         )
-        query = query.add_columns(c_start.label("start_datetime"))
 
         if self._value is not None:
-            # need to add value column to select (and unit !)
-            import warnings
-
-            warnings.warn("# need to add value column to select (and unit !)")
+            query = query.add_columns(self._table.c["value_as_number"])
 
         return query
 

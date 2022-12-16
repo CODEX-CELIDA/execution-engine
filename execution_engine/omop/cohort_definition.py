@@ -3,7 +3,6 @@ import logging
 import re
 from typing import Any, Dict, Iterator
 
-import sqlalchemy
 from sqlalchemy import (
     Column,
     Integer,
@@ -32,16 +31,23 @@ from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
-from execution_engine.omop.db.result import RecommendationResult
-from execution_engine.util.sql import SelectInto
+from execution_engine.omop.db.result import (
+    RecommendationPersonDatum,
+    RecommendationResult,
+)
+from execution_engine.util.sql import SelectInto, select_into
 
 
 def to_sqlalchemy(sql: Any) -> Query:
     """
     Convert a SQL statement to a SQLAlchemy expression.
     """
+
+    # todo: remove this function once it is clear that it's never called
+
     if isinstance(sql, str):
-        return sqlalchemy.text(sql)
+        raise ValueError("sql must be a Select or CompoundSelect")
+
     return sql
 
 
@@ -77,6 +83,30 @@ def add_result_insert(
 
     t_result = RecommendationResult.__table__
     query_insert = t_result.insert().from_select(query_select.columns, query_select)
+
+    return query_insert
+
+
+def add_result_data_insert(
+    query: Select,
+    cohort_category: CohortCategory,
+    criterion: Criterion,
+) -> Insert:
+    """
+    Insert the result of the query into the result table.
+    """
+    if not isinstance(query, Select):
+        raise ValueError("sql must be a Select")
+
+    query = query.add_columns(
+        bindparam("run_id").label("recommendation_run_id"),
+        bindparam("cohort_category", cohort_category.name).label("cohort_category"),
+        bindparam("criterion_name", criterion.unique_name()).label("criterion_name"),
+        bindparam("domain_id", criterion.domain).label("domain_id"),
+    )
+
+    t_result = RecommendationPersonDatum.__table__
+    query_insert = t_result.insert().from_select(query.columns, query)
 
     return query_insert
 
@@ -154,7 +184,7 @@ class CohortDefinition:
         self._criteria.add(criterion)
 
     @staticmethod
-    def _base_table(name: str) -> Table:
+    def base_table(name: str) -> Table:
         """
         Convert a name to a valid SQL table name.
         """
@@ -218,7 +248,7 @@ class CohortDefinition:
         i: int
         criterion: Criterion
 
-        base_table = self._base_table(f"{table_prefix}{self._base_criterion.name}")
+        base_table = self.base_table(f"{table_prefix}{self._base_criterion.name}")
 
         query = self._base_criterion.sql_generate(base_table=base_table)
         query = self._base_criterion.sql_insert_into_table(
@@ -329,11 +359,37 @@ class CohortDefinition:
             criteria=CriterionCombination.from_dict(data["criteria"]),
         )
 
+    def retrieve_patient_data(self, base_table: Table) -> Iterator[Insert]:
+        """
+        Retrieve patient data for patients addressed by the recommendation and
+        insert it into the patient_data table.
+        """
+
+        if self._execution_map is None:
+            raise Exception("Execution map not initialized - run process() first")
+
+        for i, criterion in enumerate(self._execution_map.sequential()):
+            logging.info(f"Retrieving patient data for {criterion.name}")
+
+            criterion.set_base_table(base_table)
+            query = criterion.sql_select_data()
+
+            str(query)  # fixme: remove (used for debugging only)
+
+            self._assert_base_table_in_select(query, base_table.name)
+            query = add_result_data_insert(
+                query, cohort_category=criterion.category, criterion=criterion
+            )
+
+            yield query
+
 
 class CohortDefinitionCombination:
     """
     A cohort definition combination in OMOP as a collection of separate cohort definitions
     """
+
+    # todo: can we subclass from CohortDefinition (or common abstract super class)? a lot of common code
 
     def __init__(
         self,
@@ -446,6 +502,39 @@ class CohortDefinitionCombination:
             )
 
             yield query
+
+    def retrieve_patient_data(self, category: CohortCategory) -> Iterator[Select]:
+        """
+        Retrieve patient data for the cohort definition combination.
+        """
+
+        base_table = CohortDefinition.base_table(f"cd_{category.name}")
+
+        query = select_into(self.select_patients(category), base_table, temporary=True)
+
+        yield query
+
+        for cohort_definition in self._cohort_definitions:
+            yield from cohort_definition.retrieve_patient_data(base_table)
+
+        yield DropTable(base_table)
+
+    @staticmethod
+    def select_patients(category: CohortCategory) -> Select:
+        """
+        Select the patients in the given cohort category.
+        """
+
+        table = RecommendationResult.__table__
+
+        return select(table.c.person_id).where(
+            and_(
+                table.c.recommendation_plan_name.is_(None),
+                table.c.criterion_name.is_(None),
+                table.c.cohort_category == category.name,
+                table.c.recommendation_run_id == bindparam("run_id"),
+            )
+        )
 
     def dict(self) -> dict:
         """

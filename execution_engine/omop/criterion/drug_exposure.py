@@ -37,9 +37,30 @@ class DrugExposure(Criterion):
         self._interval = interval
         self._route = route
 
+    def _sql_filter_concept(self, query: Select) -> Select:
+        """
+        Return the SQL to filter the data for the criterion.
+        """
+        drug_exposure = self._table
+
+        query = query.where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
+
+        return query
+
     def _sql_generate(self, sql: Select) -> Select:
 
         drug_exposure = self._table
+
+        query = (
+            select(drug_exposure.c.person_id)
+            .select_from(drug_exposure)
+            .join(
+                self._base_table,
+                self._base_table.c.person_id == drug_exposure.c.person_id,
+            )
+        )
+
+        query = self._sql_filter_concept(query)
 
         if self._dose is not None:
 
@@ -53,36 +74,35 @@ class DrugExposure(Criterion):
                 # addressable in FHIR
                 logging.warning("Route specified, but not implemented yet")
 
+            query = query.add_columns(
+                func.date_trunc(
+                    "day", drug_exposure.c.drug_exposure_start_datetime
+                ).label("interval"),
+                func.count(literal_column("de.*")).label("cnt"),
+                func.sum(drug_exposure.c.quantity).label("dose"),
+            )
+
             query = (
-                select(
-                    drug_exposure.c.person_id,
-                    func.date_trunc(
-                        "day", drug_exposure.c.drug_exposure_start_datetime
-                    ).label("interval"),
-                    func.count(literal_column("de.*")).label("cnt"),
-                    func.sum(drug_exposure.c.quantity).label("dose"),
-                )
-                .select_from(drug_exposure)
-                .join(
-                    self._base_table,
-                    self._base_table.c.person_id == drug_exposure.c.person_id,
-                )
-                .where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
-                .group_by(drug_exposure.c.person_id, literal_column("interval"))
+                query.group_by(drug_exposure.c.person_id, literal_column("interval"))
                 .having(dose_sql)
                 .having(func.count(literal_column("de.*")) == self._frequency)
             )
-        else:
-            # no dose specified, so we just count the number of drug exposures
-            query = (
-                select(drug_exposure.c.person_id)
-                .select_from(drug_exposure)
-                .join(
-                    self._base_table,
-                    self._base_table.c.person_id == drug_exposure.c.person_id,
-                )
-                .where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
-            )
+
+        return query
+
+    def _sql_select_data(self, query: Select) -> Select:
+        """
+        Return the SQL to select the data for the criterion.
+        """
+
+        drug_exposure = self._table
+
+        query = query.add_columns(
+            drug_exposure.c.drug_concept_id.label("parameter_concept_id"),
+            drug_exposure.c.drug_exposure_start_datetime.label("start_datetime"),
+            drug_exposure.c.drug_exposure_end_datetime.label("end_datetime"),
+            drug_exposure.c.quantity.label("drug_dose_as_number"),
+        )
 
         return query
 

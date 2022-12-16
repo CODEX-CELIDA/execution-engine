@@ -29,6 +29,20 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
     _value: ValueNumber
 
+    def _sql_filter_concept(self, query: Select) -> Select:
+        """
+        Return the SQL to filter the data for the criterion.
+        """
+        # todo: cache concept
+        concept_tv = standard_vocabulary.get_standard_concept(
+            system_uri=LOINC.system_uri, concept=LOINC_TIDAL_VOLUME
+        )
+
+        query = query.filter(
+            self._table.c.measurement_concept_id == concept_tv.concept_id
+        )
+        return query
+
     def _sql_generate(self, query: Select) -> Select:
 
         sql_ibw = (
@@ -56,9 +70,6 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
         sql_ibw = sql_ibw.alias("ibw")
 
-        concept_tv = standard_vocabulary.get_standard_concept(
-            system_uri=LOINC.system_uri, concept=LOINC_TIDAL_VOLUME
-        )
         sql_value = self._value.to_sql(
             table_name=None,
             column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
@@ -66,12 +77,16 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         )
 
         query = query.join(sql_ibw, sql_ibw.c.person_id == self._table.c.person_id)
-        query = query.filter(
-            self._table.c.measurement_concept_id == concept_tv.concept_id
-        )
+        query = self._sql_filter_concept(query)
         query = query.filter(sql_value)
 
         return query
+
+    def _sql_select_data(self, query: Select) -> Select:
+        """
+        Return the SQL to select the data for the criterion.
+        """
+        raise NotImplementedError("need to select ideal combined measure if possible?")
 
     @staticmethod
     def predicted_body_weight_ardsnet(gender: int, height_in_cm: float) -> float:

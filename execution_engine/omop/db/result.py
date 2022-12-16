@@ -73,7 +73,6 @@ class RecommendationPersonDatum(Base):  # noqa: D101
     drug_dose_unit_concept_id = Column(
         ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    drug_administrations = Column(Integer)
 
     recommendation_run = relationship(
         "RecommendationRun",
