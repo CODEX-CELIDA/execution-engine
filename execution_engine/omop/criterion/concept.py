@@ -1,4 +1,3 @@
-pass
 from typing import Any, Dict
 
 from sqlalchemy.sql import Select
@@ -7,8 +6,6 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.util import Value, value_factory
-
-pass
 
 __all__ = ["ConceptCriterion"]
 

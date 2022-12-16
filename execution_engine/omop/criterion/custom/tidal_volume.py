@@ -11,8 +11,6 @@ from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber
 
-pass
-
 __all__ = ["TidalVolumePerIdealBodyWeight"]
 
 

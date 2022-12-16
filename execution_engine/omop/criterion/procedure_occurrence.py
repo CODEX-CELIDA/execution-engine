@@ -7,8 +7,6 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.util import ValueNumber, ucum_to_postgres, value_factory
 
-pass
-
 __all__ = ["ProcedureOccurrence"]
 
 

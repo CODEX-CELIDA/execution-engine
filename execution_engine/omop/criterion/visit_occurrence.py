@@ -3,11 +3,9 @@ from typing import Any, Dict
 from sqlalchemy import select
 from sqlalchemy.sql import Select
 
-from ...constants import CohortCategory
-
-pass
-from .. import StandardConcepts
-from .concept import ConceptCriterion
+from execution_engine.constants import CohortCategory
+from execution_engine.omop import StandardConcepts
+from execution_engine.omop.criterion.concept import ConceptCriterion
 
 __all__ = ["VisitOccurrence", "ActivePatients"]
 
