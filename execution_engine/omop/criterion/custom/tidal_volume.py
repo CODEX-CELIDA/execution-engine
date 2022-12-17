@@ -1,6 +1,7 @@
-from sqlalchemy import Float, Integer, literal_column, text
+from sqlalchemy import case, literal_column, select, union_all
 from sqlalchemy.sql import Select
 
+from execution_engine.clients import omopdb
 from execution_engine.constants import LOINC_TIDAL_VOLUME, OMOPConcepts
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
@@ -24,10 +25,13 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
     _value: ValueNumber
 
-    def _sql_filter_concept(self, query: Select) -> Select:
+    def _sql_filter_tidal_volume(self, query: Select) -> Select:
         """
         Return the SQL to filter the data for the criterion.
+
+        Filtering for TIDAL VOLUME LOINC.
         """
+
         # todo: cache concept
         concept_tv = standard_vocabulary.get_standard_concept(
             system_uri=LOINC.system_uri, concept=LOINC_TIDAL_VOLUME
@@ -38,32 +42,38 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         )
         return query
 
-    def _sql_generate(self, query: Select) -> Select:
-
-        sql_ibw = (
-            text(  # nosec
-                f"""
-        SELECT DISTINCT ON (m.person_id) m.person_id,
-        (CASE
-        WHEN p.gender_concept_id = :omop_gender_male  THEN 50.0 + 0.91 * (m.value_as_number - 152.4)
-        WHEN p.gender_concept_id = :omop_gender_female THEN 45.5 + 0.91 * (m.value_as_number - 152.4)
-        ELSE 47.75 + 0.91 * (m.value_as_number - 152.4)
-        END ) AS ideal_body_weight
-        FROM measurement m
-        INNER JOIN "person" p ON m.person_id = p.person_id
-        INNER JOIN "{self._base_table.name}" t ON m.person_id = t.person_id
-        WHERE m.measurement_concept_id = :omop_body_weight
+    def _sql_select_ideal_body_weight(self, label: str = "ideal_body_weight") -> Select:
         """
+        Return the SQL to calculate the ideal body weight for a patient.
+        """
+        person = omopdb.tables["cds_cdm.person"].alias("p")
+        measurement = self._table
+
+        query = self._sql_header()
+        query = (
+            query.add_columns(
+                case(
+                    (
+                        person.c.gender_concept_id == OMOPConcepts.GENDER_MALE.value,
+                        50.5 + 0.91 * (measurement.c.value_as_number - 152.4),
+                    ),
+                    (
+                        person.c.gender_concept_id == OMOPConcepts.GENDER_FEMALE.value,
+                        45.5 + 0.91 * (measurement.c.value_as_number - 152.4),
+                    ),
+                    else_=(47.75 + 0.91 * (measurement.c.value_as_number - 152.4)),
+                ).label(label),
             )
-            .columns(person_id=Integer, ideal_body_weight=Float)
-            .bindparams(
-                omop_gender_male=OMOPConcepts.GENDER_MALE,
-                omop_gender_female=OMOPConcepts.GENDER_FEMALE,
-                omop_body_weight=OMOPConcepts.BODY_WEIGHT,
+            .join(person, person.c.person_id == measurement.c.person_id)
+            .where(
+                measurement.c.measurement_concept_id == OMOPConcepts.BODY_WEIGHT.value
             )
         )
 
-        sql_ibw = sql_ibw.alias("ibw")
+        return query
+
+    def _sql_generate(self, query: Select) -> Select:
+        sql_ibw = self._sql_select_ideal_body_weight().alias("ibw")
 
         sql_value = self._value.to_sql(
             table_name=None,
@@ -77,11 +87,39 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
         return query
 
+    def sql_select_data(self) -> Select:
+        """
+        Get patient data for this criterion
+        """
+        measurement = self._table
+
+        ibw = self._sql_select_ideal_body_weight(label="value_as_number")
+        ibw = ibw.add_columns(
+            measurement.c.measurement_concept_id.label("parameter_concept_id"),
+            measurement.c.measurement_datetime.label("start_datetime"),
+            measurement.c.unit_concept_id.label("unit_concept_id"),
+        )
+        ibw = self._insert_datetime(ibw)
+
+        tv = self._sql_header()
+        tv = self._sql_filter_concept(tv)
+        tv = tv.add_columns(
+            measurement.c.value_as_number.label("value_as_number"),
+            measurement.c.measurement_concept_id.label("parameter_concept_id"),
+            measurement.c.measurement_datetime.label("start_datetime"),
+            measurement.c.unit_concept_id.label("unit_concept_id"),
+        )
+        tv = self._insert_datetime(tv)
+
+        query = union_all(ibw, tv).alias("data")
+
+        # need to return Select, not CompoundSelect
+        return select(query.columns).select_from(query)
+
     def _sql_select_data(self, query: Select) -> Select:
-        """
-        Return the SQL to select the data for the criterion.
-        """
-        raise NotImplementedError("need to select ideal combined measure if possible?")
+        # sql_select_data() is overridden to return the union of the ideal body weight
+        # and tidal volume data. The _sql_generate() method is not used.
+        raise NotImplementedError()
 
     @staticmethod
     def predicted_body_weight_ardsnet(gender: int, height_in_cm: float) -> float:

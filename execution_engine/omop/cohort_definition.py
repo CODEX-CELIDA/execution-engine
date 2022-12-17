@@ -217,7 +217,14 @@ class CohortDefinition:
             elif isinstance(sql_select, TableClause):
                 return sql_select.name == base_table_out
             elif isinstance(sql_select, Subquery):
-                return any(_base_table_in_select(f) for f in sql_select.original.froms)
+                if isinstance(sql_select.original, CompoundSelect):
+                    return all(
+                        _base_table_in_select(s) for s in sql_select.original.selects
+                    )
+                else:
+                    return any(
+                        _base_table_in_select(f) for f in sql_select.original.froms
+                    )
             else:
                 raise NotImplementedError(f"Unknown type {type(sql_select)}")
 
