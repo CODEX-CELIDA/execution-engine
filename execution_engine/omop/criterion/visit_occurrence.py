@@ -3,8 +3,7 @@ from typing import Any, Dict
 from sqlalchemy import select
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory
-from execution_engine.omop import StandardConcepts
+from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.criterion.concept import ConceptCriterion
 
 __all__ = ["VisitOccurrence", "ActivePatients"]
@@ -39,7 +38,7 @@ class ActivePatients(VisitOccurrence):
         """
         query = query.filter(
             self._table.c.visit_type_concept_id
-            == StandardConcepts.VISIT_TYPE_STILL_PATIENT.value
+            == OMOPConcepts.VISIT_TYPE_STILL_PATIENT.value
         )
 
         return query

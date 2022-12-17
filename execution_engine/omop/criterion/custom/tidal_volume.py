@@ -1,12 +1,7 @@
 from sqlalchemy import Float, Integer, literal_column, text
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import (
-    LOINC_TIDAL_VOLUME,
-    OMOP_BODY_WEIGHT,
-    OMOP_GENDER_FEMALE,
-    OMOP_GENDER_MALE,
-)
+from execution_engine.constants import LOINC_TIDAL_VOLUME, OMOPConcepts
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber
@@ -62,9 +57,9 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
             )
             .columns(person_id=Integer, ideal_body_weight=Float)
             .bindparams(
-                omop_gender_male=OMOP_GENDER_MALE,
-                omop_gender_female=OMOP_GENDER_FEMALE,
-                omop_body_weight=OMOP_BODY_WEIGHT,
+                omop_gender_male=OMOPConcepts.GENDER_MALE,
+                omop_gender_female=OMOPConcepts.GENDER_FEMALE,
+                omop_body_weight=OMOPConcepts.BODY_WEIGHT,
             )
         )
 

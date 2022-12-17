@@ -21,10 +21,6 @@ CS_PLAN_DEFINITION_TYPE = "http://terminology.hl7.org/CodeSystem/plan-definition
 EXT_DOSAGE_CONDITION = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/StructureDefinition/ext-dosage-condition"
 EXT_CPG_PARTOF = "http://hl7.org/fhir/uv/cpg/StructureDefinition/cpg-partOf"
 
-OMOP_BODY_WEIGHT = "4099154"  # Body weight (observation)
-OMOP_GENDER_FEMALE = "8532"
-OMOP_GENDER_MALE = "8507"
-
 LOINC_TIDAL_VOLUME = "76222-9"  # Tidal volume ^on ventilator
 
 
@@ -37,3 +33,14 @@ class CohortCategory(Enum):
     POPULATION = "population"
     INTERVENTION = "intervention"
     POPULATION_INTERVENTION = "population_intervention"
+
+
+class OMOPConcepts(Enum):
+    """
+    Collection of standard concepts in the OMOP CDM.
+    """
+
+    VISIT_TYPE_STILL_PATIENT = "32220"
+    BODY_WEIGHT = "4099154"  # Body weight (observation)
+    GENDER_FEMALE = "8532"
+    GENDER_MALE = "8507"
