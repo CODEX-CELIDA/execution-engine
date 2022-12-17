@@ -38,19 +38,6 @@ from execution_engine.omop.db.result import (
 from execution_engine.util.sql import SelectInto, select_into
 
 
-def to_sqlalchemy(sql: Any) -> Query:
-    """
-    Convert a SQL statement to a SQLAlchemy expression.
-    """
-
-    # todo: remove this function once it is clear that it's never called
-
-    if isinstance(sql, str):
-        raise ValueError("sql must be a Select or CompoundSelect")
-
-    return sql
-
-
 def add_result_insert(
     query: Select | CompoundSelect,
     name: str | None,
@@ -113,10 +100,20 @@ def add_result_data_insert(
 
 class CohortDefinition:
     """
-    A cohort definition in OMOP as a collection of separate criteria
+    A cohort definition in OMOP as a collection of separate criteria.
+
+    A cohort definition represents an individual recommendation plan (i.e. one part of a single recommendation),
+    whereas a cohort definition combination represents the whole recommendation, consisting of one or multiple
+    recommendation plans = cohort definitions.
+    In turn, a cohort definition is a collection of criteria, which can be either a single criterion or a combination
+    of criteria (i.e. a criterion combination).
+    These single criteria can be either a single criterion (e.g. "has condition X") or a combination of criteria
+    (e.g. "has condition X and lab value Y >= Z").
     """
 
+    _name: str
     _criteria: CriterionCombination
+    _execution_map: ExecutionMap | None = None
 
     def __init__(
         self,
@@ -258,7 +255,15 @@ class CohortDefinition:
             query, SelectInto
         ), f"Invalid query - expected SelectInto, got {type(query)}"
 
-        yield to_sqlalchemy(query)
+        yield query
+
+        # let's also insert the base criterion into the recommendation_result table (for the full list of patients)
+        yield add_result_insert(
+            base_table.select(),
+            name=self.name,
+            cohort_category=CohortCategory.BASE,
+            criterion_name=self._base_criterion.unique_name(),
+        )
 
         for i, criterion in enumerate(self._execution_map.sequential()):
             logging.info(f"Processing {criterion.name} (exclude={criterion.exclude})")
@@ -275,7 +280,7 @@ class CohortDefinition:
                 criterion_name=criterion.unique_name(),
             )
 
-            yield to_sqlalchemy(sql)
+            yield sql
 
         yield from self.combine()
 
@@ -332,6 +337,30 @@ class CohortDefinition:
             )
             yield query
 
+    def retrieve_patient_data(self, base_table: Table) -> Iterator[Insert]:
+        """
+        Retrieve patient data for patients addressed by the recommendation and
+        insert it into the patient_data table.
+        """
+
+        if self._execution_map is None:
+            raise Exception("Execution map not initialized - run process() first")
+
+        for i, criterion in enumerate(self._execution_map.sequential()):
+            logging.info(f"Retrieving patient data for {criterion.name}")
+
+            criterion.set_base_table(base_table)
+            query = criterion.sql_select_data()
+
+            str(query)  # fixme: remove (used for debugging only)
+
+            self._assert_base_table_in_select(query, base_table.name)
+            query = add_result_data_insert(
+                query, cohort_category=criterion.category, criterion=criterion
+            )
+
+            yield query
+
     def dict(self) -> dict[str, Any]:
         """
         Get a dictionary representation of the cohort definition.
@@ -359,37 +388,15 @@ class CohortDefinition:
             criteria=CriterionCombination.from_dict(data["criteria"]),
         )
 
-    def retrieve_patient_data(self, base_table: Table) -> Iterator[Insert]:
-        """
-        Retrieve patient data for patients addressed by the recommendation and
-        insert it into the patient_data table.
-        """
-
-        if self._execution_map is None:
-            raise Exception("Execution map not initialized - run process() first")
-
-        for i, criterion in enumerate(self._execution_map.sequential()):
-            logging.info(f"Retrieving patient data for {criterion.name}")
-
-            criterion.set_base_table(base_table)
-            query = criterion.sql_select_data()
-
-            str(query)  # fixme: remove (used for debugging only)
-
-            self._assert_base_table_in_select(query, base_table.name)
-            query = add_result_data_insert(
-                query, cohort_category=criterion.category, criterion=criterion
-            )
-
-            yield query
-
 
 class CohortDefinitionCombination:
     """
-    A cohort definition combination in OMOP as a collection of separate cohort definitions
-    """
+    A cohort definition combination in OMOP as a collection of separate cohort definitions.
 
-    # todo: can we subclass from CohortDefinition (or common abstract super class)? a lot of common code
+    A cohort definition represents an individual recommendation plan (i.e. one part of a single recommendation),
+    whereas a cohort definition combination represents the whole recommendation, consisting of one or multiple
+    recommendation plans = cohort definitions.
+    """
 
     def __init__(
         self,
