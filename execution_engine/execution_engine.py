@@ -1,7 +1,6 @@
 import hashlib
 import json
 import logging
-import os
 from datetime import datetime
 from typing import Tuple, Union, cast
 
@@ -10,7 +9,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariableCharacteristic,
 )
 
-from execution_engine.clients import omopdb
+from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.action.body_positioning import BodyPositioningAction
@@ -43,7 +42,6 @@ from execution_engine.converter.goal.laboratory_value import LaboratoryValueGoal
 from execution_engine.converter.goal.ventilator_management import (
     VentilatorManagementGoal,
 )
-from execution_engine.fhir.client import FHIRClient
 from execution_engine.fhir.recommendation import Recommendation, RecommendationPlan
 from execution_engine.fhir_omop_mapping import (
     ActionSelectionBehavior,
@@ -66,14 +64,7 @@ class ExecutionEngine:
     def __init__(self) -> None:
 
         self.setup_logging()
-
-        if os.environ.get("FHIR_BASE_URL") is None:
-            raise Exception("FHIR_BASE_URL environment variable not set.")
-
-        fhir_base_url: str = os.environ["FHIR_BASE_URL"]
-
-        # todo: init clients here?
-        self._fhir = FHIRClient(fhir_base_url)
+        self._fhir = fhir_client
         self._db = omopdb
 
     @staticmethod
