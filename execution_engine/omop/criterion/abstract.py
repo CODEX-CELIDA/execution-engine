@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, cast
 
 import sqlalchemy
-from sqlalchemy import Table, bindparam, literal_column, select
+from sqlalchemy import Table, bindparam, distinct, literal_column, select
 from sqlalchemy.sql import Select, TableClause
 
 from execution_engine.constants import CohortCategory
@@ -166,7 +166,7 @@ class Criterion(AbstractCriterion):
 
         domain = self.DOMAINS[domain_id.lower()]
 
-        self._OMOP_DOMAIN = domain_id
+        self._OMOP_DOMAIN = domain_id.title()
         self._OMOP_TABLE = domain["table"]
         self._OMOP_COLUMN_PREFIX = domain_id.lower()
         self._OMOP_VALUE_REQUIRED = cast(bool, domain["value_required"])
@@ -190,15 +190,17 @@ class Criterion(AbstractCriterion):
         """
         return self._OMOP_DOMAIN
 
-    def _sql_header(self) -> Select:
+    def _sql_header(self, distinct_person: bool = True) -> Select:
         """
         Generate the header of the SQL query.
         """
 
-        # run_id, category etc. should be added ?
-        query = select(
-            self._table.c.person_id,
-        ).select_from(self._table)
+        c = self._table.c.person_id
+
+        if distinct_person:
+            c = distinct(c).label("person_id")
+
+        query = select(c).select_from(self._table)
 
         query = query.join(
             self._base_table, self._table.c.person_id == self._base_table.c.person_id
@@ -311,7 +313,7 @@ class Criterion(AbstractCriterion):
         """
         Get patient data for this criterion
         """
-        query = self._sql_header()
+        query = self._sql_header(distinct_person=False)
         query = self._sql_select_data(query)
         query = self._sql_filter_concept(query)
         query = self._insert_datetime(query)

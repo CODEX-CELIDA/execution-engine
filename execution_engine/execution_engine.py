@@ -1,5 +1,4 @@
 import hashlib
-import json
 import logging
 from datetime import datetime
 from typing import Tuple, Union, cast
@@ -326,7 +325,7 @@ class ExecutionEngine:
 
         cd_table = result_db.CohortDefinition.__table__
 
-        cd_json = json.dumps(cd.dict(), sort_keys=True).encode()
+        cd_json = cd.json()
         cd_hash = hashlib.sha256(cd_json).hexdigest()
 
         cd_db = (

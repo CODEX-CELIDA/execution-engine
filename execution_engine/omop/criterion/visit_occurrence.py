@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from sqlalchemy import select
+from sqlalchemy import distinct, select
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory, OMOPConcepts
@@ -24,11 +24,17 @@ class ActivePatients(VisitOccurrence):
         self._category = CohortCategory.BASE
         self._set_omop_variables_from_domain("visit")
 
-    def _sql_header(self) -> Select:
+    def _sql_header(self, distinct_person: bool = True) -> Select:
         """
         Get the SQL header for the criterion.
         """
-        query = select(self._table.c.person_id).select_from(self._table)
+
+        c = self._table.c.person_id
+
+        if distinct_person:
+            c = distinct(c)
+
+        query = select(c).select_from(self._table)
 
         return query
 

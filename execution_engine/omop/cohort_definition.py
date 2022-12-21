@@ -52,13 +52,9 @@ def add_result_insert(
 
     query_select: Select
 
-    if isinstance(query, CompoundSelect) or len(query.columns) > 1:
-        # CompoundSelect requires the same number of columns for each select, so we need
-        # to create a new select with the CompoundSelect as a subquery.
-        # Likewise, if the query has more than one column, we need to only select person_id
-        query_select = select(literal_column("person_id")).select_from(query)
-    else:
-        query_select = query
+    # Always surround the original query by a select () query, as
+    # otherwise problemes arise when using CompoundSelect, multiple columns or DISTINCT person_id
+    query_select = select(literal_column("person_id")).select_from(query)
 
     query_select = query_select.add_columns(
         bindparam("run_id").label("recommendation_run_id"),
@@ -340,7 +336,7 @@ class CohortDefinition:
                 query,
                 name=self.name,
                 cohort_category=category,
-                criterion_name=category.name,
+                criterion_name=None,
             )
             yield query
 
@@ -550,6 +546,19 @@ class CohortDefinitionCombination:
             )
         )
 
+    def json(self) -> bytes:
+        """
+        Get a JSON representation of the cohort definition combination.
+
+        The json excludes the cohort definition id, as this is auto-inserted by the database
+        and not known during the creation of the cohort definition combination.
+        """
+
+        cd_json = self.dict()
+        del cd_json["id"]
+
+        return json.dumps(cd_json, sort_keys=True).encode()
+
     def dict(self) -> dict:
         """
         Get the combination as a dictionary.
@@ -572,7 +581,7 @@ class CohortDefinitionCombination:
             ],
             url=data["recommendation_url"],
             version=data["recommendation_version"],
-            cohort_definition_id=data["id"],
+            cohort_definition_id=data["id"] if "id" in data else None,
         )
 
     @classmethod
