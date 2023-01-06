@@ -496,6 +496,7 @@ class CohortDefinitionCombination:
                     and_(
                         table.c.recommendation_plan_name == cohort_definition.name,
                         table.c.cohort_category == category.name,
+                        table.c.criterion_name.is_(None),
                         table.c.recommendation_run_id == bindparam("run_id"),
                     )
                 )
