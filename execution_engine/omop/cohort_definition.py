@@ -489,11 +489,15 @@ class CohortDefinitionCombination:
         def _get_query(
             cohort_definition: CohortDefinition, category: CohortCategory
         ) -> Select:
-            return select(table.c.person_id).where(
-                and_(
-                    table.c.recommendation_plan_name == cohort_definition.name,
-                    table.c.cohort_category == category.name,
-                    table.c.recommendation_run_id == bindparam("run_id"),
+            return (
+                select(table.c.person_id)
+                .distinct(table.c.person_id)
+                .where(
+                    and_(
+                        table.c.recommendation_plan_name == cohort_definition.name,
+                        table.c.cohort_category == category.name,
+                        table.c.recommendation_run_id == bindparam("run_id"),
+                    )
                 )
             )
 

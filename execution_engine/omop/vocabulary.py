@@ -1,8 +1,8 @@
 from abc import ABC
 from typing import Type
 
-from ..clients import omopdb
-from .concepts import Concept, CustomConcept
+from execution_engine.clients import omopdb
+from execution_engine.omop.concepts import Concept, CustomConcept
 
 
 class VocabularyNotFoundError(Exception):
