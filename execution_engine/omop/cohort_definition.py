@@ -35,7 +35,7 @@ from execution_engine.omop.db.result import (
     RecommendationPersonDatum,
     RecommendationResult,
 )
-from execution_engine.util.sql import SelectInto, select_into
+from execution_engine.util.sql import SelectInto
 
 
 def add_result_insert(
@@ -177,15 +177,6 @@ class CohortDefinition:
         self._criteria.add(criterion)
 
     @staticmethod
-    def base_table(name: str) -> Table:
-        """
-        Convert a name to a valid SQL table name.
-        """
-        name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
-        metadata = MetaData()
-        return Table(name, metadata, Column("person_id", Integer, primary_key=True))
-
-    @staticmethod
     def _assert_base_table_in_select(
         sql: CompoundSelect | Select | SelectInto, base_table_out: str
     ) -> None:
@@ -235,10 +226,7 @@ class CohortDefinition:
         else:
             raise NotImplementedError(f"Unknown type {type(sql)}")
 
-    def process(
-        self,
-        table_prefix: str = "",
-    ) -> Iterator[Query]:
+    def process(self, base_table: Table) -> Iterator[Query]:
         """
         Process the cohort definition into SQL statements.
         """
@@ -247,26 +235,6 @@ class CohortDefinition:
 
         i: int
         criterion: Criterion
-
-        base_table = self.base_table(f"{table_prefix}{self._base_criterion.name}")
-
-        query = self._base_criterion.sql_generate(base_table=base_table)
-        query = self._base_criterion.sql_insert_into_table(
-            query, base_table, temporary=True
-        )
-        assert isinstance(
-            query, SelectInto
-        ), f"Invalid query - expected SelectInto, got {type(query)}"
-
-        yield query
-
-        # let's also insert the base criterion into the recommendation_result table (for the full list of patients)
-        yield add_result_insert(
-            base_table.select(),
-            name=self.name,
-            cohort_category=CohortCategory.BASE,
-            criterion_name=self._base_criterion.unique_name(),
-        )
 
         for i, criterion in enumerate(self._execution_map.sequential()):
             logging.info(f"Processing {criterion.name} (exclude={criterion.exclude})")
@@ -286,15 +254,6 @@ class CohortDefinition:
             yield sql
 
         yield from self.combine()
-
-        yield self.cleanup(base_table)
-
-    @staticmethod
-    def cleanup(base_table: Table) -> Query:
-        """
-        Generate a query to clean up the temporary tables.
-        """
-        return DropTable(base_table)
 
     def get_criterion_combination_name(self, criterion: Criterion) -> str:
         """
@@ -401,14 +360,18 @@ class CohortDefinitionCombination:
     recommendation plans = cohort definitions.
     """
 
+    base_table: Table | None = None
+
     def __init__(
         self,
         cohort_definitions: list[CohortDefinition],
+        base_criterion: Criterion,
         url: str,
         version: str,
         cohort_definition_id: int | None = None,
     ) -> None:
         self._cohort_definitions: list[CohortDefinition] = cohort_definitions
+        self._base_criterion: Criterion = base_criterion
         self._url: str = url
         self._version: str = version
         # The id is used in the cohort_definition_id field in the result tables.
@@ -466,15 +429,50 @@ class CohortDefinitionCombination:
         """
         return self._cohort_definitions[index]
 
+    @staticmethod
+    def to_table(name: str) -> Table:
+        """
+        Convert a name to a valid SQL table name.
+        """
+        name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
+        metadata = MetaData()
+        return Table(name, metadata, Column("person_id", Integer, primary_key=True))
+
+    def create_base_table(self) -> Table:
+        """
+        Create the base table for the cohort definition combination.
+        """
+        self.base_table = self.to_table(self._base_criterion.name)
+
+        query = self._base_criterion.sql_generate(base_table=self.base_table)
+        query = self._base_criterion.sql_insert_into_table(
+            query, self.base_table, temporary=True
+        )
+        assert isinstance(
+            query, SelectInto
+        ), f"Invalid query - expected SelectInto, got {type(query)}"
+
+        yield query
+
+        # let's also insert the base criterion into the recommendation_result table (for the full list of patients)
+        yield add_result_insert(
+            self.base_table.select(),
+            name=None,
+            cohort_category=CohortCategory.BASE,
+            criterion_name=self._base_criterion.unique_name(),
+        )
+
     def process(self) -> Iterator[Query]:
         """
         Process the cohort definition combination into SQL statements.
         """
 
+        yield from self.create_base_table()
+
         for i, cohort_definition in enumerate(self._cohort_definitions):
 
             yield from cohort_definition.process(
-                table_prefix=f"cd{i}_",
+                base_table=self.base_table,
             )
 
         yield from self.combine()
@@ -518,21 +516,19 @@ class CohortDefinitionCombination:
 
             yield query
 
-    def retrieve_patient_data(self, category: CohortCategory) -> Iterator[Select]:
+    def retrieve_patient_data(self) -> Iterator[Select]:
         """
         Retrieve patient data for the cohort definition combination.
         """
 
-        base_table = CohortDefinition.base_table(f"cd_{category.name}")
-
-        query = select_into(self.select_patients(category), base_table, temporary=True)
-
-        yield query
-
         for cohort_definition in self._cohort_definitions:
-            yield from cohort_definition.retrieve_patient_data(base_table)
+            yield from cohort_definition.retrieve_patient_data(self.base_table)
 
-        yield DropTable(base_table)
+    def cleanup(self) -> Iterator[DropTable]:
+        """
+        Cleanup the cohort definition combination by removing the temporary base table.
+        """
+        yield DropTable(self.base_table)
 
     @staticmethod
     def select_patients(category: CohortCategory) -> Select:
@@ -571,6 +567,7 @@ class CohortDefinitionCombination:
         return {
             "id": self._id,
             "cohort_definitions": [c.dict() for c in self._cohort_definitions],
+            "base_criterion": self._base_criterion.dict(),
             "recommendation_url": self._url,
             "recommendation_version": self._version,
         }
@@ -580,10 +577,16 @@ class CohortDefinitionCombination:
         """
         Create a combination from a dictionary.
         """
+        base_criterion = criterion_factory(**data["base_criterion"])
+        assert isinstance(
+            base_criterion, Criterion
+        ), "Base criterion must be a Criterion"
+
         return cls(
             cohort_definitions=[
                 CohortDefinition.from_dict(c) for c in data["cohort_definitions"]
             ],
+            base_criterion=base_criterion,
             url=data["recommendation_url"],
             version=data["recommendation_version"],
             cohort_definition_id=data["id"] if "id" in data else None,

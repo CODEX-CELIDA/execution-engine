@@ -235,10 +235,12 @@ class ExecutionEngine:
 
         rec_plan_cohorts: list[CohortDefinition] = []
 
+        base_criterion = ActivePatients(name="active_patients")
+
         for rec_plan in rec.plans():
             cd = CohortDefinition(
                 name=rec_plan.name,
-                base_criterion=ActivePatients(name="active_patients"),
+                base_criterion=base_criterion,
             )
 
             characteristics = self._parse_characteristics(rec_plan.population)
@@ -258,7 +260,10 @@ class ExecutionEngine:
             rec_plan_cohorts.append(cd)
 
         return CohortDefinitionCombination(
-            rec_plan_cohorts, url=rec.url, version=rec.version
+            rec_plan_cohorts,
+            base_criterion=base_criterion,
+            url=rec.url,
+            version=rec.version,
         )
 
     def execute(
@@ -291,6 +296,7 @@ class ExecutionEngine:
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
             )
+            self.cleanup(cd)
 
     @staticmethod
     def load_recommendation_from_database(
@@ -419,7 +425,7 @@ class ExecutionEngine:
         ]:
             logging.info(f"Retrieving patient data for {category.name}...")
 
-            for statement in cd.retrieve_patient_data(category):
+            for statement in cd.retrieve_patient_data():
                 self._db.session.execute(
                     statement,
                     {
@@ -428,3 +434,8 @@ class ExecutionEngine:
                         "end_datetime": end_datetime,
                     },
                 )
+
+    def cleanup(self, cd: CohortDefinitionCombination) -> None:
+        """Cleans up the temporary tables."""
+        for statement in cd.cleanup():
+            self._db.session.execute(statement)
