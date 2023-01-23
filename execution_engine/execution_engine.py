@@ -280,7 +280,7 @@ class ExecutionEngine:
         # fixme: potentially also register run_id as class variable
 
         with self._db.session.begin():
-            self.register_cohort_definition(cd)
+            cd.id = self.register_cohort_definition(cd)
             run_id = self.register_run(
                 cd, start_datetime=start_datetime, end_datetime=end_datetime
             )

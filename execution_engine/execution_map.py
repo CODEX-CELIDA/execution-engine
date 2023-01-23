@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, cast
 
 import sympy
 from sqlalchemy import bindparam, intersect, select, union
@@ -109,7 +109,10 @@ class ExecutionMap:
         def _flat_traverse(args: tuple[sympy.Expr]) -> None:
             for arg in args:
                 if arg.is_Not:
-                    yield self._hashmap[arg.args[0]].invert_exclude(inplace=True)
+                    self._hashmap[arg.args[0]] = cast(
+                        Criterion,
+                        self._hashmap[arg.args[0]].invert_exclude(inplace=True),
+                    )
                 elif not arg.is_Atom:
                     _flat_traverse(arg.args)
 
