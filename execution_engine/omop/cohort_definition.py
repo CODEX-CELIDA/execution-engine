@@ -57,7 +57,7 @@ def add_result_insert(
     query_select = select(literal_column("person_id")).select_from(query)
 
     query_select = query_select.add_columns(
-        bindparam("run_id").label("recommendation_run_id"),
+        bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
         bindparam("recommendation_plan_name", name).label("recommendation_plan_name"),
         bindparam("cohort_category", cohort_category.name).label("cohort_category"),
         bindparam("criterion_name", criterion_name).label("criterion_name"),
@@ -82,7 +82,7 @@ def add_result_data_insert(
         raise ValueError("sql must be a Select")
 
     query = query.add_columns(
-        bindparam("run_id").label("recommendation_run_id"),
+        bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
         bindparam("cohort_category", cohort_category.name).label("cohort_category"),
         bindparam("criterion_name", criterion.unique_name()).label("criterion_name"),
         bindparam("domain_id", criterion.domain).label("domain_id"),

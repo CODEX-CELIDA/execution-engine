@@ -271,6 +271,7 @@ class ExecutionEngine:
         cd: CohortDefinitionCombination,
         start_datetime: datetime,
         end_datetime: datetime | None,
+        verbose: bool = False,
     ) -> None:
         """Executes the Cohort Definition and returns a list of Person IDs."""
 
@@ -289,14 +290,16 @@ class ExecutionEngine:
                 run_id=run_id,
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
+                verbose=verbose,
             )
             self.select_patient_data(
                 cd,
                 run_id=run_id,
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
+                verbose=verbose,
             )
-            self.cleanup(cd)
+            self.cleanup(cd, verbose=verbose)
 
     @staticmethod
     def load_recommendation_from_database(
@@ -388,6 +391,7 @@ class ExecutionEngine:
         run_id: int,
         start_datetime: datetime,
         end_datetime: datetime,
+        verbose: bool = False,
     ) -> None:
         """
         Executes the Cohort Definition and stores the results in the result tables.
@@ -399,15 +403,21 @@ class ExecutionEngine:
             f"Observation window from {start_datetime.strftime(date_format)} to {end_datetime.strftime(date_format)}"
         )
 
+        params = {
+            "run_id": run_id,
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime,
+        }
+
         """Executes the Cohort Definition"""
         for statement in cd.process():
+
+            if verbose:
+                logging.debug(self._db.compile_query(statement.select, params))
+
             self._db.session.execute(
                 statement,
-                {
-                    "run_id": run_id,
-                    "start_datetime": start_datetime,
-                    "end_datetime": end_datetime,
-                },
+                params,
             )
 
     def select_patient_data(
@@ -416,8 +426,15 @@ class ExecutionEngine:
         run_id: int,
         start_datetime: datetime,
         end_datetime: datetime,
+        verbose: bool = False,
     ) -> None:
         """Selects the patient data and stores it in the result tables."""
+
+        params = {
+            "run_id": run_id,
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime,
+        }
 
         for category in [
             CohortCategory.POPULATION,
@@ -426,16 +443,16 @@ class ExecutionEngine:
             logging.info(f"Retrieving patient data for {category.name}...")
 
             for statement in cd.retrieve_patient_data():
-                self._db.session.execute(
-                    statement,
-                    {
-                        "run_id": run_id,
-                        "start_datetime": start_datetime,
-                        "end_datetime": end_datetime,
-                    },
-                )
+                if verbose:
+                    logging.debug(self._db.compile_query(statement.select, params))
 
-    def cleanup(self, cd: CohortDefinitionCombination) -> None:
+                self._db.session.execute(statement, params)
+
+    def cleanup(self, cd: CohortDefinitionCombination, verbose: bool = False) -> None:
         """Cleans up the temporary tables."""
         for statement in cd.cleanup():
+
+            if verbose:
+                logging.debug(self._db.compile_query(statement))
+
             self._db.session.execute(statement)

@@ -6,7 +6,7 @@ from sqlalchemy.sql import Select
 from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.criterion.concept import ConceptCriterion
 
-__all__ = ["VisitOccurrence", "ActivePatients"]
+__all__ = ["VisitOccurrence", "ActivePatients", "PatientsActiveDuringPeriod"]
 
 
 class VisitOccurrence(ConceptCriterion):

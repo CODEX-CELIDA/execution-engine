@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 
 from execution_engine import ExecutionEngine
@@ -18,9 +19,12 @@ start_datetime = datetime.today() - timedelta(days=7)
 end_datetime = datetime.today()
 
 e = ExecutionEngine()
+logging.getLogger().setLevel(logging.DEBUG)
 
 for recommendation_url in urls:
     print(recommendation_url)
     cdd = e.load_recommendation(base_url + recommendation_url, force_reload=False)
 
-    e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)
+    e.execute(
+        cdd, start_datetime=start_datetime, end_datetime=end_datetime, verbose=True
+    )

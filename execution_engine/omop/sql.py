@@ -90,12 +90,15 @@ class OMOPSQLClient:
         """
         return pd.read_sql(sql, self._engine, params=kwargs)
 
-    def compile_query(self, query: Select | Insert) -> str:
+    def compile_query(self, query: Select | Insert, params: dict | None = None) -> str:
         """
         Compile the given query against the OMOP CDM database.
         """
+        if params is None:
+            params = {}
+
         return str(
-            query.compile(
+            query.params(params).compile(
                 dialect=self._engine.dialect,
                 compile_kwargs={"literal_binds": True},
             )
