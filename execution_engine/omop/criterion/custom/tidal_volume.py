@@ -82,7 +82,9 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         )
 
         query = query.join(sql_ibw, sql_ibw.c.person_id == self._table.c.person_id)
-        query = self._sql_filter_concept(query)
+        query = self._sql_filter_concept(
+            query, override_concept_id=OMOPConcepts.TIDAL_VOLUME_ON_VENTILATOR.value
+        )
         query = query.filter(sql_value)
 
         return query

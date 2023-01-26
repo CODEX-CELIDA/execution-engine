@@ -44,3 +44,4 @@ class OMOPConcepts(Enum):
     BODY_WEIGHT = "4099154"  # Body weight (observation)
     GENDER_FEMALE = "8532"
     GENDER_MALE = "8507"
+    TIDAL_VOLUME_ON_VENTILATOR = "21490854"

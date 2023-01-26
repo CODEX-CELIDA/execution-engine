@@ -34,12 +34,18 @@ class ConceptCriterion(Criterion):
         self._concept = concept
         self._value = value
 
-    def _sql_filter_concept(self, query: Select) -> Select:
+    def _sql_filter_concept(
+        self, query: Select, override_concept_id: str | None = None
+    ) -> Select:
         concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
 
-        return query.filter(
-            self._table.c[concept_column_name] == self._concept.concept_id
+        concept_id = (
+            override_concept_id
+            if override_concept_id is not None
+            else self._concept.concept_id
         )
+
+        return query.filter(self._table.c[concept_column_name] == concept_id)
 
     def _sql_generate(self, query: Select) -> Select:
         """
