@@ -49,7 +49,7 @@ class CriterionCombination(AbstractCriterion):
         """
         Get the name of the criterion combination.
         """
-        return f"CriterionCombination({self.operator.operator}).{self.category.value}.{self._name}"
+        return f"CriterionCombination({self.operator.operator}).{self.category.value}.{self._name}(exclude={self._exclude})"
 
     @property
     def operator(self) -> "CriterionCombination.Operator":

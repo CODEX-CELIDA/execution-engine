@@ -43,6 +43,11 @@ class AbstractCriterion(ABC):
         """Return the exclude flag."""
         return self._exclude
 
+    @exclude.setter
+    def exclude(self, exclude: bool) -> None:
+        """Sets the exclude value."""
+        self._exclude = exclude
+
     @property
     def category(self) -> CohortCategory:
         """Return the category value."""
@@ -76,7 +81,7 @@ class AbstractCriterion(ABC):
 
     def __repr__(self) -> str:
         """
-        Get the respresentation of the criterion.
+        Get the representation of the criterion.
         """
         return (
             f"{self.type}.{self._category.name}.{self._name}(exclude={self._exclude})"

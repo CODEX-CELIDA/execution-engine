@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Iterator, Tuple, cast
+from typing import Iterator, Tuple
 
 import sympy
 from sqlalchemy import bindparam, intersect, select, union
@@ -20,9 +20,9 @@ class ExecutionMap:
     converting the criterion combination into a negation normal form (NNF) and then flattening the tree into a sequential
     execution map.
 
-    The advantage of the negation normal form (NNF)-based representation of the criterion combination (cohort definition) is
-    that in the NNF, the negation operator is only applied to single criteria, and not to combinations of criteria. This
-    allows us to push the negation operator into the criteria themselves, which simplifies the execution strategy.
+    The advantage of the negation normal form (NNF)-based representation of the criterion combination (cohort definition)
+    is that in the NNF, the negation operator is only applied to single criteria, and not to combinations of criteria.
+    This allows us to push the negation operator into the criteria themselves, which simplifies the execution strategy.
     """
 
     _nnf: sympy.Expr
@@ -109,10 +109,9 @@ class ExecutionMap:
         def _flat_traverse(args: tuple[sympy.Expr]) -> None:
             for arg in args:
                 if arg.is_Not:
-                    self._hashmap[arg.args[0]] = cast(
-                        Criterion,
-                        self._hashmap[arg.args[0]].invert_exclude(inplace=True),
-                    )
+                    self._hashmap[arg.args[0]].exclude = True
+                elif arg.is_Atom:
+                    self._hashmap[arg].exclude = False
                 elif not arg.is_Atom:
                     _flat_traverse(arg.args)
 
