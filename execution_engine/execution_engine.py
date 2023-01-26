@@ -51,7 +51,7 @@ from execution_engine.omop.cohort_definition import (
     CohortDefinitionCombination,
 )
 from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.omop.criterion.visit_occurrence import ActivePatients
+from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db import result as result_db
 
 
@@ -235,7 +235,7 @@ class ExecutionEngine:
 
         rec_plan_cohorts: list[CohortDefinition] = []
 
-        base_criterion = ActivePatients(name="active_patients")
+        base_criterion = PatientsActiveDuringPeriod(name="active_patients")
 
         for rec_plan in rec.plans():
             cd = CohortDefinition(

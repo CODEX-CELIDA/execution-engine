@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from sqlalchemy import distinct, select
+from sqlalchemy import bindparam, distinct, or_, select
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory, OMOPConcepts
@@ -61,3 +61,26 @@ class ActivePatients(VisitOccurrence):
         Create a criterion from a JSON representation.
         """
         return cls(data["name"])
+
+
+class PatientsActiveDuringPeriod(ActivePatients):
+    """
+    Select Patients who were hospitalized during a given period
+    """
+
+    def _sql_generate(self, query: Select) -> Select:
+        """
+        Get the SQL representation of the criterion.
+        """
+        query = query.filter(
+            or_(
+                self._table.c.visit_start_datetime.between(
+                    bindparam("start_datetime"), bindparam("end_datetime")
+                ),
+                self._table.c.visit_end_datetime.between(
+                    bindparam("start_datetime"), bindparam("end_datetime")
+                ),
+            )
+        )
+
+        return query

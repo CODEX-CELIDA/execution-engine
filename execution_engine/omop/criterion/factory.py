@@ -11,6 +11,7 @@ from execution_engine.omop.criterion.observation import Observation
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.criterion.visit_occurrence import (
     ActivePatients,
+    PatientsActiveDuringPeriod,
     VisitOccurrence,
 )
 
@@ -49,6 +50,7 @@ def criterion_factory(class_name: str, data: dict) -> Criterion | CriterionCombi
         "ProcedureOccurrence": ProcedureOccurrence,
         "VisitOccurrence": VisitOccurrence,
         "ActivePatients": ActivePatients,
+        "PatientsActiveDuringPeriod": PatientsActiveDuringPeriod,
         "TidalVolumePerIdealBodyWeight": TidalVolumePerIdealBodyWeight,
     }
 
