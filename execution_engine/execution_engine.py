@@ -60,18 +60,18 @@ class ExecutionEngine:
     The Execution Engine is responsible for reading recommendations in CPG-on-EBM-on-FHIR format
     and creating an OMOP Cohort Definition from them."""
 
-    def __init__(self) -> None:
+    def __init__(self, verbose: bool = False) -> None:
 
-        self.setup_logging()
+        self.setup_logging(verbose)
         self._fhir = fhir_client
         self._db = omopdb
 
     @staticmethod
-    def setup_logging() -> None:
+    def setup_logging(verbose: bool = False) -> None:
         """Sets up logging."""
         logging.basicConfig(
             format="%(asctime)s - %(levelname)s - %(message)s",
-            level=logging.INFO,
+            level=logging.DEBUG if verbose else logging.INFO,
         )
 
     @staticmethod
@@ -271,8 +271,8 @@ class ExecutionEngine:
         cd: CohortDefinitionCombination,
         start_datetime: datetime,
         end_datetime: datetime | None,
-        verbose: bool = False,
-    ) -> None:
+        select_patient_data: bool = False,
+    ) -> int:
         """Executes the Cohort Definition and returns a list of Person IDs."""
 
         if end_datetime is None:
@@ -290,16 +290,17 @@ class ExecutionEngine:
                 run_id=run_id,
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
-                verbose=verbose,
             )
-            self.select_patient_data(
-                cd,
-                run_id=run_id,
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-                verbose=verbose,
-            )
-            self.cleanup(cd, verbose=verbose)
+            if select_patient_data:
+                self.select_patient_data(
+                    cd,
+                    run_id=run_id,
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                )
+            self.cleanup(cd)
+
+        return run_id
 
     @staticmethod
     def load_recommendation_from_database(
@@ -391,7 +392,6 @@ class ExecutionEngine:
         run_id: int,
         start_datetime: datetime,
         end_datetime: datetime,
-        verbose: bool = False,
     ) -> None:
         """
         Executes the Cohort Definition and stores the results in the result tables.
@@ -412,8 +412,7 @@ class ExecutionEngine:
         """Executes the Cohort Definition"""
         for statement in cd.process():
 
-            if verbose:
-                logging.debug(self._db.compile_query(statement.select, params))
+            logging.debug(self._db.compile_query(statement.select, params))
 
             self._db.session.execute(
                 statement,
@@ -426,7 +425,6 @@ class ExecutionEngine:
         run_id: int,
         start_datetime: datetime,
         end_datetime: datetime,
-        verbose: bool = False,
     ) -> None:
         """Selects the patient data and stores it in the result tables."""
 
@@ -443,16 +441,84 @@ class ExecutionEngine:
             logging.info(f"Retrieving patient data for {category.name}...")
 
             for statement in cd.retrieve_patient_data():
-                if verbose:
-                    logging.debug(self._db.compile_query(statement.select, params))
+                logging.debug(self._db.compile_query(statement.select, params))
 
                 self._db.session.execute(statement, params)
 
-    def cleanup(self, cd: CohortDefinitionCombination, verbose: bool = False) -> None:
+    def cleanup(self, cd: CohortDefinitionCombination) -> None:
         """Cleans up the temporary tables."""
         for statement in cd.cleanup():
 
-            if verbose:
-                logging.debug(self._db.compile_query(statement))
+            logging.debug(self._db.compile_query(statement))
 
             self._db.session.execute(statement)
+
+    def fetch_patients(self, run_id: int) -> dict:
+        """Retrieve list of patients associated with a single run."""
+        assert isinstance(run_id, int)
+        # TODO: write in sqlalchemy
+        return self._db.query(  # nosec
+            f"""
+            SELECT *
+            FROM celida.recommendation_result
+            WHERE recommendation_run_id = {run_id}
+                AND recommendation_plan_name IS NULL
+        """
+        )
+
+    def fetch_criteria(self, run_id: int) -> dict:
+        """Retrieve individual criteria associated with a single run."""
+        assert isinstance(run_id, int)
+        # TODO: write in sqlalchemy
+        return self._db.query(  # nosec
+            f"""
+            SELECT DISTINCT recommendation_plan_name, criterion_name
+            FROM celida.recommendation_result
+            WHERE recommendation_run_id = {run_id}
+            """
+        )
+
+    def fetch_run(self, run_id: int) -> dict:
+        """
+        Retrieve information about a single run.
+        """
+        return (  # nosec
+            self._db.query(
+                f"""
+            SELECT
+                run.recommendation_run_id,
+                run.observation_start_datetime,
+                run.observation_end_datetime,
+                cd.cohort_definition_id,
+                cd.recommendation_url,
+                cd.recommendation_version,
+                cd.cohort_definition_hash
+            FROM celida.recommendation_run run
+            INNER JOIN celida.cohort_definition cd ON (cd.cohort_definition_id = run.cohort_definition_id)
+            WHERE run.recommendation_run_id = {run_id}
+            """
+            )
+            .iloc[0]
+            .to_dict()
+        )
+
+    def fetch_patient_data(
+        self,
+        person_id: int,
+        criterion_name: str,
+        cdd: CohortDefinitionCombination,
+        start_datetime: datetime,
+        end_datetime: datetime,
+    ) -> dict:
+        """Retrieve patient data for a person and single criterion."""
+        criterion = cdd.get_criterion(criterion_name)
+
+        statement = criterion.sql_select_data(person_id)
+        params = {
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime,
+        }
+
+        logging.debug(self._db.compile_query(statement, params))
+
+        return self._db.query(statement, **params)

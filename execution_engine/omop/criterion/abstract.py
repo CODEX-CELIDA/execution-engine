@@ -1,4 +1,6 @@
 import copy
+import hashlib
+import json
 import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict, cast
@@ -99,7 +101,11 @@ class AbstractCriterion(ABC):
         """
         # fixme: will be difficult in the user interface to understand where this name comes from
         # fixme: can we generate a name that is more readable? Or otherwise link it to the FHIR element it came from?
-        return f"{self.name}_{hash(self)}"
+        s = json.dumps(self.dict(), sort_keys=True)
+        hash_ = hashlib.md5(  # nosec (just used for naming, not security related)
+            s.encode()
+        ).hexdigest()
+        return f"{self.name}_{hash_}"
 
     @abstractmethod
     def dict(self) -> dict[str, Any]:
@@ -195,7 +201,9 @@ class Criterion(AbstractCriterion):
         """
         return self._OMOP_DOMAIN
 
-    def _sql_header(self, distinct_person: bool = True) -> Select:
+    def _sql_header(
+        self, distinct_person: bool = True, person_id: int | None = None
+    ) -> Select:
         """
         Generate the header of the SQL query.
         """
@@ -207,9 +215,15 @@ class Criterion(AbstractCriterion):
 
         query = select(c).select_from(self._table)
 
-        query = query.join(
-            self._base_table, self._table.c.person_id == self._base_table.c.person_id
-        )
+        if person_id is None:
+            # join the base table to subset patients
+            query = query.join(
+                self._base_table,
+                self._table.c.person_id == self._base_table.c.person_id,
+            )
+        else:
+            # filter by person_id directly
+            query = query.filter(self._table.c.person_id == person_id)
 
         return query
 
@@ -314,11 +328,11 @@ class Criterion(AbstractCriterion):
 
         return sql
 
-    def sql_select_data(self) -> Select:
+    def sql_select_data(self, person_id: int | None = None) -> Select:
         """
         Get patient data for this criterion
         """
-        query = self._sql_header(distinct_person=False)
+        query = self._sql_header(distinct_person=False, person_id=person_id)
         query = self._sql_select_data(query)
         query = self._sql_filter_concept(query)
         query = self._insert_datetime(query)

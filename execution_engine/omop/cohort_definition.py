@@ -176,6 +176,23 @@ class CohortDefinition:
         """
         self._criteria.add(criterion)
 
+    def get(self, criterion_unique_name: str) -> Criterion | None:
+        """
+        Retrieve a criterion by its unique name.
+        """
+
+        def _traverse(comb: CriterionCombination) -> Criterion | None:
+            for element in comb:
+                if isinstance(element, CriterionCombination):
+                    found = _traverse(element)
+                    if found is not None:
+                        return found
+                elif element.unique_name() == criterion_unique_name:
+                    return element
+            return None
+
+        return _traverse(self._criteria)
+
     @staticmethod
     def _assert_base_table_in_select(
         sql: CompoundSelect | Select | SelectInto, base_table_out: str
@@ -546,6 +563,18 @@ class CohortDefinitionCombination:
                 table.c.recommendation_run_id == bindparam("run_id"),
             )
         )
+
+    def get_criterion(self, criterion_unique_name: str) -> Criterion:
+        """
+        Retrieve a criterion object by its unique name.
+        """
+
+        for cd in self._cohort_definitions:
+            criterion = cd.get(criterion_unique_name)
+            if criterion is not None:
+                return criterion
+
+        raise ValueError(f"Could not find criterion '{criterion_unique_name}'")
 
     def json(self) -> bytes:
         """

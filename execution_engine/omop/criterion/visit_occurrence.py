@@ -24,7 +24,9 @@ class ActivePatients(VisitOccurrence):
         self._category = CohortCategory.BASE
         self._set_omop_variables_from_domain("visit")
 
-    def _sql_header(self, distinct_person: bool = True) -> Select:
+    def _sql_header(
+        self, distinct_person: bool = True, person_id: int | None = None
+    ) -> Select:
         """
         Get the SQL header for the criterion.
         """

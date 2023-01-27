@@ -89,7 +89,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
         return query
 
-    def sql_select_data(self) -> Select:
+    def sql_select_data(self, person_id: int | None = None) -> Select:
         """
         Get patient data for this criterion
         """
@@ -103,7 +103,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         )
         ibw = self._insert_datetime(ibw)
 
-        tv = self._sql_header()
+        tv = self._sql_header(person_id=person_id)
         tv = self._sql_filter_concept(tv)
         tv = tv.add_columns(
             measurement.c.value_as_number.label("value_as_number"),

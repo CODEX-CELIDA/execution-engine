@@ -84,7 +84,7 @@ class OMOPSQLClient:
         """Rollback the current transaction."""
         self._session.rollback()
 
-    def query(self, sql: Any, **kwargs: str | int) -> pd.DataFrame:
+    def query(self, sql: Any, **kwargs: Any) -> pd.DataFrame:
         """
         Run the given SQL query against the OMOP CDM database.
         """

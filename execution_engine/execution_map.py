@@ -72,7 +72,7 @@ class ExecutionMap:
                 if isinstance(entry, CriterionCombination):
                     symbols.append(_traverse(entry, hashmap))
                 else:
-                    entry_name = f"{entry}_{hash(entry)}"
+                    entry_name = entry.unique_name()  # f"{entry}_{hash(entry)}"
                     s = sympy.Symbol(entry_name)
                     hashmap[s] = entry
                     if entry.exclude:
