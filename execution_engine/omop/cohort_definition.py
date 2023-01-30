@@ -1,3 +1,4 @@
+import itertools
 import json
 import logging
 import re
@@ -176,7 +177,7 @@ class CohortDefinition:
         """
         self._criteria.add(criterion)
 
-    def get(self, criterion_unique_name: str) -> Criterion | None:
+    def get_criterion(self, criterion_unique_name: str) -> Criterion | None:
         """
         Retrieve a criterion by its unique name.
         """
@@ -190,6 +191,22 @@ class CohortDefinition:
                 elif element.unique_name() == criterion_unique_name:
                     return element
             return None
+
+        return _traverse(self._criteria)
+
+    def criteria(self) -> list[Criterion]:
+        """
+        Retrieve all criteria in a flat list
+        """
+
+        def _traverse(comb: CriterionCombination) -> list[Criterion]:
+            criteria = []
+            for element in comb:
+                if isinstance(element, CriterionCombination):
+                    criteria += _traverse(element)
+                else:
+                    criteria.append(element)
+            return criteria
 
         return _traverse(self._criteria)
 
@@ -570,11 +587,17 @@ class CohortDefinitionCombination:
         """
 
         for cd in self._cohort_definitions:
-            criterion = cd.get(criterion_unique_name)
+            criterion = cd.get_criterion(criterion_unique_name)
             if criterion is not None:
                 return criterion
 
         raise ValueError(f"Could not find criterion '{criterion_unique_name}'")
+
+    def criteria(self) -> list[Criterion]:
+        """
+        Retrieve all criteria in a flat list
+        """
+        return list(*itertools.chain(cd.criteria() for cd in self._cohort_definitions))
 
     def json(self) -> bytes:
         """

@@ -1,15 +1,18 @@
 import sys
 
+from execution_engine.omop.cohort_definition import CohortDefinitionCombination
+from execution_engine.omop.criterion.concept import ConceptCriterion
+
 sys.path.append("..")
 import logging
 
 import pendulum
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from execution_engine import ExecutionEngine
 
 e = ExecutionEngine(verbose=True)
-recommendations = {}
+recommendations: dict[str, CohortDefinitionCombination] = {}
 
 app = FastAPI()
 
@@ -56,7 +59,9 @@ async def patient_list(
     Get list of patients for a specific recommendation.
     """
 
-    assert recommendation_url in recommendations
+    if recommendation_url not in recommendations:
+        raise HTTPException(status_code=404, detail="recommendation not found")
+
     cdd = recommendations[recommendation_url]
 
     run_id = e.execute(
@@ -73,6 +78,41 @@ async def patient_list(
     return {"run_id": run_id, "data": res}
 
 
+@app.get("/recommendation/list")
+async def recommendation_list() -> dict:
+    """
+    Get available recommendations by URL
+    """
+    print(recommendations.keys())
+    return {"recommendation_url": list(recommendations.keys())}
+
+
+@app.get("/recommendation/criteria")
+async def recommendation_criteria(recommendation_url: str) -> dict:
+    """
+    Get criteria names by recommendation URL
+    """
+
+    if recommendation_url not in recommendations:
+        raise HTTPException(status_code=404, detail="recommendation not found")
+
+    cdd = recommendations[recommendation_url]
+    criteria = cdd.criteria()
+    data = []
+
+    for c in criteria:
+        data.append(
+            {
+                "unique_name": c.unique_name(),
+                "concept_name": c.concept.concept_name
+                if isinstance(c, ConceptCriterion)
+                else None,
+            }
+        )
+
+    return {"criterion": data}
+
+
 @app.get("/patients/data")
 async def patient_data(run_id: int, person_id: int, criterion_name: str) -> dict:
     """
@@ -80,23 +120,25 @@ async def patient_data(run_id: int, person_id: int, criterion_name: str) -> dict
     """
 
     run = e.fetch_run(run_id)
-    # print(run)
-    # return run.iloc[0].to_dict()
 
     start_datetime = run["observation_start_datetime"]
     end_datetime = run["observation_end_datetime"]
     recommendation_url = run["recommendation_url"]
 
-    assert recommendation_url in recommendations
+    if recommendation_url not in recommendations:
+        raise HTTPException(status_code=404, detail="recommendation not found")
 
     cdd = recommendations[recommendation_url]
 
-    data = e.fetch_patient_data(
-        person_id=person_id,
-        criterion_name=criterion_name,
-        cdd=cdd,
-        start_datetime=start_datetime,
-        end_datetime=end_datetime,
-    )
+    try:
+        data = e.fetch_patient_data(
+            person_id=person_id,
+            criterion_name=criterion_name,
+            cdd=cdd,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
     return {"res": data}  # .to_dict(orient="list")

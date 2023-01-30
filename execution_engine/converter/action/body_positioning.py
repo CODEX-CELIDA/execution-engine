@@ -1,16 +1,15 @@
 from typing import cast
 
+from execution_engine.constants import CohortCategory
+from execution_engine.converter.action.abstract import AbstractAction
+from execution_engine.converter.converter import parse_code, parse_value
 from execution_engine.fhir.recommendation import RecommendationPlan
+from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.vocabulary import SNOMEDCT
-
-from ...constants import CohortCategory
-from ...omop.concepts import Concept
-from ...omop.criterion.abstract import Criterion
-from ...omop.criterion.combination import CriterionCombination
-from ...omop.criterion.procedure_occurrence import ProcedureOccurrence
-from ...util import ValueNumber
-from ..converter import parse_code, parse_value
-from .abstract import AbstractAction
+from execution_engine.util import ValueNumber
 
 
 class BodyPositioningAction(AbstractAction):

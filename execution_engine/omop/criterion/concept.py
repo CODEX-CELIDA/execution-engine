@@ -34,6 +34,11 @@ class ConceptCriterion(Criterion):
         self._concept = concept
         self._value = value
 
+    @property
+    def concept(self) -> Concept:
+        "Get the concept"
+        return self._concept
+
     def _sql_filter_concept(
         self, query: Select, override_concept_id: str | None = None
     ) -> Select:

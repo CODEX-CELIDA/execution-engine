@@ -7,6 +7,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
+from sqlalchemy import and_, select
 
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
@@ -53,6 +54,8 @@ from execution_engine.omop.cohort_definition import (
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db import result as result_db
+from execution_engine.omop.db.result import CohortDefinition as CohortDefinitionTable
+from execution_engine.omop.db.result import RecommendationResult, RecommendationRun
 
 
 class ExecutionEngine:
@@ -457,50 +460,63 @@ class ExecutionEngine:
         """Retrieve list of patients associated with a single run."""
         assert isinstance(run_id, int)
         # TODO: write in sqlalchemy
-        return self._db.query(  # nosec
-            f"""
-            SELECT *
-            FROM celida.recommendation_result
-            WHERE recommendation_run_id = {run_id}
-                AND recommendation_plan_name IS NULL
-        """
+        t = RecommendationResult.__table__.alias("result")
+        query = (
+            select(
+                t.c.cohort_category,
+                t.c.recommendation_plan_name,
+                t.c.criterion_name,
+                t.c.person_id,
+            )
+            .select_from(t)
+            .filter(
+                and_(
+                    t.c.recommendation_run_id == run_id,
+                    t.c.recommendation_plan_name.is_(None),
+                )
+            )
         )
+
+        return self._db.query(query)
 
     def fetch_criteria(self, run_id: int) -> dict:
         """Retrieve individual criteria associated with a single run."""
         assert isinstance(run_id, int)
-        # TODO: write in sqlalchemy
-        return self._db.query(  # nosec
-            f"""
-            SELECT DISTINCT recommendation_plan_name, criterion_name
-            FROM celida.recommendation_result
-            WHERE recommendation_run_id = {run_id}
-            """
+
+        t_cd = CohortDefinitionTable.__table__.alias("cd")
+        t_run = RecommendationRun.__table__.alias("run")
+
+        query = (
+            select(t_cd.c.cohort_definition_hash, t_cd.c.cohort_definition_json)
+            .join(t_run)
+            .filter(t_run.c.recommendation_run_id == run_id)
         )
+
+        return self._db.query(query)
 
     def fetch_run(self, run_id: int) -> dict:
         """
         Retrieve information about a single run.
         """
-        return (  # nosec
-            self._db.query(
-                f"""
-            SELECT
-                run.recommendation_run_id,
-                run.observation_start_datetime,
-                run.observation_end_datetime,
-                cd.cohort_definition_id,
-                cd.recommendation_url,
-                cd.recommendation_version,
-                cd.cohort_definition_hash
-            FROM celida.recommendation_run run
-            INNER JOIN celida.cohort_definition cd ON (cd.cohort_definition_id = run.cohort_definition_id)
-            WHERE run.recommendation_run_id = {run_id}
-            """
+        t_cd = CohortDefinitionTable.__table__.alias("cd")
+        t_run = RecommendationRun.__table__.alias("run")
+
+        query = (
+            select(
+                t_run.c.recommendation_run_id,
+                t_run.c.observation_start_datetime,
+                t_run.c.observation_end_datetime,
+                t_cd.c.cohort_definition_id,
+                t_cd.c.recommendation_url,
+                t_cd.c.recommendation_version,
+                t_cd.c.cohort_definition_hash,
             )
-            .iloc[0]
-            .to_dict()
+            .select_from(t_run)
+            .join(t_cd)
+            .filter(t_run.c.recommendation_run_id == run_id)
         )
+
+        return self._db.query(query).iloc[0].to_dict()
 
     def fetch_patient_data(
         self,
