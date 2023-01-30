@@ -42,14 +42,16 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         )
         return query
 
-    def _sql_select_ideal_body_weight(self, label: str = "ideal_body_weight") -> Select:
+    def _sql_select_ideal_body_weight(
+        self, label: str = "ideal_body_weight", person_id: int | None = None
+    ) -> Select:
         """
         Return the SQL to calculate the ideal body weight for a patient.
         """
         person = omopdb.tables["cds_cdm.person"].alias("p")
         measurement = self._table
 
-        query = self._sql_header()
+        query = self._sql_header(person_id=person_id)
         query = (
             query.add_columns(
                 case(
@@ -95,7 +97,9 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         """
         measurement = self._table
 
-        ibw = self._sql_select_ideal_body_weight(label="value_as_number")
+        ibw = self._sql_select_ideal_body_weight(
+            label="value_as_number", person_id=person_id
+        )
         ibw = ibw.add_columns(
             measurement.c.measurement_concept_id.label("parameter_concept_id"),
             measurement.c.measurement_datetime.label("start_datetime"),

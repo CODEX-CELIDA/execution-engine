@@ -36,7 +36,7 @@ class ConceptCriterion(Criterion):
 
     @property
     def concept(self) -> Concept:
-        "Get the concept"
+        """Get the concept associated with this Criterion"""
         return self._concept
 
     def _sql_filter_concept(
@@ -69,13 +69,20 @@ class ConceptCriterion(Criterion):
         return query
 
     def _sql_select_data(self, query: Select) -> Select:
-        c_start = self._get_datetime_column(self._table)
+        c_start = self._get_datetime_column(self._table, "start")
+
         concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
 
         query = query.add_columns(
             self._table.c[concept_column_name].label("parameter_concept_id"),
             c_start.label("start_datetime"),
         )
+
+        try:
+            c_end = self._get_datetime_column(self._table, "end")
+            query = query.add_columns(c_end.label("end_datetime"))
+        except ValueError:
+            pass  # no end_datetime column
 
         if self._value is not None:
             query = query.add_columns(self._table.c["value_as_number"])

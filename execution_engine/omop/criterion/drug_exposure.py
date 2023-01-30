@@ -21,6 +21,7 @@ class DrugExposure(Criterion):
         exclude: bool,
         category: CohortCategory,
         drug_concepts: list[str],
+        ingredient_concept: Concept,
         dose: ValueNumber | None,
         frequency: int | None,
         interval: str | None,
@@ -32,10 +33,16 @@ class DrugExposure(Criterion):
         super().__init__(name=name, exclude=exclude, category=category)
         self._set_omop_variables_from_domain("drug")
         self._drug_concepts = drug_concepts
+        self._ingredient_concept = ingredient_concept
         self._dose = dose
         self._frequency = frequency
         self._interval = interval
         self._route = route
+
+    @property
+    def concept(self) -> Concept:
+        """Get the concept of the ingredient associated with this DrugExposure"""
+        return self._ingredient_concept
 
     def _sql_filter_concept(self, query: Select) -> Select:
         """
@@ -115,6 +122,7 @@ class DrugExposure(Criterion):
             "exclude": self._exclude,
             "category": self._category.value,
             "drug_concepts": self._drug_concepts,
+            "ingredient_concept": self._ingredient_concept.dict(),
             "dose": self._dose.dict() if self._dose is not None else None,
             "frequency": self._frequency,
             "interval": self._interval,
@@ -136,6 +144,7 @@ class DrugExposure(Criterion):
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
             drug_concepts=data["drug_concepts"],
+            ingredient_concept=Concept(**data["ingredient_concept"]),
             dose=dose,
             frequency=data["frequency"],
             interval=data["interval"],

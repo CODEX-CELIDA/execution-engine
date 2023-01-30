@@ -75,6 +75,19 @@ class Recommendation:
 
         return self._recommendation.version
 
+    @property
+    def description(self) -> str:
+        """
+        Return the description of the recommendation.
+        """
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        if self._recommendation.description is None:
+            raise ValueError("Recommendation has no description.")
+
+        return self._recommendation.description
+
     def plans(self) -> list["RecommendationPlan"]:
         """
         Return the recommendation plans of this recommendation (i.e. the individual,

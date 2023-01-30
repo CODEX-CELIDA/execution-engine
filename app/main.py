@@ -1,8 +1,7 @@
 import sys
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from execution_engine.omop.cohort_definition import CohortDefinitionCombination
-from execution_engine.omop.criterion.concept import ConceptCriterion
 
 sys.path.append("..")
 import logging
@@ -18,8 +17,9 @@ class Recommendation(TypedDict):
     Recommendation for execution engine (for type hinting).
     """
 
-    recommendation_name: str
-    recommendation_title: str
+    name: str
+    title: str
+    description: str
     cohort_definition: CohortDefinitionCombination
 
 
@@ -59,8 +59,9 @@ async def startup_event() -> None:
         logging.info(f"Loading {url}")
         rec = e.load_recommendation(url, force_reload=False)
         recommendations[url] = {
-            "recommendation_name": rec.name,
-            "recommendation_title": rec.title,
+            "name": rec.name,
+            "title": rec.title,
+            "description": rec.description,
             "cohort_definition": rec,
         }
 
@@ -72,8 +73,9 @@ async def recommendation_list() -> list[dict[str, str]]:
     """
     return [
         {
-            "recommendation_name": recommendations[url]["recommendation_name"],
-            "recommendation_title": recommendations[url]["recommendation_title"],
+            "recommendation_name": recommendations[url]["name"],
+            "recommendation_title": recommendations[url]["title"],
+            "recommendation_description": recommendations[url]["description"],
             "recommendation_url": url,
         }
         for url in recommendations
@@ -99,9 +101,8 @@ async def recommendation_criteria(recommendation_url: str) -> dict:
         data.append(
             {
                 "unique_name": c.unique_name(),
-                "concept_name": c.concept.concept_name
-                if isinstance(c, ConceptCriterion)
-                else None,
+                "cohort_category": c.category,
+                "concept_name": c.concept.concept_name.title(),
             }
         )
 
@@ -136,7 +137,9 @@ async def patient_list(
 
 
 @app.get("/patient/data")
-async def patient_data(run_id: int, person_id: int, criterion_name: str) -> dict:
+async def patient_data(
+    run_id: int, person_id: int, criterion_name: str
+) -> dict[str, Any]:
     """
     Get individual patient data.
     """
@@ -165,7 +168,7 @@ async def patient_data(run_id: int, person_id: int, criterion_name: str) -> dict
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
-    return {"res": data}  # .to_dict(orient="list")
+    return data.to_dict(orient="list")
 
 
 if __name__ == "__main__":

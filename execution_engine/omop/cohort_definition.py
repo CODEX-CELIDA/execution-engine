@@ -404,6 +404,7 @@ class CohortDefinitionCombination:
         title: str,
         url: str,
         version: str,
+        description: str,
         cohort_definition_id: int | None = None,
     ) -> None:
         self._cohort_definitions: list[CohortDefinition] = cohort_definitions
@@ -412,6 +413,7 @@ class CohortDefinitionCombination:
         self._title: str = title
         self._url: str = url
         self._version: str = version
+        self._description: str = description
         # The id is used in the cohort_definition_id field in the result tables.
         self._id: int | None = cohort_definition_id
 
@@ -462,6 +464,13 @@ class CohortDefinitionCombination:
         Get the version of the cohort definition combination.
         """
         return self._version
+
+    @property
+    def description(self) -> str:
+        """
+        Get the description of the recommendation.
+        """
+        return self._description
 
     def __iter__(self) -> Iterator[CohortDefinition]:
         """
@@ -615,7 +624,9 @@ class CohortDefinitionCombination:
         """
         Retrieve all criteria in a flat list
         """
-        return list(*itertools.chain(cd.criteria() for cd in self._cohort_definitions))
+        return list(
+            itertools.chain(*[cd.criteria() for cd in self._cohort_definitions])
+        )
 
     def json(self) -> bytes:
         """
@@ -642,6 +653,7 @@ class CohortDefinitionCombination:
             "recommendation_title": self._title,
             "recommendation_url": self._url,
             "recommendation_version": self._version,
+            "recommendation_description": self._description,
         }
 
     @classmethod
@@ -663,6 +675,7 @@ class CohortDefinitionCombination:
             title=data["recommendation_title"],
             url=data["recommendation_url"],
             version=data["recommendation_version"],
+            description=data["recommendation_description"],
             cohort_definition_id=data["id"] if "id" in data else None,
         )
 

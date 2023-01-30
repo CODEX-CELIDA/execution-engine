@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from typing import Tuple, Union, cast
 
+import pandas as pd
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
@@ -269,6 +270,7 @@ class ExecutionEngine:
             name=rec.name,
             title=rec.title,
             version=rec.version,
+            description=rec.description,
         )
 
         self.register_cohort_definition(cdd)
@@ -535,7 +537,7 @@ class ExecutionEngine:
         cdd: CohortDefinitionCombination,
         start_datetime: datetime,
         end_datetime: datetime,
-    ) -> dict:
+    ) -> pd.DataFrame:
         """Retrieve patient data for a person and single criterion."""
         criterion = cdd.get_criterion(criterion_name)
 

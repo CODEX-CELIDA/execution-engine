@@ -10,6 +10,7 @@ from sqlalchemy import Table, bindparam, distinct, literal_column, select
 from sqlalchemy.sql import Select, TableClause
 
 from execution_engine.constants import CohortCategory
+from execution_engine.omop.concepts import Concept
 from execution_engine.omop.db.cdm import (
     Base,
     ConditionOccurrence,
@@ -227,6 +228,14 @@ class Criterion(AbstractCriterion):
 
         return query
 
+    @property
+    @abstractmethod
+    def concept(self) -> Concept:
+        """
+        Get the concept associated with this Criterion
+        """
+        raise NotImplementedError()
+
     @abstractmethod
     def _sql_generate(self, query: Select) -> Select:
         """
@@ -271,14 +280,16 @@ class Criterion(AbstractCriterion):
         ), f"base_table must be a Table, not {type(base_table)}"
         self._base_table = base_table
 
-    def _get_datetime_column(self, table: TableClause) -> sqlalchemy.Column:
+    def _get_datetime_column(
+        self, table: TableClause, type_: str = "start"
+    ) -> sqlalchemy.Column:
 
         table_name = table.original.name
 
         candidate_prefixes = [
-            f"{self._OMOP_COLUMN_PREFIX}_start",
+            f"{self._OMOP_COLUMN_PREFIX}_{type_}",
             f"{self._OMOP_COLUMN_PREFIX}",
-            f"{table_name}_start",
+            f"{table_name}_{type_}",
             f"{table_name}",
         ]
         try:

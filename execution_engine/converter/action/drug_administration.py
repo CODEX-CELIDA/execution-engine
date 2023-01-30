@@ -46,6 +46,7 @@ class DrugAdministrationAction(AbstractAction):
         name: str,
         exclude: bool,
         drug_concepts: pd.DataFrame,
+        ingredient_concept: Concept,
         dose: ValueNumber | None = None,
         frequency: int | None = None,
         interval: str | None = None,
@@ -57,6 +58,7 @@ class DrugAdministrationAction(AbstractAction):
         """
         super().__init__(name=name, exclude=exclude)
         self._drug_concepts = drug_concepts
+        self._ingredient_concept = ingredient_concept
         self._dose = dose
         self._frequency = frequency
         self._interval = interval
@@ -86,7 +88,12 @@ class DrugAdministrationAction(AbstractAction):
 
             # must return criterion according to goal
             # return combination of drug criterion (any application !) and goal criterion
-            action = cls(name, exclude, drug_concepts=cls.drug_concept_ids(df_drugs))
+            action = cls(
+                name,
+                exclude,
+                drug_concepts=cls.drug_concept_ids(df_drugs),
+                ingredient_concept=ingredient,
+            )
 
         else:
             # has dosage
@@ -107,6 +114,7 @@ class DrugAdministrationAction(AbstractAction):
                 name=name,
                 exclude=exclude,
                 drug_concepts=cls.drug_concept_ids(df_drugs),
+                ingredient_concept=ingredient,
                 dose=dose,
                 frequency=frequency,
                 interval=interval,
@@ -312,6 +320,7 @@ class DrugAdministrationAction(AbstractAction):
             exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             drug_concepts=self._drug_concepts,
+            ingredient_concept=self._ingredient_concept,
             dose=self._dose,
             frequency=self._frequency,
             interval=self._interval,
