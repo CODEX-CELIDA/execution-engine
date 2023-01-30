@@ -24,7 +24,7 @@ class Recommendation(TypedDict):
 
 
 recommendations: dict[str, Recommendation] = {}
-e = ExecutionEngine(verbose=True)
+e = ExecutionEngine(verbose=False)
 app = FastAPI()
 
 
@@ -54,8 +54,6 @@ async def startup_event() -> None:
         "covid19-inpatient-therapy/recommendation/covid19-abdominal-positioning-ards",
     ]
 
-    logging.getLogger().setLevel(logging.DEBUG)
-
     for recommendation_url in urls:
         url = base_url + recommendation_url
         logging.info(f"Loading {url}")
@@ -67,44 +65,19 @@ async def startup_event() -> None:
         }
 
 
-@app.get("/patients/list")
-async def patient_list(
-    recommendation_url: str, start_datetime: str, end_datetime: str
-) -> dict:
-    """
-    Get list of patients for a specific recommendation.
-    """
-
-    if recommendation_url not in recommendations:
-        raise HTTPException(status_code=404, detail="recommendation not found")
-
-    cdd = recommendations[recommendation_url]["cohort_definition"]
-
-    run_id = e.execute(
-        cdd,
-        start_datetime=pendulum.parse(start_datetime),
-        end_datetime=pendulum.parse(end_datetime),
-        select_patient_data=False,
-    )
-
-    res = e.fetch_patients(run_id)[
-        ["cohort_category", "criterion_name", "person_id"]
-    ].to_dict(orient="list")
-
-    return {"run_id": run_id, "data": res}
-
-
 @app.get("/recommendation/list")
-async def recommendation_list() -> dict:
+async def recommendation_list() -> list[dict[str, str]]:
     """
     Get available recommendations by URL
     """
-    return {"a": "h"}
-
-    #    [{"recommendation_name": recommendations[url]["recommendation_name"],
-    #         "recommendation_title:": recommendations[url]["recommendation_title"],
-    #         "recommendation_url": url
-    #         } for url in recommendations]
+    return [
+        {
+            "recommendation_name": recommendations[url]["recommendation_name"],
+            "recommendation_title": recommendations[url]["recommendation_title"],
+            "recommendation_url": url,
+        }
+        for url in recommendations
+    ]
 
 
 @app.get("/recommendation/criteria")
@@ -135,7 +108,34 @@ async def recommendation_criteria(recommendation_url: str) -> dict:
     return {"criterion": data}
 
 
-@app.get("/patients/data")
+@app.get("/patient/list")
+async def patient_list(
+    recommendation_url: str, start_datetime: str, end_datetime: str
+) -> dict:
+    """
+    Get list of patients for a specific recommendation.
+    """
+
+    if recommendation_url not in recommendations:
+        raise HTTPException(status_code=404, detail="recommendation not found")
+
+    cdd = recommendations[recommendation_url]["cohort_definition"]
+
+    run_id = e.execute(
+        cdd,
+        start_datetime=pendulum.parse(start_datetime),
+        end_datetime=pendulum.parse(end_datetime),
+        select_patient_data=False,
+    )
+
+    res = e.fetch_patients(run_id)[
+        ["cohort_category", "criterion_name", "person_id"]
+    ].to_dict(orient="list")
+
+    return {"run_id": run_id, "data": res}
+
+
+@app.get("/patient/data")
 async def patient_data(run_id: int, person_id: int, criterion_name: str) -> dict:
     """
     Get individual patient data.
