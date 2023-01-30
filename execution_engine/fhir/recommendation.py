@@ -41,6 +41,19 @@ class Recommendation:
         return self._recommendation.name
 
     @property
+    def title(self) -> str:
+        """
+        Return the name of the recommendation.
+        """
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        if self._recommendation.title is None:
+            raise ValueError("Recommendation has no title.")
+
+        return self._recommendation.title
+
+    @property
     def url(self) -> str:
         """Canonical URL of the recommendation."""
         if self._recommendation is None:

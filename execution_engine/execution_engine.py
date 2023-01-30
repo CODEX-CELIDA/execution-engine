@@ -262,12 +262,18 @@ class ExecutionEngine:
 
             rec_plan_cohorts.append(cd)
 
-        return CohortDefinitionCombination(
+        cdd = CohortDefinitionCombination(
             rec_plan_cohorts,
             base_criterion=base_criterion,
             url=rec.url,
+            name=rec.name,
+            title=rec.title,
             version=rec.version,
         )
+
+        self.register_cohort_definition(cdd)
+
+        return cdd
 
     def execute(
         self,
@@ -354,6 +360,8 @@ class ExecutionEngine:
         query = (
             result_db.CohortDefinition.__table__.insert()
             .values(
+                recommendation_name=cd.name,
+                recommendation_title=cd.title,
                 recommendation_url=cd.url,
                 recommendation_version=cd.version,
                 cohort_definition_hash=cd_hash,
@@ -365,6 +373,8 @@ class ExecutionEngine:
 
         result = self._db.execute(query)
         cd.id = result.fetchone()[0]
+
+        self._db.commit()
 
         return cd.id
 

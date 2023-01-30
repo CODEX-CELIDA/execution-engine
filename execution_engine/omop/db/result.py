@@ -14,6 +14,8 @@ class CohortDefinition(Base):  # noqa: D101
         primary_key=True,
         index=True,
     )
+    recommendation_name = Column(String(255), nullable=False)
+    recommendation_title = Column(String(255), nullable=False)
     recommendation_url = Column(String(255), nullable=False, index=True)
     recommendation_version = Column(String(255), nullable=False)
     cohort_definition_hash = Column(String(64), nullable=False, index=True, unique=True)

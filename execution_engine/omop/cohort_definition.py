@@ -400,12 +400,16 @@ class CohortDefinitionCombination:
         self,
         cohort_definitions: list[CohortDefinition],
         base_criterion: Criterion,
+        name: str,
+        title: str,
         url: str,
         version: str,
         cohort_definition_id: int | None = None,
     ) -> None:
         self._cohort_definitions: list[CohortDefinition] = cohort_definitions
         self._base_criterion: Criterion = base_criterion
+        self._name: str = name
+        self._title: str = title
         self._url: str = url
         self._version: str = version
         # The id is used in the cohort_definition_id field in the result tables.
@@ -430,6 +434,20 @@ class CohortDefinitionCombination:
         The id is used in the cohort_definition_id field in the result tables.
         """
         self._id = value
+
+    @property
+    def name(self) -> str:
+        """
+        Get the name of the recommendation.
+        """
+        return self._name
+
+    @property
+    def title(self) -> str:
+        """
+        Get the title of the recommendation.
+        """
+        return self._title
 
     @property
     def url(self) -> str:
@@ -620,6 +638,8 @@ class CohortDefinitionCombination:
             "id": self._id,
             "cohort_definitions": [c.dict() for c in self._cohort_definitions],
             "base_criterion": self._base_criterion.dict(),
+            "recommendation_name": self._name,
+            "recommendation_title": self._title,
             "recommendation_url": self._url,
             "recommendation_version": self._version,
         }
@@ -639,6 +659,8 @@ class CohortDefinitionCombination:
                 CohortDefinition.from_dict(c) for c in data["cohort_definitions"]
             ],
             base_criterion=base_criterion,
+            name=data["recommendation_name"],
+            title=data["recommendation_title"],
             url=data["recommendation_url"],
             version=data["recommendation_version"],
             cohort_definition_id=data["id"] if "id" in data else None,

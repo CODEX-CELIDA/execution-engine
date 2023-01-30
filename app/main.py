@@ -1,4 +1,5 @@
 import sys
+from typing import TypedDict
 
 from execution_engine.omop.cohort_definition import CohortDefinitionCombination
 from execution_engine.omop.criterion.concept import ConceptCriterion
@@ -11,9 +12,19 @@ from fastapi import FastAPI, HTTPException
 
 from execution_engine import ExecutionEngine
 
-e = ExecutionEngine(verbose=True)
-recommendations: dict[str, CohortDefinitionCombination] = {}
 
+class Recommendation(TypedDict):
+    """
+    Recommendation for execution engine (for type hinting).
+    """
+
+    recommendation_name: str
+    recommendation_title: str
+    cohort_definition: CohortDefinitionCombination
+
+
+recommendations: dict[str, Recommendation] = {}
+e = ExecutionEngine(verbose=True)
 app = FastAPI()
 
 
@@ -48,7 +59,12 @@ async def startup_event() -> None:
     for recommendation_url in urls:
         url = base_url + recommendation_url
         logging.info(f"Loading {url}")
-        recommendations[url] = e.load_recommendation(url, force_reload=False)
+        rec = e.load_recommendation(url, force_reload=False)
+        recommendations[url] = {
+            "recommendation_name": rec.name,
+            "recommendation_title": rec.title,
+            "cohort_definition": rec,
+        }
 
 
 @app.get("/patients/list")
@@ -62,7 +78,7 @@ async def patient_list(
     if recommendation_url not in recommendations:
         raise HTTPException(status_code=404, detail="recommendation not found")
 
-    cdd = recommendations[recommendation_url]
+    cdd = recommendations[recommendation_url]["cohort_definition"]
 
     run_id = e.execute(
         cdd,
@@ -83,8 +99,12 @@ async def recommendation_list() -> dict:
     """
     Get available recommendations by URL
     """
-    print(recommendations.keys())
-    return {"recommendation_url": list(recommendations.keys())}
+    return {"a": "h"}
+
+    #    [{"recommendation_name": recommendations[url]["recommendation_name"],
+    #         "recommendation_title:": recommendations[url]["recommendation_title"],
+    #         "recommendation_url": url
+    #         } for url in recommendations]
 
 
 @app.get("/recommendation/criteria")
@@ -96,7 +116,9 @@ async def recommendation_criteria(recommendation_url: str) -> dict:
     if recommendation_url not in recommendations:
         raise HTTPException(status_code=404, detail="recommendation not found")
 
-    cdd = recommendations[recommendation_url]
+    cdd: CohortDefinitionCombination = recommendations[recommendation_url][
+        "cohort_definition"
+    ]
     criteria = cdd.criteria()
     data = []
 
@@ -128,7 +150,9 @@ async def patient_data(run_id: int, person_id: int, criterion_name: str) -> dict
     if recommendation_url not in recommendations:
         raise HTTPException(status_code=404, detail="recommendation not found")
 
-    cdd = recommendations[recommendation_url]
+    cdd: CohortDefinitionCombination = recommendations[recommendation_url][
+        "cohort_definition"
+    ]
 
     try:
         data = e.fetch_patient_data(
@@ -142,3 +166,11 @@ async def patient_data(run_id: int, person_id: int, criterion_name: str) -> dict
         raise HTTPException(status_code=404, detail=str(exc))
 
     return {"res": data}  # .to_dict(orient="list")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(  # nosec (binding to all interfaces is desired)
+        app, host="0.0.0.0", port=8001
+    )

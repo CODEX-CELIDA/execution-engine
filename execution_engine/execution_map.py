@@ -89,8 +89,11 @@ class ExecutionMap:
         hashmap: dict[sympy.Expr, Criterion] = {}
         conj = _traverse(comb, hashmap)
 
-        for atom in conj.atoms():
-            assert conj.count(atom) == 1, f'Duplicate criterion name "{atom}"'
+        # not required anymore: we can use duplicated criteria
+        # TODO: however, they should also be executed just once BUT BEWARE: Negations are pushed into the objects!
+        #       it is essential to make both negative and positive inclusions of the same criterion possible
+        # for atom in conj.atoms():
+        #    assert conj.count(atom) == 1, f'Duplicate criterion name "{atom}"'
 
         return conj.to_nnf(), hashmap
 
