@@ -530,6 +530,7 @@ class ExecutionEngine:
 
         return self._db.query(query).iloc[0].to_dict()
 
+    # TODO: Should be based on run id
     def fetch_patient_data(
         self,
         person_id: int,
