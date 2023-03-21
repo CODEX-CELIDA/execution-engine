@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Enum, ForeignKey, Integer, LargeBinary, Numeric, String
+from sqlalchemy import Column, Enum, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy.orm import relationship
 
 from execution_engine.constants import CohortCategory
-from execution_engine.omop.db.base import Base, DateTime
+from execution_engine.omop.db.base import Base, Date, DateTime
 
 
 class CohortDefinition(Base):  # noqa: D101
@@ -47,66 +47,6 @@ class RecommendationRun(Base):  # noqa: D101
     )
 
 
-class RecommendationPersonDatum(Base):  # noqa: D101
-    __tablename__ = "recommendation_person_data"
-    __table_args__ = {"schema": "celida"}
-
-    recommendation_person_data_id = Column(
-        Integer,
-        primary_key=True,
-        index=True,
-    )
-    recommendation_run_id = Column(Integer, nullable=False, index=True)
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
-    )
-    cohort_category = Column(Enum(CohortCategory, schema="celida"), nullable=False)
-    criterion_name = Column(String(255), nullable=False)
-    domain_id = Column(String(20), nullable=False)
-    parameter_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
-    )
-    start_datetime = Column(DateTime, nullable=False)
-    end_datetime = Column(DateTime)
-    value_as_number = Column(Numeric)
-    value_as_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"), index=True)
-    unit_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"), index=True)
-    drug_dose_as_number = Column(Numeric)
-    drug_dose_unit_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
-    )
-
-    recommendation_run = relationship(
-        "RecommendationRun",
-        primaryjoin="RecommendationPersonDatum.recommendation_run_id == RecommendationRun.recommendation_run_id",
-    )
-
-    person = relationship(
-        "cds_cdm.Person",
-        primaryjoin="RecommendationPersonDatum.person_id == cds_cdm.Person.person_id",
-    )
-
-    parameter_concept = relationship(
-        "cds_cdm.Concept",
-        primaryjoin="RecommendationPersonDatum.parameter_concept_id == cds_cdm.Concept.concept_id",
-    )
-
-    value_as_concept = relationship(
-        "cds_cdm.Concept",
-        primaryjoin="RecommendationPersonDatum.value_as_concept_id == cds_cdm.Concept.concept_id",
-    )
-
-    unit_concept = relationship(
-        "cds_cdm.Concept",
-        primaryjoin="RecommendationPersonDatum.unit_concept_id == cds_cdm.Concept.concept_id",
-    )
-
-    drug_dose_unit_concept = relationship(
-        "cds_cdm.Concept",
-        primaryjoin="RecommendationPersonDatum.drug_dose_unit_concept_id == cds_cdm.Concept.concept_id",
-    )
-
-
 class RecommendationResult(Base):  # noqa: D101
     __tablename__ = "recommendation_result"
     __table_args__ = {"schema": "celida"}
@@ -125,6 +65,7 @@ class RecommendationResult(Base):  # noqa: D101
     recommendation_plan_name = Column(String(255))
     criterion_combination_name = Column(String(255))
     criterion_name = Column(String(255))
+    date = Column(Date())
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
     )

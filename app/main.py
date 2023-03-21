@@ -126,7 +126,6 @@ async def patient_list(
         cdd,
         start_datetime=pendulum.parse(start_datetime),
         end_datetime=pendulum.parse(end_datetime),
-        select_patient_data=False,
     )
 
     res = e.fetch_patients(run_id)[

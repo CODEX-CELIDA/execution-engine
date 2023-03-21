@@ -32,10 +32,7 @@ from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
-from execution_engine.omop.db.result import (
-    RecommendationPersonDatum,
-    RecommendationResult,
-)
+from execution_engine.omop.db.result import RecommendationResult
 from execution_engine.util.sql import SelectInto
 
 
@@ -67,30 +64,6 @@ def add_result_insert(
 
     t_result = RecommendationResult.__table__
     query_insert = t_result.insert().from_select(query_select.columns, query_select)
-
-    return query_insert
-
-
-def add_result_data_insert(
-    query: Select,
-    cohort_category: CohortCategory,
-    criterion: Criterion,
-) -> Insert:
-    """
-    Insert the result of the query into the result table.
-    """
-    if not isinstance(query, Select):
-        raise ValueError("sql must be a Select")
-
-    query = query.add_columns(
-        bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
-        bindparam("cohort_category", cohort_category.name).label("cohort_category"),
-        bindparam("criterion_name", criterion.unique_name()).label("criterion_name"),
-        bindparam("domain_id", criterion.domain).label("domain_id"),
-    )
-
-    t_result = RecommendationPersonDatum.__table__
-    query_insert = t_result.insert().from_select(query.columns, query)
 
     return query_insert
 
@@ -333,30 +306,6 @@ class CohortDefinition:
             )
             yield query
 
-    def retrieve_patient_data(self, base_table: Table) -> Iterator[Insert]:
-        """
-        Retrieve patient data for patients addressed by the recommendation and
-        insert it into the patient_data table.
-        """
-
-        if self._execution_map is None:
-            raise Exception("Execution map not initialized - run process() first")
-
-        for i, criterion in enumerate(self._execution_map.sequential()):
-            logging.info(f"Retrieving patient data for {criterion.name}")
-
-            criterion.set_base_table(base_table)
-            query = criterion.sql_select_data()
-
-            str(query)  # fixme: remove (used for debugging only)
-
-            self._assert_base_table_in_select(query, base_table.name)
-            query = add_result_data_insert(
-                query, cohort_category=criterion.category, criterion=criterion
-            )
-
-            yield query
-
     def dict(self) -> dict[str, Any]:
         """
         Get a dictionary representation of the cohort definition.
@@ -576,14 +525,6 @@ class CohortDefinitionCombination:
             )
 
             yield query
-
-    def retrieve_patient_data(self) -> Iterator[Select]:
-        """
-        Retrieve patient data for the cohort definition combination.
-        """
-
-        for cohort_definition in self._cohort_definitions:
-            yield from cohort_definition.retrieve_patient_data(self.base_table)
 
     def cleanup(self) -> Iterator[DropTable]:
         """

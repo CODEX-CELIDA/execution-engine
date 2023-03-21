@@ -282,7 +282,6 @@ class ExecutionEngine:
         cd: CohortDefinitionCombination,
         start_datetime: datetime,
         end_datetime: datetime | None,
-        select_patient_data: bool = False,
     ) -> int:
         """Executes the Cohort Definition and returns a list of Person IDs."""
 
@@ -302,13 +301,6 @@ class ExecutionEngine:
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
             )
-            if select_patient_data:
-                self.select_patient_data(
-                    cd,
-                    run_id=run_id,
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                )
             self.cleanup(cd)
 
         return run_id
@@ -433,32 +425,6 @@ class ExecutionEngine:
                 statement,
                 params,
             )
-
-    def select_patient_data(
-        self,
-        cd: CohortDefinitionCombination,
-        run_id: int,
-        start_datetime: datetime,
-        end_datetime: datetime,
-    ) -> None:
-        """Selects the patient data and stores it in the result tables."""
-
-        params = {
-            "run_id": run_id,
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime,
-        }
-
-        for category in [
-            CohortCategory.POPULATION,
-            CohortCategory.POPULATION_INTERVENTION,
-        ]:
-            logging.info(f"Retrieving patient data for {category.name}...")
-
-            for statement in cd.retrieve_patient_data():
-                logging.debug(self._db.compile_query(statement.select, params))
-
-                self._db.session.execute(statement, params)
 
     def cleanup(self, cd: CohortDefinitionCombination) -> None:
         """Cleans up the temporary tables."""
