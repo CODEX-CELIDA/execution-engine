@@ -1,14 +1,4 @@
-from sqlalchemy import (
-    Column,
-    Date,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Table,
-    Text,
-    text,
-)
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Table, Text
 from sqlalchemy.orm import relationship
 
 from .base import Base, DateTime, metadata
@@ -566,9 +556,6 @@ class ConditionEra(Base):  # noqa: D101
     condition_era_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.condition_era_condition_era_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -700,9 +687,6 @@ class ObservationPeriod(Base):  # noqa: D101
     observation_period_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.observation_period_observation_period_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -724,9 +708,6 @@ class PayerPlanPeriod(Base):  # noqa: D101
     payer_plan_period_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.payer_plan_period_payer_plan_period_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -835,9 +816,6 @@ class VisitOccurrence(Base):  # noqa: D101
     visit_occurrence_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.visit_occurrence_visit_occurrence_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -912,9 +890,6 @@ class VisitDetail(Base):  # noqa: D101
     visit_detail_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.visit_detail_visit_detail_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -990,9 +965,6 @@ class ConditionOccurrence(Base):  # noqa: D101
     condition_occurrence_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.condition_occurrence_condition_occurrence_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -1047,9 +1019,6 @@ class DeviceExposure(Base):  # noqa: D101
     device_exposure_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.device_exposure_device_exposure_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -1109,9 +1078,6 @@ class DrugExposure(Base):  # noqa: D101
     drug_exposure_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.drug_exposure_drug_exposure_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -1170,9 +1136,6 @@ class Measurement(Base):  # noqa: D101
     measurement_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.measurement_measurement_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -1304,9 +1267,6 @@ class Observation(Base):  # noqa: D101
     observation_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.observation_observation_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
@@ -1375,9 +1335,6 @@ class ProcedureOccurrence(Base):  # noqa: D101
     procedure_occurrence_id = Column(
         Integer,
         primary_key=True,
-        server_default=text(
-            "nextval('cds_cdm.procedure_occurrence_procedure_occurrence_id_seq'::regclass)"
-        ),
     )
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True

@@ -412,8 +412,8 @@ class ExecutionEngine:
 
         params = {
             "run_id": run_id,
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime,
+            "observation_start_datetime": start_datetime,
+            "observation_end_datetime": end_datetime,
         }
 
         """Executes the Cohort Definition"""
@@ -437,7 +437,7 @@ class ExecutionEngine:
     def fetch_patients(self, run_id: int) -> dict:
         """Retrieve list of patients associated with a single run."""
         assert isinstance(run_id, int)
-        # TODO: write in sqlalchemy
+
         t = RecommendationResult.__table__.alias("result")
         query = (
             select(

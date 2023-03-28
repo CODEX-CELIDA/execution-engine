@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from sqlalchemy import bindparam, distinct, or_, select
+from sqlalchemy import bindparam, or_, select
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory, OMOPConcepts
@@ -31,10 +31,10 @@ class ActivePatients(VisitOccurrence):
         Get the SQL header for the criterion.
         """
 
-        c = self._table.c.person_id
+        c = self._table.c.person_id.label("person_id")
 
-        if distinct_person:
-            c = distinct(c)
+        # if distinct_person:
+        #    c = distinct(c)
 
         query = select(c).select_from(self._table)
 
@@ -77,10 +77,12 @@ class PatientsActiveDuringPeriod(ActivePatients):
         query = query.filter(
             or_(
                 self._table.c.visit_start_datetime.between(
-                    bindparam("start_datetime"), bindparam("end_datetime")
+                    bindparam("observation_start_datetime"),
+                    bindparam("observation_end_datetime"),
                 ),
                 self._table.c.visit_end_datetime.between(
-                    bindparam("start_datetime"), bindparam("end_datetime")
+                    bindparam("observation_start_datetime"),
+                    bindparam("observation_end_datetime"),
                 ),
             )
         )

@@ -2,7 +2,9 @@ import logging
 from typing import Any, Dict
 
 from sqlalchemy import func, literal_column, select
+from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
+from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
@@ -81,16 +83,28 @@ class DrugExposure(Criterion):
                 # addressable in FHIR
                 logging.warning("Route specified, but not implemented yet")
 
-            query = query.add_columns(
+            # TODO: The following logic selects solely based on drug_exposure_start_datetime, not end_datetime
+            c_valid_from = func.date_trunc(
+                self._interval, drug_exposure.c.drug_exposure_start_datetime
+            ).label("valid_from")
+            c_valid_to = (
                 func.date_trunc(
-                    "day", drug_exposure.c.drug_exposure_start_datetime
-                ).label("interval"),
+                    self._interval, drug_exposure.c.drug_exposure_start_datetime
+                )
+                + func.cast(concat(1, f" {self._interval}"), INTERVAL)
+            ).label("valid_to")
+
+            query = query.add_columns(
+                c_valid_from,
+                c_valid_to,
                 func.count(literal_column("de.*")).label("cnt"),
                 func.sum(drug_exposure.c.quantity).label("dose"),
             )
 
             query = (
-                query.group_by(drug_exposure.c.person_id, literal_column("interval"))
+                query.group_by(
+                    drug_exposure.c.person_id, c_valid_from.name, c_valid_to.name
+                )
                 .having(dose_sql)
                 .having(func.count(literal_column("de.*")) == self._frequency)
             )

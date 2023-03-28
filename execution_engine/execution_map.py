@@ -160,7 +160,7 @@ class ExecutionMap:
                 return criterion
             table = RecommendationResult.__table__
             return (
-                select(table.c.person_id)
+                select(table.c.person_id, table.c.valid_date)
                 .select_from(table)
                 .filter(table.c.recommendation_run_id == bindparam("run_id"))
                 .filter(table.c.criterion_name == criterion.unique_name())

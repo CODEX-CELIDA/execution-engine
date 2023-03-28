@@ -4,17 +4,7 @@ import logging
 import re
 from typing import Any, Dict, Iterator
 
-from sqlalchemy import (
-    Column,
-    Integer,
-    MetaData,
-    Table,
-    and_,
-    bindparam,
-    literal_column,
-    select,
-    union,
-)
+from sqlalchemy import Column, Integer, MetaData, Table, and_, bindparam, select, union
 from sqlalchemy.orm import Query
 from sqlalchemy.sql import (
     Alias,
@@ -26,12 +16,14 @@ from sqlalchemy.sql import (
     TableClause,
 )
 from sqlalchemy.sql.ddl import DropTable
+from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
+from execution_engine.omop.db.base import Date
 from execution_engine.omop.db.result import RecommendationResult
 from execution_engine.util.sql import SelectInto
 
@@ -52,14 +44,14 @@ def add_result_insert(
 
     # Always surround the original query by a select () query, as
     # otherwise problemes arise when using CompoundSelect, multiple columns or DISTINCT person_id
-    query_select = select(literal_column("person_id")).select_from(query)
+    query = query.alias("base_select")
+    query_select = select(query.c.person_id, query.c.valid_date).select_from(query)
 
     query_select = query_select.add_columns(
         bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
         bindparam("recommendation_plan_name", name).label("recommendation_plan_name"),
         bindparam("cohort_category", cohort_category.name).label("cohort_category"),
         bindparam("criterion_name", criterion_name).label("criterion_name"),
-        # bindparam("criterion_combination_name", self.get_criterion_combination_name(criterion)).label("criterion_combination_name"),
     )
 
     t_result = RecommendationResult.__table__
@@ -210,6 +202,8 @@ class CohortDefinition:
                 return sql_select.original.name == base_table_out
             elif isinstance(sql_select, TableClause):
                 return sql_select.name == base_table_out
+            elif isinstance(sql_select, CTE):
+                return _base_table_in_select(sql_select.original)
             elif isinstance(sql_select, Subquery):
                 if isinstance(sql_select.original, CompoundSelect):
                     return all(
@@ -446,7 +440,12 @@ class CohortDefinitionCombination:
         """
         name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
         metadata = MetaData()
-        return Table(name, metadata, Column("person_id", Integer, primary_key=True))
+        return Table(
+            name,
+            metadata,
+            Column("person_id", Integer, primary_key=True),
+            Column("valid_date", Date),
+        )
 
     def create_base_table(self) -> Table:
         """
@@ -498,8 +497,8 @@ class CohortDefinitionCombination:
             cohort_definition: CohortDefinition, category: CohortCategory
         ) -> Select:
             return (
-                select(table.c.person_id)
-                .distinct(table.c.person_id)
+                select(table.c.person_id, table.c.valid_date)
+                .distinct(table.c.person_id, table.c.valid_date)
                 .where(
                     and_(
                         table.c.recommendation_plan_name == cohort_definition.name,

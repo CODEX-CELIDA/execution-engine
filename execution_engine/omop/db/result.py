@@ -43,7 +43,7 @@ class RecommendationRun(Base):  # noqa: D101
 
     cohort_definition = relationship(
         "CohortDefinition",
-        primaryjoin="RecommmendationRun.cohort_definition_id == CohortDefinition.cohort_definition_id",
+        primaryjoin="RecommendationRun.cohort_definition_id == CohortDefinition.cohort_definition_id",
     )
 
 
@@ -63,9 +63,8 @@ class RecommendationResult(Base):  # noqa: D101
     )
     cohort_category = Column(Enum(CohortCategory, schema="celida"), nullable=False)
     recommendation_plan_name = Column(String(255))
-    criterion_combination_name = Column(String(255))
     criterion_name = Column(String(255))
-    date = Column(Date())
+    valid_date = Column(Date())
     person_id = Column(
         ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
     )
@@ -75,7 +74,7 @@ class RecommendationResult(Base):  # noqa: D101
         primaryjoin="RecommendationResult.recommendation_run_id == RecommendationRun.recommendation_run_id",
     )
 
-    person = relationship(
-        "cds_cdm.Person",
-        primaryjoin="RecommendationResult.person_id == cds_cdm.Person.person_id",
-    )
+    # person = relationship(
+    #    "cds_cdm.person",
+    #    primaryjoin="RecommendationResult.person_id == cds_cdm.person.person_id",
+    # )
