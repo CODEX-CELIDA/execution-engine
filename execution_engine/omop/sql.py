@@ -288,3 +288,38 @@ class OMOPSQLClient:
         df = self.query(query, drug_concept_id=str(drug_concept_id))
 
         return df
+
+    def concept_related_to(
+        self, ancestor: int, descendant: int, relationship_id: str
+    ) -> bool:
+        """
+        Return true if descendant is related to ancestor by the given relationship.
+
+        Note that the relationship is directed, so this will return false if ancestor is related to descendant.
+        """
+        query = """
+            SELECT
+              cr.relationship_id   AS relationship_id,
+              d.concept_id         AS concept_id,
+              d.concept_name       AS concept_name,
+              d.concept_code       AS concept_code,
+              d.concept_class_id   AS concept_class_id,
+              d.vocabulary_id      AS concept_vocab_id
+            FROM cds_cdm.concept_relationship AS cr
+              JOIN cds_cdm.concept AS a ON cr.concept_id_1 = a.concept_id
+              JOIN cds_cdm.concept AS d ON cr.concept_id_2 = d.concept_id
+            WHERE
+              a.concept_id = %(ancestor)s -- allergy
+              and d.concept_id = %(descendant)s -- heparin alelrgy
+              and cr.invalid_reason IS null and
+              relationship_id = %(relationship_id)s
+        """
+
+        df = self.query(
+            query,
+            ancestor=ancestor,
+            descendant=descendant,
+            relationship_id=relationship_id,
+        )
+
+        return len(df) > 0

@@ -261,5 +261,11 @@ class StandardVocabulary:
         """
         return self.get_standard_concept(UCUM.system_uri, code)
 
+    def related_to(self, ancestor: int, descendant: int, relationship_id: str) -> bool:
+        """
+        Check if descendant is related to ancestor by the given relationship.
+        """
+        return omopdb.concept_related_to(ancestor, descendant, relationship_id)
+
 
 standard_vocabulary = StandardVocabulary()

@@ -23,6 +23,8 @@ EXT_CPG_PARTOF = "http://hl7.org/fhir/uv/cpg/StructureDefinition/cpg-partOf"
 
 LOINC_TIDAL_VOLUME = "76222-9"  # Tidal volume ^on ventilator
 
+OMOP_ALLERGY = 43021170  # Allergy (omop concept id)
+
 
 class CohortCategory(Enum):
     """
