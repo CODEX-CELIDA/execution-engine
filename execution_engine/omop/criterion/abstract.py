@@ -328,6 +328,15 @@ class Criterion(AbstractCriterion):
         if self._static:
             # If this criterion is a static criterion, i.e. one whose value does not change over time, then we don't
             # need to filter by datetime
+            # but we need to add the observation range as the valid range
+
+            query = query.add_columns(
+                bindparam("observation_start_datetime", type_=DateTime).label(
+                    "valid_from"
+                ),
+                bindparam("observation_end_datetime", type_=DateTime).label("valid_to"),
+            )
+
             return query
 
         c_start = self._get_datetime_column(self._table)
