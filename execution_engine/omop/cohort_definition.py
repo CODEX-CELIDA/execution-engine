@@ -249,19 +249,19 @@ class CohortDefinition:
         for i, criterion in enumerate(self._execution_map.sequential()):
             logging.info(f"Processing {criterion.name} (exclude={criterion.exclude})")
 
-            sql = criterion.sql_generate(base_table=base_table)
+            query = criterion.sql_generate(base_table=base_table)
             # fixme: remove (used for debugging only)
-            str(sql)
+            str(query)
 
-            self._assert_base_table_in_select(sql, base_table.name)
-            sql = add_result_insert(
-                sql,
+            self._assert_base_table_in_select(query, base_table.name)
+            query = add_result_insert(
+                query,
                 name=self.name,
                 cohort_category=criterion.category,
                 criterion_name=criterion.unique_name(),
             )
 
-            yield sql
+            yield query
 
         yield from self.combine()
 
