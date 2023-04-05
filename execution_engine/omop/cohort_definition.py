@@ -16,6 +16,7 @@ from sqlalchemy.sql import (
     TableClause,
 )
 from sqlalchemy.sql.ddl import DropTable
+from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
 from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
@@ -197,13 +198,21 @@ class CohortDefinition:
                     sql_select.right
                 )
             elif isinstance(sql_select, Select):
-                return any(_base_table_in_select(f) for f in sql_select.froms)
+                return any(_base_table_in_select(f) for f in sql_select.froms) or any(
+                    _base_table_in_select(w) for w in sql_select.whereclause
+                )
             elif isinstance(sql_select, Alias):
                 return sql_select.original.name == base_table_out
             elif isinstance(sql_select, TableClause):
                 return sql_select.name == base_table_out
             elif isinstance(sql_select, CTE):
                 return _base_table_in_select(sql_select.original)
+            elif isinstance(sql_select, BooleanClauseList):
+                return any(
+                    w.right.element.froms[0].name == base_table_out for w in sql_select
+                )
+            elif isinstance(sql_select, BinaryExpression):
+                return sql_select.right.element.froms[0].name == base_table_out
             elif isinstance(sql_select, Subquery):
                 if isinstance(sql_select.original, CompoundSelect):
                     return all(

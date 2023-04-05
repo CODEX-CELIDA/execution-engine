@@ -213,16 +213,20 @@ class Criterion(AbstractCriterion):
 
         c = self._table.c.person_id.label("person_id")
 
-        if distinct_person:
-            c = distinct(c).label("person_id")
+        # todo: remove if not required
+        # if distinct_person:
+        #    c = distinct(c).label("person_id")
 
         query = select(c).select_from(self._table)
 
         if person_id is None:
-            # join the base table to subset patients
-            query = query.join(
-                self._base_table,
-                self._table.c.person_id == self._base_table.c.person_id,
+            # subset patients by filtering on the base table
+            query = query.where(
+                self._table.c.person_id.in_(
+                    select(self._base_table.c.person_id)
+                    .distinct()
+                    .select_from(self._base_table)
+                )
             )
         else:
             # filter by person_id directly
@@ -389,9 +393,7 @@ class Criterion(AbstractCriterion):
         if self._exclude:
             distinct_persons = select(
                 [distinct(self._base_table.c.person_id).label("person_id")]
-            ).cte(
-                "distinct_persons"
-            )  # .cte('distinct_persons')
+            ).cte("distinct_persons")
             fixed_date_range = (
                 select(
                     [
@@ -411,7 +413,7 @@ class Criterion(AbstractCriterion):
                 )
                 .select_from(distinct_persons)
                 .cte("fixed_date_range")
-            )  # .cte("fixed_date_range")
+            )
 
             query = query.cte("person_dates")
 

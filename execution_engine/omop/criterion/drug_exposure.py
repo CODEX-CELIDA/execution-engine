@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import func, literal_column, select
+from sqlalchemy import func, literal_column
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import concat
@@ -56,18 +56,9 @@ class DrugExposure(Criterion):
 
         return query
 
-    def _sql_generate(self, sql: Select) -> Select:
+    def _sql_generate(self, query: Select) -> Select:
 
         drug_exposure = self._table
-
-        query = (
-            select(drug_exposure.c.person_id)
-            .select_from(drug_exposure)
-            .join(
-                self._base_table,
-                self._base_table.c.person_id == drug_exposure.c.person_id,
-            )
-        )
 
         query = self._sql_filter_concept(query)
 

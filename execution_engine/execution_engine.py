@@ -57,6 +57,7 @@ from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDurin
 from execution_engine.omop.db import result as result_db
 from execution_engine.omop.db.result import CohortDefinition as CohortDefinitionTable
 from execution_engine.omop.db.result import RecommendationResult, RecommendationRun
+from execution_engine.util.sql import SelectInto
 
 
 class ExecutionEngine:
@@ -421,9 +422,13 @@ class ExecutionEngine:
 
             logging.debug(self._db.compile_query(statement.select, params))
 
-            self._db.session.execute(
+            r = self._db.session.execute(
                 statement,
                 params,
+            )
+
+            logging.debug(
+                f"Inserted {r.rowcount} rows into {statement.into.name if type(statement)==SelectInto else statement.table.name}."
             )
 
     def cleanup(self, cd: CohortDefinitionCombination) -> None:
