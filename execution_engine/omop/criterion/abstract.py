@@ -133,16 +133,29 @@ class Criterion(AbstractCriterion):
     _OMOP_COLUMN_PREFIX: str
     _OMOP_VALUE_REQUIRED: bool
     _OMOP_DOMAIN: str
+
     _static: bool
+    """
+    indicates the value of this concept can be considered constant during a health care encounter (e.g. weight, height,
+    allergies, etc.) or if it is subject to change (e.g. laboratory values, vital signs, conditions, etc.)
+    """
 
     _table: Table
+    """
+    The OMOP table to use for this criterion.
+    """
+
     _base_table: Table
+    """
+    The table that is used to pre-filter person_ids (usually a table that includes all person_ids that were active
+    during the cohort definition period).
+    """
 
     DOMAINS: dict[str, dict[str, Base | bool]] = {
         "condition": {
             "table": ConditionOccurrence,
             "value_required": False,
-            "static": True,
+            "static": False,
         },
         "device": {
             "table": DeviceExposure,
@@ -308,19 +321,19 @@ class Criterion(AbstractCriterion):
 
         return table.c[f"{column_prefix}_datetime"]
 
-    def _insert_datetime(self, sql: SelectInto) -> SelectInto:
+    def _insert_datetime(self, query: SelectInto) -> SelectInto:
         """
         Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.
         """
         if self._static:
             # If this criterion is a static criterion, i.e. one whose value does not change over time, then we don't
             # need to filter by datetime
-            return sql
+            return query
 
         c_start = self._get_datetime_column(self._table)
 
-        if isinstance(sql, Select):
-            sql = sql.filter(
+        if isinstance(query, Select):
+            query = query.filter(
                 c_start.between(
                     bindparam("observation_start_datetime"),
                     bindparam("observation_end_datetime"),
@@ -329,7 +342,7 @@ class Criterion(AbstractCriterion):
         else:
             raise ValueError("sql must be a Select")
 
-        return sql
+        return query
 
     def _select_per_day(self, query: Select) -> Select:
         """

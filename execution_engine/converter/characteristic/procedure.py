@@ -1,7 +1,9 @@
-from ...constants import SCT_PROCEDURE
-from ...omop.criterion.procedure_occurrence import ProcedureOccurrence
-from ...omop.vocabulary import SNOMEDCT
-from .codeable_concept import AbstractCodeableConceptCharacteristic
+from execution_engine.constants import SCT_PROCEDURE
+from execution_engine.converter.characteristic.codeable_concept import (
+    AbstractCodeableConceptCharacteristic,
+)
+from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
+from execution_engine.omop.vocabulary import SNOMEDCT
 
 
 class ProcedureCharacteristic(AbstractCodeableConceptCharacteristic):
@@ -10,3 +12,4 @@ class ProcedureCharacteristic(AbstractCodeableConceptCharacteristic):
     _concept_code = SCT_PROCEDURE
     _concept_vocabulary = SNOMEDCT
     _criterion_class = ProcedureOccurrence
+    _concept_value_static = False

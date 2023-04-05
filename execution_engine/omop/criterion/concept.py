@@ -27,12 +27,15 @@ class ConceptCriterion(Criterion):
         category: CohortCategory,
         concept: Concept,
         value: Value | None = None,
+        static: bool | None = None,
     ):
         super().__init__(name=name, exclude=exclude, category=category)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
         self._value = value
+        if static is not None:
+            self._static = static
 
     @property
     def concept(self) -> Concept:
@@ -99,6 +102,7 @@ class ConceptCriterion(Criterion):
             "category": self._category.value,
             "concept": self._concept.dict(),
             "value": self._value.dict() if self._value is not None else None,
+            "static": self._static,
         }
 
     @classmethod
@@ -113,4 +117,5 @@ class ConceptCriterion(Criterion):
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=value_factory(**data["value"]) if data["value"] is not None else None,
+            static=data["static"],
         )

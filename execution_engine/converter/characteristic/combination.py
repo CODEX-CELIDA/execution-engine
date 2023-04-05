@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Iterator, Union
 
-from .abstract import AbstractCharacteristic
+from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 
 
 class CharacteristicCombination:

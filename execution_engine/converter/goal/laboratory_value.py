@@ -1,13 +1,13 @@
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from ...constants import SCT_LAB_FINDINGS_SURVEILLANCE, CohortCategory
-from ...omop.concepts import Concept
-from ...omop.criterion.abstract import Criterion
-from ...omop.criterion.measurement import Measurement
-from ...omop.vocabulary import SNOMEDCT
-from ...util import Value
-from ..converter import parse_code_value
-from .abstract import Goal
+from execution_engine.constants import SCT_LAB_FINDINGS_SURVEILLANCE, CohortCategory
+from execution_engine.converter.converter import parse_code_value
+from execution_engine.converter.goal.abstract import Goal
+from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.measurement import Measurement
+from execution_engine.omop.vocabulary import SNOMEDCT
+from execution_engine.util import Value
 
 
 class LaboratoryValueGoal(Goal):

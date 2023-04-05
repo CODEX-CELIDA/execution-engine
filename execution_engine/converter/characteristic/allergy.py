@@ -10,3 +10,4 @@ class AllergyCharacteristic(AbstractCodeableConceptCharacteristic):
     _concept_code = SCT_ALLERGIC_DISPOSITION
     _concept_vocabulary = SNOMEDCT
     _criterion_class = ConditionOccurrence
+    _concept_value_static = True

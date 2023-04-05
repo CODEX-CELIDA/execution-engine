@@ -2,19 +2,20 @@ import logging
 
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
-from ...clients import tx_client
-from ...constants import VS_LABORATORY_OBSERVATIONS
-from ...fhir.terminology import ValueSetEmptyException
-from ...fhir.util import get_coding
-from ...omop.criterion.measurement import Measurement
-from ...omop.vocabulary import LOINC
-from .value import AbstractValueCharacteristic
+from execution_engine.clients import tx_client
+from execution_engine.constants import VS_LABORATORY_OBSERVATIONS
+from execution_engine.converter.characteristic.value import AbstractValueCharacteristic
+from execution_engine.fhir.terminology import ValueSetEmptyException
+from execution_engine.fhir.util import get_coding
+from execution_engine.omop.criterion.measurement import Measurement
+from execution_engine.omop.vocabulary import LOINC
 
 
 class LaboratoryCharacteristic(AbstractValueCharacteristic):
     """A laboratory characteristic in the context of CPG-on-EBM-on-FHIR."""
 
     _criterion_class = Measurement
+    _concept_value_static = False
 
     @staticmethod
     def valid(
