@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, cast
 
 import sqlalchemy
-from sqlalchemy import Table, bindparam, distinct, func, literal_column, select
+from sqlalchemy import Table, bindparam, distinct, func, literal_column, or_, select
 from sqlalchemy.sql import Select, TableClause
 from sqlalchemy.sql.selectable import CTE
 
@@ -340,12 +340,19 @@ class Criterion(AbstractCriterion):
             return query
 
         c_start = self._get_datetime_column(self._table)
+        c_end = self._get_datetime_column(self._table, "end")
 
         if isinstance(query, Select):
             query = query.filter(
-                c_start.between(
-                    bindparam("observation_start_datetime"),
-                    bindparam("observation_end_datetime"),
+                or_(
+                    c_start.between(
+                        bindparam("observation_start_datetime"),
+                        bindparam("observation_end_datetime"),
+                    ),
+                    c_end.between(
+                        bindparam("observation_start_datetime"),
+                        bindparam("observation_end_datetime"),
+                    ),
                 )
             )
         else:

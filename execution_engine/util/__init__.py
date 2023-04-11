@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, root_validator
 from sqlalchemy import and_, literal_column
-from sqlalchemy.sql.elements import ClauseList
+from sqlalchemy.sql.elements import ClauseList, ColumnClause
 
 from execution_engine.omop.concepts import Concept
 
@@ -102,8 +102,8 @@ class ValueNumber(Value):
 
     def to_sql(
         self,
-        table_name: str | None,
-        column_name: str = "value_as_number",
+        table_name: str | None = None,
+        column_name: str | ColumnClause = "value_as_number",
         with_unit: bool = True,
     ) -> ClauseList:
         """
@@ -112,12 +112,20 @@ class ValueNumber(Value):
 
         clauses = []
 
+        if table_name is not None and isinstance(column_name, ColumnClause):
+            raise ValueError(
+                "If table_name is set, column_name must be a string, not a ColumnClause."
+            )
+
         if table_name is not None:
             table_name = f"{table_name}."
         else:
             table_name = ""
 
-        c = literal_column(f"{table_name}{column_name}")
+        if isinstance(column_name, ColumnClause):
+            c = column_name
+        else:
+            c = literal_column(f"{table_name}{column_name}")
 
         if with_unit:
             c_unit = literal_column(f"{table_name}unit_concept_id")
