@@ -1,7 +1,9 @@
-from ...constants import SCT_ALLERGIC_DISPOSITION
-from ...omop.criterion.condition_occurrence import ConditionOccurrence
-from ...omop.vocabulary import SNOMEDCT
-from .codeable_concept import AbstractCodeableConceptCharacteristic
+from execution_engine.constants import SCT_ALLERGIC_DISPOSITION
+from execution_engine.converter.characteristic.codeable_concept import (
+    AbstractCodeableConceptCharacteristic,
+)
+from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
+from execution_engine.omop.vocabulary import SNOMEDCT
 
 
 class AllergyCharacteristic(AbstractCodeableConceptCharacteristic):

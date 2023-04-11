@@ -16,7 +16,7 @@ def is_allergy(concept: Concept) -> bool:
     """Checks if the given concept is an allergy."""
 
     return standard_vocabulary.related_to(
-        constants.OMOP_ALLERGY, concept.concept_id, "Pathology of"
+        int(constants.OMOPConcepts.ALLERGY.value), concept.concept_id, "Pathology of"
     )
 
 
