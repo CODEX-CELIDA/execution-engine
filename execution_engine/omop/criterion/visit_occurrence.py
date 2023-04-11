@@ -31,12 +31,14 @@ class ActivePatients(VisitOccurrence):
         Get the SQL header for the criterion.
         """
 
-        c = self._table.c.person_id.label("person_id")
-
-        # if distinct_person:
-        #    c = distinct(c)
-
-        query = select(c).select_from(self._table)
+        query = select(
+            [
+                self._table.c.person_id,
+                self._table.c.visit_occurrence_id,
+                self._table.c.visit_start_datetime,
+                self._table.c.visit_end_datetime,
+            ]
+        ).select_from(self._table)
 
         return query
 
