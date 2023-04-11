@@ -74,7 +74,8 @@ class DrugExposure(Criterion):
             if self._frequency != 1:
                 raise NotImplementedError("Frequency != 1 not implemented yet")
 
-            interval = func.cast(concat(1, f" {self._interval}"), INTERVAL)
+            interval = func.cast(concat(1, self._interval), INTERVAL)
+            one_second = func.cast(concat(1, "second"), INTERVAL)
 
             # Filter only drug_exposures that are inbetween the start and end date of the cohort
             query = super()._insert_datetime(query)
@@ -147,7 +148,9 @@ class DrugExposure(Criterion):
                     [
                         interval_ratios.c.person_id,
                         interval_ratios.c.interval_start.label("valid_from"),
-                        (interval_ratios.c.interval_start + interval).label("valid_to"),
+                        (
+                            interval_ratios.c.interval_start + interval - one_second
+                        ).label("valid_to"),
                         c_interval_quantity,
                     ]
                 )
