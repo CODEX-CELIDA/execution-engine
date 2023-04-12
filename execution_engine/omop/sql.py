@@ -22,7 +22,14 @@ class OMOPSQLClient:
     """A client for the OMOP CDM database."""
 
     def __init__(
-        self, user: str, password: str, host: str, port: int, database: str, schema: str
+        self,
+        user: str,
+        password: str,
+        host: str,
+        port: int,
+        database: str,
+        schema: str,
+        vocabulary_logger: logging.Logger | None = None,
     ) -> None:
         """Initialize the OMOP SQL client."""
 
@@ -41,6 +48,14 @@ class OMOPSQLClient:
         self._metadata.bind = self._engine
 
         self._init_result_tables()
+
+        if vocabulary_logger is None:
+            vocabulary_logger = logging.getLogger("vocabulary")
+            vocabulary_logger.setLevel(logging.DEBUG)
+            vocabulary_logger.addHandler(logging.NullHandler())
+            vocabulary_logger.propagate = False  # Do not propagate to root logger
+
+        self._vocabulary_logger = vocabulary_logger
 
     def _init_result_tables(self, schema: str = "celida") -> None:
         """
@@ -112,7 +127,13 @@ class OMOPSQLClient:
 
         assert len(df) == 1, f"Expected 1 Concept, got {len(df)}"
 
-        return Concept.from_series(df.iloc[0])
+        c = Concept.from_series(df.iloc[0])
+
+        self._vocabulary_logger.debug(
+            f'"{c.concept_id}", "{c.concept_name}", "{c.domain_id}", get_concept_info'
+        )
+
+        return c
 
     def get_concept(
         self,
@@ -146,7 +167,13 @@ class OMOPSQLClient:
 
         assert len(df) == 1, f"Expected 1 Concept, got {len(df)}"
 
-        return Concept.from_series(df.iloc[0])
+        c = Concept.from_series(df.iloc[0])
+
+        self._vocabulary_logger.debug(
+            f'"{c.concept_id}", "{c.concept_name}", "{c.domain_id}", get_concept'
+        )
+
+        return c
 
     def drug_vocabulary_to_ingredient_via_ancestor(
         self, vocabulary_id: str, code: str
@@ -226,7 +253,12 @@ class OMOPSQLClient:
                 f"Expected concept for {vocabulary_id} #{code}, got {len(df)}"
             )
 
-        return self.get_concept_info(df.iloc[0].ingredient_concept_id)
+        c = df.iloc[0]
+        self._vocabulary_logger.debug(
+            f'"{c.drug_concept_id}", "{c.drug_concept_name}", "Drug", drug_vocabulary_to_ingredient'
+        )
+
+        return self.get_concept_info(c.ingredient_concept_id)
 
     def drugs_by_ingredient(
         self, drug_concept_id: str | int, with_unit: bool = True
@@ -287,6 +319,11 @@ class OMOPSQLClient:
 
         df = self.query(query, drug_concept_id=str(drug_concept_id))
 
+        for _, c in df.iterrows():
+            self._vocabulary_logger.debug(
+                f'"{c.drug_concept_id}", "{c.drug_name}", "Drug", drugs_by_ingredient'
+            )
+
         return df
 
     def concept_related_to(
@@ -309,8 +346,8 @@ class OMOPSQLClient:
               JOIN cds_cdm.concept AS a ON cr.concept_id_1 = a.concept_id
               JOIN cds_cdm.concept AS d ON cr.concept_id_2 = d.concept_id
             WHERE
-              a.concept_id = %(ancestor)s -- allergy
-              and d.concept_id = %(descendant)s -- heparin alelrgy
+              a.concept_id = %(ancestor)s
+              and d.concept_id = %(descendant)s
               and cr.invalid_reason IS null and
               relationship_id = %(relationship_id)s
         """
@@ -321,5 +358,10 @@ class OMOPSQLClient:
             descendant=descendant,
             relationship_id=relationship_id,
         )
+
+        for _, c in df.iterrows():
+            self._vocabulary_logger.debug(
+                f'"{c.concept_id}", "{c.concept_name}", , concept_related_to({ancestor}, {descendant}, {relationship_id})'
+            )
 
         return len(df) > 0
