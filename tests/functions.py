@@ -130,12 +130,11 @@ def create_procedure(
     return ProcedureOccurrence(
         person_id=vo.person_id,
         procedure_concept_id=procedure_concept_id,
-        procedure_type_concept_id="UNKNOWN",
+        procedure_type_concept_id=concepts.EHR,
         procedure_date=start_datetime.date(),
         procedure_datetime=start_datetime,
         procedure_end_date=end_datetime.date(),
         procedure_end_datetime=end_datetime,
-        procedure_type_concept_id=concepts.EHR,
     )
 
 

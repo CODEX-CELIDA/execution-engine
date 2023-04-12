@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import warnings
 
 import pandas as pd
@@ -10,7 +11,6 @@ from sqlalchemy import create_engine, insert, select
 from sqlalchemy.orm.session import sessionmaker
 from tqdm import tqdm
 
-from execution_engine import ExecutionEngine
 from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
     Base,
     metadata,
@@ -45,6 +45,13 @@ def db_session(postgresql):
     pg_user = postgresql.info.user
     pg_password = postgresql.info.password
     pg_db = postgresql.info.dbname
+
+    os.environ["OMOP__USER"] = pg_user
+    os.environ["OMOP__PASSWORD"] = pg_password
+    os.environ["OMOP__HOST"] = pg_host
+    os.environ["OMOP__PORT"] = str(pg_port)
+    os.environ["OMOP__DATABASE"] = pg_db
+    os.environ["OMOP__SCHEMA"] = "cds_cdm"
 
     # with DatabaseJanitor(
     #    pg_user, pg_host, pg_port, pg_db, postgresql.info.server_version, pg_password
@@ -392,8 +399,8 @@ def criteria_extended(
 def test_recommendation_15_prophylactic_anticoagulation(
     db_session, criteria_extended, visit_start_date, visit_end_date
 ):
-
     from execution_engine.clients import omopdb
+    from execution_engine.execution_engine import ExecutionEngine
 
     s = db_session()  # noqa (just debugging)
 
