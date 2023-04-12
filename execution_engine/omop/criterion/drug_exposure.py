@@ -71,9 +71,6 @@ class DrugExposure(Criterion):
                 # addressable in FHIR
                 logging.warning("Route specified, but not implemented yet")
 
-            if self._frequency != 1:
-                raise NotImplementedError("Frequency != 1 not implemented yet")
-
             interval = func.cast(concat(1, self._interval), INTERVAL)
             one_second = func.cast(concat(1, "second"), INTERVAL)
 
@@ -143,6 +140,8 @@ class DrugExposure(Criterion):
             c_interval_quantity = func.sum(
                 interval_ratios.c.quantity * interval_ratios.c.ratio
             ).label("interval_quantity")
+            c_interval_count = func.count().label("interval_count")
+
             query = (
                 select(
                     [
@@ -152,6 +151,7 @@ class DrugExposure(Criterion):
                             interval_ratios.c.interval_start + interval - one_second
                         ).label("valid_to"),
                         c_interval_quantity,
+                        c_interval_count,
                     ]
                 )
                 .select_from(interval_ratios)
@@ -160,6 +160,7 @@ class DrugExposure(Criterion):
                 .having(
                     self._dose.to_sql(column_name=c_interval_quantity, with_unit=False)
                 )
+                .having(c_interval_count == self._frequency)
                 .order_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
             )
 
