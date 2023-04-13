@@ -291,7 +291,7 @@ class ExecutionEngine:
         # fixme: set start_datetime and end_datetime as class variables
         # fixme: potentially also register run_id as class variable
 
-        with self._db.session.begin():
+        with self._db.begin():
             cd.id = self.register_cohort_definition(cd)
             run_id = self.register_run(
                 cd, start_datetime=start_datetime, end_datetime=end_datetime
@@ -306,9 +306,8 @@ class ExecutionEngine:
 
         return run_id
 
-    @staticmethod
     def load_recommendation_from_database(
-        url: str, version: str | None = None
+        self, url: str, version: str | None = None
     ) -> CohortDefinitionCombination | None:
         """
         Loads a recommendation from the database. If version is None, the latest created recommendation is returned.
@@ -323,7 +322,7 @@ class ExecutionEngine:
         if version is not None:
             query.where(cd_table.c.recommendation_version == version)
 
-        cd_db = query.execute().fetchone()
+        cd_db = self._db.execute(query).mappings().fetchone()
 
         if cd_db is not None:
             cd = CohortDefinitionCombination.from_json(
@@ -343,9 +342,10 @@ class ExecutionEngine:
         cd_hash = hashlib.sha256(cd_json).hexdigest()
 
         cd_db = (
-            cd_table.select()
-            .where(cd_table.c.cohort_definition_hash == cd_hash)
-            .execute()
+            self._db.execute(
+                cd_table.select().where(cd_table.c.cohort_definition_hash == cd_hash)
+            )
+            .mappings()
             .fetchone()
         )
 

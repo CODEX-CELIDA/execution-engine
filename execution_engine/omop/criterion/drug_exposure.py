@@ -92,23 +92,21 @@ class DrugExposure(Criterion):
 
             interval_quantities = (
                 select(
-                    [
-                        date_ranges.c.person_id,
-                        date_ranges.c.interval_start,
-                        (
-                            func.least(
-                                date_ranges.c.end_datetime,
-                                date_ranges.c.interval_start + interval,
-                            )
-                            - func.greatest(
-                                date_ranges.c.start_datetime,
-                                date_ranges.c.interval_start,
-                            )
-                        ).label("time_diff"),
-                        date_ranges.c.start_datetime,
-                        date_ranges.c.end_datetime,
-                        date_ranges.c.quantity,
-                    ]
+                    date_ranges.c.person_id,
+                    date_ranges.c.interval_start,
+                    (
+                        func.least(
+                            date_ranges.c.end_datetime,
+                            date_ranges.c.interval_start + interval,
+                        )
+                        - func.greatest(
+                            date_ranges.c.start_datetime,
+                            date_ranges.c.interval_start,
+                        )
+                    ).label("time_diff"),
+                    date_ranges.c.start_datetime,
+                    date_ranges.c.end_datetime,
+                    date_ranges.c.quantity,
                 )
                 .select_from(date_ranges)
                 .cte("interval_quantities")
@@ -116,22 +114,18 @@ class DrugExposure(Criterion):
 
             interval_ratios = (
                 select(
-                    [
-                        interval_quantities.c.person_id,
-                        interval_quantities.c.interval_start,
-                        (
-                            func.extract("EPOCH", interval_quantities.c.time_diff)
-                            / (
-                                func.extract(
-                                    "EPOCH", interval_quantities.c.end_datetime
-                                )
-                                - func.extract(
-                                    "EPOCH", interval_quantities.c.start_datetime
-                                )
+                    interval_quantities.c.person_id,
+                    interval_quantities.c.interval_start,
+                    (
+                        func.extract("EPOCH", interval_quantities.c.time_diff)
+                        / (
+                            func.extract("EPOCH", interval_quantities.c.end_datetime)
+                            - func.extract(
+                                "EPOCH", interval_quantities.c.start_datetime
                             )
-                        ).label("ratio"),
-                        interval_quantities.c.quantity,
-                    ]
+                        )
+                    ).label("ratio"),
+                    interval_quantities.c.quantity,
                 )
                 .select_from(interval_quantities)
                 .cte("interval_ratios")
@@ -144,15 +138,13 @@ class DrugExposure(Criterion):
 
             query = (
                 select(
-                    [
-                        interval_ratios.c.person_id,
-                        interval_ratios.c.interval_start.label("valid_from"),
-                        (
-                            interval_ratios.c.interval_start + interval - one_second
-                        ).label("valid_to"),
-                        c_interval_quantity,
-                        c_interval_count,
-                    ]
+                    interval_ratios.c.person_id,
+                    interval_ratios.c.interval_start.label("valid_from"),
+                    (interval_ratios.c.interval_start + interval - one_second).label(
+                        "valid_to"
+                    ),
+                    c_interval_quantity,
+                    c_interval_count,
                 )
                 .select_from(interval_ratios)
                 .where(interval_ratios.c.ratio > 0)

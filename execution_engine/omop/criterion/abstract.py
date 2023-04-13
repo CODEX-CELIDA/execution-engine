@@ -376,7 +376,7 @@ class Criterion(AbstractCriterion):
         :param query: A Select query object representing the original query.
         :return: A modified Select query object that generates a list of person dates.
         """
-        col_names = [c.name for c in query.columns]
+        col_names = [c.name for c in query.selected_columns]
         if "valid_from" not in col_names:
             c_start = self._get_datetime_column(self._table, "start").label(
                 "valid_from"
@@ -390,16 +390,14 @@ class Criterion(AbstractCriterion):
 
         person_dates = (
             select(
-                [
-                    literal_column("person_id"),
-                    func.generate_series(
-                        func.date_trunc("day", literal_column("valid_from")),
-                        func.date_trunc("day", literal_column("valid_to")),
-                        "1 day",
-                    )
-                    .cast(Date)
-                    .label("valid_date"),
-                ]
+                literal_column("person_id"),
+                func.generate_series(
+                    func.date_trunc("day", literal_column("valid_from")),
+                    func.date_trunc("day", literal_column("valid_to")),
+                    "1 day",
+                )
+                .cast(Date)
+                .label("valid_date"),
             )
             .distinct()
             .select_from(query)
@@ -421,24 +419,22 @@ class Criterion(AbstractCriterion):
 
         if self._exclude:
             distinct_persons = select(
-                [distinct(self._base_table.c.person_id).label("person_id")]
+                distinct(self._base_table.c.person_id).label("person_id")
             ).cte("distinct_persons")
             fixed_date_range = (
                 select(
-                    [
-                        distinct_persons.c.person_id,
-                        func.generate_series(
-                            bindparam(
-                                "observation_start_datetime", type_=DateTime
-                            ).cast(Date),
-                            bindparam("observation_end_datetime", type_=DateTime).cast(
-                                Date
-                            ),
-                            "1 day",
-                        )
-                        .cast(Date)
-                        .label("valid_date"),
-                    ]
+                    distinct_persons.c.person_id,
+                    func.generate_series(
+                        bindparam("observation_start_datetime", type_=DateTime).cast(
+                            Date
+                        ),
+                        bindparam("observation_end_datetime", type_=DateTime).cast(
+                            Date
+                        ),
+                        "1 day",
+                    )
+                    .cast(Date)
+                    .label("valid_date"),
                 )
                 .select_from(distinct_persons)
                 .cte("fixed_date_range")
@@ -447,7 +443,7 @@ class Criterion(AbstractCriterion):
             query = query.cte("person_dates")
 
             query = (
-                select([fixed_date_range.c.person_id, fixed_date_range.c.valid_date])
+                select(fixed_date_range.c.person_id, fixed_date_range.c.valid_date)
                 .select_from(
                     fixed_date_range.outerjoin(
                         query,

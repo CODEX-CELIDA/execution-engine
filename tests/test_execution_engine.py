@@ -66,11 +66,22 @@ def db_session(postgresql):
         if not engine.dialect.has_schema(engine, "cds_cdm"):
             engine.execute(sqlalchemy.schema.CreateSchema("cds_cdm"))
 
-        engine.execute(
+        con.execute(
             "SET session_replication_role = 'replica';"
         )  # Disable foreign key checks
 
         metadata.create_all(con)
+        logger.info("Inserting test data into the database.")
+
+        for table in [
+            "concept",
+            "concept_relationship",
+            "concept_ancestor",
+            "drug_strength",
+        ]:
+            df = pd.read_csv(f"tests/omop_cdm/{table}.csv.gz")
+            df.to_sql(table, con, schema="cds_cdm", if_exists="append", index=False)
+
         logger.info("yielding a sessionmaker against the test postgres db.")
 
         yield sessionmaker(bind=engine, expire_on_commit=False)
@@ -399,10 +410,10 @@ def criteria_extended(
 def test_recommendation_15_prophylactic_anticoagulation(
     db_session, criteria_extended, visit_start_date, visit_end_date
 ):
+    import itertools
+
     from execution_engine.clients import omopdb
     from execution_engine.execution_engine import ExecutionEngine
-
-    s = db_session()  # noqa (just debugging)
 
     base_url = (
         "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
@@ -452,7 +463,6 @@ def test_recommendation_15_prophylactic_anticoagulation(
         "AntithromboticProphylaxisWithFondaparinux",
         "NoAntithromboticProphylaxis",
     ]
-    import itertools
 
     cols = ["_".join(i) for i in itertools.product(["p", "i", "p_i"], plan_names)]
     cols_db = [

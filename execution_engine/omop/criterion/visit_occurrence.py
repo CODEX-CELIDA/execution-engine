@@ -32,12 +32,10 @@ class ActivePatients(VisitOccurrence):
         """
 
         query = select(
-            [
-                self._table.c.person_id,
-                self._table.c.visit_occurrence_id,
-                self._table.c.visit_start_datetime,
-                self._table.c.visit_end_datetime,
-            ]
+            self._table.c.person_id,
+            self._table.c.visit_occurrence_id,
+            self._table.c.visit_start_datetime,
+            self._table.c.visit_end_datetime,
         ).select_from(self._table)
 
         return query

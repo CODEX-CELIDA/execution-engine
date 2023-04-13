@@ -28,9 +28,9 @@ def s_into(element: SelectInto, compiler: SQLCompiler, **kwargs: dict) -> str:
 
     if isinstance(element.select, CompoundSelect):
         # take first select from compound selects (EXCEPT, INTERSECT, UNION)
-        froms = element.select.selects[0].froms
+        froms = element.select.selects[0].get_final_froms()
     else:
-        froms = element.select.froms
+        froms = element.select.get_final_froms()
 
     assert (
         len(froms) == 1

@@ -56,7 +56,9 @@ def add_result_insert(
     )
 
     t_result = RecommendationResult.__table__
-    query_insert = t_result.insert().from_select(query_select.columns, query_select)
+    query_insert = t_result.insert().from_select(
+        query_select.selected_columns, query_select
+    )
 
     return query_insert
 
@@ -198,9 +200,9 @@ class CohortDefinition:
                     sql_select.right
                 )
             elif isinstance(sql_select, Select):
-                return any(_base_table_in_select(f) for f in sql_select.froms) or any(
-                    _base_table_in_select(w) for w in sql_select.whereclause
-                )
+                return any(
+                    _base_table_in_select(f) for f in sql_select.get_final_froms()
+                ) or any(_base_table_in_select(w) for w in sql_select.whereclause)
             elif isinstance(sql_select, Alias):
                 return sql_select.original.name == base_table_out
             elif isinstance(sql_select, TableClause):
@@ -212,7 +214,9 @@ class CohortDefinition:
                     w.right.element.froms[0].name == base_table_out for w in sql_select
                 )
             elif isinstance(sql_select, BinaryExpression):
-                return sql_select.right.element.froms[0].name == base_table_out
+                return (
+                    sql_select.right.element.get_final_froms()[0].name == base_table_out
+                )
             elif isinstance(sql_select, Subquery):
                 if isinstance(sql_select.original, CompoundSelect):
                     return all(

@@ -19,7 +19,27 @@ from .concepts import Concept
 
 
 class OMOPSQLClient:
-    """A client for the OMOP CDM database."""
+    """A client for the OMOP SQL database.
+
+    This class provides a high-level interface to the OMOP SQL database.
+
+    Parameters
+    ----------
+    user : str
+        The user name to connect to the database.
+    password : str
+        The password to connect to the database.
+    host : str
+        The host name of the database.
+    port : int
+        The port of the database.
+    database : str
+        The name of the database.
+    schema : str
+        The name of the schema.
+    vocabulary_logger : logging.Logger, optional
+        The logger to use for logging vocabulary queries, by default None.
+    """
 
     def __init__(
         self,
@@ -41,9 +61,10 @@ class OMOPSQLClient:
         self._engine = sqlalchemy.create_engine(
             connection_string,
             connect_args={"options": "-csearch_path={}".format(schema)},
+            future=True,
         )
 
-        self._session = Session(self._engine)
+        self._session = Session(self._engine, future=True)
         self._metadata = base.metadata
         self._metadata.bind = self._engine
 
@@ -51,9 +72,11 @@ class OMOPSQLClient:
 
         if vocabulary_logger is None:
             vocabulary_logger = logging.getLogger("vocabulary")
-            vocabulary_logger.setLevel(logging.DEBUG)
-            vocabulary_logger.addHandler(logging.NullHandler())
-            vocabulary_logger.propagate = False  # Do not propagate to root logger
+
+            if not vocabulary_logger.hasHandlers():
+                vocabulary_logger.setLevel(logging.DEBUG)
+                vocabulary_logger.addHandler(logging.NullHandler())
+                vocabulary_logger.propagate = False  # Do not propagate to root logger
 
         self._vocabulary_logger = vocabulary_logger
 
@@ -61,19 +84,31 @@ class OMOPSQLClient:
         """
         Initialize the result schema.
         """
-        if not self._engine.dialect.has_schema(self._engine, schema):
-            self.execute(sqlalchemy.schema.CreateSchema(schema))
-            self.commit()
+        with self.begin() as con:
+            if not con.dialect.has_schema(con, schema):
+                con.execute(sqlalchemy.schema.CreateSchema(schema))
+                con.commit()
 
-        result_tables = [
-            self._metadata.tables[t]
-            for t in self._metadata.tables
-            if t.startswith("celida.")
-        ]
-        assert len(result_tables) > 0, "No results tables found"
+            result_tables = [
+                self._metadata.tables[t]
+                for t in self._metadata.tables
+                if t.startswith("celida.")
+            ]
+            assert len(result_tables) > 0, "No results tables found"
 
-        self._metadata.create_all(tables=result_tables, bind=self._engine)
-        self.commit()
+            self._metadata.create_all(tables=result_tables, bind=con)
+
+    def connect(self) -> sqlalchemy.engine.Connection:
+        """
+        Get a connection to the OMOP CDM database.
+        """
+        return self._engine.connect()
+
+    def begin(self) -> sqlalchemy.engine.Connection:
+        """
+        Begin a new transaction.
+        """
+        return self._engine.begin()
 
     @property
     def session(self) -> Session:
@@ -129,8 +164,8 @@ class OMOPSQLClient:
 
         c = Concept.from_series(df.iloc[0])
 
-        self._vocabulary_logger.debug(
-            f'"{c.concept_id}", "{c.concept_name}", "{c.domain_id}", get_concept_info'
+        self._vocabulary_logger.info(
+            f'"{c.concept_id}","{c.concept_name}","get_concept_info","",""'
         )
 
         return c
@@ -169,8 +204,8 @@ class OMOPSQLClient:
 
         c = Concept.from_series(df.iloc[0])
 
-        self._vocabulary_logger.debug(
-            f'"{c.concept_id}", "{c.concept_name}", "{c.domain_id}", get_concept'
+        self._vocabulary_logger.info(
+            f'"{c.concept_id}","{c.concept_name}","get_concept","",""'
         )
 
         return c
@@ -254,8 +289,8 @@ class OMOPSQLClient:
             )
 
         c = df.iloc[0]
-        self._vocabulary_logger.debug(
-            f'"{c.drug_concept_id}", "{c.drug_concept_name}", "Drug", drug_vocabulary_to_ingredient'
+        self._vocabulary_logger.info(
+            f'"{c.drug_concept_id}","{c.drug_concept_name}","drug_vocabulary_to_ingredient","{c.ingredient_concept_id}","{c.ingredient_concept_name}"'
         )
 
         return self.get_concept_info(c.ingredient_concept_id)
@@ -320,8 +355,8 @@ class OMOPSQLClient:
         df = self.query(query, drug_concept_id=str(drug_concept_id))
 
         for _, c in df.iterrows():
-            self._vocabulary_logger.debug(
-                f'"{c.drug_concept_id}", "{c.drug_name}", "Drug", drugs_by_ingredient'
+            self._vocabulary_logger.info(
+                f'"{c.drug_concept_id}","{c.drug_name}","drugs_by_ingredient","{c.ingredient_concept_id}","{c.ingredient_name}"'
             )
 
         return df
@@ -360,8 +395,8 @@ class OMOPSQLClient:
         )
 
         for _, c in df.iterrows():
-            self._vocabulary_logger.debug(
-                f'"{c.concept_id}", "{c.concept_name}", , concept_related_to({ancestor}, {descendant}, {relationship_id})'
+            self._vocabulary_logger.info(
+                f'"{c.concept_id}","{c.concept_name}","concept_related_to","{ancestor}",""'
             )
 
         return len(df) > 0
