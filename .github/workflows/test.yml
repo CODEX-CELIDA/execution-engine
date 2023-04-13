@@ -39,6 +39,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
       - name: Clone Submodule
         run: |
             mkdir -p $HOME/.ssh
@@ -50,6 +51,26 @@ jobs:
             git submodule set-url tests/omop_cdm https://github.com/CODEX-CELIDA/omop-test-vocabulary.git
             unset GIT_SSH_COMMAND
 
+      - name: Checkout celida recommendation server
+        uses: actions/checkout@v3
+        with:
+          repository: CODEX-CELIDA/recommendation-server
+          path: recommendation-server
+
+      - name: Run celida recommendations docker
+        run: |
+          docker volume prune -f
+          docker pull glichtner/celida-recommendation-server:main
+          docker run --env-file recommendation-server/celida.env -dp 8000:80 glichtner/celida-recommendation-server:main
+
+      - name: Wait for Recommendation Server startup
+        run: sleep 10s
+        shell: bash
+
+      - name: Test Recommendation Server
+        run: |
+          curl http://localhost:8000/fhir/ActivityDefinition?url=https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommended-action/drug-administration-action/no-antithrombotic-prophylaxis-nadroparin-administration-low-weight
+
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
@@ -57,6 +78,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.txt
       - run: pip install -r requirements-dev.txt
+      - run: mv sample.env .env
 
       - name: Test with pytest
         run: |
