@@ -1,0 +1,3 @@
+[submodule "tests/omop_cdm"]
+	path = tests/omop_cdm
+	url = https://github.com/CODEX-CELIDA/omop-test-vocabulary
