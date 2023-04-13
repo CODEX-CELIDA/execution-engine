@@ -6,13 +6,22 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, cast
 
 import sqlalchemy
-from sqlalchemy import Table, bindparam, distinct, func, literal_column, or_, select
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Table,
+    bindparam,
+    distinct,
+    func,
+    literal_column,
+    or_,
+    select,
+)
 from sqlalchemy.sql import Select, TableClause
 from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.db.base import Date, DateTime
 from execution_engine.omop.db.cdm import (
     Base,
     ConditionOccurrence,

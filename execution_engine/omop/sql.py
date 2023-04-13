@@ -87,7 +87,6 @@ class OMOPSQLClient:
         with self.begin() as con:
             if not con.dialect.has_schema(con, schema):
                 con.execute(sqlalchemy.schema.CreateSchema(schema))
-                con.commit()
 
             result_tables = [
                 self._metadata.tables[t]

@@ -1,7 +1,17 @@
-from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String, Table, Text
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy.orm import relationship
 
-from .base import Base, DateTime, metadata
+from .base import Base, metadata
 
 t_cohort = Table(
     "cohort",

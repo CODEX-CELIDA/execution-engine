@@ -1,8 +1,17 @@
-from sqlalchemy import Column, Enum, ForeignKey, Integer, LargeBinary, String
+from sqlalchemy import (
+    Column,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+)
 from sqlalchemy.orm import relationship
 
 from execution_engine.constants import CohortCategory
-from execution_engine.omop.db.base import Base, Date, DateTime
+from execution_engine.omop.db.base import Base
 
 
 class CohortDefinition(Base):  # noqa: D101

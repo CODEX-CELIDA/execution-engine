@@ -4,7 +4,17 @@ import logging
 import re
 from typing import Any, Dict, Iterator
 
-from sqlalchemy import Column, Integer, MetaData, Table, and_, bindparam, select, union
+from sqlalchemy import (
+    Column,
+    Date,
+    Integer,
+    MetaData,
+    Table,
+    and_,
+    bindparam,
+    select,
+    union,
+)
 from sqlalchemy.orm import Query
 from sqlalchemy.sql import (
     Alias,
@@ -24,7 +34,6 @@ from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
-from execution_engine.omop.db.base import Date
 from execution_engine.omop.db.result import RecommendationResult
 from execution_engine.util.sql import SelectInto
 
