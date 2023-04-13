@@ -142,7 +142,7 @@ class AbstractMappedVocabulary(AbstractVocabulary):
     This class defines a mapping from the vocabulary to the OMOP Standard Vocabulary.
     """
 
-    map: dict[str, str]
+    map: dict[str, int]
 
     @classmethod
     def omop_concept(cls, concept: str, standard: bool = False) -> Concept:
@@ -164,7 +164,7 @@ class KontaktartDE(AbstractMappedVocabulary):
 
     system_uri = "http://fhir.de/CodeSystem/kontaktart-de"
     map = {
-        "intensivstationaer": "32037",
+        "intensivstationaer": 32037,
     }
 
 

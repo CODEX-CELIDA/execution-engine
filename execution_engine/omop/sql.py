@@ -2,7 +2,6 @@ import logging
 from typing import Any
 
 import pandas as pd
-import psycopg2  # noqa: F401 -- do not remove - needed for sqlalchemy to work
 import sqlalchemy
 from sqlalchemy import and_, func
 from sqlalchemy.sql import Insert, Select
@@ -53,7 +52,7 @@ class OMOPSQLClient:
 
         self._schema = schema
         connection_string = (
-            f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
+            f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
         )
 
         self._engine = sqlalchemy.create_engine(
@@ -131,10 +130,10 @@ class OMOPSQLClient:
             )
         )
 
-    def get_concept_info(self, concept_id: str) -> Concept:
+    def get_concept_info(self, concept_id: int) -> Concept:
         """Get the concept info for the given concept ID."""
         concept = self.tables["cds_cdm.concept"]
-        query = concept.select().where(concept.c.concept_id == str(concept_id))
+        query = concept.select().where(concept.c.concept_id == int(concept_id))
         df = self.query(query)
 
         assert len(df) == 1, f"Expected 1 Concept, got {len(df)}"

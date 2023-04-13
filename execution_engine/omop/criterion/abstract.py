@@ -17,7 +17,9 @@ from sqlalchemy import (
     or_,
     select,
 )
+from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select, TableClause
+from sqlalchemy.sql.functions import concat
 from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
@@ -412,7 +414,7 @@ class Criterion(AbstractCriterion):
                 func.generate_series(
                     func.date_trunc("day", literal_column("valid_from")),
                     func.date_trunc("day", literal_column("valid_to")),
-                    "1 day",
+                    func.cast(concat(1, "day"), INTERVAL),
                 )
                 .cast(Date)
                 .label("valid_date"),
@@ -449,7 +451,7 @@ class Criterion(AbstractCriterion):
                         bindparam("observation_end_datetime", type_=DateTime).cast(
                             Date
                         ),
-                        "1 day",
+                        func.cast(concat(1, "day"), INTERVAL),
                     )
                     .cast(Date)
                     .label("valid_date"),

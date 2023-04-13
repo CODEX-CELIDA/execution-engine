@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterator
 from sqlalchemy import (
     Column,
     Date,
+    Enum,
     Integer,
     MetaData,
     Table,
@@ -60,7 +61,9 @@ def add_result_insert(
     query_select = query_select.add_columns(
         bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
         bindparam("recommendation_plan_name", name).label("recommendation_plan_name"),
-        bindparam("cohort_category", cohort_category.name).label("cohort_category"),
+        bindparam("cohort_category", cohort_category, type_=Enum(CohortCategory)).label(
+            "cohort_category"
+        ),
         bindparam("criterion_name", criterion_name).label("criterion_name"),
     )
 

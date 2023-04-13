@@ -54,7 +54,7 @@ def db_session(postgresql):
     #    pg_user, pg_host, pg_port, pg_db, postgresql.info.server_version, pg_password
     # ):
     connection_str = (
-        f"postgresql+psycopg2://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
+        f"postgresql+psycopg://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
     )
     engine = create_engine(connection_str)
     with engine.connect() as con:
@@ -77,6 +77,9 @@ def db_session(postgresql):
             "drug_strength",
         ]:
             df = pd.read_csv(f"tests/omop_cdm/{table}.csv.gz")
+            for c in df.columns:
+                if "_date" in c:
+                    df[c] = pd.to_datetime(df[c])
             df.to_sql(table, con, schema="cds_cdm", if_exists="append", index=False)
 
         con.commit()
