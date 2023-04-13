@@ -57,4 +57,17 @@ jobs:
 
       - name: Test with pytest
         run: |
-           pytest --postgresql-host=localhost --postgresql-password=postgres --postgresql-port=5432
+           pytest \
+            --postgresql-host=$POSTGRES_HOST \
+            --postgresql-port=$POSTGRES_PORT \
+            --postgresql-user=$POSTGRES_USER \
+            --postgresql-password=$POSTGRES_PASSWORD
+        env:
+          # The hostname used to communicate with the PostgreSQL service container
+          POSTGRES_HOST: postgres
+          # The default PostgreSQL port
+          POSTGRES_PORT: 5432
+          # The default PostgreSQL user
+          POSTGRES_USER: postgres
+          # The password for the PostgreSQL user
+          POSTGRES_PASSWORD: postgres
