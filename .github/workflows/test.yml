@@ -1,0 +1,60 @@
+name: Python package
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  pytest:
+
+    runs-on: ubuntu-latest
+    # Docker Hub image that `container-job` executes in
+    #container: node:10.18-jessie
+
+    # Service containers to run with `container-job`
+    services:
+      # Label used to access the service container
+      postgres:
+        # Docker Hub image
+        image: postgres
+        # Provide the password for postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Clone Submodule
+        run: |
+            mkdir -p $HOME/.ssh
+            echo '${{ secrets.SUBMODULE_REPO_DEPLOY_KEY }}' > $HOME/.ssh/ssh.key
+            chmod 600 $HOME/.ssh/ssh.key
+            export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
+            git submodule set-url tests/omop_cdm git@github.com:CODEX-CELIDA/omop-test-vocabulary.git
+            git submodule update --init --recursive
+            git submodule set-url tests/omop_cdm https://github.com/CODEX-CELIDA/omop-test-vocabulary.git
+            unset GIT_SSH_COMMAND
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Test with pytest
+        run: |
+           pytest --postgresql-host=localhost --postgresql-password=postgres --postgresql-port=5432
