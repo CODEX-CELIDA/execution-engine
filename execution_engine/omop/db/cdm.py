@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Optional
 
 from sqlalchemy import (
     Column,
@@ -31,29 +32,30 @@ class Concept(Base):  # noqa: D101 # noqa: D101
     __table_args__ = {"schema": "cds_cdm"}
 
     concept_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    concept_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    domain_id = Column(
-        ForeignKey("cds_cdm.domain.domain_id"), nullable=False, index=True
+    concept_name: Mapped[str] = mapped_column(String(255))
+    domain_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.domain.domain_id"), index=True
     )
-    vocabulary_id = Column(
-        ForeignKey("cds_cdm.vocabulary.vocabulary_id"), nullable=False, index=True
+    vocabulary_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.vocabulary.vocabulary_id"), index=True
     )
-    concept_class_id = Column(
-        ForeignKey("cds_cdm.concept_class.concept_class_id"), nullable=False, index=True
+    concept_class_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept_class.concept_class_id"), index=True
     )
-    standard_concept: Mapped[str] = mapped_column(String(1))
-    concept_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    valid_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    valid_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    invalid_reason: Mapped[str] = mapped_column(String(1))
+    standard_concept: Mapped[Optional[str]] = mapped_column(String(1))
+    concept_code: Mapped[str] = mapped_column(String(50), index=True)
+    valid_start_date: Mapped[date]
+    valid_end_date: Mapped[date]
+    invalid_reason: Mapped[Optional[str]] = mapped_column(String(1))
 
-    concept_class = relationship(
-        "ConceptClas",
+    concept_class: Mapped["ConceptClas"] = relationship(
         primaryjoin="Concept.concept_class_id == ConceptClas.concept_class_id",
     )
-    domain = relationship("Domain", primaryjoin="Concept.domain_id == Domain.domain_id")
-    vocabulary = relationship(
-        "Vocabulary", primaryjoin="Concept.vocabulary_id == Vocabulary.vocabulary_id"
+    domain: Mapped["Domain"] = relationship(
+        primaryjoin="Concept.domain_id == Domain.domain_id"
+    )
+    vocabulary: Mapped["Vocabulary"] = relationship(
+        primaryjoin="Concept.vocabulary_id == Vocabulary.vocabulary_id"
     )
 
 
@@ -64,13 +66,12 @@ class ConceptClas(Base):  # noqa: D101 # noqa: D101
     concept_class_id: Mapped[str] = mapped_column(
         String(20), primary_key=True, index=True
     )
-    concept_class_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    concept_class_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    concept_class_name: Mapped[str] = mapped_column(String(255))
+    concept_class_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
 
-    concept_class_concept = relationship(
-        "Concept",
+    concept_class_concept: Mapped["Concept"] = relationship(
         primaryjoin="ConceptClas.concept_class_concept_id == Concept.concept_id",
     )
 
@@ -80,13 +81,13 @@ class Domain(Base):  # noqa: D101
     __table_args__ = {"schema": "cds_cdm"}
 
     domain_id: Mapped[str] = mapped_column(String(20), primary_key=True, index=True)
-    domain_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    domain_name: Mapped[str] = mapped_column(String(255))
     domain_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+        ForeignKey("cds_cdm.concept.concept_id")
     )
 
-    domain_concept = relationship(
-        "Concept", primaryjoin="Domain.domain_concept_id == Concept.concept_id"
+    domain_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Domain.domain_concept_id == Concept.concept_id"
     )
 
 
@@ -95,15 +96,15 @@ class Vocabulary(Base):  # noqa: D101
     __table_args__ = {"schema": "cds_cdm"}
 
     vocabulary_id: Mapped[str] = mapped_column(String(20), primary_key=True, index=True)
-    vocabulary_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    vocabulary_reference: Mapped[str] = mapped_column(String(255))
-    vocabulary_version: Mapped[str] = mapped_column(String(255))
+    vocabulary_name: Mapped[str] = mapped_column(String(255))
+    vocabulary_reference: Mapped[Optional[str]] = mapped_column(String(255))
+    vocabulary_version: Mapped[Optional[str]] = mapped_column(String(255))
     vocabulary_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+        ForeignKey("cds_cdm.concept.concept_id")
     )
 
-    vocabulary_concept = relationship(
-        "Concept", primaryjoin="Vocabulary.vocabulary_concept_id == Concept.concept_id"
+    vocabulary_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Vocabulary.vocabulary_concept_id == Concept.concept_id"
     )
 
 
@@ -191,48 +192,51 @@ class Cost(Base):  # noqa: D101
     __tablename__ = "cost"
     __table_args__ = {"schema": "cds_cdm"}
 
-    cost_id = Column(
-        Integer,
+    cost_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    cost_event_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    cost_domain_id = mapped_column(
-        ForeignKey("cds_cdm.domain.domain_id"), nullable=False
+    cost_event_id: Mapped[int] = mapped_column(Integer, index=True)
+    cost_domain_id: Mapped[int] = mapped_column(ForeignKey("cds_cdm.domain.domain_id"))
+    cost_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    cost_type_concept_id = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    currency_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    currency_concept_id = mapped_column(ForeignKey("cds_cdm.concept.concept_id"))
-    total_charge = Column(Numeric)
-    total_cost = Column(Numeric)
-    total_paid = Column(Numeric)
-    paid_by_payer = Column(Numeric)
-    paid_by_patient = Column(Numeric)
-    paid_patient_copay = Column(Numeric)
-    paid_patient_coinsurance = Column(Numeric)
-    paid_patient_deductible = Column(Numeric)
-    paid_by_primary = Column(Numeric)
-    paid_ingredient_cost = Column(Numeric)
-    paid_dispensing_fee = Column(Numeric)
-    payer_plan_period_id: Mapped[int] = mapped_column(Integer)
-    amount_allowed = Column(Numeric)
-    revenue_code_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    revenue_code_source_value: Mapped[str] = mapped_column(String(50))
-    drg_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    drg_source_value: Mapped[str] = mapped_column(String(3))
+    total_charge = mapped_column(Numeric, nullable=True)
+    total_cost = mapped_column(Numeric, nullable=True)
+    total_paid = mapped_column(Numeric, nullable=True)
+    paid_by_payer = mapped_column(Numeric, nullable=True)
+    paid_by_patient = mapped_column(Numeric, nullable=True)
+    paid_patient_copay = mapped_column(Numeric, nullable=True)
+    paid_patient_coinsurance = mapped_column(Numeric, nullable=True)
+    paid_patient_deductible = mapped_column(Numeric, nullable=True)
+    paid_by_primary = mapped_column(Numeric, nullable=True)
+    paid_ingredient_cost = mapped_column(Numeric, nullable=True)
+    paid_dispensing_fee = mapped_column(Numeric, nullable=True)
+    payer_plan_period_id: Mapped[Optional[int]]
+    amount_allowed = mapped_column(Numeric, nullable=True)
+    revenue_code_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    revenue_code_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    drg_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    drg_source_value: Mapped[Optional[str]] = mapped_column(String(3))
 
-    cost_domain = relationship("Domain")
-    cost_type_concept = relationship(
-        "Concept", primaryjoin="Cost.cost_type_concept_id == Concept.concept_id"
+    cost_domain: Mapped["Domain"] = relationship()
+    cost_type_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Cost.cost_type_concept_id == Concept.concept_id"
     )
-    currency_concept = relationship(
-        "Concept", primaryjoin="Cost.currency_concept_id == Concept.concept_id"
+    currency_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Cost.currency_concept_id == Concept.concept_id"
     )
-    drg_concept = relationship(
-        "Concept", primaryjoin="Cost.drg_concept_id == Concept.concept_id"
+    drg_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Cost.drg_concept_id == Concept.concept_id"
     )
-    revenue_code_concept = relationship(
-        "Concept", primaryjoin="Cost.revenue_code_concept_id == Concept.concept_id"
+    revenue_code_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Cost.revenue_code_concept_id == Concept.concept_id"
     )
 
 
@@ -296,56 +300,57 @@ class Location(Base):  # noqa: D101
     __tablename__ = "location"
     __table_args__ = {"schema": "cds_cdm"}
 
-    location_id = Column(
-        Integer,
+    location_id: Mapped[int] = mapped_column(
         primary_key=True,
         index=True,
     )
-    address_1: Mapped[str] = mapped_column(String(50))
-    address_2: Mapped[str] = mapped_column(String(50))
-    city: Mapped[str] = mapped_column(String(50))
-    state: Mapped[str] = mapped_column(String(2))
-    zip: Mapped[str] = mapped_column(String(9))
-    county: Mapped[str] = mapped_column(String(20))
-    location_source_value: Mapped[str] = mapped_column(String(50))
-    country_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    country_source_value: Mapped[str] = mapped_column(String(80))
-    latitude = Column(Numeric)
-    longitude = Column(Numeric)
+    address_1: Mapped[Optional[str]] = mapped_column(String(50))
+    address_2: Mapped[Optional[str]] = mapped_column(String(50))
+    city: Mapped[Optional[str]] = mapped_column(String(50))
+    state: Mapped[Optional[str]] = mapped_column(String(2))
+    zip: Mapped[Optional[str]] = mapped_column(String(9))
+    county: Mapped[Optional[str]] = mapped_column(String(20))
+    location_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    country_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    country_source_value: Mapped[Optional[str]] = mapped_column(String(80))
+    latitude = mapped_column(Numeric, nullable=True)
+    longitude = mapped_column(Numeric, nullable=True)
 
-    country_concept = relationship("Concept")
+    country_concept: Mapped["Concept"] = relationship()
 
 
 class Metadatum(Base):  # noqa: D101
     __tablename__ = "metadata"
     __table_args__ = {"schema": "cds_cdm"}
 
-    metadata_id = Column(
-        Integer,
+    metadata_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    metadata_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    metadata_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    metadata_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    metadata_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    name: Mapped[str] = mapped_column(String(250), nullable=False)
-    value_as_string: Mapped[str] = mapped_column(String(250))
-    value_as_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    value_as_number = Column(Numeric)
-    metadata_date: Mapped[date] = mapped_column(Date)
-    metadata_datetime: Mapped[datetime] = mapped_column(DateTime)
+    name: Mapped[str] = mapped_column(String(250))
+    value_as_string: Mapped[Optional[str]] = mapped_column(String(250))
+    value_as_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    value_as_number = mapped_column(Numeric, nullable=True)
+    metadata_date: Mapped[Optional[date]]
+    metadata_datetime: Mapped[Optional[datetime]]
 
-    metadata_concept = relationship(
-        "Concept", primaryjoin="Metadatum.metadata_concept_id == Concept.concept_id"
+    metadata_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Metadatum.metadata_concept_id == Concept.concept_id"
     )
-    metadata_type_concept = relationship(
-        "Concept",
+    metadata_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="Metadatum.metadata_type_concept_id == Concept.concept_id",
     )
-    value_as_concept = relationship(
-        "Concept", primaryjoin="Metadatum.value_as_concept_id == Concept.concept_id"
+    value_as_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Metadatum.value_as_concept_id == Concept.concept_id"
     )
 
 
@@ -353,33 +358,37 @@ class NoteNlp(Base):  # noqa: D101
     __tablename__ = "note_nlp"
     __table_args__ = {"schema": "cds_cdm"}
 
-    note_nlp_id = Column(
-        Integer,
+    note_nlp_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    note_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    section_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    snippet: Mapped[str] = mapped_column(String(250))
-    offset: Mapped[str] = mapped_column(String(50))
-    lexical_variant: Mapped[str] = mapped_column(String(250), nullable=False)
-    note_nlp_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"), index=True)
-    note_nlp_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    nlp_system: Mapped[str] = mapped_column(String(250))
-    nlp_date: Mapped[date] = mapped_column(Date, nullable=False)
-    nlp_datetime: Mapped[datetime] = mapped_column(DateTime)
-    term_exists: Mapped[str] = mapped_column(String(1))
-    term_temporal: Mapped[str] = mapped_column(String(50))
-    term_modifiers: Mapped[str] = mapped_column(String(2000))
-
-    note_nlp_concept = relationship(
-        "Concept", primaryjoin="NoteNlp.note_nlp_concept_id == Concept.concept_id"
+    note_id: Mapped[int] = mapped_column(Integer, index=True)
+    section_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    note_nlp_source_concept = relationship(
-        "Concept",
+    snippet: Mapped[Optional[str]] = mapped_column(String(250))
+    offset: Mapped[Optional[str]] = mapped_column(String(50))
+    lexical_variant: Mapped[str] = mapped_column(String(250))
+    note_nlp_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
+    )
+    note_nlp_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    nlp_system: Mapped[Optional[str]] = mapped_column(String(250))
+    nlp_date: Mapped[date]
+    nlp_datetime: Mapped[Optional[datetime]]
+    term_exists: Mapped[Optional[str]] = mapped_column(String(1))
+    term_temporal: Mapped[Optional[str]] = mapped_column(String(50))
+    term_modifiers: Mapped[Optional[str]] = mapped_column(String(2000))
+
+    note_nlp_concept: Mapped["Concept"] = relationship(
+        primaryjoin="NoteNlp.note_nlp_concept_id == Concept.concept_id"
+    )
+    note_nlp_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="NoteNlp.note_nlp_source_concept_id == Concept.concept_id",
     )
-    section_concept = relationship(
-        "Concept", primaryjoin="NoteNlp.section_concept_id == Concept.concept_id"
+    section_concept: Mapped["Concept"] = relationship(
+        primaryjoin="NoteNlp.section_concept_id == Concept.concept_id"
     )
 
 
@@ -390,15 +399,15 @@ class Relationship(Base):  # noqa: D101
     relationship_id: Mapped[str] = mapped_column(
         String(20), primary_key=True, index=True
     )
-    relationship_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    is_hierarchical: Mapped[str] = mapped_column(String(1), nullable=False)
-    defines_ancestry: Mapped[str] = mapped_column(String(1), nullable=False)
-    reverse_relationship_id: Mapped[str] = mapped_column(String(20), nullable=False)
-    relationship_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    relationship_name: Mapped[str] = mapped_column(String(255))
+    is_hierarchical: Mapped[str] = mapped_column(String(1))
+    defines_ancestry: Mapped[str] = mapped_column(String(1))
+    reverse_relationship_id: Mapped[str] = mapped_column(String(20))
+    relationship_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
 
-    relationship_concept = relationship("Concept")
+    relationship_concept: Mapped["Concept"] = relationship()
 
 
 t_source_to_concept_map = Table(
@@ -433,19 +442,22 @@ class CareSite(Base):  # noqa: D101
     __tablename__ = "care_site"
     __table_args__ = {"schema": "cds_cdm"}
 
-    care_site_id = Column(
-        Integer,
+    care_site_id: Mapped[int] = mapped_column(
         primary_key=True,
         index=True,
     )
-    care_site_name: Mapped[str] = mapped_column(String(255))
-    place_of_service_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    location_id = Column(ForeignKey("cds_cdm.location.location_id"))
-    care_site_source_value: Mapped[str] = mapped_column(String(50))
-    place_of_service_source_value: Mapped[str] = mapped_column(String(50))
+    care_site_name: Mapped[Optional[str]] = mapped_column(String(255))
+    place_of_service_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    location_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.location.location_id")
+    )
+    care_site_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    place_of_service_source_value: Mapped[Optional[str]] = mapped_column(String(50))
 
-    location = relationship("Location")
-    place_of_service_concept = relationship("Concept")
+    location: Mapped["Location"] = relationship()
+    place_of_service_concept: Mapped["Concept"] = relationship()
 
 
 t_concept_relationship = Table(
@@ -480,36 +492,44 @@ class Provider(Base):  # noqa: D101
     __tablename__ = "provider"
     __table_args__ = {"schema": "cds_cdm"}
 
-    provider_id = Column(
-        Integer,
+    provider_id: Mapped[int] = mapped_column(
         primary_key=True,
         index=True,
     )
-    provider_name: Mapped[str] = mapped_column(String(255))
-    npi: Mapped[str] = mapped_column(String(20))
-    dea: Mapped[str] = mapped_column(String(20))
-    specialty_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    care_site_id = Column(ForeignKey("cds_cdm.care_site.care_site_id"))
-    year_of_birth: Mapped[int] = mapped_column(Integer)
-    gender_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    provider_source_value: Mapped[str] = mapped_column(String(50))
-    specialty_source_value: Mapped[str] = mapped_column(String(50))
-    specialty_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    gender_source_value: Mapped[str] = mapped_column(String(50))
-    gender_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
+    provider_name: Mapped[Optional[str]] = mapped_column(String(255))
+    npi: Mapped[Optional[str]] = mapped_column(String(20))
+    dea: Mapped[Optional[str]] = mapped_column(String(20))
+    specialty_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    care_site_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.care_site.care_site_id")
+    )
+    year_of_birth: Mapped[Optional[int]]
+    gender_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    provider_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    specialty_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    specialty_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    gender_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    gender_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
 
-    care_site = relationship("CareSite")
-    gender_concept = relationship(
-        "Concept", primaryjoin="Provider.gender_concept_id == Concept.concept_id"
+    care_site: Mapped["CareSite"] = relationship()
+    gender_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Provider.gender_concept_id == Concept.concept_id"
     )
-    gender_source_concept = relationship(
-        "Concept", primaryjoin="Provider.gender_source_concept_id == Concept.concept_id"
+    gender_source_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Provider.gender_source_concept_id == Concept.concept_id"
     )
-    specialty_concept = relationship(
-        "Concept", primaryjoin="Provider.specialty_concept_id == Concept.concept_id"
+    specialty_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Provider.specialty_concept_id == Concept.concept_id"
     )
-    specialty_source_concept = relationship(
-        "Concept",
+    specialty_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="Provider.specialty_source_concept_id == Concept.concept_id",
     )
 
@@ -518,54 +538,66 @@ class Person(Base):  # noqa: D101
     __tablename__ = "person"
     __table_args__ = {"schema": "cds_cdm"}
 
-    person_id = Column(
-        Integer,
+    person_id: Mapped[int] = mapped_column(
         primary_key=True,
         index=True,
     )
-    gender_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    gender_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    year_of_birth: Mapped[int] = mapped_column(Integer, nullable=False)
-    month_of_birth: Mapped[int] = mapped_column(Integer)
-    day_of_birth: Mapped[int] = mapped_column(Integer)
-    birth_datetime: Mapped[datetime] = mapped_column(DateTime)
-    race_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"), nullable=False)
-    ethnicity_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    year_of_birth: Mapped[int]
+    month_of_birth: Mapped[Optional[int]]
+    day_of_birth: Mapped[Optional[int]]
+    birth_datetime: Mapped[Optional[datetime]]
+    race_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    location_id = Column(ForeignKey("cds_cdm.location.location_id"))
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    care_site_id = Column(ForeignKey("cds_cdm.care_site.care_site_id"))
-    person_source_value: Mapped[str] = mapped_column(String(50))
-    gender_source_value: Mapped[str] = mapped_column(String(50))
-    gender_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    race_source_value: Mapped[str] = mapped_column(String(50))
-    race_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    ethnicity_source_value: Mapped[str] = mapped_column(String(50))
-    ethnicity_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
+    ethnicity_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    location_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.location.location_id")
+    )
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    care_site_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.care_site.care_site_id")
+    )
+    person_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    gender_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    gender_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    race_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    race_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    ethnicity_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    ethnicity_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
 
-    care_site = relationship("CareSite")
-    ethnicity_concept = relationship(
-        "Concept", primaryjoin="Person.ethnicity_concept_id == Concept.concept_id"
+    care_site: Mapped["CareSite"] = relationship()
+    ethnicity_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Person.ethnicity_concept_id == Concept.concept_id"
     )
-    ethnicity_source_concept = relationship(
-        "Concept",
+    ethnicity_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="Person.ethnicity_source_concept_id == Concept.concept_id",
     )
-    gender_concept = relationship(
-        "Concept", primaryjoin="Person.gender_concept_id == Concept.concept_id"
+    gender_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Person.gender_concept_id == Concept.concept_id"
     )
-    gender_source_concept = relationship(
-        "Concept", primaryjoin="Person.gender_source_concept_id == Concept.concept_id"
+    gender_source_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Person.gender_source_concept_id == Concept.concept_id"
     )
-    location = relationship("Location")
-    provider = relationship("Provider")
-    race_concept = relationship(
-        "Concept", primaryjoin="Person.race_concept_id == Concept.concept_id"
+    location: Mapped["Location"] = relationship()
+    provider: Mapped["Provider"] = relationship()
+    race_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Person.race_concept_id == Concept.concept_id"
     )
-    race_source_concept = relationship(
-        "Concept", primaryjoin="Person.race_source_concept_id == Concept.concept_id"
+    race_source_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Person.race_source_concept_id == Concept.concept_id"
     )
 
 
@@ -573,22 +605,21 @@ class ConditionEra(Base):  # noqa: D101
     __tablename__ = "condition_era"
     __table_args__ = {"schema": "cds_cdm"}
 
-    condition_era_id = Column(
-        Integer,
+    condition_era_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    condition_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    condition_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    condition_era_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    condition_era_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    condition_occurrence_count: Mapped[int] = mapped_column(Integer)
+    condition_era_start_date: Mapped[date]
+    condition_era_end_date: Mapped[date]
+    condition_occurrence_count: Mapped[Optional[int]]
 
-    condition_concept = relationship("Concept")
-    person = relationship("Person")
+    condition_concept: Mapped["Concept"] = relationship()
+    person: Mapped["Person"] = relationship()
 
 
 t_death = Table(
@@ -611,27 +642,28 @@ class DoseEra(Base):  # noqa: D101
     __tablename__ = "dose_era"
     __table_args__ = {"schema": "cds_cdm"}
 
-    dose_era_id = Column(
-        Integer,
+    dose_era_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    drug_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    drug_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    unit_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"), nullable=False)
+    unit_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
     dose_value = Column(Numeric, nullable=False)
-    dose_era_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    dose_era_end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    dose_era_start_date: Mapped[date]
+    dose_era_end_date: Mapped[date]
 
-    drug_concept = relationship(
-        "Concept", primaryjoin="DoseEra.drug_concept_id == Concept.concept_id"
+    drug_concept: Mapped["Concept"] = relationship(
+        primaryjoin="DoseEra.drug_concept_id == Concept.concept_id"
     )
-    person = relationship("Person")
-    unit_concept = relationship(
-        "Concept", primaryjoin="DoseEra.unit_concept_id == Concept.concept_id"
+    person: Mapped["Person"] = relationship()
+    unit_concept: Mapped["Concept"] = relationship(
+        primaryjoin="DoseEra.unit_concept_id == Concept.concept_id"
     )
 
 
@@ -639,144 +671,152 @@ class DrugEra(Base):  # noqa: D101
     __tablename__ = "drug_era"
     __table_args__ = {"schema": "cds_cdm"}
 
-    drug_era_id = Column(
-        Integer,
+    drug_era_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    drug_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    drug_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    drug_era_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    drug_era_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    drug_exposure_count: Mapped[int] = mapped_column(Integer)
-    gap_days: Mapped[int] = mapped_column(Integer)
+    drug_era_start_date: Mapped[date]
+    drug_era_end_date: Mapped[date]
+    drug_exposure_count: Mapped[Optional[int]]
+    gap_days: Mapped[Optional[int]]
 
-    drug_concept = relationship("Concept")
-    person = relationship("Person")
+    drug_concept: Mapped["Concept"] = relationship()
+    person: Mapped["Person"] = relationship()
 
 
 class Episode(Base):  # noqa: D101
     __tablename__ = "episode"
     __table_args__ = {"schema": "cds_cdm"}
 
-    episode_id = Column(
-        Integer,
+    episode_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(ForeignKey("cds_cdm.person.person_id"), nullable=False)
-    episode_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    person_id: Mapped[int] = mapped_column(ForeignKey("cds_cdm.person.person_id"))
+    episode_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    episode_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    episode_start_datetime: Mapped[datetime] = mapped_column(DateTime)
-    episode_end_date: Mapped[date] = mapped_column(Date)
-    episode_end_datetime: Mapped[datetime] = mapped_column(DateTime)
-    episode_parent_id: Mapped[int] = mapped_column(Integer)
-    episode_number: Mapped[int] = mapped_column(Integer)
-    episode_object_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    episode_start_date: Mapped[date]
+    episode_start_datetime: Mapped[Optional[datetime]]
+    episode_end_date: Mapped[Optional[date]]
+    episode_end_datetime: Mapped[Optional[datetime]]
+    episode_parent_id: Mapped[Optional[int]]
+    episode_number: Mapped[Optional[int]]
+    episode_object_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    episode_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    episode_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    episode_source_value: Mapped[str] = mapped_column(String(50))
-    episode_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
+    episode_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    episode_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
 
-    episode_concept = relationship(
-        "Concept", primaryjoin="Episode.episode_concept_id == Concept.concept_id"
+    episode_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Episode.episode_concept_id == Concept.concept_id"
     )
-    episode_object_concept = relationship(
-        "Concept", primaryjoin="Episode.episode_object_concept_id == Concept.concept_id"
+    episode_object_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Episode.episode_object_concept_id == Concept.concept_id"
     )
-    episode_source_concept = relationship(
-        "Concept", primaryjoin="Episode.episode_source_concept_id == Concept.concept_id"
+    episode_source_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Episode.episode_source_concept_id == Concept.concept_id"
     )
-    episode_type_concept = relationship(
-        "Concept", primaryjoin="Episode.episode_type_concept_id == Concept.concept_id"
+    episode_type_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Episode.episode_type_concept_id == Concept.concept_id"
     )
-    person = relationship("Person")
+    person: Mapped["Person"] = relationship()
 
 
 class ObservationPeriod(Base):  # noqa: D101
     __tablename__ = "observation_period"
     __table_args__ = {"schema": "cds_cdm"}
 
-    observation_period_id = Column(
-        Integer,
+    observation_period_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    observation_period_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    observation_period_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    period_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    observation_period_start_date: Mapped[date]
+    observation_period_end_date: Mapped[date]
+    period_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
 
-    period_type_concept = relationship("Concept")
-    person = relationship("Person")
+    period_type_concept: Mapped["Concept"] = relationship()
+    person: Mapped["Person"] = relationship()
 
 
 class PayerPlanPeriod(Base):  # noqa: D101
     __tablename__ = "payer_plan_period"
     __table_args__ = {"schema": "cds_cdm"}
 
-    payer_plan_period_id = Column(
-        Integer,
+    payer_plan_period_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    payer_plan_period_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    payer_plan_period_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    payer_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    payer_source_value: Mapped[str] = mapped_column(String(50))
-    payer_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    plan_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    plan_source_value: Mapped[str] = mapped_column(String(50))
-    plan_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    sponsor_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    sponsor_source_value: Mapped[str] = mapped_column(String(50))
-    sponsor_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    family_source_value: Mapped[str] = mapped_column(String(50))
-    stop_reason_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    stop_reason_source_value: Mapped[str] = mapped_column(String(50))
-    stop_reason_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
+    payer_plan_period_start_date: Mapped[date]
+    payer_plan_period_end_date: Mapped[date]
+    payer_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    payer_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    payer_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    plan_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    plan_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    plan_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    sponsor_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    sponsor_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    sponsor_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    family_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    stop_reason_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    stop_reason_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    stop_reason_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
 
-    payer_concept = relationship(
-        "Concept", primaryjoin="PayerPlanPeriod.payer_concept_id == Concept.concept_id"
+    payer_concept: Mapped["Concept"] = relationship(
+        primaryjoin="PayerPlanPeriod.payer_concept_id == Concept.concept_id"
     )
-    payer_source_concept = relationship(
-        "Concept",
+    payer_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="PayerPlanPeriod.payer_source_concept_id == Concept.concept_id",
     )
-    person = relationship("Person")
-    plan_concept = relationship(
-        "Concept", primaryjoin="PayerPlanPeriod.plan_concept_id == Concept.concept_id"
+    person: Mapped["Person"] = relationship()
+    plan_concept: Mapped["Concept"] = relationship(
+        primaryjoin="PayerPlanPeriod.plan_concept_id == Concept.concept_id"
     )
-    plan_source_concept = relationship(
-        "Concept",
+    plan_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="PayerPlanPeriod.plan_source_concept_id == Concept.concept_id",
     )
-    sponsor_concept = relationship(
-        "Concept",
+    sponsor_concept: Mapped["Concept"] = relationship(
         primaryjoin="PayerPlanPeriod.sponsor_concept_id == Concept.concept_id",
     )
-    sponsor_source_concept = relationship(
-        "Concept",
+    sponsor_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="PayerPlanPeriod.sponsor_source_concept_id == Concept.concept_id",
     )
-    stop_reason_concept = relationship(
-        "Concept",
+    stop_reason_concept: Mapped["Concept"] = relationship(
         primaryjoin="PayerPlanPeriod.stop_reason_concept_id == Concept.concept_id",
     )
-    stop_reason_source_concept = relationship(
-        "Concept",
+    stop_reason_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="PayerPlanPeriod.stop_reason_source_concept_id == Concept.concept_id",
     )
 
@@ -785,47 +825,51 @@ class Speciman(Base):  # noqa: D101
     __tablename__ = "specimen"
     __table_args__ = {"schema": "cds_cdm"}
 
-    specimen_id = Column(
-        Integer,
+    specimen_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    specimen_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    specimen_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    specimen_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    specimen_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    specimen_date: Mapped[date] = mapped_column(Date, nullable=False)
-    specimen_datetime: Mapped[datetime] = mapped_column(DateTime)
-    quantity = Column(Numeric)
-    unit_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    anatomic_site_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    disease_status_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    specimen_source_id: Mapped[str] = mapped_column(String(50))
-    specimen_source_value: Mapped[str] = mapped_column(String(50))
-    unit_source_value: Mapped[str] = mapped_column(String(50))
-    anatomic_site_source_value: Mapped[str] = mapped_column(String(50))
-    disease_status_source_value: Mapped[str] = mapped_column(String(50))
+    specimen_date: Mapped[date]
+    specimen_datetime: Mapped[Optional[datetime]]
+    quantity = mapped_column(Numeric, nullable=True)
+    unit_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    anatomic_site_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    disease_status_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    specimen_source_id: Mapped[Optional[str]] = mapped_column(String(50))
+    specimen_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    anatomic_site_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    disease_status_source_value: Mapped[Optional[str]] = mapped_column(String(50))
 
-    anatomic_site_concept = relationship(
-        "Concept", primaryjoin="Speciman.anatomic_site_concept_id == Concept.concept_id"
+    anatomic_site_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Speciman.anatomic_site_concept_id == Concept.concept_id"
     )
-    disease_status_concept = relationship(
-        "Concept",
+    disease_status_concept: Mapped["Concept"] = relationship(
         primaryjoin="Speciman.disease_status_concept_id == Concept.concept_id",
     )
-    person = relationship("Person")
-    specimen_concept = relationship(
-        "Concept", primaryjoin="Speciman.specimen_concept_id == Concept.concept_id"
+    person: Mapped["Person"] = relationship()
+    specimen_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Speciman.specimen_concept_id == Concept.concept_id"
     )
-    specimen_type_concept = relationship(
-        "Concept", primaryjoin="Speciman.specimen_type_concept_id == Concept.concept_id"
+    specimen_type_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Speciman.specimen_type_concept_id == Concept.concept_id"
     )
-    unit_concept = relationship(
-        "Concept", primaryjoin="Speciman.unit_concept_id == Concept.concept_id"
+    unit_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Speciman.unit_concept_id == Concept.concept_id"
     )
 
 
@@ -833,58 +877,63 @@ class VisitOccurrence(Base):  # noqa: D101
     __tablename__ = "visit_occurrence"
     __table_args__ = {"schema": "cds_cdm"}
 
-    visit_occurrence_id = Column(
-        Integer,
+    visit_occurrence_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    visit_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    visit_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    visit_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    visit_start_datetime: Mapped[datetime] = mapped_column(DateTime)
-    visit_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    visit_end_datetime: Mapped[datetime] = mapped_column(DateTime)
-    visit_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    visit_start_date: Mapped[date]
+    visit_start_datetime: Mapped[Optional[datetime]]
+    visit_end_date: Mapped[date]
+    visit_end_datetime: Mapped[Optional[datetime]]
+    visit_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    care_site_id = Column(ForeignKey("cds_cdm.care_site.care_site_id"))
-    visit_source_value: Mapped[str] = mapped_column(String(50))
-    visit_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    admitted_from_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    admitted_from_source_value: Mapped[str] = mapped_column(String(50))
-    discharged_to_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    discharged_to_source_value: Mapped[str] = mapped_column(String(50))
-    preceding_visit_occurrence_id = Column(
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    care_site_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.care_site.care_site_id")
+    )
+    visit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    visit_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    admitted_from_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    admitted_from_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    discharged_to_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    discharged_to_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    preceding_visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id")
     )
 
-    admitted_from_concept = relationship(
-        "Concept",
+    admitted_from_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitOccurrence.admitted_from_concept_id == Concept.concept_id",
     )
-    care_site = relationship("CareSite")
-    discharged_to_concept = relationship(
-        "Concept",
+    care_site: Mapped["CareSite"] = relationship()
+    discharged_to_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitOccurrence.discharged_to_concept_id == Concept.concept_id",
     )
-    person = relationship("Person")
-    preceding_visit_occurrence = relationship(
-        "VisitOccurrence", remote_side=[visit_occurrence_id]
+    person: Mapped["Person"] = relationship()
+    preceding_visit_occurrence: Mapped["VisitOccurrence"] = relationship(
+        remote_side=[visit_occurrence_id]
     )
-    provider = relationship("Provider")
-    visit_concept = relationship(
-        "Concept", primaryjoin="VisitOccurrence.visit_concept_id == Concept.concept_id"
+    provider: Mapped["Provider"] = relationship()
+    visit_concept: Mapped["Concept"] = relationship(
+        primaryjoin="VisitOccurrence.visit_concept_id == Concept.concept_id"
     )
-    visit_source_concept = relationship(
-        "Concept",
+    visit_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitOccurrence.visit_source_concept_id == Concept.concept_id",
     )
-    visit_type_concept = relationship(
-        "Concept",
+    visit_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitOccurrence.visit_type_concept_id == Concept.concept_id",
     )
 
@@ -907,496 +956,541 @@ class VisitDetail(Base):  # noqa: D101
     __tablename__ = "visit_detail"
     __table_args__ = {"schema": "cds_cdm"}
 
-    visit_detail_id = Column(
-        Integer,
+    visit_detail_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    visit_detail_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    visit_detail_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    visit_detail_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    visit_detail_start_datetime: Mapped[datetime] = mapped_column(DateTime)
-    visit_detail_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    visit_detail_end_datetime: Mapped[datetime] = mapped_column(DateTime)
-    visit_detail_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    visit_detail_start_date: Mapped[date]
+    visit_detail_start_datetime: Mapped[Optional[datetime]]
+    visit_detail_end_date: Mapped[date]
+    visit_detail_end_datetime: Mapped[Optional[datetime]]
+    visit_detail_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    care_site_id = Column(ForeignKey("cds_cdm.care_site.care_site_id"))
-    visit_detail_source_value: Mapped[str] = mapped_column(String(50))
-    visit_detail_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    admitted_from_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    admitted_from_source_value: Mapped[str] = mapped_column(String(50))
-    discharged_to_source_value: Mapped[str] = mapped_column(String(50))
-    discharged_to_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    preceding_visit_detail_id = Column(
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    care_site_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.care_site.care_site_id")
+    )
+    visit_detail_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    visit_detail_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    admitted_from_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    admitted_from_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    discharged_to_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    discharged_to_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    preceding_visit_detail_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_detail.visit_detail_id")
     )
-    parent_visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    visit_occurrence_id = Column(
+    parent_visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+    )
+    visit_occurrence_id: Mapped[int] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"),
-        nullable=False,
         index=True,
     )
 
-    admitted_from_concept = relationship(
-        "Concept",
+    admitted_from_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitDetail.admitted_from_concept_id == Concept.concept_id",
     )
-    care_site = relationship("CareSite")
-    discharged_to_concept = relationship(
-        "Concept",
+    care_site: Mapped["CareSite"] = relationship()
+    discharged_to_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitDetail.discharged_to_concept_id == Concept.concept_id",
     )
-    parent_visit_detail = relationship(
-        "VisitDetail",
+    parent_visit_detail: Mapped["VisitDetail"] = relationship(
         remote_side=[visit_detail_id],
         primaryjoin="VisitDetail.parent_visit_detail_id == VisitDetail.visit_detail_id",
     )
-    person = relationship("Person")
-    preceding_visit_detail = relationship(
-        "VisitDetail",
+    person: Mapped["Person"] = relationship()
+    preceding_visit_detail: Mapped["VisitDetail"] = relationship(
         remote_side=[visit_detail_id],
         primaryjoin="VisitDetail.preceding_visit_detail_id == VisitDetail.visit_detail_id",
     )
-    provider = relationship("Provider")
-    visit_detail_concept = relationship(
-        "Concept",
+    provider: Mapped["Provider"] = relationship()
+    visit_detail_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitDetail.visit_detail_concept_id == Concept.concept_id",
     )
-    visit_detail_source_concept = relationship(
-        "Concept",
+    visit_detail_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitDetail.visit_detail_source_concept_id == Concept.concept_id",
     )
-    visit_detail_type_concept = relationship(
-        "Concept",
+    visit_detail_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="VisitDetail.visit_detail_type_concept_id == Concept.concept_id",
     )
-    visit_occurrence = relationship("VisitOccurrence")
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()
 
 
 class ConditionOccurrence(Base):  # noqa: D101
     __tablename__ = "condition_occurrence"
     __table_args__ = {"schema": "cds_cdm"}
 
-    condition_occurrence_id = Column(
-        Integer,
+    condition_occurrence_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    condition_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    condition_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    condition_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    condition_start_datetime: Mapped[datetime] = mapped_column(DateTime)
-    condition_end_date: Mapped[date] = mapped_column(Date)
-    condition_end_datetime: Mapped[datetime] = mapped_column(DateTime)
-    condition_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    condition_start_date: Mapped[date]
+    condition_start_datetime: Mapped[Optional[datetime]]
+    condition_end_date: Mapped[Optional[date]]
+    condition_end_datetime: Mapped[Optional[datetime]]
+    condition_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    condition_status_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    stop_reason: Mapped[str] = mapped_column(String(20))
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    visit_occurrence_id = Column(
+    condition_status_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    stop_reason: Mapped[Optional[str]] = mapped_column(String(20))
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    condition_source_value: Mapped[str] = mapped_column(String(50))
-    condition_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    condition_status_source_value: Mapped[str] = mapped_column(String(50))
+    visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+    )
+    condition_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    condition_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    condition_status_source_value: Mapped[Optional[str]] = mapped_column(String(50))
 
-    condition_concept = relationship(
-        "Concept",
+    condition_concept: Mapped["Concept"] = relationship(
         primaryjoin="ConditionOccurrence.condition_concept_id == Concept.concept_id",
     )
-    condition_source_concept = relationship(
-        "Concept",
+    condition_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="ConditionOccurrence.condition_source_concept_id == Concept.concept_id",
     )
-    condition_status_concept = relationship(
-        "Concept",
+    condition_status_concept: Mapped["Concept"] = relationship(
         primaryjoin="ConditionOccurrence.condition_status_concept_id == Concept.concept_id",
     )
-    condition_type_concept = relationship(
-        "Concept",
+    condition_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="ConditionOccurrence.condition_type_concept_id == Concept.concept_id",
     )
-    person = relationship("Person")
-    provider = relationship("Provider")
-    visit_detail = relationship("VisitDetail")
-    visit_occurrence = relationship("VisitOccurrence")
+    person: Mapped["Person"] = relationship()
+    provider: Mapped["Provider"] = relationship()
+    visit_detail: Mapped["VisitDetail"] = relationship()
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()
 
 
 class DeviceExposure(Base):  # noqa: D101
     __tablename__ = "device_exposure"
     __table_args__ = {"schema": "cds_cdm"}
 
-    device_exposure_id = Column(
-        Integer,
+    device_exposure_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    device_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    device_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    device_exposure_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    device_exposure_start_datetime: Mapped[datetime] = mapped_column(DateTime)
-    device_exposure_end_date: Mapped[date] = mapped_column(Date)
-    device_exposure_end_datetime: Mapped[datetime] = mapped_column(DateTime)
-    device_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    device_exposure_start_date: Mapped[date]
+    device_exposure_start_datetime: Mapped[Optional[datetime]]
+    device_exposure_end_date: Mapped[Optional[date]]
+    device_exposure_end_datetime: Mapped[Optional[datetime]]
+    device_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    unique_device_id: Mapped[str] = mapped_column(String(255))
-    production_id: Mapped[str] = mapped_column(String(255))
-    quantity: Mapped[int] = mapped_column(Integer)
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    visit_occurrence_id = Column(
+    unique_device_id: Mapped[Optional[str]] = mapped_column(String(255))
+    production_id: Mapped[Optional[str]] = mapped_column(String(255))
+    quantity: Mapped[int]
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    device_source_value: Mapped[str] = mapped_column(String(50))
-    device_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    unit_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    unit_source_value: Mapped[str] = mapped_column(String(50))
-    unit_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-
-    device_concept = relationship(
-        "Concept", primaryjoin="DeviceExposure.device_concept_id == Concept.concept_id"
+    visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
     )
-    device_source_concept = relationship(
-        "Concept",
+    device_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    device_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    unit_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    unit_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+
+    device_concept: Mapped["Concept"] = relationship(
+        primaryjoin="DeviceExposure.device_concept_id == Concept.concept_id"
+    )
+    device_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="DeviceExposure.device_source_concept_id == Concept.concept_id",
     )
-    device_type_concept = relationship(
-        "Concept",
+    device_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="DeviceExposure.device_type_concept_id == Concept.concept_id",
     )
-    person = relationship("Person")
-    provider = relationship("Provider")
-    unit_concept = relationship(
-        "Concept", primaryjoin="DeviceExposure.unit_concept_id == Concept.concept_id"
+    person: Mapped["Person"] = relationship()
+    provider: Mapped["Provider"] = relationship()
+    unit_concept: Mapped["Concept"] = relationship(
+        primaryjoin="DeviceExposure.unit_concept_id == Concept.concept_id"
     )
-    unit_source_concept = relationship(
-        "Concept",
+    unit_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="DeviceExposure.unit_source_concept_id == Concept.concept_id",
     )
-    visit_detail = relationship("VisitDetail")
-    visit_occurrence = relationship("VisitOccurrence")
+    visit_detail: Mapped["VisitDetail"] = relationship()
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()
 
 
 class DrugExposure(Base):  # noqa: D101
     __tablename__ = "drug_exposure"
     __table_args__ = {"schema": "cds_cdm"}
 
-    drug_exposure_id = Column(
-        Integer,
+    drug_exposure_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    drug_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    drug_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    drug_exposure_start_date: Mapped[date] = mapped_column(Date, nullable=False)
-    drug_exposure_start_datetime: Mapped[datetime] = mapped_column(DateTime)
-    drug_exposure_end_date: Mapped[date] = mapped_column(Date, nullable=False)
-    drug_exposure_end_datetime: Mapped[datetime] = mapped_column(DateTime)
-    verbatim_end_date: Mapped[date] = mapped_column(Date)
-    drug_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    drug_exposure_start_date: Mapped[date]
+    drug_exposure_start_datetime: Mapped[Optional[datetime]]
+    drug_exposure_end_date: Mapped[date]
+    drug_exposure_end_datetime: Mapped[Optional[datetime]]
+    verbatim_end_date: Mapped[Optional[date]]
+    drug_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    stop_reason: Mapped[str] = mapped_column(String(20))
-    refills: Mapped[int] = mapped_column(Integer)
-    quantity = Column(Numeric)
-    days_supply: Mapped[int] = mapped_column(Integer)
-    sig = Column(Text)
-    route_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    lot_number: Mapped[str] = mapped_column(String(50))
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    visit_occurrence_id = Column(
+    stop_reason: Mapped[Optional[str]] = mapped_column(String(20))
+    refills: Mapped[Optional[int]]
+    quantity = mapped_column(Numeric, nullable=True)
+    days_supply: Mapped[Optional[int]]
+    sig = Column(Text)  # ToDo: map to mapped_column
+    route_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    lot_number: Mapped[Optional[str]] = mapped_column(String(50))
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    drug_source_value: Mapped[str] = mapped_column(String(50))
-    drug_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    route_source_value: Mapped[str] = mapped_column(String(50))
-    dose_unit_source_value: Mapped[str] = mapped_column(String(50))
-
-    drug_concept = relationship(
-        "Concept", primaryjoin="DrugExposure.drug_concept_id == Concept.concept_id"
+    visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
     )
-    drug_source_concept = relationship(
-        "Concept",
+    drug_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    drug_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    route_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    dose_unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+
+    drug_concept: Mapped["Concept"] = relationship(
+        primaryjoin="DrugExposure.drug_concept_id == Concept.concept_id"
+    )
+    drug_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="DrugExposure.drug_source_concept_id == Concept.concept_id",
     )
-    drug_type_concept = relationship(
-        "Concept", primaryjoin="DrugExposure.drug_type_concept_id == Concept.concept_id"
+    drug_type_concept: Mapped["Concept"] = relationship(
+        primaryjoin="DrugExposure.drug_type_concept_id == Concept.concept_id"
     )
-    person = relationship("Person")
-    provider = relationship("Provider")
-    route_concept = relationship(
-        "Concept", primaryjoin="DrugExposure.route_concept_id == Concept.concept_id"
+    person: Mapped["Person"] = relationship()
+    provider: Mapped["Provider"] = relationship()
+    route_concept: Mapped["Concept"] = relationship(
+        primaryjoin="DrugExposure.route_concept_id == Concept.concept_id"
     )
-    visit_detail = relationship("VisitDetail")
-    visit_occurrence = relationship("VisitOccurrence")
+    visit_detail: Mapped["VisitDetail"] = relationship()
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()
 
 
 class Measurement(Base):  # noqa: D101
     __tablename__ = "measurement"
     __table_args__ = {"schema": "cds_cdm"}
 
-    measurement_id = Column(
-        Integer,
+    measurement_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    measurement_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    measurement_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    measurement_date: Mapped[date] = mapped_column(Date, nullable=False)
-    measurement_datetime: Mapped[datetime] = mapped_column(DateTime)
-    measurement_time: Mapped[str] = mapped_column(String(10))
-    measurement_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    measurement_date: Mapped[date]
+    measurement_datetime: Mapped[Optional[datetime]]
+    measurement_time: Mapped[Optional[str]] = mapped_column(String(10))
+    measurement_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    operator_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    value_as_number = Column(Numeric)
-    value_as_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    unit_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    range_low = Column(Numeric)
-    range_high = Column(Numeric)
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    visit_occurrence_id = Column(
+    operator_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    value_as_number = mapped_column(Numeric, nullable=True)
+    value_as_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    unit_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    range_low = mapped_column(Numeric, nullable=True)
+    range_high = mapped_column(Numeric, nullable=True)
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    measurement_source_value: Mapped[str] = mapped_column(String(50))
-    measurement_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    unit_source_value: Mapped[str] = mapped_column(String(50))
-    unit_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    value_source_value: Mapped[str] = mapped_column(String(50))
-    measurement_event_id: Mapped[int] = mapped_column(Integer)
-    meas_event_field_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
+    visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+    )
+    measurement_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    measurement_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    unit_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    value_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    measurement_event_id: Mapped[Optional[int]]
+    meas_event_field_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
 
-    meas_event_field_concept = relationship(
-        "Concept",
+    meas_event_field_concept: Mapped["Concept"] = relationship(
         primaryjoin="Measurement.meas_event_field_concept_id == Concept.concept_id",
     )
-    measurement_concept = relationship(
-        "Concept",
+    measurement_concept: Mapped["Concept"] = relationship(
         primaryjoin="Measurement.measurement_concept_id == Concept.concept_id",
     )
-    measurement_source_concept = relationship(
-        "Concept",
+    measurement_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="Measurement.measurement_source_concept_id == Concept.concept_id",
     )
-    measurement_type_concept = relationship(
-        "Concept",
+    measurement_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="Measurement.measurement_type_concept_id == Concept.concept_id",
     )
-    operator_concept = relationship(
-        "Concept", primaryjoin="Measurement.operator_concept_id == Concept.concept_id"
+    operator_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Measurement.operator_concept_id == Concept.concept_id"
     )
-    person = relationship("Person")
-    provider = relationship("Provider")
-    unit_concept = relationship(
-        "Concept", primaryjoin="Measurement.unit_concept_id == Concept.concept_id"
+    person: Mapped["Person"] = relationship()
+    provider: Mapped["Provider"] = relationship()
+    unit_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Measurement.unit_concept_id == Concept.concept_id"
     )
-    unit_source_concept = relationship(
-        "Concept",
+    unit_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="Measurement.unit_source_concept_id == Concept.concept_id",
     )
-    value_as_concept = relationship(
-        "Concept", primaryjoin="Measurement.value_as_concept_id == Concept.concept_id"
+    value_as_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Measurement.value_as_concept_id == Concept.concept_id"
     )
-    visit_detail = relationship("VisitDetail")
-    visit_occurrence = relationship("VisitOccurrence")
+    visit_detail: Mapped["VisitDetail"] = relationship()
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()
 
 
 class Note(Base):  # noqa: D101
     __tablename__ = "note"
     __table_args__ = {"schema": "cds_cdm"}
 
-    note_id = Column(
-        Integer,
+    note_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    note_date: Mapped[date] = mapped_column(Date, nullable=False)
-    note_datetime: Mapped[datetime] = mapped_column(DateTime)
-    note_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    note_date: Mapped[date]
+    note_datetime: Mapped[Optional[datetime]]
+    note_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    note_class_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    note_class_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    note_title: Mapped[str] = mapped_column(String(250))
-    note_text = Column(Text, nullable=False)
-    encoding_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    note_title: Mapped[Optional[str]] = mapped_column(String(250))
+    note_text = Column(Text)  # todo: map to mapped_column
+    encoding_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    language_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    language_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    visit_occurrence_id = Column(
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    note_source_value: Mapped[str] = mapped_column(String(50))
-    note_event_id: Mapped[int] = mapped_column(Integer)
-    note_event_field_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
+    visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+    )
+    note_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    note_event_id: Mapped[Optional[int]]
+    note_event_field_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
 
-    encoding_concept = relationship(
-        "Concept", primaryjoin="Note.encoding_concept_id == Concept.concept_id"
+    encoding_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Note.encoding_concept_id == Concept.concept_id"
     )
-    language_concept = relationship(
-        "Concept", primaryjoin="Note.language_concept_id == Concept.concept_id"
+    language_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Note.language_concept_id == Concept.concept_id"
     )
-    note_class_concept = relationship(
-        "Concept", primaryjoin="Note.note_class_concept_id == Concept.concept_id"
+    note_class_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Note.note_class_concept_id == Concept.concept_id"
     )
-    note_event_field_concept = relationship(
-        "Concept", primaryjoin="Note.note_event_field_concept_id == Concept.concept_id"
+    note_event_field_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Note.note_event_field_concept_id == Concept.concept_id"
     )
-    note_type_concept = relationship(
-        "Concept", primaryjoin="Note.note_type_concept_id == Concept.concept_id"
+    note_type_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Note.note_type_concept_id == Concept.concept_id"
     )
-    person = relationship("Person")
-    provider = relationship("Provider")
-    visit_detail = relationship("VisitDetail")
-    visit_occurrence = relationship("VisitOccurrence")
+    person: Mapped["Person"] = relationship()
+    provider: Mapped["Provider"] = relationship()
+    visit_detail: Mapped["VisitDetail"] = relationship()
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()
 
 
 class Observation(Base):  # noqa: D101
     __tablename__ = "observation"
     __table_args__ = {"schema": "cds_cdm"}
 
-    observation_id = Column(
-        Integer,
+    observation_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    observation_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    observation_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    observation_date: Mapped[date] = mapped_column(Date, nullable=False)
-    observation_datetime: Mapped[datetime] = mapped_column(DateTime)
-    observation_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    observation_date: Mapped[date]
+    observation_datetime: Mapped[Optional[datetime]]
+    observation_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    value_as_number = Column(Numeric)
-    value_as_string: Mapped[str] = mapped_column(String(60))
-    value_as_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    qualifier_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    unit_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    visit_occurrence_id = Column(
+    value_as_number = mapped_column(Numeric, nullable=True)
+    value_as_string: Mapped[Optional[str]] = mapped_column(String(60))
+    value_as_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    qualifier_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    unit_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    observation_source_value: Mapped[str] = mapped_column(String(50))
-    observation_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    unit_source_value: Mapped[str] = mapped_column(String(50))
-    qualifier_source_value: Mapped[str] = mapped_column(String(50))
-    value_source_value: Mapped[str] = mapped_column(String(50))
-    observation_event_id: Mapped[int] = mapped_column(Integer)
-    obs_event_field_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
+    visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+    )
+    observation_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    observation_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    qualifier_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    value_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    observation_event_id: Mapped[Optional[int]]
+    obs_event_field_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
 
-    obs_event_field_concept = relationship(
-        "Concept",
+    obs_event_field_concept: Mapped["Concept"] = relationship(
         primaryjoin="Observation.obs_event_field_concept_id == Concept.concept_id",
     )
-    observation_concept = relationship(
-        "Concept",
+    observation_concept: Mapped["Concept"] = relationship(
         primaryjoin="Observation.observation_concept_id == Concept.concept_id",
     )
-    observation_source_concept = relationship(
-        "Concept",
+    observation_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="Observation.observation_source_concept_id == Concept.concept_id",
     )
-    observation_type_concept = relationship(
-        "Concept",
+    observation_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="Observation.observation_type_concept_id == Concept.concept_id",
     )
-    person = relationship("Person")
-    provider = relationship("Provider")
-    qualifier_concept = relationship(
-        "Concept", primaryjoin="Observation.qualifier_concept_id == Concept.concept_id"
+    person: Mapped["Person"] = relationship()
+    provider: Mapped["Provider"] = relationship()
+    qualifier_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Observation.qualifier_concept_id == Concept.concept_id"
     )
-    unit_concept = relationship(
-        "Concept", primaryjoin="Observation.unit_concept_id == Concept.concept_id"
+    unit_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Observation.unit_concept_id == Concept.concept_id"
     )
-    value_as_concept = relationship(
-        "Concept", primaryjoin="Observation.value_as_concept_id == Concept.concept_id"
+    value_as_concept: Mapped["Concept"] = relationship(
+        primaryjoin="Observation.value_as_concept_id == Concept.concept_id"
     )
-    visit_detail = relationship("VisitDetail")
-    visit_occurrence = relationship("VisitOccurrence")
+    visit_detail: Mapped["VisitDetail"] = relationship()
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()
 
 
 class ProcedureOccurrence(Base):  # noqa: D101
     __tablename__ = "procedure_occurrence"
     __table_args__ = {"schema": "cds_cdm"}
 
-    procedure_occurrence_id = Column(
-        Integer,
+    procedure_occurrence_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id = Column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    procedure_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False, index=True
+    procedure_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id"), index=True
     )
-    procedure_date: Mapped[date] = mapped_column(Date, nullable=False)
-    procedure_datetime: Mapped[datetime] = mapped_column(DateTime)
-    procedure_end_date: Mapped[date] = mapped_column(Date)
-    procedure_end_datetime: Mapped[datetime] = mapped_column(DateTime)
-    procedure_type_concept_id = Column(
-        ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+    procedure_date: Mapped[date]
+    procedure_datetime: Mapped[Optional[datetime]]
+    procedure_end_date: Mapped[Optional[date]]
+    procedure_end_datetime: Mapped[Optional[datetime]]
+    procedure_type_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
     )
-    modifier_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    quantity: Mapped[int] = mapped_column(Integer)
-    provider_id = Column(ForeignKey("cds_cdm.provider.provider_id"))
-    visit_occurrence_id = Column(
+    modifier_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    quantity: Mapped[Optional[int]]
+    provider_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.provider.provider_id")
+    )
+    visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
     )
-    visit_detail_id = Column(ForeignKey("cds_cdm.visit_detail.visit_detail_id"))
-    procedure_source_value: Mapped[str] = mapped_column(String(50))
-    procedure_source_concept_id = Column(ForeignKey("cds_cdm.concept.concept_id"))
-    modifier_source_value: Mapped[str] = mapped_column(String(50))
+    visit_detail_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+    )
+    procedure_source_value: Mapped[Optional[str]] = mapped_column(String(50))
+    procedure_source_concept_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("cds_cdm.concept.concept_id")
+    )
+    modifier_source_value: Mapped[Optional[str]] = mapped_column(String(50))
 
-    modifier_concept = relationship(
-        "Concept",
+    modifier_concept: Mapped["Concept"] = relationship(
         primaryjoin="ProcedureOccurrence.modifier_concept_id == Concept.concept_id",
     )
-    person = relationship("Person")
-    procedure_concept = relationship(
-        "Concept",
+    person: Mapped["Person"] = relationship()
+    procedure_concept: Mapped["Concept"] = relationship(
         primaryjoin="ProcedureOccurrence.procedure_concept_id == Concept.concept_id",
     )
-    procedure_source_concept = relationship(
-        "Concept",
+    procedure_source_concept: Mapped["Concept"] = relationship(
         primaryjoin="ProcedureOccurrence.procedure_source_concept_id == Concept.concept_id",
     )
-    procedure_type_concept = relationship(
-        "Concept",
+    procedure_type_concept: Mapped["Concept"] = relationship(
         primaryjoin="ProcedureOccurrence.procedure_type_concept_id == Concept.concept_id",
     )
-    provider = relationship("Provider")
-    visit_detail = relationship("VisitDetail")
-    visit_occurrence = relationship("VisitOccurrence")
+    provider: Mapped["Provider"] = relationship()
+    visit_detail: Mapped["VisitDetail"] = relationship()
+    visit_occurrence: Mapped["VisitOccurrence"] = relationship()

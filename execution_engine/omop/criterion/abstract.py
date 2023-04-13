@@ -3,7 +3,7 @@ import hashlib
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, cast
+from typing import Any, Dict, Type, TypedDict, cast
 
 import sqlalchemy
 from sqlalchemy import (
@@ -35,6 +35,15 @@ from execution_engine.omop.db.cdm import (
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]
+
+Domain = TypedDict(
+    "Domain",
+    {
+        "table": Type[Base],
+        "value_required": bool,
+        "static": bool,
+    },
+)
 
 
 class AbstractCriterion(ABC):
@@ -138,7 +147,7 @@ class AbstractCriterion(ABC):
 class Criterion(AbstractCriterion):
     """A criterion in a cohort definition."""
 
-    _OMOP_TABLE: Base
+    _OMOP_TABLE: Type[Base]
     _OMOP_COLUMN_PREFIX: str
     _OMOP_VALUE_REQUIRED: bool
     _OMOP_DOMAIN: str
@@ -160,7 +169,7 @@ class Criterion(AbstractCriterion):
     during the cohort definition period).
     """
 
-    DOMAINS: dict[str, dict[str, Base | bool]] = {
+    DOMAINS: dict[str, Domain] = {
         "condition": {
             "table": ConditionOccurrence,
             "value_required": False,

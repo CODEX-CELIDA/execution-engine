@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 import sqlalchemy
 from pytest_postgresql import factories
-from sqlalchemy import create_engine, insert, select
+from sqlalchemy import create_engine, insert, select, text
 from sqlalchemy.orm.session import sessionmaker
 from tqdm import tqdm
 
@@ -61,13 +61,13 @@ def db_session(postgresql):
     )
     engine = create_engine(connection_str)
     with engine.connect() as con:
-        if not engine.dialect.has_schema(engine, "celida"):
-            engine.execute(sqlalchemy.schema.CreateSchema("celida"))
-        if not engine.dialect.has_schema(engine, "cds_cdm"):
-            engine.execute(sqlalchemy.schema.CreateSchema("cds_cdm"))
+        if not con.dialect.has_schema(con, "celida"):
+            con.execute(sqlalchemy.schema.CreateSchema("celida"))
+        if not con.dialect.has_schema(con, "cds_cdm"):
+            con.execute(sqlalchemy.schema.CreateSchema("cds_cdm"))
 
         con.execute(
-            "SET session_replication_role = 'replica';"
+            text("SET session_replication_role = 'replica';")
         )  # Disable foreign key checks
 
         metadata.create_all(con)
@@ -81,6 +81,8 @@ def db_session(postgresql):
         ]:
             df = pd.read_csv(f"tests/omop_cdm/{table}.csv.gz")
             df.to_sql(table, con, schema="cds_cdm", if_exists="append", index=False)
+
+        con.commit()
 
         logger.info("yielding a sessionmaker against the test postgres db.")
 
@@ -111,7 +113,9 @@ def create_test_data():
 def test_persons(db_session, create_test_data):
     s = db_session()
 
-    s.execute("SET session_replication_role = 'replica';")  # Disable foreign key checks
+    s.execute(
+        text("SET session_replication_role = 'replica';")
+    )  # Disable foreign key checks
 
     for obj in create_test_data:
         s.execute(obj)
@@ -127,13 +131,13 @@ def test_persons(db_session, create_test_data):
 
 @pytest.fixture
 def visit_start_date():
-    visit_start_date = datetime.date(2023, 3, 1)
+    visit_start_date = datetime.datetime(2023, 3, 1)
     return visit_start_date
 
 
 @pytest.fixture
 def visit_end_date():
-    visit_end_date = datetime.date(2023, 3, 31)
+    visit_end_date = datetime.datetime(2023, 3, 31)
     return visit_end_date
 
 
@@ -262,7 +266,7 @@ def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
     session = db_session()
 
     session.execute(
-        "SET session_replication_role = 'replica';"
+        text("SET session_replication_role = 'replica';")
     )  # Disable foreign key checks
 
     for person_id, g in tqdm(

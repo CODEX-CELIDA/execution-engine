@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from typing import Optional
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, LargeBinary, String
+from sqlalchemy import Enum, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from execution_engine.constants import CohortCategory
@@ -16,17 +17,17 @@ class CohortDefinition(Base):  # noqa: D101
         primary_key=True,
         index=True,
     )
-    recommendation_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    recommendation_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    recommendation_name: Mapped[str]
+    recommendation_title: Mapped[str]
     recommendation_url: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True
     )
-    recommendation_version: Mapped[str] = mapped_column(String(255), nullable=False)
+    recommendation_version: Mapped[str]
     cohort_definition_hash: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=True, unique=True
+        String(64), index=True, unique=True
     )
-    cohort_definition_json = mapped_column(LargeBinary, nullable=False)
-    create_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    cohort_definition_json = mapped_column(LargeBinary)
+    create_datetime: Mapped[datetime]
 
 
 class RecommendationRun(Base):  # noqa: D101
@@ -40,17 +41,13 @@ class RecommendationRun(Base):  # noqa: D101
     )
     cohort_definition_id = mapped_column(
         ForeignKey("celida.cohort_definition.cohort_definition_id"),
-        nullable=False,
         index=True,
     )
-    observation_start_datetime: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False
-    )
-    observation_end_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    run_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    observation_start_datetime: Mapped[datetime]
+    observation_end_datetime: Mapped[datetime]
+    run_datetime: Mapped[datetime]
 
-    cohort_definition = relationship(
-        "CohortDefinition",
+    cohort_definition: Mapped["CohortDefinition"] = relationship(
         primaryjoin="RecommendationRun.cohort_definition_id == CohortDefinition.cohort_definition_id",
     )
 
@@ -66,21 +63,15 @@ class RecommendationResult(Base):  # noqa: D101
     )
     recommendation_run_id = mapped_column(
         ForeignKey("celida.recommendation_run.recommendation_run_id"),
-        nullable=False,
         index=True,
     )
-    cohort_category = mapped_column(
-        Enum(CohortCategory, schema="celida"), nullable=False
-    )
-    recommendation_plan_name: Mapped[str] = mapped_column(String(255), nullable=True)
-    criterion_name: Mapped[str] = mapped_column(String(255), nullable=True)
-    valid_date: Mapped[date] = mapped_column(Date())
-    person_id = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
-    )
+    cohort_category = mapped_column(Enum(CohortCategory, schema="celida"))
+    recommendation_plan_name: Mapped[Optional[str]]
+    criterion_name: Mapped[Optional[str]]
+    valid_date: Mapped[date]
+    person_id = mapped_column(ForeignKey("cds_cdm.person.person_id"), index=True)
 
-    recommendation_run = relationship(
-        "RecommendationRun",
+    recommendation_run: Mapped["RecommendationRun"] = relationship(
         primaryjoin="RecommendationResult.recommendation_run_id == RecommendationRun.recommendation_run_id",
     )
 

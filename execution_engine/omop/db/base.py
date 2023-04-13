@@ -1,7 +1,10 @@
 # coding: utf-8
 
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm.decl_api import DeclarativeMeta
+from sqlalchemy.orm import DeclarativeBase
 
-Base: DeclarativeMeta = declarative_base()
+
+class Base(DeclarativeBase):  # noqa: D101
+    pass
+
+
 metadata = Base.metadata

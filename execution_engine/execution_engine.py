@@ -322,13 +322,13 @@ class ExecutionEngine:
         if version is not None:
             query.where(cd_table.c.recommendation_version == version)
 
-        cd_db = self._db.execute(query).mappings().fetchone()
+        cd_db = self._db.execute(query).fetchone()
 
         if cd_db is not None:
             cd = CohortDefinitionCombination.from_json(
-                cd_db["cohort_definition_json"].decode()
+                cd_db.cohort_definition_json.decode()
             )
-            cd.id = cd_db["cohort_definition_id"]
+            cd.id = cd_db.cohort_definition_id
             return cd
 
         return None
@@ -341,13 +341,9 @@ class ExecutionEngine:
         cd_json = cd.json()
         cd_hash = hashlib.sha256(cd_json).hexdigest()
 
-        cd_db = (
-            self._db.execute(
-                cd_table.select().where(cd_table.c.cohort_definition_hash == cd_hash)
-            )
-            .mappings()
-            .fetchone()
-        )
+        cd_db = self._db.execute(
+            cd_table.select().where(cd_table.c.cohort_definition_hash == cd_hash)
+        ).fetchone()
 
         if cd_db is not None:
             return cd_db.cohort_definition_id
@@ -380,19 +376,21 @@ class ExecutionEngine:
         end_datetime: datetime,
     ) -> int:
         """Registers the run in the result database."""
-
-        query = (
-            result_db.RecommendationRun.__table__.insert()
-            .values(
-                cohort_definition_id=cd.id,
-                observation_start_datetime=start_datetime,
-                observation_end_datetime=end_datetime,
-                run_datetime=datetime.now(),
+        with self._db.begin() as con:
+            query = (
+                result_db.RecommendationRun.__table__.insert()
+                .values(
+                    cohort_definition_id=cd.id,
+                    observation_start_datetime=start_datetime,
+                    observation_end_datetime=end_datetime,
+                    run_datetime=datetime.now(),
+                )
+                .returning(result_db.RecommendationRun.recommendation_run_id)
             )
-            .returning(result_db.RecommendationRun.recommendation_run_id)
-        )
 
-        return self._db.execute(query).fetchone()[0]
+            result = con.execute(query).fetchone()
+
+        return result.recommendation_run_id
 
     def execute_cohort_definition(
         self,
@@ -422,26 +420,28 @@ class ExecutionEngine:
         }
 
         """Executes the Cohort Definition"""
-        for statement in cd.process():
+        with self._db.begin() as con:
+            for statement in cd.process():
 
-            logging.debug(self._db.compile_query(statement.select, params))
+                logging.debug(self._db.compile_query(statement.select, params))
 
-            r = self._db.session.execute(
-                statement,
-                params,
-            )
+                r = con.execute(
+                    statement,
+                    params,
+                )
 
-            logging.debug(
-                f"Inserted {r.rowcount} rows into {statement.into.name if type(statement)==SelectInto else statement.table.name}."
-            )
+                logging.debug(
+                    f"Inserted {r.rowcount} rows into {statement.into.name if type(statement)==SelectInto else statement.table.name}."
+                )
 
     def cleanup(self, cd: CohortDefinitionCombination) -> None:
         """Cleans up the temporary tables."""
-        for statement in cd.cleanup():
+        with self._db.begin() as con:
+            for statement in cd.cleanup():
 
-            logging.debug(self._db.compile_query(statement))
+                logging.debug(self._db.compile_query(statement))
 
-            self._db.session.execute(statement)
+                con.execute(statement)
 
     def fetch_patients(self, run_id: int) -> dict:
         """Retrieve list of patients associated with a single run."""
