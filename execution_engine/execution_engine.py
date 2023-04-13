@@ -8,7 +8,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from sqlalchemy import and_, select
+from sqlalchemy import and_, insert, select
 
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
@@ -312,17 +312,18 @@ class ExecutionEngine:
         """
         Loads a recommendation from the database. If version is None, the latest created recommendation is returned.
         """
-        cd_table = result_db.CohortDefinition.__table__
+        cd_table = result_db.CohortDefinition
 
         query = (
-            cd_table.select()
-            .where(cd_table.c.recommendation_url == url)
-            .order_by(cd_table.c.create_datetime.desc())
+            select(cd_table)
+            .where(cd_table.recommendation_url == url)
+            .order_by(cd_table.create_datetime.desc())
         )
         if version is not None:
-            query.where(cd_table.c.recommendation_version == version)
+            query.where(cd_table.recommendation_version == version)
 
-        cd_db = self._db.execute(query).fetchone()
+        with self._db.connect() as con:
+            cd_db = con.execute(query).fetchone()
 
         if cd_db is not None:
             cd = CohortDefinitionCombination.from_json(
@@ -336,36 +337,36 @@ class ExecutionEngine:
     def register_cohort_definition(self, cd: CohortDefinitionCombination) -> int:
         """Registers the Cohort Definition in the result database."""
 
-        cd_table = result_db.CohortDefinition.__table__
+        cd_table = result_db.CohortDefinition
 
         cd_json = cd.json()
         cd_hash = hashlib.sha256(cd_json).hexdigest()
 
-        cd_db = self._db.execute(
-            cd_table.select().where(cd_table.c.cohort_definition_hash == cd_hash)
-        ).fetchone()
+        query = select(cd_table).where(cd_table.cohort_definition_hash == cd_hash)
 
-        if cd_db is not None:
-            return cd_db.cohort_definition_id
+        with self._db.begin() as con:
 
-        query = (
-            result_db.CohortDefinition.__table__.insert()
-            .values(
-                recommendation_name=cd.name,
-                recommendation_title=cd.title,
-                recommendation_url=cd.url,
-                recommendation_version=cd.version,
-                cohort_definition_hash=cd_hash,
-                cohort_definition_json=cd_json,
-                create_datetime=datetime.now(),
+            cd_db = con.execute(query).fetchone()
+
+            if cd_db is not None:
+                return cd_db.cohort_definition_id
+
+            query = (
+                insert(result_db.CohortDefinition)
+                .values(
+                    recommendation_name=cd.name,
+                    recommendation_title=cd.title,
+                    recommendation_url=cd.url,
+                    recommendation_version=cd.version,
+                    cohort_definition_hash=cd_hash,
+                    cohort_definition_json=cd_json,
+                    create_datetime=datetime.now(),
+                )
+                .returning(result_db.CohortDefinition.cohort_definition_id)
             )
-            .returning(result_db.CohortDefinition.cohort_definition_id)
-        )
 
-        result = self._db.execute(query)
-        cd.id = result.fetchone()[0]
-
-        self._db.commit()
+            result = con.execute(query)
+            cd.id = result.fetchone().cohort_definition_id
 
         return cd.id
 

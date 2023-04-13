@@ -5,8 +5,6 @@ import pandas as pd
 import psycopg2  # noqa: F401 -- do not remove - needed for sqlalchemy to work
 import sqlalchemy
 from sqlalchemy import and_, func
-from sqlalchemy.engine import CursorResult
-from sqlalchemy.orm import Session
 from sqlalchemy.sql import Insert, Select
 
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
@@ -64,7 +62,6 @@ class OMOPSQLClient:
             future=True,
         )
 
-        self._session = Session(self._engine, future=True)
         self._metadata = base.metadata
         self._metadata.bind = self._engine
 
@@ -110,28 +107,9 @@ class OMOPSQLClient:
         return self._engine.begin()
 
     @property
-    def session(self) -> Session:
-        """Get the SQLAlchemy session."""
-        return self._session
-
-    @property
     def tables(self) -> dict[str, sqlalchemy.Table]:
         """Return the tables in the OMOP CDM database."""
         return self._metadata.tables
-
-    def execute(self, query: Any) -> CursorResult:
-        """
-        Execute the given query against the OMOP CDM database.
-        """
-        return self._session.execute(query)
-
-    def commit(self) -> None:
-        """Commit the current transaction."""
-        self._session.commit()
-
-    def rollback(self) -> None:
-        """Rollback the current transaction."""
-        self._session.rollback()
 
     def query(self, sql: Any, **kwargs: Any) -> pd.DataFrame:
         """
