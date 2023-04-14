@@ -11,27 +11,40 @@ jobs:
   pytest:
 
     runs-on: ubuntu-latest
-    # Docker Hub image that `container-job` executes in
-    #container: node:10.18-jessie
 
-    # Service containers to run with `container-job`
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ohdsi
+
     services:
-      # Label used to access the service container
       postgres:
-        # Docker Hub image
         image: postgres
-        # Provide the password for postgres
-        env:
-          POSTGRES_PASSWORD: postgres
-        # Set health checks to wait until postgres has started
+        env: # Set the environment variables for the service container - not sure why job-level env doesn't work here
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
-          # Maps tcp port 5432 on service container to the host
           - 5432:5432
+
+      recommendation-server:
+        image: glichtner/celida-recommendation-server:main
+        env:
+          GH_RELEASE_BASE: https://github.com/CODEX-CELIDA/celida-recommendations/releases
+          PACKAGE_NAME_TEMPLATE: recommendations.celida.codex.netzwerk-universitaetsmedizin.de-{version}.tgz
+        options: >-
+            --health-cmd "curl -f -s  http://localhost:80/health || exit 1"
+            --health-interval 30s
+            --health-timeout 10s
+            --health-retries 5
+            --health-start-period 30s
+        ports:
+          - 8000:80
 
     strategy:
       matrix:
@@ -51,22 +64,6 @@ jobs:
             git submodule set-url tests/omop_cdm https://github.com/CODEX-CELIDA/omop-test-vocabulary.git
             unset GIT_SSH_COMMAND
 
-      - name: Checkout celida recommendation server
-        uses: actions/checkout@v3
-        with:
-          repository: CODEX-CELIDA/recommendation-server
-          path: recommendation-server
-
-      - name: Run celida recommendations docker
-        run: |
-          docker volume prune -f
-          docker pull glichtner/celida-recommendation-server:main
-          docker run --env-file recommendation-server/celida.env -dp 8000:80 glichtner/celida-recommendation-server:main
-
-      - name: Wait for Recommendation Server startup
-        run: sleep 10s
-        shell: bash
-
       - name: Test Recommendation Server
         run: |
           curl http://localhost:8000/fhir/ActivityDefinition?url=https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommended-action/drug-administration-action/no-antithrombotic-prophylaxis-nadroparin-administration-low-weight
@@ -76,23 +73,26 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-      - run: pip install -r requirements.txt
-      - run: pip install -r requirements-dev.txt
-      - run: mv sample.env .env
+
+      - name: Setup requirements
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          mv sample.env .env
 
       - name: Test with pytest
+        env:
+          FHIR_BASE_URL: http://localhost:8000/fhir
+          FHIR_TERMINOLOGY_SERVER_URL: http://tx.fhir.org/r4
+          OMOP__USER: ${{ env.POSTGRES_USER }}
+          OMOP__PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          OMOP__HOST: localhost
+          OMOP__PORT: 5432
+          OMOP__DATABASE: ${{ env.POSTGRES_DB }}
+          OMOP__SCHEMA: cds_cdm
         run: |
            pytest \
-            --postgresql-host=$POSTGRES_HOST \
-            --postgresql-port=$POSTGRES_PORT \
-            --postgresql-user=$POSTGRES_USER \
-            --postgresql-password=$POSTGRES_PASSWORD
-        env:
-          # The hostname used to communicate with the PostgreSQL service container
-          POSTGRES_HOST: localhost
-          # The default PostgreSQL port
-          POSTGRES_PORT: 5432
-          # The default PostgreSQL user
-          POSTGRES_USER: postgres
-          # The password for the PostgreSQL user
-          POSTGRES_PASSWORD: postgres
+            --postgresql-host=$OMOP__HOST \
+            --postgresql-port=$OMOP__PORT \
+            --postgresql-user=$OMOP__USER \
+            --postgresql-password=$OMOP__PASSWORD
