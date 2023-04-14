@@ -1,4 +1,4 @@
-name: Python package
+name: Tests
 
 on:
   push:
@@ -94,8 +94,14 @@ jobs:
           OMOP__SCHEMA: cds_cdm
         run: |
            pytest \
+            --color=yes \
+            --cov=execution_engine \
+            --cov-report=xml \
             --postgresql-host=$OMOP__HOST \
             --postgresql-port=$OMOP__PORT \
             --postgresql-user=$OMOP__USER \
             --postgresql-password=$OMOP__PASSWORD \
             --run-slow-tests
+
+      - name: Coverage
+        uses: codecov/codecov-action@v3

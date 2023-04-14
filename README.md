@@ -1,7 +1,11 @@
 CELIDA Execution Engine
 ============================
+### Integrate machine-readable clinical guideline recommendations with patient data
 
-Execution engine for the CELIDA project.
+[![pytest](https://github.com/CODEX-CELIDA/execution-engine/actions/workflows/test.yml/badge.svg)](https://github.com/CODEX-CELIDA/execution-engine/actions/workflows/test.yml)
+[![codecov](https://codecov.io/github/CODEX-CELIDA/execution-engine/branch/main/graph/badge.svg?token=XKACAB96VQ)](https://codecov.io/github/CODEX-CELIDA/execution-engine)
+
+
 
 Starting from machine-readable recommendations in CPG-on-EBM-on-FHIR format, this package generates OMOP
 Cohort Definitions and executes them on a target OMOP CDM database.
