@@ -1,5 +1,4 @@
 import datetime
-import warnings
 
 import pandas as pd
 import pytest
@@ -48,7 +47,9 @@ def population_intervention():
 
 
 @pytest.fixture
-def person_combinations(visit_start_date, visit_end_date, population_intervention):
+def person_combinations(
+    visit_start_date, visit_end_date, population_intervention, run_slow_tests
+):
 
     df = generate_dataframe(population_intervention)
 
@@ -56,8 +57,8 @@ def person_combinations(visit_start_date, visit_end_date, population_interventio
     idx_invalid = df["NADROPARIN_HIGH_WEIGHT"] & df["NADROPARIN_LOW_WEIGHT"]
     df = df[~idx_invalid].copy()
 
-    warnings.warn("remove me")
-    df = df.head()
+    if not run_slow_tests:
+        df = df.iloc[:20]
 
     return df
 

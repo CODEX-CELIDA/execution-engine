@@ -33,6 +33,7 @@ def create_test_data():
     return test_stmts
 
 
+@pytest.mark.slow
 def test_persons(db_session, create_test_data):
     s = db_session()
 

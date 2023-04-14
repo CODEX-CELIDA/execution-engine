@@ -57,7 +57,7 @@ def create_visit(p: Person, visit_start_date, visit_end_date, icu=True):
 
 def create_condition(vo: VisitOccurrence, condition_concept_id):
     return ConditionOccurrence(
-        vo.person_id,
+        person_id=vo.person_id,
         condition_concept_id=condition_concept_id,
         condition_start_date=vo.visit_start_date,
         condition_start_datetime=vo.visit_start_datetime,

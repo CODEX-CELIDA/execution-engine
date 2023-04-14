@@ -6,6 +6,8 @@ on:
       - master
       - main
   pull_request:
+  tags:
+    - v*
 
 jobs:
   pytest:
@@ -95,4 +97,5 @@ jobs:
             --postgresql-host=$OMOP__HOST \
             --postgresql-port=$OMOP__PORT \
             --postgresql-user=$OMOP__USER \
-            --postgresql-password=$OMOP__PASSWORD
+            --postgresql-password=$OMOP__PASSWORD \
+            --run-slow-tests
