@@ -1,0 +1,107 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - v*
+  pull_request:
+
+jobs:
+  pytest:
+
+    runs-on: ubuntu-latest
+
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ohdsi
+
+    services:
+      postgres:
+        image: postgres
+        env: # Set the environment variables for the service container - not sure why job-level env doesn't work here
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      recommendation-server:
+        image: glichtner/celida-recommendation-server:main
+        env:
+          GH_RELEASE_BASE: https://github.com/CODEX-CELIDA/celida-recommendations/releases
+          PACKAGE_NAME_TEMPLATE: recommendations.celida.codex.netzwerk-universitaetsmedizin.de-{version}.tgz
+        options: >-
+            --health-cmd "curl -f -s  http://localhost:80/health || exit 1"
+            --health-interval 30s
+            --health-timeout 10s
+            --health-retries 5
+            --health-start-period 30s
+        ports:
+          - 8000:80
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Clone Submodule
+        run: |
+            mkdir -p $HOME/.ssh
+            echo '${{ secrets.SUBMODULE_REPO_DEPLOY_KEY }}' > $HOME/.ssh/ssh.key
+            chmod 600 $HOME/.ssh/ssh.key
+            export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
+            git submodule set-url tests/omop_cdm git@github.com:CODEX-CELIDA/omop-test-vocabulary.git
+            git submodule update --init --recursive
+            git submodule set-url tests/omop_cdm https://github.com/CODEX-CELIDA/omop-test-vocabulary.git
+            unset GIT_SSH_COMMAND
+
+      - name: Test Recommendation Server
+        run: |
+          curl http://localhost:8000/fhir/ActivityDefinition?url=https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/covid19-inpatient-therapy/recommended-action/drug-administration-action/no-antithrombotic-prophylaxis-nadroparin-administration-low-weight
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Setup requirements
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          mv sample.env .env
+
+      - name: Test with pytest
+        env:
+          FHIR_BASE_URL: http://localhost:8000/fhir
+          FHIR_TERMINOLOGY_SERVER_URL: http://tx.fhir.org/r4
+          OMOP__USER: ${{ env.POSTGRES_USER }}
+          OMOP__PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          OMOP__HOST: localhost
+          OMOP__PORT: 5432
+          OMOP__DATABASE: ${{ env.POSTGRES_DB }}
+          OMOP__SCHEMA: cds_cdm
+        run: |
+           pytest \
+            --color=yes \
+            --cov=execution_engine \
+            --cov-report=xml \
+            --postgresql-host=$OMOP__HOST \
+            --postgresql-port=$OMOP__PORT \
+            --postgresql-user=$OMOP__USER \
+            --postgresql-password=$OMOP__PASSWORD \
+            --run-slow-tests
+
+      - name: Coverage
+        uses: codecov/codecov-action@v3

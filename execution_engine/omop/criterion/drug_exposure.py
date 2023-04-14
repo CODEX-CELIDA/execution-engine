@@ -1,13 +1,16 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import func, literal_column, select
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
+from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.util import ValueNumber, value_factory
+from execution_engine.util.sql import SelectInto
 
 __all__ = ["DrugExposure"]
 
@@ -54,26 +57,13 @@ class DrugExposure(Criterion):
 
         return query
 
-    def _sql_generate(self, sql: Select) -> Select:
+    def _sql_generate(self, query: Select) -> Select:
 
         drug_exposure = self._table
-
-        query = (
-            select(drug_exposure.c.person_id)
-            .select_from(drug_exposure)
-            .join(
-                self._base_table,
-                self._base_table.c.person_id == drug_exposure.c.person_id,
-            )
-        )
 
         query = self._sql_filter_concept(query)
 
         if self._dose is not None:
-
-            dose_sql = self._dose.to_sql(
-                table_name=None, column_name="sum(de.quantity)", with_unit=False
-            )
 
             if self._route is not None:
                 # route is not implemented yet because it uses HemOnc codes in the standard vocabulary
@@ -81,20 +71,100 @@ class DrugExposure(Criterion):
                 # addressable in FHIR
                 logging.warning("Route specified, but not implemented yet")
 
-            query = query.add_columns(
-                func.date_trunc(
-                    "day", drug_exposure.c.drug_exposure_start_datetime
-                ).label("interval"),
-                func.count(literal_column("de.*")).label("cnt"),
-                func.sum(drug_exposure.c.quantity).label("dose"),
+            interval = func.cast(concat(1, self._interval), INTERVAL)
+            one_second = func.cast(concat(1, "second"), INTERVAL)
+
+            # Filter only drug_exposures that are inbetween the start and end date of the cohort
+            query = super()._insert_datetime(query)
+
+            date_ranges = query.add_columns(
+                func.generate_series(
+                    func.date_trunc(
+                        "day", drug_exposure.c.drug_exposure_start_datetime
+                    ),
+                    drug_exposure.c.drug_exposure_end_datetime,
+                    interval,
+                ).label("interval_start"),
+                drug_exposure.c.drug_exposure_start_datetime.label("start_datetime"),
+                drug_exposure.c.drug_exposure_end_datetime.label("end_datetime"),
+                drug_exposure.c.quantity.label("quantity"),
+            ).cte("date_ranges")
+
+            interval_quantities = (
+                select(
+                    date_ranges.c.person_id,
+                    date_ranges.c.interval_start,
+                    (
+                        func.least(
+                            date_ranges.c.end_datetime,
+                            date_ranges.c.interval_start + interval,
+                        )
+                        - func.greatest(
+                            date_ranges.c.start_datetime,
+                            date_ranges.c.interval_start,
+                        )
+                    ).label("time_diff"),
+                    date_ranges.c.start_datetime,
+                    date_ranges.c.end_datetime,
+                    date_ranges.c.quantity,
+                )
+                .select_from(date_ranges)
+                .cte("interval_quantities")
             )
+
+            interval_ratios = (
+                select(
+                    interval_quantities.c.person_id,
+                    interval_quantities.c.interval_start,
+                    (
+                        func.extract("EPOCH", interval_quantities.c.time_diff)
+                        / (
+                            func.extract("EPOCH", interval_quantities.c.end_datetime)
+                            - func.extract(
+                                "EPOCH", interval_quantities.c.start_datetime
+                            )
+                        )
+                    ).label("ratio"),
+                    interval_quantities.c.quantity,
+                )
+                .select_from(interval_quantities)
+                .cte("interval_ratios")
+            )
+
+            c_interval_quantity = func.sum(
+                interval_ratios.c.quantity * interval_ratios.c.ratio
+            ).label("interval_quantity")
+            c_interval_count = func.count().label("interval_count")
 
             query = (
-                query.group_by(drug_exposure.c.person_id, literal_column("interval"))
-                .having(dose_sql)
-                .having(func.count(literal_column("de.*")) == self._frequency)
+                select(
+                    interval_ratios.c.person_id,
+                    interval_ratios.c.interval_start.label("valid_from"),
+                    (interval_ratios.c.interval_start + interval - one_second).label(
+                        "valid_to"
+                    ),
+                    c_interval_quantity,
+                    c_interval_count,
+                )
+                .select_from(interval_ratios)
+                .where(interval_ratios.c.ratio > 0)
+                .group_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
+                .having(
+                    self._dose.to_sql(column_name=c_interval_quantity, with_unit=False)
+                )
+                .having(c_interval_count == self._frequency)
+                .order_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
             )
 
+        return query
+
+    def _insert_datetime(self, query: SelectInto) -> SelectInto:
+        """
+        Return the SQL to insert the datetime for the criterion.
+
+        Nothing to do here, because the datetime is already inserted by the
+        _sql_generate method.
+        """
         return query
 
     def _sql_select_data(self, query: Select) -> Select:

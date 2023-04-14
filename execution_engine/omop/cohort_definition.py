@@ -6,12 +6,13 @@ from typing import Any, Dict, Iterator
 
 from sqlalchemy import (
     Column,
+    Date,
+    Enum,
     Integer,
     MetaData,
     Table,
     and_,
     bindparam,
-    literal_column,
     select,
     union,
 )
@@ -26,16 +27,15 @@ from sqlalchemy.sql import (
     TableClause,
 )
 from sqlalchemy.sql.ddl import DropTable
+from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
+from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
-from execution_engine.omop.db.result import (
-    RecommendationPersonDatum,
-    RecommendationResult,
-)
+from execution_engine.omop.db.result import RecommendationResult
 from execution_engine.util.sql import SelectInto
 
 
@@ -55,42 +55,22 @@ def add_result_insert(
 
     # Always surround the original query by a select () query, as
     # otherwise problemes arise when using CompoundSelect, multiple columns or DISTINCT person_id
-    query_select = select(literal_column("person_id")).select_from(query)
+    query = query.alias("base_select")
+    query_select = select(query.c.person_id, query.c.valid_date).select_from(query)
 
     query_select = query_select.add_columns(
         bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
         bindparam("recommendation_plan_name", name).label("recommendation_plan_name"),
-        bindparam("cohort_category", cohort_category.name).label("cohort_category"),
+        bindparam("cohort_category", cohort_category, type_=Enum(CohortCategory)).label(
+            "cohort_category"
+        ),
         bindparam("criterion_name", criterion_name).label("criterion_name"),
-        # bindparam("criterion_combination_name", self.get_criterion_combination_name(criterion)).label("criterion_combination_name"),
     )
 
     t_result = RecommendationResult.__table__
-    query_insert = t_result.insert().from_select(query_select.columns, query_select)
-
-    return query_insert
-
-
-def add_result_data_insert(
-    query: Select,
-    cohort_category: CohortCategory,
-    criterion: Criterion,
-) -> Insert:
-    """
-    Insert the result of the query into the result table.
-    """
-    if not isinstance(query, Select):
-        raise ValueError("sql must be a Select")
-
-    query = query.add_columns(
-        bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
-        bindparam("cohort_category", cohort_category.name).label("cohort_category"),
-        bindparam("criterion_name", criterion.unique_name()).label("criterion_name"),
-        bindparam("domain_id", criterion.domain).label("domain_id"),
+    query_insert = t_result.insert().from_select(
+        query_select.selected_columns, query_select
     )
-
-    t_result = RecommendationPersonDatum.__table__
-    query_insert = t_result.insert().from_select(query.columns, query)
 
     return query_insert
 
@@ -232,11 +212,23 @@ class CohortDefinition:
                     sql_select.right
                 )
             elif isinstance(sql_select, Select):
-                return any(_base_table_in_select(f) for f in sql_select.froms)
+                return any(
+                    _base_table_in_select(f) for f in sql_select.get_final_froms()
+                ) or any(_base_table_in_select(w) for w in sql_select.whereclause)
             elif isinstance(sql_select, Alias):
                 return sql_select.original.name == base_table_out
             elif isinstance(sql_select, TableClause):
                 return sql_select.name == base_table_out
+            elif isinstance(sql_select, CTE):
+                return _base_table_in_select(sql_select.original)
+            elif isinstance(sql_select, BooleanClauseList):
+                return any(
+                    w.right.element.froms[0].name == base_table_out for w in sql_select
+                )
+            elif isinstance(sql_select, BinaryExpression):
+                return (
+                    sql_select.right.element.get_final_froms()[0].name == base_table_out
+                )
             elif isinstance(sql_select, Subquery):
                 if isinstance(sql_select.original, CompoundSelect):
                     return all(
@@ -273,19 +265,19 @@ class CohortDefinition:
         for i, criterion in enumerate(self._execution_map.sequential()):
             logging.info(f"Processing {criterion.name} (exclude={criterion.exclude})")
 
-            sql = criterion.sql_generate(base_table=base_table)
+            query = criterion.sql_generate(base_table=base_table)
             # fixme: remove (used for debugging only)
-            str(sql)
+            str(query)
 
-            self._assert_base_table_in_select(sql, base_table.name)
-            sql = add_result_insert(
-                sql,
+            self._assert_base_table_in_select(query, base_table.name)
+            query = add_result_insert(
+                query,
                 name=self.name,
                 cohort_category=criterion.category,
                 criterion_name=criterion.unique_name(),
             )
 
-            yield sql
+            yield query
 
         yield from self.combine()
 
@@ -331,30 +323,6 @@ class CohortDefinition:
                 cohort_category=category,
                 criterion_name=None,
             )
-            yield query
-
-    def retrieve_patient_data(self, base_table: Table) -> Iterator[Insert]:
-        """
-        Retrieve patient data for patients addressed by the recommendation and
-        insert it into the patient_data table.
-        """
-
-        if self._execution_map is None:
-            raise Exception("Execution map not initialized - run process() first")
-
-        for i, criterion in enumerate(self._execution_map.sequential()):
-            logging.info(f"Retrieving patient data for {criterion.name}")
-
-            criterion.set_base_table(base_table)
-            query = criterion.sql_select_data()
-
-            str(query)  # fixme: remove (used for debugging only)
-
-            self._assert_base_table_in_select(query, base_table.name)
-            query = add_result_data_insert(
-                query, cohort_category=criterion.category, criterion=criterion
-            )
-
             yield query
 
     def dict(self) -> dict[str, Any]:
@@ -497,7 +465,12 @@ class CohortDefinitionCombination:
         """
         name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
         metadata = MetaData()
-        return Table(name, metadata, Column("person_id", Integer, primary_key=True))
+        return Table(
+            name,
+            metadata,
+            Column("person_id", Integer, primary_key=True),
+            Column("valid_date", Date),
+        )
 
     def create_base_table(self) -> Table:
         """
@@ -549,8 +522,8 @@ class CohortDefinitionCombination:
             cohort_definition: CohortDefinition, category: CohortCategory
         ) -> Select:
             return (
-                select(table.c.person_id)
-                .distinct(table.c.person_id)
+                select(table.c.person_id, table.c.valid_date)
+                .distinct(table.c.person_id, table.c.valid_date)
                 .where(
                     and_(
                         table.c.recommendation_plan_name == cohort_definition.name,
@@ -576,14 +549,6 @@ class CohortDefinitionCombination:
             )
 
             yield query
-
-    def retrieve_patient_data(self) -> Iterator[Select]:
-        """
-        Retrieve patient data for the cohort definition combination.
-        """
-
-        for cohort_definition in self._cohort_definitions:
-            yield from cohort_definition.retrieve_patient_data(self.base_table)
 
     def cleanup(self) -> Iterator[DropTable]:
         """

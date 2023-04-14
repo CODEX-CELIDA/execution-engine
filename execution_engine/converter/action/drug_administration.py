@@ -248,6 +248,7 @@ class DrugAdministrationAction(AbstractAction):
                 extensions.append({"code": code, "value": value})
             else:
                 raise NotImplementedError(f"Unknown dosage extension {extension.url}")
+
         return extensions
 
     @classmethod
@@ -330,17 +331,21 @@ class DrugAdministrationAction(AbstractAction):
         if self._extensions:
             comb = CriterionCombination(
                 name=f"{self._name}_extensions",
-                exclude=False,
+                exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
                 category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("AND"),
             )
+            drug_action.exclude = (
+                False  # reset the exclude flag, as it is now part of the combination
+            )
+
             comb.add(drug_action)
 
             for extension in self._extensions:
                 comb.add(
                     ConceptCriterion(
                         name=f"{self._name}_ext_{extension['code'].concept_name}",
-                        exclude=False,
+                        exclude=False,  # extensions are always included (at least for now)
                         category=CohortCategory.INTERVENTION,
                         concept=extension["code"],
                         value=extension["value"],

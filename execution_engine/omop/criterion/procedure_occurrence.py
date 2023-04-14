@@ -21,9 +21,15 @@ class ProcedureOccurrence(ConceptCriterion):
         concept: Concept,
         value: ValueNumber | None = None,
         timing: ValueNumber | None = None,
+        static: bool | None = None,
     ) -> None:
         super().__init__(
-            name=name, exclude=exclude, category=category, concept=concept, value=value
+            name=name,
+            exclude=exclude,
+            category=category,
+            concept=concept,
+            value=value,
+            static=static,
         )
 
         self._set_omop_variables_from_domain("procedure")
@@ -46,6 +52,10 @@ class ProcedureOccurrence(ConceptCriterion):
             interval = ucum_to_postgres[self._timing.unit.concept_code]
             column = extract(interval, start_datetime - end_datetime).label("duration")
             query = query.add_columns(column)
+            query = query.add_columns(
+                start_datetime.label("start_datetime"),
+                end_datetime.label("end_datetime"),
+            )
             query = query.filter(
                 self._timing.to_sql(
                     table_name=None, column_name=column, with_unit=False

@@ -8,7 +8,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from sqlalchemy import and_, select
+from sqlalchemy import and_, insert, select
 
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
@@ -57,6 +57,7 @@ from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDurin
 from execution_engine.omop.db import result as result_db
 from execution_engine.omop.db.result import CohortDefinition as CohortDefinitionTable
 from execution_engine.omop.db.result import RecommendationResult, RecommendationRun
+from execution_engine.util.sql import SelectInto
 
 
 class ExecutionEngine:
@@ -282,7 +283,6 @@ class ExecutionEngine:
         cd: CohortDefinitionCombination,
         start_datetime: datetime,
         end_datetime: datetime | None,
-        select_patient_data: bool = False,
     ) -> int:
         """Executes the Cohort Definition and returns a list of Person IDs."""
 
@@ -291,7 +291,7 @@ class ExecutionEngine:
         # fixme: set start_datetime and end_datetime as class variables
         # fixme: potentially also register run_id as class variable
 
-        with self._db.session.begin():
+        with self._db.begin():
             cd.id = self.register_cohort_definition(cd)
             run_id = self.register_run(
                 cd, start_datetime=start_datetime, end_datetime=end_datetime
@@ -302,41 +302,34 @@ class ExecutionEngine:
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
             )
-            if select_patient_data:
-                self.select_patient_data(
-                    cd,
-                    run_id=run_id,
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                )
             self.cleanup(cd)
 
         return run_id
 
-    @staticmethod
     def load_recommendation_from_database(
-        url: str, version: str | None = None
+        self, url: str, version: str | None = None
     ) -> CohortDefinitionCombination | None:
         """
         Loads a recommendation from the database. If version is None, the latest created recommendation is returned.
         """
-        cd_table = result_db.CohortDefinition.__table__
+        cd_table = result_db.CohortDefinition
 
         query = (
-            cd_table.select()
-            .where(cd_table.c.recommendation_url == url)
-            .order_by(cd_table.c.create_datetime.desc())
+            select(cd_table)
+            .where(cd_table.recommendation_url == url)
+            .order_by(cd_table.create_datetime.desc())
         )
         if version is not None:
-            query.where(cd_table.c.recommendation_version == version)
+            query.where(cd_table.recommendation_version == version)
 
-        cd_db = query.execute().fetchone()
+        with self._db.connect() as con:
+            cd_db = con.execute(query).fetchone()
 
         if cd_db is not None:
             cd = CohortDefinitionCombination.from_json(
-                cd_db["cohort_definition_json"].decode()
+                cd_db.cohort_definition_json.decode()
             )
-            cd.id = cd_db["cohort_definition_id"]
+            cd.id = cd_db.cohort_definition_id
             return cd
 
         return None
@@ -344,39 +337,36 @@ class ExecutionEngine:
     def register_cohort_definition(self, cd: CohortDefinitionCombination) -> int:
         """Registers the Cohort Definition in the result database."""
 
-        cd_table = result_db.CohortDefinition.__table__
+        cd_table = result_db.CohortDefinition
 
         cd_json = cd.json()
         cd_hash = hashlib.sha256(cd_json).hexdigest()
 
-        cd_db = (
-            cd_table.select()
-            .where(cd_table.c.cohort_definition_hash == cd_hash)
-            .execute()
-            .fetchone()
-        )
+        query = select(cd_table).where(cd_table.cohort_definition_hash == cd_hash)
 
-        if cd_db is not None:
-            return cd_db.cohort_definition_id
+        with self._db.begin() as con:
 
-        query = (
-            result_db.CohortDefinition.__table__.insert()
-            .values(
-                recommendation_name=cd.name,
-                recommendation_title=cd.title,
-                recommendation_url=cd.url,
-                recommendation_version=cd.version,
-                cohort_definition_hash=cd_hash,
-                cohort_definition_json=cd_json,
-                create_datetime=datetime.now(),
+            cd_db = con.execute(query).fetchone()
+
+            if cd_db is not None:
+                return cd_db.cohort_definition_id
+
+            query = (
+                insert(result_db.CohortDefinition)
+                .values(
+                    recommendation_name=cd.name,
+                    recommendation_title=cd.title,
+                    recommendation_url=cd.url,
+                    recommendation_version=cd.version,
+                    cohort_definition_hash=cd_hash,
+                    cohort_definition_json=cd_json,
+                    create_datetime=datetime.now(),
+                )
+                .returning(result_db.CohortDefinition.cohort_definition_id)
             )
-            .returning(result_db.CohortDefinition.cohort_definition_id)
-        )
 
-        result = self._db.execute(query)
-        cd.id = result.fetchone()[0]
-
-        self._db.commit()
+            result = con.execute(query)
+            cd.id = result.fetchone().cohort_definition_id
 
         return cd.id
 
@@ -387,19 +377,21 @@ class ExecutionEngine:
         end_datetime: datetime,
     ) -> int:
         """Registers the run in the result database."""
-
-        query = (
-            result_db.RecommendationRun.__table__.insert()
-            .values(
-                cohort_definition_id=cd.id,
-                observation_start_datetime=start_datetime,
-                observation_end_datetime=end_datetime,
-                run_datetime=datetime.now(),
+        with self._db.begin() as con:
+            query = (
+                result_db.RecommendationRun.__table__.insert()
+                .values(
+                    cohort_definition_id=cd.id,
+                    observation_start_datetime=start_datetime,
+                    observation_end_datetime=end_datetime,
+                    run_datetime=datetime.now(),
+                )
+                .returning(result_db.RecommendationRun.recommendation_run_id)
             )
-            .returning(result_db.RecommendationRun.recommendation_run_id)
-        )
 
-        return self._db.execute(query).fetchone()[0]
+            result = con.execute(query).fetchone()
+
+        return result.recommendation_run_id
 
     def execute_cohort_definition(
         self,
@@ -411,6 +403,10 @@ class ExecutionEngine:
         """
         Executes the Cohort Definition and stores the results in the result tables.
         """
+        assert (
+            type(start_datetime) == datetime
+        ), "start_datetime must be of type datetime"
+        assert type(end_datetime) == datetime, "end_datetime must be of type datetime"
 
         date_format = "%Y-%m-%d %H:%M:%S"
 
@@ -420,58 +416,38 @@ class ExecutionEngine:
 
         params = {
             "run_id": run_id,
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime,
+            "observation_start_datetime": start_datetime,
+            "observation_end_datetime": end_datetime,
         }
 
         """Executes the Cohort Definition"""
-        for statement in cd.process():
+        with self._db.begin() as con:
+            for statement in cd.process():
 
-            logging.debug(self._db.compile_query(statement.select, params))
-
-            self._db.session.execute(
-                statement,
-                params,
-            )
-
-    def select_patient_data(
-        self,
-        cd: CohortDefinitionCombination,
-        run_id: int,
-        start_datetime: datetime,
-        end_datetime: datetime,
-    ) -> None:
-        """Selects the patient data and stores it in the result tables."""
-
-        params = {
-            "run_id": run_id,
-            "start_datetime": start_datetime,
-            "end_datetime": end_datetime,
-        }
-
-        for category in [
-            CohortCategory.POPULATION,
-            CohortCategory.POPULATION_INTERVENTION,
-        ]:
-            logging.info(f"Retrieving patient data for {category.name}...")
-
-            for statement in cd.retrieve_patient_data():
                 logging.debug(self._db.compile_query(statement.select, params))
 
-                self._db.session.execute(statement, params)
+                r = con.execute(
+                    statement,
+                    params,
+                )
+
+                logging.debug(
+                    f"Inserted {r.rowcount} rows into {statement.into.name if type(statement)==SelectInto else statement.table.name}."
+                )
 
     def cleanup(self, cd: CohortDefinitionCombination) -> None:
         """Cleans up the temporary tables."""
-        for statement in cd.cleanup():
+        with self._db.begin() as con:
+            for statement in cd.cleanup():
 
-            logging.debug(self._db.compile_query(statement))
+                logging.debug(self._db.compile_query(statement))
 
-            self._db.session.execute(statement)
+                con.execute(statement)
 
     def fetch_patients(self, run_id: int) -> dict:
         """Retrieve list of patients associated with a single run."""
         assert isinstance(run_id, int)
-        # TODO: write in sqlalchemy
+
         t = RecommendationResult.__table__.alias("result")
         query = (
             select(

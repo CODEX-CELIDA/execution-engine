@@ -2,12 +2,21 @@ from typing import Any, Dict
 
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory
+from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.util import Value, value_factory
 
 __all__ = ["ConceptCriterion"]
+
+"""
+Collection of static clinical variables.
+
+The values of these variables are considered constant over the observation period.
+"""
+STATIC_CLINICAL_CONCEPTS = [int(OMOPConcepts.BODY_WEIGHT.value)]  # type: list[int]
+# TODO: weight can change over time - need to use the latest
+# TODO: Only use weight etc from the current encounter/visit!
 
 
 class ConceptCriterion(Criterion):
@@ -27,12 +36,22 @@ class ConceptCriterion(Criterion):
         category: CohortCategory,
         concept: Concept,
         value: Value | None = None,
+        static: bool | None = None,
     ):
         super().__init__(name=name, exclude=exclude, category=category)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
         self._value = value
+
+        # static is a boolean that indicates whether the criterion is static or not
+        # it is initially set by the _set_omop_variables_from_domain() function, but can be overridden
+        # by supplying a value to the "static" parameter
+        if static is not None:
+            self._static = static
+        else:
+            # if static is None, then the criterion is static if the concept is in the STATIC_CLINICAL_CONCEPTS list
+            self._static = concept.concept_id in STATIC_CLINICAL_CONCEPTS
 
     @property
     def concept(self) -> Concept:
@@ -99,6 +118,7 @@ class ConceptCriterion(Criterion):
             "category": self._category.value,
             "concept": self._concept.dict(),
             "value": self._value.dict() if self._value is not None else None,
+            "static": self._static,
         }
 
     @classmethod
@@ -113,4 +133,5 @@ class ConceptCriterion(Criterion):
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=value_factory(**data["value"]) if data["value"] is not None else None,
+            static=data["static"],
         )

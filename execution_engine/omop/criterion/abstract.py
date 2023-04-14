@@ -3,11 +3,24 @@ import hashlib
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Dict, cast
+from typing import Any, Dict, Type, TypedDict, cast
 
 import sqlalchemy
-from sqlalchemy import Table, bindparam, distinct, literal_column, select
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Table,
+    bindparam,
+    distinct,
+    func,
+    literal_column,
+    or_,
+    select,
+)
+from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select, TableClause
+from sqlalchemy.sql.functions import concat
+from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
@@ -24,6 +37,15 @@ from execution_engine.omop.db.cdm import (
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]
+
+Domain = TypedDict(
+    "Domain",
+    {
+        "table": Type[Base],
+        "value_required": bool,
+        "static": bool,
+    },
+)
 
 
 class AbstractCriterion(ABC):
@@ -127,20 +149,33 @@ class AbstractCriterion(ABC):
 class Criterion(AbstractCriterion):
     """A criterion in a cohort definition."""
 
-    _OMOP_TABLE: Base
+    _OMOP_TABLE: Type[Base]
     _OMOP_COLUMN_PREFIX: str
     _OMOP_VALUE_REQUIRED: bool
     _OMOP_DOMAIN: str
+
     _static: bool
+    """
+    indicates the value of this concept can be considered constant during a health care encounter (e.g. weight, height,
+    allergies, etc.) or if it is subject to change (e.g. laboratory values, vital signs, conditions, etc.)
+    """
 
     _table: Table
-    _base_table: Table
+    """
+    The OMOP table to use for this criterion.
+    """
 
-    DOMAINS: dict[str, dict[str, Base | bool]] = {
+    _base_table: Table
+    """
+    The table that is used to pre-filter person_ids (usually a table that includes all person_ids that were active
+    during the cohort definition period).
+    """
+
+    DOMAINS: dict[str, Domain] = {
         "condition": {
             "table": ConditionOccurrence,
             "value_required": False,
-            "static": True,
+            "static": False,
         },
         "device": {
             "table": DeviceExposure,
@@ -209,18 +244,22 @@ class Criterion(AbstractCriterion):
         Generate the header of the SQL query.
         """
 
-        c = self._table.c.person_id
+        c = self._table.c.person_id.label("person_id")
 
-        if distinct_person:
-            c = distinct(c).label("person_id")
+        # todo: remove if not required
+        # if distinct_person:
+        #    c = distinct(c).label("person_id")
 
         query = select(c).select_from(self._table)
 
         if person_id is None:
-            # join the base table to subset patients
-            query = query.join(
-                self._base_table,
-                self._table.c.person_id == self._base_table.c.person_id,
+            # subset patients by filtering on the base table
+            query = query.where(
+                self._table.c.person_id.in_(
+                    select(self._base_table.c.person_id)
+                    .distinct()
+                    .select_from(self._base_table)
+                )
             )
         else:
             # filter by person_id directly
@@ -260,12 +299,13 @@ class Criterion(AbstractCriterion):
 
         self.set_base_table(base_table)
 
-        sql = self._sql_header()
-        sql = self._sql_generate(sql)
-        sql = self._insert_datetime(sql)
-        sql = self._process_exclude(sql)
+        query = self._sql_header()
+        query = self._sql_generate(query)
+        query = self._insert_datetime(query)
+        query = self._select_per_day(query)
+        query = self._process_exclude(query)
 
-        return sql
+        return query
 
     def set_base_table(self, base_table: Table) -> None:
         """
@@ -301,43 +341,141 @@ class Criterion(AbstractCriterion):
 
         return table.c[f"{column_prefix}_datetime"]
 
-    def _insert_datetime(self, sql: SelectInto) -> SelectInto:
+    def _insert_datetime(self, query: SelectInto) -> SelectInto:
         """
-        Insert the start_datetime and end_datetime into the query.
+        Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.
         """
         if self._static:
-            return sql
+            # If this criterion is a static criterion, i.e. one whose value does not change over time, then we don't
+            # need to filter by datetime
+            # but we need to add the observation range as the valid range
+
+            query = query.add_columns(
+                bindparam("observation_start_datetime", type_=DateTime).label(
+                    "valid_from"
+                ),
+                bindparam("observation_end_datetime", type_=DateTime).label("valid_to"),
+            )
+
+            return query
 
         c_start = self._get_datetime_column(self._table)
+        c_end = self._get_datetime_column(self._table, "end")
 
-        if isinstance(sql, Select):
-            sql = sql.filter(
-                c_start.between(bindparam("start_datetime"), bindparam("end_datetime"))
+        if isinstance(query, Select):
+            query = query.filter(
+                or_(
+                    c_start.between(
+                        bindparam("observation_start_datetime"),
+                        bindparam("observation_end_datetime"),
+                    ),
+                    c_end.between(
+                        bindparam("observation_start_datetime"),
+                        bindparam("observation_end_datetime"),
+                    ),
+                )
             )
         else:
             raise ValueError("sql must be a Select")
 
-        return sql
+        return query
 
-    def _process_exclude(self, sql: str | Select) -> Select:
+    def _select_per_day(self, query: Select) -> Select:
+        """
+        Returns a modified Select query that returns a single row for each day between observation start and end date
+        on which the criterion (i.e. the select query) is valid/fulfilled.
 
-        if isinstance(sql, str):
-            sql = sqlalchemy.text(sql)
-            raise ValueError("should this be ever true?")
+        The function adds columns for `valid_from` and `valid_to` to the input query if they are not already present.
+        It then creates a Common Table Expression (CTE) named 'criterion' from the modified query.
+
+        The function generates a Select query for each person and their valid dates by using the `generate_series`
+        function to generate a list of dates between the `valid_from` and `valid_to` dates for each person.
+        The resulting query includes columns for `person_id` and `valid_date`, where `valid_date` is a date object that
+        represents each day between the `valid_from` and `valid_to` dates for each person.
+
+        :param query: A Select query object representing the original query.
+        :return: A modified Select query object that generates a list of person dates.
+        """
+        col_names = [c.name for c in query.selected_columns]
+        if "valid_from" not in col_names:
+            c_start = self._get_datetime_column(self._table, "start").label(
+                "valid_from"
+            )
+            query = query.add_columns(c_start)
+        if "valid_to" not in col_names:
+            c_end = self._get_datetime_column(self._table, "end").label("valid_to")
+            query = query.add_columns(c_end)
+
+        query = query.cte("criterion")
+
+        person_dates = (
+            select(
+                literal_column("person_id"),
+                func.generate_series(
+                    func.date_trunc("day", literal_column("valid_from")),
+                    func.date_trunc("day", literal_column("valid_to")),
+                    func.cast(concat(1, "day"), INTERVAL),
+                )
+                .cast(Date)
+                .label("valid_date"),
+            )
+            .distinct()
+            .select_from(query)
+        )
+
+        return person_dates
+
+    def _process_exclude(self, query: str | Select) -> Select:
+        """
+        Converts a query, which returns a list of dates (one per row) per person_id, to a query that return a list of
+        all days (per person_id) that are within the time range given by observation_start_datetime
+        and observation_end_datetime but that are not included in the result of the original query.
+
+        I.e. it performs the following set operation:
+        set({day | observation_start_datetime <= day <= observation_end_datetime}) - set(days_from_original_query}
+        """
+
+        assert isinstance(query, Select | CTE), "query must be instance of Select"
 
         if self._exclude:
-            if len(sql.columns) > 1:
-                # If there are multiple columns, we need to select person_id
-                # from the temporary table (can't handle multiple columns in EXCEPT clause)
-                sql = select(literal_column("person_id")).select_from(sql)
-
-            sql = (
-                select(literal_column("person_id"))
-                .select_from(self._base_table)
-                .except_(sql)
+            distinct_persons = select(
+                distinct(self._base_table.c.person_id).label("person_id")
+            ).cte("distinct_persons")
+            fixed_date_range = (
+                select(
+                    distinct_persons.c.person_id,
+                    func.generate_series(
+                        bindparam("observation_start_datetime", type_=DateTime).cast(
+                            Date
+                        ),
+                        bindparam("observation_end_datetime", type_=DateTime).cast(
+                            Date
+                        ),
+                        func.cast(concat(1, "day"), INTERVAL),
+                    )
+                    .cast(Date)
+                    .label("valid_date"),
+                )
+                .select_from(distinct_persons)
+                .cte("fixed_date_range")
             )
 
-        return sql
+            query = query.cte("person_dates")
+
+            query = (
+                select(fixed_date_range.c.person_id, fixed_date_range.c.valid_date)
+                .select_from(
+                    fixed_date_range.outerjoin(
+                        query,
+                        (fixed_date_range.c.person_id == query.c.person_id)
+                        & (fixed_date_range.c.valid_date == query.c.valid_date),
+                    )
+                )
+                .where(query.c.valid_date.is_(None))
+                .order_by(fixed_date_range.c.person_id, fixed_date_range.c.valid_date)
+            )
+
+        return query
 
     def sql_select_data(self, person_id: int | None = None) -> Select:
         """
@@ -365,7 +503,7 @@ class Criterion(AbstractCriterion):
         Insert the result of the query into the result table.
         """
         if not isinstance(query, Select):
-            raise ValueError("sql must be a Select")
+            raise ValueError("query must be a Select or CTE")
 
         query = select_into(query, table, temporary=temporary)
 

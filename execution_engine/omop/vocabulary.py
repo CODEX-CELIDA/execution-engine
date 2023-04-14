@@ -142,7 +142,7 @@ class AbstractMappedVocabulary(AbstractVocabulary):
     This class defines a mapping from the vocabulary to the OMOP Standard Vocabulary.
     """
 
-    map: dict[str, str]
+    map: dict[str, int]
 
     @classmethod
     def omop_concept(cls, concept: str, standard: bool = False) -> Concept:
@@ -164,7 +164,7 @@ class KontaktartDE(AbstractMappedVocabulary):
 
     system_uri = "http://fhir.de/CodeSystem/kontaktart-de"
     map = {
-        "intensivstationaer": "32037",
+        "intensivstationaer": 32037,
     }
 
 
@@ -260,6 +260,12 @@ class StandardVocabulary:
         Get the OMOP Standard Vocabulary standard unit concept for the given code.
         """
         return self.get_standard_concept(UCUM.system_uri, code)
+
+    def related_to(self, ancestor: int, descendant: int, relationship_id: str) -> bool:
+        """
+        Check if descendant is related to ancestor by the given relationship.
+        """
+        return omopdb.concept_related_to(ancestor, descendant, relationship_id)
 
 
 standard_vocabulary = StandardVocabulary()

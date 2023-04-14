@@ -13,6 +13,7 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
     """An abstract characteristic that is not only defined by a concept but has additionally a value."""
 
     _criterion_class: Type[ConceptCriterion]
+    _concept_value_static = False
 
     @classmethod
     def from_fhir(
@@ -42,4 +43,5 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
             category=CohortCategory.POPULATION,
             concept=self.type,
             value=self.value,
+            static=self._concept_value_static,
         )

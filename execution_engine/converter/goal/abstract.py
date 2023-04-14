@@ -3,9 +3,9 @@ from typing import Type
 
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from ...fhir.util import get_coding
-from ...omop.vocabulary import AbstractVocabulary
-from ..converter import CriterionConverter
+from execution_engine.converter.converter import CriterionConverter
+from execution_engine.fhir.util import get_coding
+from execution_engine.omop.vocabulary import AbstractVocabulary
 
 
 class Goal(CriterionConverter, ABC):

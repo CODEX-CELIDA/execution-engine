@@ -5,6 +5,7 @@ from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.fhir.util import get_coding
+from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import AbstractVocabulary
@@ -28,6 +29,12 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
     _concept_code: str
     _concept_vocabulary: Type[AbstractVocabulary]
 
+    """
+    indicates the value of this concept can be considered constant during a health care encounter (e.g. weight, height,
+    allergies, etc.) or if it is subject to change (e.g. laboratory values, vital signs, conditions, etc.)
+    """
+    _concept_value_static: bool
+
     @classmethod
     def valid(
         cls,
@@ -41,6 +48,13 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
         )
 
     @classmethod
+    def get_class_from_concept(
+        cls, concept: Concept
+    ) -> Type["AbstractCodeableConceptCharacteristic"]:
+        """Gets the class that matches the given concept."""
+        return cls
+
+    @classmethod
     def from_fhir(
         cls, characteristic: EvidenceVariableCharacteristic
     ) -> AbstractCharacteristic:
@@ -50,7 +64,9 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
         cc = get_coding(characteristic.definitionByTypeAndValue.valueCodeableConcept)
         omop_concept = cls.get_standard_concept(cc)
 
-        c = cls(name=omop_concept.concept_name, exclude=characteristic.exclude)
+        class_ = cls.get_class_from_concept(omop_concept)
+
+        c = class_(name=omop_concept.concept_name, exclude=characteristic.exclude)
         c.value = omop_concept
 
         return c
@@ -63,4 +79,5 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
             category=CohortCategory.POPULATION,
             concept=self.value,
             value=None,
+            static=self._concept_value_static,
         )

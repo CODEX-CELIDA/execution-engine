@@ -1,17 +1,21 @@
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
-from ...clients import tx_client
-from ...constants import SCT_VENTILATOR_OBSERVABLE, VS_VENTILATOR_OBSERVATIONS
-from ...fhir.util import get_coding
-from ...omop.criterion.measurement import Measurement
-from ...omop.vocabulary import LOINC, SNOMEDCT
-from .value import AbstractValueCharacteristic
+from execution_engine.clients import tx_client
+from execution_engine.constants import (
+    SCT_VENTILATOR_OBSERVABLE,
+    VS_VENTILATOR_OBSERVATIONS,
+)
+from execution_engine.converter.characteristic.value import AbstractValueCharacteristic
+from execution_engine.fhir.util import get_coding
+from execution_engine.omop.criterion.measurement import Measurement
+from execution_engine.omop.vocabulary import LOINC, SNOMEDCT
 
 
 class VentilationObservableCharacteristic(AbstractValueCharacteristic):
     """A ventilation observable characteristic in the context of CPG-on-EBM-on-FHIR."""
 
     _criterion_class = Measurement
+    _concept_value_static = False
 
     @staticmethod
     def valid(
