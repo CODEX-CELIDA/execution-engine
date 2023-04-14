@@ -5,9 +5,9 @@ on:
     branches:
       - master
       - main
+    tags:
+      - v*
   pull_request:
-  tags:
-    - v*
 
 jobs:
   pytest:
