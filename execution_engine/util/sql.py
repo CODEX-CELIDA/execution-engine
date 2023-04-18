@@ -39,7 +39,7 @@ def s_into(element: SelectInto, compiler: SQLCompiler, **kwargs: dict) -> str:
     assert from_clause in select, "FROM clause not found in select"
     idx_from = select.index(from_clause)
 
-    replace = f"INTO {'TEMPORARY' if element.temporary else ''} TABLE {table_into} FROM"
+    replace = f"INTO {'TEMPORARY ' if element.temporary else ''}TABLE {table_into} FROM"
 
     select = select[:idx_from] + replace + select[idx_from + 4 :]
 

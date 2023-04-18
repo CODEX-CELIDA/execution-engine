@@ -151,6 +151,12 @@ def criteria_extended(
     return df
 
 
+def test_recommendation_15_prophylactic_anticoagulation2(
+    db_session, criteria_extended, visit_start_date, visit_end_date
+):
+    assert True
+
+
 def test_recommendation_15_prophylactic_anticoagulation(
     db_session, criteria_extended, visit_start_date, visit_end_date
 ):

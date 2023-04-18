@@ -153,13 +153,22 @@ class ValueConcept(Value):
     def to_sql(
         self,
         table_name: str | None,
-        column_name: str = "value_as_number",
-        with_unit: bool = True,
+        column_name: str = "value_as_concept_id",
+        with_unit: bool = False,
     ) -> str:
         """
         Get the SQL representation of the value.
         """
-        return f"{table_name}.value_as_concept_id = {self.value.concept_id}"
+
+        if with_unit:
+            raise ValueError("ValueConcept does not support units.")
+
+        s = f"{column_name} = {self.value.concept_id}"
+
+        if table_name is not None:
+            s = f"{table_name}.{s}"
+
+        return s
 
     def __str__(self) -> str:
         """
