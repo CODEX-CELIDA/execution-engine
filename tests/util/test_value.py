@@ -18,6 +18,18 @@ class TestValueNumber:
             concept_class_id="test",
         )
 
+    @pytest.fixture
+    def value_number_root_validator_disabled(self):
+        vn_class = type(
+            "ValueNumberValidatorDisabled",
+            ValueNumber.__bases__,
+            dict(ValueNumber.__dict__),
+        )
+        post_validators = ValueNumber.__post_root_validators__
+        vn_class.__post_root_validators__ = []
+        yield vn_class
+        assert ValueNumber.__post_root_validators__ == post_validators
+
     def test_validate_value(self, unit):
         with pytest.raises(
             ValueError, match="Either value or value_min and value_max must be set."
@@ -72,6 +84,11 @@ class TestValueNumber:
 
         vn = ValueNumber(unit=unit, value_max=10)
         assert str(vn) == "Value <= 10.0 Test Unit"
+
+    def test_str_unreachable(self, unit, value_number_root_validator_disabled):
+        vn = value_number_root_validator_disabled(unit=unit)
+        with pytest.raises(ValueError, match="Value is not set."):
+            str(vn)
 
     def test_repr(self, unit):
         vn = ValueNumber(unit=unit, value=5)
@@ -195,7 +212,7 @@ class TestValueConcept:
     def test_repr(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
         assert (
-            str(value_concept)
+            repr(value_concept)
             == 'Value == OMOP Concept: "Test Concept" (1) [test#unit]'
         )
 

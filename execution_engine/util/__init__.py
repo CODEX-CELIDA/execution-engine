@@ -92,7 +92,7 @@ class ValueNumber(Value):
         elif self.value_max is not None:
             return f"Value <= {self.value_max} {self.unit.concept_name}"
 
-        return "Value (undefined)"
+        raise ValueError("Value is not set.")
 
     def __repr__(self) -> str:
         """
