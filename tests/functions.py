@@ -32,7 +32,7 @@ def random_datetime(date: datetime.date, max_hours: int = 24) -> datetime.dateti
     )
 
 
-def generate_dataframe(keys):
+def generate_dataframe(keys: dict) -> pd.DataFrame:
     # Create all possible combinations of binary factors
     options = [False, True]
     combinations = list(itertools.product(options, repeat=len(keys)))
@@ -138,7 +138,11 @@ def create_procedure(
     )
 
 
-def to_extended(df, observation_start_date, observation_end_date):
+def to_extended(
+    df: pd.DataFrame,
+    observation_start_date: datetime.datetime,
+    observation_end_date: datetime.datetime,
+):
     df = df.copy()
 
     # Set end_datetime equal to start_datetime if it's NaT

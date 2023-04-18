@@ -2,6 +2,7 @@ import datetime
 
 import pandas as pd
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
     Base,
@@ -14,17 +15,17 @@ from tests.functions import generate_dataframe, to_extended
 @pytest.mark.recommendation
 class TestRecommendation15ProphylacticAnticoagulation:
     @pytest.fixture
-    def visit_start_date(self):
+    def visit_start_date(self) -> datetime.datetime:
         visit_start_date = datetime.datetime(2023, 3, 1)
         return visit_start_date
 
     @pytest.fixture
-    def visit_end_date(self):
+    def visit_end_date(self) -> datetime.datetime:
         visit_end_date = datetime.datetime(2023, 3, 31)
         return visit_end_date
 
     @pytest.fixture
-    def population_intervention(self):
+    def population_intervention(self) -> dict:
         population = {
             "COVID19": concepts.COVID19,
             "VENOUS_THROMBOSIS": concepts.VENOUS_THROMBOSIS,
@@ -47,8 +48,12 @@ class TestRecommendation15ProphylacticAnticoagulation:
 
     @pytest.fixture
     def person_combinations(
-        self, visit_start_date, visit_end_date, population_intervention, run_slow_tests
-    ):
+        self,
+        visit_start_date: datetime.datetime,
+        visit_end_date: datetime.datetime,
+        population_intervention: dict,
+        run_slow_tests: bool,
+    ) -> pd.DataFrame:
 
         df = generate_dataframe(population_intervention)
 
@@ -64,12 +69,12 @@ class TestRecommendation15ProphylacticAnticoagulation:
     @pytest.fixture
     def criteria_extended(
         self,
-        insert_criteria,
-        criteria,
-        population_intervention,
-        visit_start_date,
-        visit_end_date,
-    ):
+        insert_criteria: dict,
+        criteria: pd.DataFrame,
+        population_intervention: dict,
+        visit_start_date: datetime.datetime,
+        visit_end_date: datetime.datetime,
+    ) -> pd.DataFrame:
 
         idx_static = criteria["static"]
         criteria.loc[idx_static, "start_datetime"] = pd.to_datetime(visit_start_date)
@@ -153,14 +158,13 @@ class TestRecommendation15ProphylacticAnticoagulation:
 
         return df
 
-    def test_recommendation_15_prophylactic_anticoagulation2(
-        self, db_session, criteria_extended, visit_start_date, visit_end_date
-    ):
-        assert True
-
     def test_recommendation_15_prophylactic_anticoagulation(
-        self, db_session, criteria_extended, visit_start_date, visit_end_date
-    ):
+        self,
+        db_session: sessionmaker,
+        criteria_extended: pd.DataFrame,
+        visit_start_date: datetime.datetime,
+        visit_end_date: datetime.datetime,
+    ) -> None:
         import itertools
 
         from execution_engine.clients import omopdb
