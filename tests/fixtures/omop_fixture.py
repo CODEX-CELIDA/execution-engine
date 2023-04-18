@@ -15,7 +15,8 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     metadata,
 )
 from execution_engine.omop.db.cdm import Person
-from tests import concepts
+from tests.fixtures import concepts
+from tests.fixtures.parameter import criteria_defs
 from tests.functions import (
     create_condition,
     create_drug_exposure,
@@ -24,7 +25,6 @@ from tests.functions import (
     create_visit,
     random_datetime,
 )
-from tests.parameter import criteria_defs
 
 logging.basicConfig()
 logger = logging.getLogger()

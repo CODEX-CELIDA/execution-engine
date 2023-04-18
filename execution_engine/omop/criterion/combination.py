@@ -21,6 +21,15 @@ class CriterionCombination(AbstractCriterion):
         EXACTLY = "EXACTLY"
 
         def __init__(self, operator: str, threshold: int | None = None):
+
+            assert operator in [
+                "AND",
+                "OR",
+                "AT_LEAST",
+                "AT_MOST",
+                "EXACTLY",
+            ], f"Invalid operator {operator}"
+
             self.operator = operator
             if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
                 assert (
@@ -36,6 +45,14 @@ class CriterionCombination(AbstractCriterion):
                 return f"Operator(operator={self.operator}, threshold={self.threshold})"
             else:
                 return f"Operator(operator={self.operator})"
+
+        def __eq__(self, other: object) -> bool:
+            """
+            Check if the operator is equal to another operator.
+            """
+            if not isinstance(other, CriterionCombination.Operator):
+                return NotImplemented
+            return self.operator == other.operator and self.threshold == other.threshold
 
     def __init__(
         self, name: str, exclude: bool, operator: Operator, category: CohortCategory
@@ -86,11 +103,11 @@ class CriterionCombination(AbstractCriterion):
         """
         return len(self._criteria)
 
-    def __getitem__(self, item: int) -> Union[Criterion, "CriterionCombination"]:
+    def __getitem__(self, index: int) -> Union[Criterion, "CriterionCombination"]:
         """
         Get the criterion at the specified index.
         """
-        return self._criteria[item]
+        return self._criteria[index]
 
     def __repr__(self) -> str:
         """

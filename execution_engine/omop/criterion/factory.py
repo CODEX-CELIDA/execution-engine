@@ -15,7 +15,37 @@ from execution_engine.omop.criterion.visit_occurrence import (
     VisitOccurrence,
 )
 
-__all__ = ["criterion_factory"]
+__all__ = ["criterion_factory", "register_criterion_class"]
+
+class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
+    "ConceptCriterion": ConceptCriterion,
+    "CriterionCombination": CriterionCombination,
+    "ConditionOccurrence": ConditionOccurrence,
+    "DrugExposure": DrugExposure,
+    "Measurement": Measurement,
+    "Observation": Observation,
+    "ProcedureOccurrence": ProcedureOccurrence,
+    "VisitOccurrence": VisitOccurrence,
+    "ActivePatients": ActivePatients,
+    "PatientsActiveDuringPeriod": PatientsActiveDuringPeriod,
+    "TidalVolumePerIdealBodyWeight": TidalVolumePerIdealBodyWeight,
+}
+
+
+def register_criterion_class(
+    class_name: str, criterion_class: Type[Criterion] | Type[CriterionCombination]
+) -> None:
+    """
+    Register a criterion class.
+
+    Parameters
+    ----------
+    class_name : str
+        The name of the criterion class.
+    criterion_class : Type[Criterion] | Type[CriterionCombination]
+        The criterion class.
+    """
+    class_map[class_name] = criterion_class
 
 
 def criterion_factory(class_name: str, data: dict) -> Criterion | CriterionCombination:
@@ -39,20 +69,6 @@ def criterion_factory(class_name: str, data: dict) -> Criterion | CriterionCombi
     ValueError
         If the class name is not recognized.
     """
-
-    class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
-        "ConceptCriterion": ConceptCriterion,
-        "CriterionCombination": CriterionCombination,
-        "ConditionOccurrence": ConditionOccurrence,
-        "DrugExposure": DrugExposure,
-        "Measurement": Measurement,
-        "Observation": Observation,
-        "ProcedureOccurrence": ProcedureOccurrence,
-        "VisitOccurrence": VisitOccurrence,
-        "ActivePatients": ActivePatients,
-        "PatientsActiveDuringPeriod": PatientsActiveDuringPeriod,
-        "TidalVolumePerIdealBodyWeight": TidalVolumePerIdealBodyWeight,
-    }
 
     """Create a criterion from a dictionary."""
     if class_name not in class_map:

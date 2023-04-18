@@ -1,49 +1,11 @@
 import re
-from typing import Any, Dict
 
 import pytest
-from sqlalchemy import Select
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
-from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
-
-
-class MockCriterion(Criterion):
-    def __init__(
-        self,
-        name: str,
-        exclude: bool = False,
-        category: CohortCategory = CohortCategory.POPULATION,
-    ):
-        self._name = name
-        self._exclude = exclude
-        self._category = category
-
-    def unique_name(self) -> str:
-        return self._name
-
-    def _sql_generate(self, query: Select) -> Select:
-        pass
-
-    def _sql_filter_concept(self, query: Select) -> Select:
-        pass
-
-    def _sql_select_data(self, query: Select) -> Select:
-        pass
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Criterion":  # type: ignore
-        pass
-
-    def dict(self) -> dict[str, Any]:  # type: ignore
-        pass
-
-    @property
-    def concept(self) -> Concept:  # type: ignore
-        pass
+from tests.fixtures.mock import MockCriterion
 
 
 def sort_numbers_in_string(query: str) -> str:
