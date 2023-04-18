@@ -76,7 +76,7 @@ def db_session(postgresql):
             "concept_ancestor",
             "drug_strength",
         ]:
-            df = pd.read_csv(f"tests/omop_cdm/{table}.csv.gz")
+            df = pd.read_csv(f"tests/fixtures/omop_cdm/{table}.csv.gz")
             for c in df.columns:
                 if "_date" in c:
                     df[c] = pd.to_datetime(df[c])
