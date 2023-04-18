@@ -53,7 +53,7 @@ class ExecutionMap:
             elif operator.operator == CriterionCombination.Operator.OR:
                 return sympy.Or
             else:
-                raise NotImplementedError(f"Operator {operator} not implemented")
+                raise NotImplementedError(f'Operator "{str(operator)}" not implemented')
 
         def _traverse(
             comb: CriterionCombination,
@@ -198,7 +198,10 @@ class ExecutionMap:
                         continue
                 elif isinstance(criterion, CompoundSelect):
                     if len(criterion.selects) == 0:
-                        continue
+                        # continue # not sure why this is needed? for testing: insert a value error
+                        raise ValueError(
+                            "Empty criterion combination"
+                        )  # todo: remove this
                 criteria.append(criterion)
 
             return conjunction(*[sql_select(c) for c in criteria])

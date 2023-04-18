@@ -28,6 +28,15 @@ class CriterionCombination(AbstractCriterion):
                 ), f"Threshold must be set for operator {operator}"
             self.threshold = threshold
 
+        def __str__(self) -> str:
+            """
+            Get the string representation of the operator.
+            """
+            if self.operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
+                return f"Operator(operator={self.operator}, threshold={self.threshold})"
+            else:
+                return f"Operator(operator={self.operator})"
+
     def __init__(
         self, name: str, exclude: bool, operator: Operator, category: CohortCategory
     ):
@@ -43,6 +52,12 @@ class CriterionCombination(AbstractCriterion):
         Add a criterion to the combination.
         """
         self._criteria.append(criterion)
+
+    def add_all(self, criteria: list[Union[Criterion, "CriterionCombination"]]) -> None:
+        """
+        Add multiple criteria to the combination.
+        """
+        self._criteria.extend(criteria)
 
     @property
     def name(self) -> str:
