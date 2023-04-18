@@ -101,7 +101,8 @@ jobs:
             --postgresql-port=$OMOP__PORT \
             --postgresql-user=$OMOP__USER \
             --postgresql-password=$OMOP__PASSWORD \
-            --run-slow-tests
+            --run-slow-tests \
+            --run-recommendation-tests
 
       - name: Coverage
         uses: codecov/codecov-action@v3
