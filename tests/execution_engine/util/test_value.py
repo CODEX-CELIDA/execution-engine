@@ -8,17 +8,6 @@ from execution_engine.util import ValueConcept, ValueNumber, value_factory
 
 class TestValueNumber:
     @pytest.fixture
-    def unit(self):
-        return Concept(
-            concept_id=1,
-            concept_name="Test Unit",
-            concept_code="unit",
-            domain_id="units",
-            vocabulary_id="test",
-            concept_class_id="test",
-        )
-
-    @pytest.fixture
     def value_number_root_validator_disabled(self):
         vn_class = type(
             "ValueNumberValidatorDisabled",
@@ -30,39 +19,39 @@ class TestValueNumber:
         yield vn_class
         assert ValueNumber.__post_root_validators__ == post_validators
 
-    def test_validate_value(self, unit):
+    def test_validate_value(self, unit_concept):
         with pytest.raises(
             ValueError, match="Either value or value_min and value_max must be set."
         ):
-            ValueNumber(unit=unit)
+            ValueNumber(unit=unit_concept)
 
         with pytest.raises(
             ValueError, match="value and value_min/value_max are mutually exclusive."
         ):
-            ValueNumber(unit=unit, value=5, value_min=1, value_max=10)
+            ValueNumber(unit=unit_concept, value=5, value_min=1, value_max=10)
 
         with pytest.raises(
             ValueError, match="value and value_min/value_max are mutually exclusive."
         ):
-            ValueNumber(unit=unit, value=5, value_max=10)
+            ValueNumber(unit=unit_concept, value=5, value_max=10)
 
         with pytest.raises(
             ValueError, match="value and value_min/value_max are mutually exclusive."
         ):
-            ValueNumber(unit=unit, value=5, value_min=1)
+            ValueNumber(unit=unit_concept, value=5, value_min=1)
 
         with pytest.raises(
             ValueError, match="value_min must be less than or equal to value_max."
         ):
-            ValueNumber(unit=unit, value_min=10, value_max=5)
+            ValueNumber(unit=unit_concept, value_min=10, value_max=5)
 
-        vn = ValueNumber(unit=unit, value=5)
+        vn = ValueNumber(unit=unit_concept, value=5)
         assert vn.value == 5
         assert vn.value_min is None
         assert vn.value_max is None
-        assert vn.unit == unit
+        assert vn.unit == unit_concept
 
-        vn = ValueNumber(unit=unit, value_min=1, value_max=10)
+        vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
         assert vn.value is None
         assert vn.value_min == 1
         assert vn.value_max == 10
@@ -72,30 +61,30 @@ class TestValueNumber:
         ):
             vn = ValueNumber(value_min=1)
 
-    def test_str(self, unit):
-        vn = ValueNumber(unit=unit, value=5)
+    def test_str(self, unit_concept):
+        vn = ValueNumber(unit=unit_concept, value=5)
         assert str(vn) == "Value == 5.0 Test Unit"
 
-        vn = ValueNumber(unit=unit, value_min=1, value_max=10)
+        vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
         assert str(vn) == "1.0 <= Value <= 10.0 Test Unit"
 
-        vn = ValueNumber(unit=unit, value_min=1)
+        vn = ValueNumber(unit=unit_concept, value_min=1)
         assert str(vn) == "Value >= 1.0 Test Unit"
 
-        vn = ValueNumber(unit=unit, value_max=10)
+        vn = ValueNumber(unit=unit_concept, value_max=10)
         assert str(vn) == "Value <= 10.0 Test Unit"
 
-    def test_str_unreachable(self, unit, value_number_root_validator_disabled):
-        vn = value_number_root_validator_disabled(unit=unit)
+    def test_str_unreachable(self, unit_concept, value_number_root_validator_disabled):
+        vn = value_number_root_validator_disabled(unit=unit_concept)
         with pytest.raises(ValueError, match="Value is not set."):
             str(vn)
 
-    def test_repr(self, unit):
-        vn = ValueNumber(unit=unit, value=5)
+    def test_repr(self, unit_concept):
+        vn = ValueNumber(unit=unit_concept, value=5)
         assert repr(vn) == "Value == 5.0 Test Unit"
 
-    def test_to_sql(self, unit):
-        vn = ValueNumber(unit=unit, value=5)
+    def test_to_sql(self, unit_concept):
+        vn = ValueNumber(unit=unit_concept, value=5)
 
         clauses = vn.to_sql()
         assert len(clauses.clauses) == 2
@@ -104,7 +93,7 @@ class TestValueNumber:
             == "unit_concept_id = :unit_concept_id_1 AND value_as_number = :value_as_number_1"
         )
 
-        vn = ValueNumber(unit=unit, value_min=1, value_max=10)
+        vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
         clauses = vn.to_sql()
         assert len(clauses.clauses) == 3
         assert (
@@ -112,7 +101,7 @@ class TestValueNumber:
             == "unit_concept_id = :unit_concept_id_1 AND value_as_number >= :value_as_number_1 AND value_as_number <= :value_as_number_2"
         )
 
-        vn = ValueNumber(unit=unit, value_min=1)
+        vn = ValueNumber(unit=unit_concept, value_min=1)
         clauses = vn.to_sql()
         assert len(clauses.clauses) == 2
         assert (
@@ -120,7 +109,7 @@ class TestValueNumber:
             == "unit_concept_id = :unit_concept_id_1 AND value_as_number >= :value_as_number_1"
         )
 
-        vn = ValueNumber(unit=unit, value_max=10)
+        vn = ValueNumber(unit=unit_concept, value_max=10)
         clauses = vn.to_sql()
         assert len(clauses.clauses) == 2
         assert (
@@ -136,7 +125,7 @@ class TestValueNumber:
                 table_name="test_table", column_name=ColumnClause("value_as_number")
             )
 
-        vn = ValueNumber(unit=unit, value=5)
+        vn = ValueNumber(unit=unit_concept, value=5)
         clauses = vn.to_sql(table_name="test_table")
         assert len(clauses.clauses) == 2
         assert (
@@ -144,7 +133,7 @@ class TestValueNumber:
             == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number = :test_table_value_as_number_1"
         )
 
-        vn = ValueNumber(unit=unit, value_min=1, value_max=10)
+        vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
         clauses = vn.to_sql(table_name="test_table")
         assert len(clauses.clauses) == 3
         assert (
@@ -152,7 +141,7 @@ class TestValueNumber:
             == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number >= :test_table_value_as_number_1 AND test_table.value_as_number <= :test_table_value_as_number_2"
         )
 
-        vn = ValueNumber(unit=unit, value_min=1)
+        vn = ValueNumber(unit=unit_concept, value_min=1)
         clauses = vn.to_sql(table_name="test_table")
         assert len(clauses.clauses) == 2
         assert (
@@ -160,7 +149,7 @@ class TestValueNumber:
             == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number >= :test_table_value_as_number_1"
         )
 
-        vn = ValueNumber(unit=unit, value_max=10)
+        vn = ValueNumber(unit=unit_concept, value_max=10)
         clauses = vn.to_sql(table_name="test_table")
         assert len(clauses.clauses) == 2
         assert (
@@ -168,7 +157,7 @@ class TestValueNumber:
             == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number <= :test_table_value_as_number_1"
         )
 
-        vn = ValueNumber(unit=unit, value=5)
+        vn = ValueNumber(unit=unit_concept, value=5)
         custom_column = ColumnClause("custom_column")
         clauses = vn.to_sql(column_name=custom_column)
         assert len(clauses.clauses) == 2
@@ -179,17 +168,6 @@ class TestValueNumber:
 
 
 class TestValueConcept:
-    @pytest.fixture
-    def test_concept(self):
-        return Concept(
-            concept_id=1,
-            concept_name="Test Concept",
-            concept_code="unit",
-            domain_id="units",
-            vocabulary_id="test",
-            concept_class_id="test",
-        )
-
     def test_to_sql(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
 
