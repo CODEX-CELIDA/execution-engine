@@ -15,7 +15,7 @@ from execution_engine.omop.db.cdm import (
     ProcedureOccurrence,
     VisitOccurrence,
 )
-from tests.fixtures import concepts
+from tests._testdata import concepts
 
 
 def random_date(start_date: datetime.date, end_date: datetime.date) -> datetime.date:

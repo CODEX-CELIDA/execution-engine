@@ -2,7 +2,7 @@ import pytest
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.combination import CriterionCombination
-from tests.fixtures.mock import MockCriterion
+from tests._fixtures.mock import MockCriterion
 
 
 class TestCriterionCombination:

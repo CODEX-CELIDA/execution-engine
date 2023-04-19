@@ -6,7 +6,7 @@ from pytest_postgresql.janitor import DatabaseJanitor
 
 pytest_plugins = [
     fixture_file.replace("/", ".").replace(".py", "")
-    for fixture_file in glob("tests/fixtures/[!__]*.py", recursive=True)
+    for fixture_file in glob("tests/_fixtures/[!__]*.py", recursive=True)
 ]
 
 

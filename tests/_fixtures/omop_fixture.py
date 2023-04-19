@@ -14,8 +14,8 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     metadata,
 )
 from execution_engine.omop.db.cdm import Person
-from tests.fixtures import concepts
-from tests.fixtures.parameter import criteria_defs
+from tests._testdata import concepts
+from tests._testdata.parameter import criteria_defs
 from tests.functions import (
     create_condition,
     create_drug_exposure,
@@ -63,7 +63,7 @@ def db_session():
             "concept_ancestor",
             "drug_strength",
         ]:
-            df = pd.read_csv(f"tests/fixtures/omop_cdm/{table}.csv.gz")
+            df = pd.read_csv(f"tests/_testdata/omop_cdm/{table}.csv.gz")
             for c in df.columns:
                 if "_date" in c:
                     df[c] = pd.to_datetime(df[c])

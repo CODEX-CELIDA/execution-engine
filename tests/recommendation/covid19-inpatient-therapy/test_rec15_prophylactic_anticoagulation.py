@@ -8,7 +8,7 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     Base,
     metadata,
 )
-from tests.fixtures import concepts
+from tests._testdata import concepts
 from tests.functions import generate_dataframe, to_extended
 
 

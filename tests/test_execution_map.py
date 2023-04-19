@@ -5,7 +5,7 @@ import pytest
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.criterion.combination import CriterionCombination
-from tests.fixtures.mock import MockCriterion
+from tests._fixtures.mock import MockCriterion
 
 
 def sort_numbers_in_string(query: str) -> str:
