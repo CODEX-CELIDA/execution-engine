@@ -5,7 +5,6 @@ import os
 import pandas as pd
 import pytest
 import sqlalchemy
-from pytest_postgresql import factories
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm.session import sessionmaker
 from tqdm import tqdm
@@ -30,29 +29,17 @@ logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-postgresql_in_docker = factories.postgresql_noproc()
-postgresql = factories.postgresql("postgresql_in_docker")
-
 
 @pytest.fixture
-def db_session(postgresql):
-    """Session for SQLAlchemy."""
-    pg_host = postgresql.info.host
-    pg_port = postgresql.info.port
-    pg_user = postgresql.info.user
-    pg_password = postgresql.info.password
-    pg_db = postgresql.info.dbname
+def db_session():
+    """Database Session for SQLAlchemy."""
 
-    os.environ["OMOP__USER"] = pg_user
-    os.environ["OMOP__PASSWORD"] = pg_password
-    os.environ["OMOP__HOST"] = pg_host
-    os.environ["OMOP__PORT"] = str(pg_port)
-    os.environ["OMOP__DATABASE"] = pg_db
-    os.environ["OMOP__SCHEMA"] = "cds_cdm"
+    pg_user = os.environ["OMOP__USER"]
+    pg_password = os.environ["OMOP__PASSWORD"]
+    pg_host = os.environ["OMOP__HOST"]
+    pg_port = os.environ["OMOP__PORT"]
+    pg_db = os.environ["OMOP__DATABASE"]
 
-    # with DatabaseJanitor(
-    #    pg_user, pg_host, pg_port, pg_db, postgresql.info.server_version, pg_password
-    # ):
     connection_str = (
         f"postgresql+psycopg://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
     )
@@ -87,8 +74,6 @@ def db_session(postgresql):
         logger.info("yielding a sessionmaker against the test postgres db.")
 
         yield sessionmaker(bind=engine, expire_on_commit=False)
-
-        # metadata.drop_all(con)
 
 
 @pytest.fixture

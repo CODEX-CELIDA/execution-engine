@@ -234,10 +234,6 @@ class TestRecommendation15ProphylacticAnticoagulation:
             m[f"p_{plan}_eq"] = m[f"p_{plan}"] == m[f"db_p_{plan}"]
             m[f"i_{plan}_eq"] = m[f"i_{plan}"] == m[f"db_i_{plan}"]
             m[f"p_i_{plan}_eq"] = m[f"p_i_{plan}"] == m[f"db_p_i_{plan}"]
-            print(plan)
-            print("p", (m[f"p_{plan}_eq"]).all(), m[f"p_{plan}"].sum())
-            print("i", (m[f"i_{plan}_eq"]).all(), m[f"i_{plan}"].sum())
-            print("pi", (m[f"p_i_{plan}_eq"]).all(), m[f"p_i_{plan}"].sum())
 
         eq = m[[c for c in m.columns if c.endswith("_eq")]]
 
