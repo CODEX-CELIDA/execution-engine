@@ -12,7 +12,8 @@ def get_coding(cc: CodeableConcept, system_uri: str | None = None) -> Coding:
     else:
         coding = [c for c in cc.coding if c.system == system_uri]
 
-    assert len(cc.coding) == 1, "CodeableConcept must have exactly one coding"
+    if cc.coding is None or len(coding) != 1:
+        raise ValueError("CodeableConcept must have exactly one coding")
 
     return coding[0]
 
