@@ -30,8 +30,8 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 
-@pytest.fixture
-def db_session():
+@pytest.fixture(scope="session")
+def db_setup():
     """Database Session for SQLAlchemy."""
 
     pg_user = os.environ["OMOP__USER"]
@@ -74,6 +74,16 @@ def db_session():
         logger.info("yielding a sessionmaker against the test postgres db.")
 
         yield sessionmaker(bind=engine, expire_on_commit=False)
+
+
+@pytest.fixture
+def db_session(db_setup):
+    session = db_setup()
+
+    yield session
+
+    session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
+    session.commit()
 
 
 @pytest.fixture
@@ -147,9 +157,7 @@ def criteria(
 
 @pytest.fixture
 def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
-    session = db_session()
-
-    session.execute(
+    db_session.execute(
         text("SET session_replication_role = 'replica';")
     )  # Disable foreign key checks
 
@@ -203,5 +211,5 @@ def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
 
             person_entries.append(entry)
 
-        session.add_all(person_entries)
-        session.commit()
+        db_session.add_all(person_entries)
+        db_session.commit()
