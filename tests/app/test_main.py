@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+@pytest.mark.recommendation
 class TestAppEndpoints:
     @pytest.fixture
     def client(self, db_session):

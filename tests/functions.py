@@ -33,6 +33,9 @@ def random_datetime(date: datetime.date, max_hours: int = 24) -> datetime.dateti
 
 
 def generate_dataframe(keys: dict) -> pd.DataFrame:
+    """
+    Generate a pandas DataFrame with all possible combinations of binary factors
+    """
     # Create all possible combinations of binary factors
     options = [False, True]
     combinations = list(itertools.product(options, repeat=len(keys)))
@@ -43,33 +46,68 @@ def generate_dataframe(keys: dict) -> pd.DataFrame:
     return df
 
 
-def create_visit(p: Person, visit_start_date, visit_end_date, icu=True):
+def create_visit(
+    p: Person,
+    visit_start_datetime: datetime.datetime,
+    visit_end_datetime: datetime.datetime,
+    icu: bool = True,
+) -> VisitOccurrence:
+    """
+    Create a visit for a person
+    """
     return VisitOccurrence(
         person_id=p.person_id,
-        visit_start_date=visit_start_date,
-        visit_start_datetime=random_datetime(visit_start_date),
-        visit_end_date=visit_end_date,
-        visit_end_datetime=random_datetime(visit_end_date),
+        visit_start_date=visit_start_datetime.date(),
+        visit_start_datetime=visit_start_datetime,
+        visit_end_date=visit_end_datetime.date(),
+        visit_end_datetime=visit_end_datetime,
         visit_concept_id=concepts.INTENSIVE_CARE if icu else concepts.INPATIENT_VISIT,
         visit_type_concept_id=concepts.VISIT_TYPE_STILL_PATIENT,
     )
 
 
-def create_condition(vo: VisitOccurrence, condition_concept_id):
+def create_condition(
+    vo: VisitOccurrence,
+    condition_concept_id: int,
+    condition_start_datetime: datetime.datetime | None = None,
+    condition_end_datetime: datetime.datetime | None = None,
+) -> ConditionOccurrence:
+    """
+    Create a condition for a visit
+    """
+
+    start_datetime = (
+        condition_start_datetime
+        if condition_start_datetime is not None
+        else vo.visit_start_datetime
+    )
+    end_datetime = (
+        condition_end_datetime
+        if condition_end_datetime is not None
+        else vo.visit_end_datetime
+    )
+
     return ConditionOccurrence(
         person_id=vo.person_id,
         condition_concept_id=condition_concept_id,
-        condition_start_date=vo.visit_start_date,
-        condition_start_datetime=vo.visit_start_datetime,
-        condition_end_date=vo.visit_end_date,
-        condition_end_datetime=vo.visit_end_datetime,
+        condition_start_date=start_datetime.date(),
+        condition_start_datetime=start_datetime,
+        condition_end_date=end_datetime.date(),
+        condition_end_datetime=end_datetime,
         condition_type_concept_id=concepts.EHR,
     )
 
 
 def create_drug_exposure(
-    vo: VisitOccurrence, drug_concept_id, start_datetime, end_datetime, quantity
-):
+    vo: VisitOccurrence,
+    drug_concept_id: int,
+    start_datetime: datetime.datetime,
+    end_datetime: datetime.datetime,
+    quantity: float,
+) -> DrugExposure:
+    """
+    Create a drug exposure for a visit
+    """
     assert start_datetime >= vo.visit_start_datetime
     assert end_datetime <= vo.visit_end_datetime
     assert start_datetime <= end_datetime
@@ -88,11 +126,14 @@ def create_drug_exposure(
 
 def create_measurement(
     vo: VisitOccurrence,
-    measurement_concept_id,
-    datetime,
-    value_as_number,
-    unit_concept_id,
-):
+    measurement_concept_id: int,
+    datetime: datetime.datetime,
+    value_as_number: float,
+    unit_concept_id: int,
+) -> Measurement:
+    """
+    Create a measurement for a visit
+    """
     assert datetime >= vo.visit_start_datetime
     assert datetime <= vo.visit_end_datetime
 
@@ -107,7 +148,12 @@ def create_measurement(
     )
 
 
-def create_observation(vo: VisitOccurrence, observation_concept_id, datetime):
+def create_observation(
+    vo: VisitOccurrence, observation_concept_id: int, datetime: datetime.datetime
+) -> Observation:
+    """
+    Create an observation for a visit
+    """
     assert datetime >= vo.visit_start_datetime
     assert datetime <= vo.visit_end_datetime
 
@@ -121,8 +167,14 @@ def create_observation(vo: VisitOccurrence, observation_concept_id, datetime):
 
 
 def create_procedure(
-    vo: VisitOccurrence, procedure_concept_id, start_datetime, end_datetime
-):
+    vo: VisitOccurrence,
+    procedure_concept_id: int,
+    start_datetime: datetime.datetime,
+    end_datetime: datetime.datetime,
+) -> ProcedureOccurrence:
+    """
+    Create a procedure for a visit
+    """
     assert start_datetime >= vo.visit_start_datetime
     assert end_datetime <= vo.visit_end_datetime
     assert start_datetime <= end_datetime
@@ -142,7 +194,11 @@ def to_extended(
     df: pd.DataFrame,
     observation_start_date: datetime.datetime,
     observation_end_date: datetime.datetime,
-):
+) -> pd.DataFrame:
+    """
+    Expand a dataframe with one row per person and one column per concept to a dataframe with one row per person and
+    per day and one column per concept between `observation_start_date` and `observation_end_date`.
+    """
     df = df.copy()
 
     # Set end_datetime equal to start_datetime if it's NaT
@@ -202,5 +258,6 @@ def to_extended(
     return merged_df
 
 
-def to_snake(s):
+def to_snake(s: str) -> str:
+    """Converts a string from CamelCase to snake_case."""
     return re.sub(r"(?<!^)(?=[A-Z])", "_", s).lower()

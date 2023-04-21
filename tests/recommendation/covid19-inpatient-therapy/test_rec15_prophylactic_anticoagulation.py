@@ -15,14 +15,12 @@ from tests.functions import generate_dataframe, to_extended
 @pytest.mark.recommendation
 class TestRecommendation15ProphylacticAnticoagulation:
     @pytest.fixture
-    def visit_start_date(self) -> datetime.datetime:
-        visit_start_date = datetime.datetime(2023, 3, 1)
-        return visit_start_date
+    def visit_start_datetime(self) -> datetime.datetime:
+        return datetime.datetime(2023, 3, 1, 7, 0, 0)
 
     @pytest.fixture
-    def visit_end_date(self) -> datetime.datetime:
-        visit_end_date = datetime.datetime(2023, 3, 31)
-        return visit_end_date
+    def visit_end_datetime(self) -> datetime.datetime:
+        return datetime.datetime(2023, 3, 31, 22, 0, 0)
 
     @pytest.fixture
     def population_intervention(self) -> dict:
@@ -49,8 +47,6 @@ class TestRecommendation15ProphylacticAnticoagulation:
     @pytest.fixture
     def person_combinations(
         self,
-        visit_start_date: datetime.datetime,
-        visit_end_date: datetime.datetime,
         population_intervention: dict,
         run_slow_tests: bool,
     ) -> pd.DataFrame:
@@ -72,17 +68,17 @@ class TestRecommendation15ProphylacticAnticoagulation:
         insert_criteria: dict,
         criteria: pd.DataFrame,
         population_intervention: dict,
-        visit_start_date: datetime.datetime,
-        visit_end_date: datetime.datetime,
+        visit_start_datetime: datetime.datetime,
+        visit_end_datetime: datetime.datetime,
     ) -> pd.DataFrame:
 
         idx_static = criteria["static"]
-        criteria.loc[idx_static, "start_datetime"] = pd.to_datetime(visit_start_date)
-        criteria.loc[idx_static, "end_datetime"] = pd.to_datetime(visit_end_date)
+        criteria.loc[idx_static, "start_datetime"] = visit_start_datetime
+        criteria.loc[idx_static, "end_datetime"] = visit_end_datetime
         df = to_extended(
             criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
-            observation_start_date=pd.to_datetime(visit_start_date),
-            observation_end_date=pd.to_datetime(visit_end_date),
+            observation_start_date=visit_start_datetime,
+            observation_end_date=visit_end_datetime,
         )
         df.loc[
             :, [c for c in population_intervention.keys() if c not in df.columns]
@@ -162,8 +158,8 @@ class TestRecommendation15ProphylacticAnticoagulation:
         self,
         db_session: sessionmaker,
         criteria_extended: pd.DataFrame,
-        visit_start_date: datetime.datetime,
-        visit_end_date: datetime.datetime,
+        visit_start_datetime: datetime.datetime,
+        visit_end_datetime: datetime.datetime,
     ) -> None:
         import itertools
 
@@ -177,8 +173,8 @@ class TestRecommendation15ProphylacticAnticoagulation:
             "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
         )
 
-        start_datetime = visit_start_date - datetime.timedelta(days=3)
-        end_datetime = visit_end_date + datetime.timedelta(days=3)
+        start_datetime = visit_start_datetime - datetime.timedelta(days=3)
+        end_datetime = visit_end_datetime + datetime.timedelta(days=3)
 
         e = ExecutionEngine(verbose=False)
 

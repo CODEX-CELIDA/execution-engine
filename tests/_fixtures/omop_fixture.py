@@ -22,7 +22,6 @@ from tests.functions import (
     create_measurement,
     create_observation,
     create_visit,
-    random_datetime,
 )
 
 logging.basicConfig()
@@ -63,7 +62,11 @@ def db_setup():
             "concept_ancestor",
             "drug_strength",
         ]:
-            df = pd.read_csv(f"tests/_testdata/omop_cdm/{table}.csv.gz")
+            df = pd.read_csv(
+                f"tests/_testdata/omop_cdm/{table}.csv.gz",
+                na_values=[""],
+                keep_default_na=False,
+            )
             for c in df.columns:
                 if "_date" in c:
                     df[c] = pd.to_datetime(df[c])
@@ -71,9 +74,14 @@ def db_setup():
 
         con.commit()
 
-        logger.info("yielding a sessionmaker against the test postgres db.")
+        con.execute(
+            text("SET session_replication_role = 'origin';")
+        )  # Enable foreign key checks
 
-        yield sessionmaker(bind=engine, expire_on_commit=False)
+        con.commit()
+
+    logger.info("yielding a sessionmaker against the test postgres db.")
+    yield sessionmaker(bind=engine, expire_on_commit=False)
 
 
 @pytest.fixture
@@ -88,7 +96,10 @@ def db_session(db_setup):
 
 @pytest.fixture
 def criteria(
-    person_combinations, visit_start_date, visit_end_date, population_intervention
+    person_combinations,
+    visit_start_datetime,
+    visit_end_datetime,
+    population_intervention,
 ):
 
     entries = []
@@ -115,8 +126,8 @@ def criteria(
             }
 
             if params["type"] == "condition":
-                entry["start_datetime"] = random_datetime(visit_start_date)
-                entry["end_datetime"] = random_datetime(visit_end_date)
+                entry["start_datetime"] = visit_start_datetime
+                entry["end_datetime"] = visit_end_datetime
             elif params["type"] == "observation":
                 entry["start_datetime"] = datetime.datetime(2023, 3, 15, 12, 0, 0)
             elif params["type"] == "drug":
@@ -141,7 +152,7 @@ def criteria(
                 "concept": "WEIGHT",
                 "concept_id": concepts.WEIGHT,
                 "start_datetime": datetime.datetime.combine(
-                    visit_start_date, datetime.time()
+                    visit_start_datetime.date(), datetime.time()
                 )
                 + datetime.timedelta(days=1),
                 "value": 71 if row["NADROPARIN_HIGH_WEIGHT"] else 69,
@@ -156,10 +167,10 @@ def criteria(
 
 
 @pytest.fixture
-def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
-    db_session.execute(
-        text("SET session_replication_role = 'replica';")
-    )  # Disable foreign key checks
+def insert_criteria(db_session, criteria, visit_start_datetime, visit_end_datetime):
+    # db_session.execute(
+    #    text("SET session_replication_role = 'replica';")
+    # )  # Disable foreign key checks
 
     for person_id, g in tqdm(
         criteria.groupby("person_id"),
@@ -176,7 +187,7 @@ def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
             race_concept_id=0,
             ethnicity_concept_id=0,
         )
-        vo = create_visit(p, visit_start_date, visit_end_date)
+        vo = create_visit(p, visit_start_datetime, visit_end_datetime)
 
         person_entries = [p, vo]
 
