@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 
 import pandas as pd
 import pendulum
@@ -43,8 +43,10 @@ class ValueCriterion(TestCriterion, ABC):
             "Subclasses should override this method to provide their own fixture"
         )
 
-    @pytest.fixture
-    def create_value_func(self):
+    @abstractmethod
+    def create_value(
+        self, visit_occurrence, concept_id, datetime, value, unit_concept_id
+    ):
         raise NotImplementedError(
             "Subclasses should override this method to provide their own fixture"
         )
@@ -57,7 +59,6 @@ class ValueCriterion(TestCriterion, ABC):
         unit_concept,
         unit_concept_no_match,
         criterion_class,
-        create_value_func,
     ) -> dict:
         return {
             "concept": concept,
@@ -65,7 +66,6 @@ class ValueCriterion(TestCriterion, ABC):
             "unit_concept": unit_concept,
             "unit_concept_no_match": unit_concept_no_match,
             "criterion_class": criterion_class,
-            "create_value_func": create_value_func,
         }
 
     @pytest.fixture
@@ -245,11 +245,11 @@ class ValueCriterion(TestCriterion, ABC):
         times = [pendulum.parse(time) for time in times]
 
         for time in times:
-            c = criterion_fixture["create_value_func"](
-                vo=vo,
-                measurement_concept_id=criterion_fixture["concept"].concept_id,
+            c = self.create_value(
+                visit_occurrence=vo,
+                concept_id=criterion_fixture["concept"].concept_id,
                 datetime=time,
-                value_as_number=value_db,
+                value=value_db,
                 unit_concept_id=criterion_fixture["unit_concept"].concept_id,
             )
             db_session.add(c)

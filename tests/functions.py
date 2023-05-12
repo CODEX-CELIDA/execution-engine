@@ -127,7 +127,7 @@ def create_drug_exposure(
 def create_measurement(
     vo: VisitOccurrence,
     measurement_concept_id: int,
-    datetime: datetime.datetime,
+    measurement_datetime: datetime.datetime,
     value_as_number: float,
     unit_concept_id: int,
 ) -> Measurement:
@@ -137,8 +137,8 @@ def create_measurement(
     return Measurement(
         person_id=vo.person_id,
         measurement_concept_id=measurement_concept_id,
-        measurement_date=datetime.date(),
-        measurement_datetime=datetime,
+        measurement_date=measurement_datetime.date(),
+        measurement_datetime=measurement_datetime,
         value_as_number=value_as_number,
         unit_concept_id=unit_concept_id,
         measurement_type_concept_id=concepts.EHR,
@@ -146,7 +146,13 @@ def create_measurement(
 
 
 def create_observation(
-    vo: VisitOccurrence, observation_concept_id: int, datetime: datetime.datetime
+    vo: VisitOccurrence,
+    observation_concept_id: int,
+    observation_datetime: datetime.datetime,
+    value_as_number: float | None = None,
+    value_as_string: str | None = None,
+    value_as_concept_id: int | None = None,
+    unit_concept_id: int | None = None,
 ) -> Observation:
     """
     Create an observation for a visit
@@ -154,9 +160,13 @@ def create_observation(
     return Observation(
         person_id=vo.person_id,
         observation_concept_id=observation_concept_id,
-        observation_date=datetime.date(),
-        observation_datetime=datetime,
+        observation_date=observation_datetime.date(),
+        observation_datetime=observation_datetime,
         observation_type_concept_id=concepts.EHR,
+        value_as_number=value_as_number,
+        value_as_string=value_as_string,
+        value_as_concept_id=value_as_concept_id,
+        unit_concept_id=unit_concept_id,
     )
 
 
