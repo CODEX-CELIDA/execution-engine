@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from sqlalchemy import and_, bindparam, select
+from sqlalchemy import select
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory, OMOPConcepts
@@ -74,13 +74,4 @@ class PatientsActiveDuringPeriod(ActivePatients):
         """
         Get the SQL representation of the criterion.
         """
-        query = query.filter(
-            and_(
-                self._table.c.visit_start_datetime
-                <= bindparam("observation_end_datetime"),
-                self._table.c.visit_end_datetime
-                >= bindparam("observation_start_datetime"),
-            )
-        )
-
         return query

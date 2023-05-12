@@ -241,7 +241,9 @@ def to_extended(
 
     # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date and observation_end_date
     unique_person_ids = df["person_id"].unique()
-    date_range = pd.date_range(observation_start_date, observation_end_date, freq="D")
+    date_range = pd.date_range(
+        observation_start_date.date(), observation_end_date.date(), freq="D"
+    )
     aux_df = pd.DataFrame(
         {
             "person_id": np.repeat(unique_person_ids, len(date_range)),

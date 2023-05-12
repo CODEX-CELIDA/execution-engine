@@ -1,93 +1,15 @@
-import datetime
-
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Table, func
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
-from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
-from execution_engine.omop.db.cdm import Person
-from tests.functions import create_condition, create_visit
+from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
+from tests.functions import create_condition
 
 
-class TestCondition:
-    @pytest.fixture
-    def visit_start_datetime(self) -> datetime.datetime:
-        return pendulum.parse("2023-03-01 09:36:24")
-
-    @pytest.fixture
-    def visit_end_datetime(self) -> datetime.datetime:
-        return pendulum.parse("2023-03-31 14:21:11")
-
-    @pytest.fixture
-    def person_visit(self, visit_start_datetime, visit_end_datetime, db_session):
-        p = Person(
-            person_id=1,
-            gender_concept_id=0,
-            year_of_birth=1990,
-            month_of_birth=1,
-            day_of_birth=1,
-            race_concept_id=0,
-            ethnicity_concept_id=0,
-        )
-        vo = create_visit(p, visit_start_datetime, visit_end_datetime)
-
-        person_entries = [p, vo]
-
-        db_session.add_all(person_entries)
-        db_session.commit()
-
-        return person_entries
-
-    @pytest.fixture
-    def base_table(
-        self,
-        person_visit,
-        db_session,
-        base_criterion,
-        visit_start_datetime,
-        visit_end_datetime,
-    ):
-        def to_table(name: str) -> Table:
-            """
-            Convert a name to a valid SQL table name.
-            """
-            metadata = MetaData()
-            return Table(
-                name,
-                metadata,
-                Column("person_id", Integer, primary_key=True),
-                Column("valid_date", Date),
-            )
-
-        base_table = to_table("base_table")
-        query = base_criterion.sql_generate(base_table=base_table)
-        query = base_criterion.sql_insert_into_table(query, base_table, temporary=True)
-        db_session.execute(
-            query,
-            params={
-                "observation_start_datetime": visit_start_datetime,
-                "observation_end_datetime": visit_end_datetime,
-            },
-        )
-        db_session.commit()
-
-        count = db_session.query(func.count(base_table.c.person_id)).scalar()
-        assert (
-            count > 0
-        ), "Base table (active patients in period) should have at least one row."
-
-        yield base_table
-
-        base_table.drop(db_session.connection())
-
-    @pytest.fixture
-    def base_criterion(self):
-        return PatientsActiveDuringPeriod("TestActivePatients")
-
+class TestCondition(TestCriterion):
     @pytest.fixture
     def concept_covid19(self):
         return Concept(
@@ -132,47 +54,6 @@ class TestCondition:
             return df
 
         return _create_criterion
-
-    def invert_date_range(
-        self,
-        start_datetime: datetime.datetime,
-        end_datetime: datetime.datetime,
-        subtract: list[tuple[datetime.datetime, datetime.datetime]],
-    ) -> set[datetime.datetime]:
-        """
-        Subtract a list of date ranges from a date range.
-        """
-        main_dates_set = self.date_range(
-            start_datetime=start_datetime, end_datetime=end_datetime
-        )
-
-        for start, end in subtract:
-            remove_dates_set = set(
-                pendulum.period(start=start.date(), end=end.date()).range("days")
-            )
-            main_dates_set -= remove_dates_set
-
-        return main_dates_set
-
-    @staticmethod
-    def date_range(
-        start_datetime: datetime.datetime, end_datetime: datetime.datetime
-    ) -> set[datetime.datetime]:
-        return set(
-            pendulum.period(start=start_datetime.date(), end=end_datetime.date()).range(
-                "days"
-            )
-        )
-
-    def date_ranges(
-        self, time_ranges: list[tuple[datetime.datetime, datetime.datetime]]
-    ) -> set[datetime.datetime]:
-        return set().union(
-            *[
-                self.date_range(start_datetime=tr[0], end_datetime=tr[1])
-                for tr in time_ranges
-            ]
-        )
 
     def test_single_condition_single_time(
         self, person_visit, db_session, concept_covid19, condition_criterion
