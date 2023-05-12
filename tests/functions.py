@@ -128,7 +128,8 @@ def create_measurement(
     vo: VisitOccurrence,
     measurement_concept_id: int,
     measurement_datetime: datetime.datetime,
-    value_as_number: float,
+    value_as_number: float | None,
+    value_as_concept_id: int | None,
     unit_concept_id: int,
 ) -> Measurement:
     """
@@ -140,6 +141,7 @@ def create_measurement(
         measurement_date=measurement_datetime.date(),
         measurement_datetime=measurement_datetime,
         value_as_number=value_as_number,
+        value_as_concept_id=value_as_concept_id,
         unit_concept_id=unit_concept_id,
         measurement_type_concept_id=concepts.EHR,
     )

@@ -66,10 +66,14 @@ class TestMeasurement(ValueCriterion):
     def create_value(
         self, visit_occurrence, concept_id, datetime, value, unit_concept_id
     ):
+        value_as_concept_id = value.concept_id if isinstance(value, Concept) else None
+        value_as_number = value if isinstance(value, float | int) else None
+
         return create_measurement(
             vo=visit_occurrence,
             measurement_concept_id=concept_id,
             measurement_datetime=datetime,
-            value_as_number=value,
+            value_as_number=value_as_number,
+            value_as_concept_id=value_as_concept_id,
             unit_concept_id=unit_concept_id,
         )

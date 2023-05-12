@@ -3,7 +3,12 @@ from typing import Any
 
 from pydantic import BaseModel, root_validator
 from sqlalchemy import and_, literal_column
-from sqlalchemy.sql.elements import ClauseList, ColumnClause
+from sqlalchemy.sql.elements import (
+    BinaryExpression,
+    ClauseList,
+    ColumnClause,
+    ColumnElement,
+)
 
 from execution_engine.omop.concepts import Concept
 
@@ -21,13 +26,32 @@ ucum_to_postgres = {
 class Value(BaseModel, ABC):
     """A value in a criterion."""
 
+    @staticmethod
+    def _get_column(
+        table_name: str | None, column_name: str | ColumnClause
+    ) -> ColumnClause:
+        if table_name is not None and isinstance(column_name, ColumnClause):
+            raise ValueError(
+                "If table_name is set, column_name must be a string, not a ColumnClause."
+            )
+
+        if table_name is not None:
+            table_name = f"{table_name}."
+        else:
+            table_name = ""
+
+        if isinstance(column_name, ColumnClause):
+            return column_name
+
+        return literal_column(f"{table_name}{column_name}")
+
     @abstractmethod
     def to_sql(
         self,
         table_name: str | None,
         column_name: str = "value_as_number",
         with_unit: bool = True,
-    ) -> str:
+    ) -> ColumnElement:
         """
         Get the SQL representation of the value.
         """
@@ -142,35 +166,21 @@ class ValueNumber(Value):
         table_name: str | None = None,
         column_name: str | ColumnClause = "value_as_number",
         with_unit: bool = True,
-    ) -> ClauseList:
+    ) -> ColumnElement:
         """
         Get the sqlalchemy representation of the value.
         """
 
         clauses = []
 
-        if table_name is not None and isinstance(column_name, ColumnClause):
-            raise ValueError(
-                "If table_name is set, column_name must be a string, not a ColumnClause."
-            )
-
-        if table_name is not None:
-            table_name = f"{table_name}."
-        else:
-            table_name = ""
-
-        if isinstance(column_name, ColumnClause):
-            c = column_name
-        else:
-            c = literal_column(f"{table_name}{column_name}")
+        c = self._get_column(table_name, column_name)
 
         if with_unit:
-            c_unit = literal_column(f"{table_name}unit_concept_id")
+            c_unit = self._get_column(table_name, "unit_concept_id")
             clauses.append(c_unit == self.unit.concept_id)
 
         if self.value is not None:
             clauses.append(c == self.value)
-
         else:
             if self.value_min is not None:
                 clauses.append(c >= self.value_min)
@@ -190,22 +200,20 @@ class ValueConcept(Value):
     def to_sql(
         self,
         table_name: str | None,
-        column_name: str = "value_as_concept_id",
+        column_name: str | ColumnClause = "value_as_concept_id",
         with_unit: bool = False,
-    ) -> str:
+    ) -> ColumnElement:
         """
         Get the SQL representation of the value.
         """
-
         if with_unit:
             raise ValueError("ValueConcept does not support units.")
 
-        s = f"{column_name} = {self.value.concept_id}"
+        c = self._get_column(table_name, column_name)
 
-        if table_name is not None:
-            s = f"{table_name}.{s}"
+        clause = c == self.value.concept_id
 
-        return s
+        return clause
 
     def __str__(self) -> str:
         """
