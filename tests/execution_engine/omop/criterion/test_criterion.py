@@ -108,7 +108,7 @@ class TestCriterion:
         start_datetime: datetime.datetime,
         end_datetime: datetime.datetime,
         subtract: list[tuple[datetime.datetime, datetime.datetime]],
-    ) -> set[datetime.datetime]:
+    ) -> set[datetime.date]:
         """
         Subtract a list of date ranges from a date range.
         """
@@ -125,9 +125,40 @@ class TestCriterion:
         return main_dates_set
 
     @staticmethod
+    def date_points(
+        times: list[datetime.datetime | datetime.date],
+    ) -> set[datetime.date]:
+        """
+        Convert a list of datetimes to the corresponding set of (unique) dates.
+        """
+        return set([t.date() if isinstance(t, datetime.datetime) else t for t in times])
+
+    def invert_date_points(
+        self,
+        start_datetime: datetime.datetime,
+        end_datetime: datetime.datetime,
+        subtract: list[datetime.date],
+    ) -> set[datetime.date]:
+        """
+        Subtract a list of date points (set of days) from a date range.
+        """
+        main_dates_set = set(
+            pendulum.period(start=start_datetime.date(), end=end_datetime.date()).range(
+                "days"
+            )
+        )
+
+        main_dates_set -= self.date_points(times=subtract)
+
+        return main_dates_set
+
+    @staticmethod
     def date_range(
         start_datetime: datetime.datetime, end_datetime: datetime.datetime
-    ) -> set[datetime.datetime]:
+    ) -> set[datetime.date]:
+        """
+        Convert a start and end datetime to a set of all days inbetween.
+        """
         return set(
             pendulum.period(start=start_datetime.date(), end=end_datetime.date()).range(
                 "days"
@@ -136,7 +167,10 @@ class TestCriterion:
 
     def date_ranges(
         self, time_ranges: list[tuple[datetime.datetime, datetime.datetime]]
-    ) -> set[datetime.datetime]:
+    ) -> set[datetime.date]:
+        """
+        Convert a list of start/end datetimes to a set of all days inbetween each of the given datetime ranges
+        """
         return set().union(
             *[
                 self.date_range(start_datetime=tr[0], end_datetime=tr[1])
