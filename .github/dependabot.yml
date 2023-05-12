@@ -8,6 +8,6 @@ updates:
       prefix: "ci(dependabot):"
 
   - package-ecosystem: "pip"
-    directory: "/resources"
+    directory: "/"
     schedule:
       interval: "weekly"
