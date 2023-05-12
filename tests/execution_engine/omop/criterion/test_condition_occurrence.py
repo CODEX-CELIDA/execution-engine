@@ -2,7 +2,7 @@ import pytest
 
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
-from tests.execution_engine.omop.criterion.test_occurrence import Occurrence
+from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence
 from tests.functions import create_condition
 
 
