@@ -100,6 +100,43 @@ class ValueNumber(Value):
         """
         return str(self)
 
+    @classmethod
+    def parse(cls, s: str, unit: Concept) -> "ValueNumber":
+        """
+        Parse a string representation of a value.
+        """
+
+        value_min = None
+        value_max = None
+        value = None
+
+        if s.startswith(">="):
+            value_min = float(s[2:])
+        elif s.startswith("<="):
+            value_max = float(s[2:])
+        elif s.startswith(">"):
+            raise ValueError("ValueNumber does not support >.")
+        elif s.startswith("<"):
+            raise ValueError("ValueNumber does not support <.")
+        elif "--" in s:
+            parts = s.split("--")
+            value_min = float(parts[0])
+            value_max = -float(parts[1])
+        elif "-" in s and s.count("-") > 1:  # Check for more than one '-' sign.
+            parts = [
+                part for part in s.split("-") if part
+            ]  # Split and ignore empty strings
+            value_min = -float(parts[0])
+            value_max = float(parts[1])
+        elif "-" in s and s.count("-") == 1 and not s.startswith("-"):
+            parts = s.split("-")
+            value_min = float(parts[0])
+            value_max = float(parts[1])
+        else:
+            value = float(s)
+
+        return cls(value_min=value_min, value_max=value_max, value=value, unit=unit)
+
     def to_sql(
         self,
         table_name: str | None = None,

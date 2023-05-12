@@ -166,6 +166,73 @@ class TestValueNumber:
             == "unit_concept_id = :unit_concept_id_1 AND custom_column = :custom_column_1"
         )
 
+    def test_value_number_parse_value(self, unit_concept):
+        result = ValueNumber.parse("3.2", unit_concept)
+        assert result.value == 3.2
+        assert result.unit == unit_concept
+        assert result.value_min is None
+        assert result.value_max is None
+
+    def test_value_number_parse_value_min(self, unit_concept):
+        result = ValueNumber.parse(">=2.5", unit_concept)
+        assert result.value_min == 2.5
+        assert result.unit == unit_concept
+        assert result.value is None
+        assert result.value_max is None
+
+    def test_value_number_parse_value_max(self, unit_concept):
+        result = ValueNumber.parse("<=10.0", unit_concept)
+        assert result.value_max == 10.0
+        assert result.unit == unit_concept
+        assert result.value is None
+        assert result.value_min is None
+
+    def test_value_number_parse_range(self, unit_concept):
+        result = ValueNumber.parse("0.5-6.5", unit_concept)
+        assert result.value_min == 0.5
+        assert result.value_max == 6.5
+        assert result.unit == unit_concept
+        assert result.value is None
+
+    def test_value_number_parse_range_with_negative_min_max(self, unit_concept):
+        result = ValueNumber.parse("-6.5--0.5", unit_concept)
+        assert result.value_min == -6.5
+        assert result.value_max == -0.5
+        assert result.unit == unit_concept
+        assert result.value is None
+
+    def test_value_number_parse_range_with_negative_min(self, unit_concept):
+        result = ValueNumber.parse("-0.5-6.5", unit_concept)
+        assert result.value_min == -0.5
+        assert result.value_max == 6.5
+        assert result.unit == unit_concept
+        assert result.value is None
+
+    def test_value_number_parse_range_with_negative_max(self, unit_concept):
+        with pytest.raises(ValidationError):
+            ValueNumber.parse("0.5--6.5", unit_concept)
+
+    def test_value_number_parse_negative_value(self, unit_concept):
+        result = ValueNumber.parse("-3.2", unit_concept)
+        assert result.value == -3.2
+        assert result.unit == unit_concept
+        assert result.value_min is None
+        assert result.value_max is None
+
+    def test_value_number_parse_non_number(self, unit_concept):
+        with pytest.raises(ValueError):
+            ValueNumber.parse("non_number", unit_concept)
+
+    def test_value_number_parse_greater_than_not_supported(self, unit_concept):
+        with pytest.raises(ValueError) as e:
+            ValueNumber.parse(">2.5", unit_concept)
+        assert str(e.value) == "ValueNumber does not support >."
+
+    def test_value_number_parse_less_than_not_supported(self, unit_concept):
+        with pytest.raises(ValueError) as e:
+            ValueNumber.parse("<10.0", unit_concept)
+        assert str(e.value) == "ValueNumber does not support <."
+
 
 class TestValueConcept:
     def test_to_sql(self, test_concept):
