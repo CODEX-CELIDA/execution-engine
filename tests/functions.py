@@ -128,9 +128,9 @@ def create_measurement(
     vo: VisitOccurrence,
     measurement_concept_id: int,
     measurement_datetime: datetime.datetime,
-    value_as_number: float | None,
-    value_as_concept_id: int | None,
-    unit_concept_id: int,
+    value_as_number: float | None = None,
+    value_as_concept_id: int | None = None,
+    unit_concept_id: int | None = None,
 ) -> Measurement:
     """
     Create a measurement for a visit

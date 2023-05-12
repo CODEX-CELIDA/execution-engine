@@ -197,13 +197,13 @@ def insert_criteria(db_session, criteria, visit_start_datetime, visit_end_dateti
                 entry = create_condition(vo, row["concept_id"])
             elif row["type"] == "observation":
                 entry = create_observation(
-                    vo, row["concept_id"], datetime=row["start_datetime"]
+                    vo, row["concept_id"], observation_datetime=row["start_datetime"]
                 )
             elif row["type"] == "measurement":
                 entry = create_measurement(
                     vo,
                     measurement_concept_id=row["concept_id"],
-                    datetime=row["start_datetime"],
+                    measurement_datetime=row["start_datetime"],
                     value_as_number=row["value"],
                     unit_concept_id=row["unit_concept_id"],
                 )
