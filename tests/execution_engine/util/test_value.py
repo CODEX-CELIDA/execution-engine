@@ -239,10 +239,13 @@ class TestValueConcept:
         value_concept = ValueConcept(value=test_concept)
 
         sql = value_concept.to_sql(table_name="test_table")
-        assert sql == "test_table.value_as_concept_id = 1"
+        assert (
+            str(sql)
+            == "test_table.value_as_concept_id = :test_table_value_as_concept_id_1"
+        )
 
         sql = value_concept.to_sql(table_name=None)
-        assert sql == "value_as_concept_id = 1"
+        assert str(sql) == "value_as_concept_id = :value_as_concept_id_1"
 
         with pytest.raises(ValueError, match="ValueConcept does not support units."):
             value_concept.to_sql(table_name="test_table", with_unit=True)
