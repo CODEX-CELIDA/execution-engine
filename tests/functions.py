@@ -108,9 +108,9 @@ def create_drug_exposure(
     """
     Create a drug exposure for a visit
     """
-    assert start_datetime >= vo.visit_start_datetime
-    assert end_datetime <= vo.visit_end_datetime
-    assert start_datetime <= end_datetime
+    assert (
+        start_datetime <= end_datetime
+    ), "drug_exposure: start_datetime must be before end_datetime"
 
     return DrugExposure(
         person_id=vo.person_id,
@@ -134,9 +134,6 @@ def create_measurement(
     """
     Create a measurement for a visit
     """
-    assert datetime >= vo.visit_start_datetime
-    assert datetime <= vo.visit_end_datetime
-
     return Measurement(
         person_id=vo.person_id,
         measurement_concept_id=measurement_concept_id,
@@ -154,9 +151,6 @@ def create_observation(
     """
     Create an observation for a visit
     """
-    assert datetime >= vo.visit_start_datetime
-    assert datetime <= vo.visit_end_datetime
-
     return Observation(
         person_id=vo.person_id,
         observation_concept_id=observation_concept_id,
@@ -175,9 +169,9 @@ def create_procedure(
     """
     Create a procedure for a visit
     """
-    assert start_datetime >= vo.visit_start_datetime
-    assert end_datetime <= vo.visit_end_datetime
-    assert start_datetime <= end_datetime
+    assert (
+        start_datetime <= end_datetime
+    ), "procedure: start_datetime must be before end_datetime"
 
     return ProcedureOccurrence(
         person_id=vo.person_id,
