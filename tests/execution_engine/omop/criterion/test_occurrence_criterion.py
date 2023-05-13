@@ -29,39 +29,6 @@ class Occurrence(TestCriterion, ABC):
             "Subclasses should override this method to provide their own fixture"
         )
 
-    def perform_test(
-        self, person_visit, concept, db_session, occurrence_criterion, time_ranges
-    ):
-        _, vo = person_visit
-
-        time_ranges = [
-            (pendulum.parse(start), pendulum.parse(end)) for start, end in time_ranges
-        ]
-
-        for start, end in time_ranges:
-            c = self.create_occurrence(
-                visit_occurrence=vo,
-                concept_id=concept.concept_id,
-                start_datetime=start,
-                end_datetime=end,
-            )
-            db_session.add(c)
-
-        db_session.commit()
-
-        # run criterion against db
-        df = occurrence_criterion(exclude=False)
-        valid_daterange = self.date_ranges(time_ranges)
-        assert set(df["valid_date"].dt.date) == valid_daterange
-
-        df = occurrence_criterion(exclude=True)
-        valid_daterange = self.invert_date_range(
-            start_datetime=vo.visit_start_datetime,
-            end_datetime=vo.visit_end_datetime,
-            subtract=time_ranges,
-        )
-        assert set(df["valid_date"].dt.date) == valid_daterange
-
     @pytest.fixture
     def occurrence_criterion(
         self, criterion_class, concept, base_table, db_session, person_visit
@@ -199,3 +166,36 @@ class Occurrence(TestCriterion, ABC):
         self.perform_test(
             person_visit, concept, db_session, occurrence_criterion, time_ranges
         )
+
+    def perform_test(
+        self, person_visit, concept, db_session, occurrence_criterion, time_ranges
+    ):
+        _, vo = person_visit
+
+        time_ranges = [
+            (pendulum.parse(start), pendulum.parse(end)) for start, end in time_ranges
+        ]
+
+        for start, end in time_ranges:
+            c = self.create_occurrence(
+                visit_occurrence=vo,
+                concept_id=concept.concept_id,
+                start_datetime=start,
+                end_datetime=end,
+            )
+            db_session.add(c)
+
+        db_session.commit()
+
+        # run criterion against db
+        df = occurrence_criterion(exclude=False)
+        valid_daterange = self.date_ranges(time_ranges)
+        assert set(df["valid_date"].dt.date) == valid_daterange
+
+        df = occurrence_criterion(exclude=True)
+        valid_daterange = self.invert_date_range(
+            start_datetime=vo.visit_start_datetime,
+            end_datetime=vo.visit_end_datetime,
+            subtract=time_ranges,
+        )
+        assert set(df["valid_date"].dt.date) == valid_daterange
