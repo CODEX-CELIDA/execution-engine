@@ -269,3 +269,29 @@ def to_extended(
 def to_snake(s: str) -> str:
     """Converts a string from CamelCase to snake_case."""
     return re.sub(r"(?<!^)(?=[A-Z])", "_", s).lower()
+
+
+def get_fraction_per_day(
+    datetime_start: datetime.datetime, datetime_end: datetime.datetime
+) -> dict[datetime.date, float]:
+    """
+    Get the fraction of the total time between `datetime_start` and `datetime_end` that falls on each day between
+    `datetime_start` and `datetime_end`.
+    """
+    total_seconds = (datetime_end - datetime_start).total_seconds()
+    current_datetime = datetime_start
+    fractions = {}
+
+    while current_datetime.date() <= datetime_end.date():
+        next_datetime = (current_datetime + datetime.timedelta(days=1)).replace(
+            hour=0, minute=0, second=0
+        )
+        seconds_this_day = (
+            min(next_datetime, datetime_end) - current_datetime
+        ).total_seconds()
+        fractions[current_datetime.date()] = seconds_this_day / total_seconds
+        current_datetime = next_datetime
+
+    assert abs(sum(fractions.values()) - 1.0) < 0.00001, "Fractions do not sum up to 1"
+
+    return fractions

@@ -238,6 +238,8 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-04 10:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-04 100.0
                 ],
                 ValueNumber(value="100", unit=concept_unit_mg),
                 1,
@@ -254,8 +256,17 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-08 23:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-01   7.9
+                    # 2023-03-02  13.2
+                    # 2023-03-03  13.2
+                    # 2023-03-04  13.2
+                    # 2023-03-05  13.2
+                    # 2023-03-06  13.2
+                    # 2023-03-07  13.2 --> 87.1 (for week 1)
+                    # 2023-03-08  13.0
                 ],
-                ValueNumber(value_min=50, value_max=150, unit=concept_unit_mg),
+                ValueNumber(value_min=87.0, value_max=150, unit=concept_unit_mg),
                 1,
                 "week",
                 {
@@ -278,8 +289,17 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-08 23:36:24",
                         "quantity": 600,
                     },
+                    # date         qty
+                    # 2023-03-01  47.5
+                    # 2023-03-02  79.1
+                    # 2023-03-03  79.1
+                    # 2023-03-04  79.1
+                    # 2023-03-05  79.1
+                    # 2023-03-06  79.1
+                    # 2023-03-07  79.1
+                    # 2023-03-08  77.8 --> 77.8 for week 2
                 ],
-                ValueNumber(value_min=50, value_max=150, unit=concept_unit_mg),
+                ValueNumber(value_min=77.8, value_max=150, unit=concept_unit_mg),
                 1,
                 "week",
                 {
@@ -301,18 +321,24 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-01 10:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-01 100.0
                     {
                         "drug_concept_id": concept_enoxparin_ingredient.concept_id,
                         "start_datetime": "2023-03-02 09:36:24",
                         "end_datetime": "2023-03-02 10:36:24",
                         "quantity": 200,
                     },
+                    # date         qty
+                    # 2023-03-02 200.0
                     {
                         "drug_concept_id": concept_heparin_ingredient.concept_id,
                         "start_datetime": "2023-03-03 09:36:24",
                         "end_datetime": "2023-03-03 10:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-03 100.0
                 ],
                 ValueNumber(value=100, unit=concept_unit_mg),
                 1,
@@ -328,14 +354,20 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-02 10:36:24",
                         "quantity": 100,
                     },
+                    # date         qty total
+                    # 2023-03-01  57.6 57.6
+                    # 2023-03-02  42.4
                     {
                         "drug_concept_id": concept_heparin_ingredient.concept_id,
                         "start_datetime": "2023-03-02 09:36:24",
                         "end_datetime": "2023-03-03 10:36:24",
                         "quantity": 150,
                     },
+                    # date         qty total
+                    # 2023-03-02  86.4 128.8
+                    # 2023-03-03  63.6 63.6
                 ],
-                ValueNumber(value_min=50, value_max=200, unit=concept_unit_mg),
+                ValueNumber(value_min=128.7, value_max=200, unit=concept_unit_mg),
                 2,
                 "day",
                 {"2023-03-02"},
@@ -349,12 +381,16 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-01 10:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-01 100.0
                     {
                         "drug_concept_id": concept_heparin_ingredient.concept_id,
                         "start_datetime": "2023-03-02 09:36:24",
                         "end_datetime": "2023-03-02 10:36:24",
                         "quantity": 200,
                     },
+                    # date         qty
+                    # 2023-03-02 200.0
                 ],
                 ValueNumber(value_min=100, unit=concept_unit_mg),
                 1,
@@ -370,14 +406,18 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-11 10:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-11 100.0
                     {
                         "drug_concept_id": concept_enoxparin_ingredient.concept_id,
                         "start_datetime": "2023-03-02 09:36:24",
                         "end_datetime": "2023-03-02 10:36:24",
                         "quantity": 200,
                     },
+                    # date         qty
+                    # 2023-03-02 200.0
                 ],
-                ValueNumber(value_max=100, unit=concept_unit_mg),
+                ValueNumber(value_max=200, unit=concept_unit_mg),
                 1,
                 "day",
                 {"2023-03-11"},
@@ -391,14 +431,22 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-03 10:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-01  29.4
+                    # 2023-03-02  49.0
+                    # 2023-03-03  21.6
                     {
                         "drug_concept_id": concept_heparin_ingredient.concept_id,
                         "start_datetime": "2023-03-02 09:36:24",
                         "end_datetime": "2023-03-04 10:36:24",
                         "quantity": 150,
                     },
+                    # date         qty tot
+                    # 2023-03-02  44.1 93.1
+                    # 2023-03-03  73.5 95.1
+                    # 2023-03-04  32.5 32.5
                 ],
-                ValueNumber(value_min=30, unit=concept_unit_mg),
+                ValueNumber(value_min=93.0, unit=concept_unit_mg),
                 2,
                 "day",
                 {"2023-03-02", "2023-03-03"},
@@ -412,14 +460,20 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-03-02 09:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-03-01  60.0
+                    # 2023-03-02  40.0
                     {
                         "drug_concept_id": concept_heparin_ingredient.concept_id,
                         "start_datetime": "2023-03-02 09:36:24",
                         "end_datetime": "2023-03-03 09:36:24",
                         "quantity": 150,
                     },
+                    # date         qty total
+                    # 2023-03-02  90.0 130.0
+                    # 2023-03-03  60.0  60.0
                 ],
-                ValueNumber(value_min=100, value_max=200, unit=concept_unit_mg),
+                ValueNumber(value_min=129.9, value_max=200, unit=concept_unit_mg),
                 2,
                 "day",
                 {"2023-03-02"},
@@ -433,19 +487,26 @@ class TestDrugExposure(TestCriterion):
                         "end_datetime": "2023-04-02 09:36:24",
                         "quantity": 100,
                     },
+                    # date         qty
+                    # 2023-04-01  60.0
+                    # 2023-04-02  40.0
                     {
                         "drug_concept_id": concept_heparin_ingredient.concept_id,
                         "start_datetime": "2023-04-02 09:36:24",
                         "end_datetime": "2023-04-03 09:36:24",
                         "quantity": 150,
                     },
+                    # date         qty total
+                    # 2023-04-02  90.0 130.0
+                    # 2023-04-03  60.0  60.0
                 ],
-                ValueNumber(value_min=100, value_max=200, unit=concept_unit_mg),
+                ValueNumber(value_min=0, value_max=200, unit=concept_unit_mg),
                 1,
                 "day",
                 set(),
             ),
         ],
+        ids=[f"test_case_{i}" for i in [1, "2a", "2b", 3, 4, 5, 6, 7, 8, 9]],
     )
     def test_execute_drug_exposure_criterion(
         self,
