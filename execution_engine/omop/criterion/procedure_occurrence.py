@@ -5,7 +5,7 @@ from sqlalchemy.sql import Select, extract
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.concept import ConceptCriterion
-from execution_engine.util import ValueNumber, ucum_to_postgres, value_factory
+from execution_engine.util import Interval, ValueNumber, value_factory
 
 __all__ = ["ProcedureOccurrence"]
 
@@ -49,8 +49,10 @@ class ProcedureOccurrence(ConceptCriterion):
             query = query.filter(self._value.to_sql(self.table_alias))
 
         if self._timing is not None:
-            interval = ucum_to_postgres[self._timing.unit.concept_code]
-            column = extract(interval, start_datetime - end_datetime).label("duration")
+            interval = Interval(self._timing.unit.concept_code)
+            column = extract(interval.name, start_datetime - end_datetime).label(
+                "duration"
+            )
             query = query.add_columns(column)
             query = query.add_columns(
                 start_datetime.label("start_datetime"),
