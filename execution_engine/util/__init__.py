@@ -1,7 +1,8 @@
 from abc import ABC, ABCMeta, abstractmethod
+from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, PositiveInt, root_validator
 from sqlalchemy import and_, literal_column
 from sqlalchemy.sql.elements import (
     BinaryExpression,
@@ -226,6 +227,38 @@ class ValueConcept(Value):
         Get the string representation of the value.
         """
         return str(self)
+
+
+class Interval(str, Enum):
+    """
+    An interval of time used in Drug Dosing.
+    """
+
+    SECOND = "s"
+    MINUTE = "min"
+    HOUR = "h"
+    DAY = "d"
+    WEEK = "wk"
+    MONTH = "mo"
+    YEAR = "a"
+
+
+class Dosage(BaseModel):
+    """
+    A dosage consisting of a dose, frequency and interval.
+    """
+
+    dose: ValueNumber
+    frequency: PositiveInt
+    interval: Interval
+
+    class Config:
+        """
+        Pydantic configuration.
+        """
+
+        use_enum_values = True
+        """ Use enum values instead of names. """
 
 
 class AbstractPrivateMethods(ABCMeta):
