@@ -160,6 +160,7 @@ class ValueCriterion(TestCriterion, ABC):
         person_visit,
         db_session,
         criterion_execute_func,
+        observation_window,
         times,
         exclude,
         criterion_value,
@@ -170,6 +171,7 @@ class ValueCriterion(TestCriterion, ABC):
             person_visit=person_visit,
             db_session=db_session,
             criterion_execute_func=criterion_execute_func,
+            observation_window=observation_window,
             times=times,
             exclude=exclude,
             criterion_concept=criterion_fixture["concept"],
@@ -197,6 +199,7 @@ class ValueCriterion(TestCriterion, ABC):
         person_visit,
         db_session,
         criterion_execute_func,
+        observation_window,
         times,
         exclude,
         criterion_concept_name,
@@ -209,6 +212,7 @@ class ValueCriterion(TestCriterion, ABC):
             person_visit=person_visit,
             db_session=db_session,
             criterion_execute_func=criterion_execute_func,
+            observation_window=observation_window,
             times=times,
             exclude=exclude,
             criterion_concept=criterion_fixture[criterion_concept_name],
@@ -233,6 +237,7 @@ class ValueCriterion(TestCriterion, ABC):
         person_visit,
         db_session,
         criterion_execute_func,
+        observation_window,
         times,
         exclude,
         criterion_value,
@@ -244,6 +249,7 @@ class ValueCriterion(TestCriterion, ABC):
                 person_visit=person_visit,
                 db_session=db_session,
                 criterion_execute_func=criterion_execute_func,
+                observation_window=observation_window,
                 times=times,
                 exclude=exclude,
                 criterion_concept=criterion_fixture["concept"],
@@ -282,6 +288,7 @@ class ValueCriterion(TestCriterion, ABC):
         db_session,
         value_concept,
         criterion_execute_func,
+        observation_window,
         times,
         exclude,
         criterion_value,
@@ -292,6 +299,7 @@ class ValueCriterion(TestCriterion, ABC):
             person_visit=person_visit,
             db_session=db_session,
             criterion_execute_func=criterion_execute_func,
+            observation_window=observation_window,
             times=times,
             exclude=exclude,
             criterion_concept=criterion_fixture["concept"],
@@ -309,6 +317,7 @@ class ValueCriterion(TestCriterion, ABC):
         person_visit,
         db_session,
         criterion_execute_func,
+        observation_window,
         times,
         exclude,
         criterion_concept,
@@ -316,7 +325,7 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_value,
         criterion_fixture,
     ):
-        _, vo = person_visit
+        p, vo = person_visit[0]
 
         times = [pendulum.parse(time) for time in times]
 
@@ -344,7 +353,7 @@ class ValueCriterion(TestCriterion, ABC):
         # run criterion against db
         df = criterion_execute_func(
             concept=criterion_concept, value=value, exclude=exclude
-        )
+        ).query(f"{p.person_id} == person_id")
 
         criterion_matches = (
             criterion_value["match"]
@@ -359,8 +368,7 @@ class ValueCriterion(TestCriterion, ABC):
 
         if exclude:
             valid_dates = self.invert_date_points(
-                start_datetime=vo.visit_start_datetime,
-                end_datetime=vo.visit_end_datetime,
+                time_range=observation_window,
                 subtract=valid_dates,
             )
 

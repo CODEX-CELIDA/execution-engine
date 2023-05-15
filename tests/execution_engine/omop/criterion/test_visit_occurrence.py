@@ -7,7 +7,11 @@ from execution_engine.omop.criterion.visit_occurrence import VisitOccurrence
 from execution_engine.omop.db.cdm import Person
 from execution_engine.util.sql import select_into
 from tests._testdata.concepts import INPATIENT_VISIT, INTENSIVE_CARE
-from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, to_table
+from tests.execution_engine.omop.criterion.test_criterion import (
+    TestCriterion,
+    date_set,
+    to_table,
+)
 from tests.functions import create_visit
 
 
@@ -317,7 +321,7 @@ class TestVisitOccurrence(TestCriterion):
             visit_end_datetime,
         ), visit_concept_id in visit_datetimes:
             vo = create_visit(
-                person_id=person.person_id,
+                person_id=person[0].person_id,
                 visit_start_datetime=pendulum.parse(visit_start_datetime),
                 visit_end_datetime=pendulum.parse(visit_end_datetime),
                 visit_concept_id=visit_concept_id,
@@ -329,5 +333,4 @@ class TestVisitOccurrence(TestCriterion):
         # run criterion against db
         df = occurrence_criterion(exclude=False)
 
-        valid_dates = set(pendulum.parse(e).date() for e in expected)
-        assert set(df["valid_date"].dt.date) == valid_dates
+        assert set(df["valid_date"].dt.date) == date_set(expected)

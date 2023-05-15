@@ -1,8 +1,9 @@
 from abc import ABC, ABCMeta, abstractmethod
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from enum import Enum
 from typing import Any
 
+import pendulum
 from pydantic import BaseModel, PositiveInt, root_validator
 from sqlalchemy import and_, literal_column
 from sqlalchemy.sql.elements import (
@@ -238,6 +239,35 @@ class TimeRange(BaseModel):
     start: datetime
     end: datetime
     name: str | None
+
+    @classmethod
+    def from_tuple(
+        cls, dt: tuple[datetime | str, datetime | str], name: str | None = None
+    ) -> "TimeRange":
+        """
+        Create a time range from a tuple of datetimes.
+        """
+        return cls(start=dt[0], end=dt[1], name=name)
+
+    @property
+    def period(self) -> pendulum.Period:
+        """
+        Get the period of the time range.
+        """
+        return pendulum.period(start=self.start.date(), end=self.end.date())
+
+    def date_range(self) -> set[date]:
+        """
+        Get the date range of the time range.
+        """
+        return set(self.period.range("days"))
+
+    @property
+    def duration(self) -> timedelta:
+        """
+        Get the duration of the time range.
+        """
+        return self.end - self.start
 
     def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
         """

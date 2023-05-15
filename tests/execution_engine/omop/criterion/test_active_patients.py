@@ -23,7 +23,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
 
             for visit_start_datetime, visit_end_datetime in visit_datetimes:
                 vo = create_visit(
-                    person.person_id,
+                    person[0].person_id,
                     pendulum.parse(visit_start_datetime),
                     pendulum.parse(visit_end_datetime),
                 )

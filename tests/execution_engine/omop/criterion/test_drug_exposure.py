@@ -7,7 +7,7 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.util import Dosage, Interval, ValueNumber
-from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
+from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_drug_exposure
 
 
@@ -261,7 +261,8 @@ class TestDrugExposure(TestCriterion):
         dosage,
         expected,
     ):
-        _, vo = person_visit
+        _, vo = person_visit[0]
+
         # Create drug exposure entries
         for exposure in drug_exposures:
             c = self.create_drug_exposure(
@@ -285,9 +286,7 @@ class TestDrugExposure(TestCriterion):
             route=None,
         )
 
-        assert set(result["valid_date"].dt.date) == set(
-            pendulum.parse(e).date() for e in expected
-        )
+        assert set(result["valid_date"].dt.date) == date_set(expected)
 
     # Test case 1: Single day drug exposure, dose as a single quantity, frequency once per day
     @pytest.mark.parametrize(

@@ -1,4 +1,5 @@
 import datetime
+from typing import Iterable
 
 import pandas as pd
 import pendulum
@@ -9,6 +10,7 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.cdm import Person
 from execution_engine.util import TimeRange
+from tests._testdata.concepts import GENDER_FEMALE, GENDER_MALE, UNKNOWN
 from tests.functions import create_visit
 
 
@@ -25,6 +27,13 @@ def to_table(name: str) -> Table:
     )
 
 
+def date_set(tc: Iterable):
+    """
+    Convert an iterable of timestamps to a set of dates.
+    """
+    return set(pendulum.parse(t).date() for t in tc)
+
+
 class TestCriterion:
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
@@ -39,31 +48,46 @@ class TestCriterion:
         return dt
 
     @pytest.fixture
-    def person(self, db_session):
-        person = Person(
-            person_id=1,
-            gender_concept_id=0,
-            year_of_birth=1990,
-            month_of_birth=1,
-            day_of_birth=1,
-            race_concept_id=0,
-            ethnicity_concept_id=0,
-        )
+    def person(self, db_session, visit_datetime: TimeRange, n: int = 3):
 
-        db_session.add(person)
+        assert (
+            0 < n < visit_datetime.duration.days / 2
+        )  # because each further person's visit is 2 days shorter
+
+        persons = [
+            Person(
+                person_id=i + 1,
+                gender_concept_id=[GENDER_MALE, GENDER_FEMALE, UNKNOWN][i % 3],
+                year_of_birth=1980 + i,
+                month_of_birth=1,
+                day_of_birth=1,
+                race_concept_id=0,
+                ethnicity_concept_id=0,
+            )
+            for i in range(n)
+        ]
+
+        db_session.add_all(persons)
         db_session.commit()
 
-        return person
+        return persons
 
     @pytest.fixture
     def person_visit(self, person, visit_datetime, db_session):
 
-        vo = create_visit(person.person_id, visit_datetime.start, visit_datetime.end)
+        vos = [
+            create_visit(
+                p.person_id,
+                visit_datetime.start + datetime.timedelta(days=i),
+                visit_datetime.end - datetime.timedelta(days=i),
+            )
+            for i, p in enumerate(person)
+        ]
 
-        db_session.add(vo)
+        db_session.add_all(vos)
         db_session.commit()
 
-        return [person, vo]
+        return list(zip(person, vos))
 
     @staticmethod
     def create_base_table(base_criterion, db_session, observation_window):
@@ -157,22 +181,16 @@ class TestCriterion:
 
     def invert_date_range(
         self,
-        start_datetime: datetime.datetime,
-        end_datetime: datetime.datetime,
-        subtract: list[tuple[datetime.datetime, datetime.datetime]],
+        time_range: TimeRange,
+        subtract: list[TimeRange],
     ) -> set[datetime.date]:
         """
         Subtract a list of date ranges from a date range.
         """
-        main_dates_set = self.date_range(
-            start_datetime=start_datetime, end_datetime=end_datetime
-        )
+        main_dates_set = time_range.date_range()
 
-        for start, end in subtract:
-            remove_dates_set = set(
-                pendulum.period(start=start.date(), end=end.date()).range("days")
-            )
-            main_dates_set -= remove_dates_set
+        for tr in subtract:
+            main_dates_set -= tr.date_range()
 
         return main_dates_set
 
@@ -187,45 +205,19 @@ class TestCriterion:
 
     def invert_date_points(
         self,
-        start_datetime: datetime.datetime,
-        end_datetime: datetime.datetime,
+        time_range: TimeRange,
         subtract: list[datetime.date],
     ) -> set[datetime.date]:
         """
         Subtract a list of date points (set of days) from a date range.
         """
-        main_dates_set = set(
-            pendulum.period(start=start_datetime.date(), end=end_datetime.date()).range(
-                "days"
-            )
-        )
-
+        main_dates_set = time_range.date_range()
         main_dates_set -= self.date_points(times=subtract)
 
         return main_dates_set
 
-    @staticmethod
-    def date_range(
-        start_datetime: datetime.datetime, end_datetime: datetime.datetime
-    ) -> set[datetime.date]:
-        """
-        Convert a start and end datetime to a set of all days inbetween.
-        """
-        return set(
-            pendulum.period(start=start_datetime.date(), end=end_datetime.date()).range(
-                "days"
-            )
-        )
-
-    def date_ranges(
-        self, time_ranges: list[tuple[datetime.datetime, datetime.datetime]]
-    ) -> set[datetime.date]:
+    def date_ranges(self, time_ranges: list[TimeRange]) -> set[datetime.date]:
         """
         Convert a list of start/end datetimes to a set of all days inbetween each of the given datetime ranges
         """
-        return set().union(
-            *[
-                self.date_range(start_datetime=tr[0], end_datetime=tr[1])
-                for tr in time_ranges
-            ]
-        )
+        return set().union(*[tr.date_range() for tr in time_ranges])
