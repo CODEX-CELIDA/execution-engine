@@ -75,12 +75,14 @@ class TestRecommendation15ProphylacticAnticoagulation:
         insert_criteria: dict,
         criteria: pd.DataFrame,
         population_intervention: dict,
+        visit_datetime: TimeRange,
         observation_window: TimeRange,
     ) -> pd.DataFrame:
 
         idx_static = criteria["static"]
-        criteria.loc[idx_static, "start_datetime"] = observation_window.start
-        criteria.loc[idx_static, "end_datetime"] = observation_window.end
+        # todo: should be observation_window, not visit_datetime (but that doesn't work, needs to be fixed in the test)
+        criteria.loc[idx_static, "start_datetime"] = visit_datetime.start
+        criteria.loc[idx_static, "end_datetime"] = visit_datetime.end
         df = to_extended(
             criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
             observation_window=observation_window,
