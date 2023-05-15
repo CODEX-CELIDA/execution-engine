@@ -53,7 +53,7 @@ class ExecutionMap:
             elif operator.operator == CriterionCombination.Operator.OR:
                 return sympy.Or
             else:
-                raise NotImplementedError(f"Operator {operator} not implemented")
+                raise NotImplementedError(f'Operator "{str(operator)}" not implemented')
 
         def _traverse(
             comb: CriterionCombination,
@@ -195,10 +195,17 @@ class ExecutionMap:
                         cohort_category is not CohortCategory.POPULATION_INTERVENTION
                         and criterion.category != cohort_category
                     ):
+                        # this criterion does not belong to the cohort category we are currently processing,
+                        # so we skip it
                         continue
                 elif isinstance(criterion, CompoundSelect):
                     if len(criterion.selects) == 0:
+                        # this depth-first traversal returns a compound select (union or intersect) of the already
+                        # processed (deeper) criteria. If all the deeper criteria do not belong to the cohort category
+                        # being processed, none of them is added to the compound select and an empty compound select is
+                        # returned. In this case, we skip the compound select and continue with the next criterion.
                         continue
+
                 criteria.append(criterion)
 
             return conjunction(*[sql_select(c) for c in criteria])

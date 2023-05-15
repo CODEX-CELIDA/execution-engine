@@ -11,11 +11,12 @@ from execution_engine.omop.db.cdm import (
     DrugExposure,
     Measurement,
     Observation,
-    Person,
     ProcedureOccurrence,
+    VisitDetail,
     VisitOccurrence,
 )
-from tests import concepts
+from execution_engine.util import TimeRange
+from tests._testdata import concepts
 
 
 def random_date(start_date: datetime.date, end_date: datetime.date) -> datetime.date:
@@ -32,7 +33,10 @@ def random_datetime(date: datetime.date, max_hours: int = 24) -> datetime.dateti
     )
 
 
-def generate_dataframe(keys):
+def generate_dataframe(keys: dict) -> pd.DataFrame:
+    """
+    Generate a pandas DataFrame with all possible combinations of binary factors
+    """
     # Create all possible combinations of binary factors
     options = [False, True]
     combinations = list(itertools.product(options, repeat=len(keys)))
@@ -43,36 +47,92 @@ def generate_dataframe(keys):
     return df
 
 
-def create_visit(p: Person, visit_start_date, visit_end_date, icu=True):
+def create_visit(
+    person_id: int,
+    visit_start_datetime: datetime.datetime,
+    visit_end_datetime: datetime.datetime,
+    visit_concept_id: int = concepts.INTENSIVE_CARE,
+) -> VisitOccurrence:
+    """
+    Create a visit for a person (one single encounter)
+    """
     return VisitOccurrence(
-        person_id=p.person_id,
-        visit_start_date=visit_start_date,
-        visit_start_datetime=random_datetime(visit_start_date),
-        visit_end_date=visit_end_date,
-        visit_end_datetime=random_datetime(visit_end_date),
-        visit_concept_id=concepts.INTENSIVE_CARE if icu else concepts.INPATIENT_VISIT,
+        person_id=person_id,
+        visit_start_date=visit_start_datetime.date(),
+        visit_start_datetime=visit_start_datetime,
+        visit_end_date=visit_end_datetime.date(),
+        visit_end_datetime=visit_end_datetime,
+        visit_concept_id=visit_concept_id,
         visit_type_concept_id=concepts.VISIT_TYPE_STILL_PATIENT,
     )
 
 
-def create_condition(vo: VisitOccurrence, condition_concept_id):
+def create_visit_detail(
+    vo: VisitOccurrence,
+    visit_detail_start_datetime: datetime.datetime,
+    visit_detail_end_datetime: datetime.datetime,
+    visit_detail_concept_id: int,
+) -> VisitDetail:
+    """
+    Create a visit detail for a person (e.g. transfer between units in the hospital)
+    """
+    return VisitDetail(
+        person_id=vo.person_id,
+        visit_detail_concept_id=visit_detail_concept_id,
+        visit_detail_start_date=visit_detail_start_datetime.date(),
+        visit_detail_start_datetime=visit_detail_start_datetime,
+        visit_detail_end_date=visit_detail_end_datetime.date(),
+        visit_detail_end_datetime=visit_detail_end_datetime,
+        visit_detail_type_concept_id=concepts.EHR,
+        visit_occurrence_id=vo.visit_occurrence_id,
+    )
+
+
+def create_condition(
+    vo: VisitOccurrence,
+    condition_concept_id: int,
+    condition_start_datetime: datetime.datetime | None = None,
+    condition_end_datetime: datetime.datetime | None = None,
+) -> ConditionOccurrence:
+    """
+    Create a condition for a visit
+    """
+
+    start_datetime = (
+        condition_start_datetime
+        if condition_start_datetime is not None
+        else vo.visit_start_datetime
+    )
+    end_datetime = (
+        condition_end_datetime
+        if condition_end_datetime is not None
+        else vo.visit_end_datetime
+    )
+
     return ConditionOccurrence(
         person_id=vo.person_id,
         condition_concept_id=condition_concept_id,
-        condition_start_date=vo.visit_start_date,
-        condition_start_datetime=vo.visit_start_datetime,
-        condition_end_date=vo.visit_end_date,
-        condition_end_datetime=vo.visit_end_datetime,
+        condition_start_date=start_datetime.date(),
+        condition_start_datetime=start_datetime,
+        condition_end_date=end_datetime.date(),
+        condition_end_datetime=end_datetime,
         condition_type_concept_id=concepts.EHR,
     )
 
 
 def create_drug_exposure(
-    vo: VisitOccurrence, drug_concept_id, start_datetime, end_datetime, quantity
-):
-    assert start_datetime >= vo.visit_start_datetime
-    assert end_datetime <= vo.visit_end_datetime
-    assert start_datetime <= end_datetime
+    vo: VisitOccurrence,
+    drug_concept_id: int,
+    start_datetime: datetime.datetime,
+    end_datetime: datetime.datetime,
+    quantity: float,
+) -> DrugExposure:
+    """
+    Create a drug exposure for a visit
+    """
+    assert (
+        start_datetime <= end_datetime
+    ), "drug_exposure: start_datetime must be before end_datetime"
 
     return DrugExposure(
         person_id=vo.person_id,
@@ -88,44 +148,64 @@ def create_drug_exposure(
 
 def create_measurement(
     vo: VisitOccurrence,
-    measurement_concept_id,
-    datetime,
-    value_as_number,
-    unit_concept_id,
-):
-    assert datetime >= vo.visit_start_datetime
-    assert datetime <= vo.visit_end_datetime
-
+    measurement_concept_id: int,
+    measurement_datetime: datetime.datetime,
+    value_as_number: float | None = None,
+    value_as_concept_id: int | None = None,
+    unit_concept_id: int | None = None,
+) -> Measurement:
+    """
+    Create a measurement for a visit
+    """
     return Measurement(
         person_id=vo.person_id,
         measurement_concept_id=measurement_concept_id,
-        measurement_date=datetime.date(),
-        measurement_datetime=datetime,
+        measurement_date=measurement_datetime.date(),
+        measurement_datetime=measurement_datetime,
         value_as_number=value_as_number,
+        value_as_concept_id=value_as_concept_id,
         unit_concept_id=unit_concept_id,
         measurement_type_concept_id=concepts.EHR,
     )
 
 
-def create_observation(vo: VisitOccurrence, observation_concept_id, datetime):
-    assert datetime >= vo.visit_start_datetime
-    assert datetime <= vo.visit_end_datetime
-
+def create_observation(
+    vo: VisitOccurrence,
+    observation_concept_id: int,
+    observation_datetime: datetime.datetime,
+    value_as_number: float | None = None,
+    value_as_string: str | None = None,
+    value_as_concept_id: int | None = None,
+    unit_concept_id: int | None = None,
+) -> Observation:
+    """
+    Create an observation for a visit
+    """
     return Observation(
         person_id=vo.person_id,
         observation_concept_id=observation_concept_id,
-        observation_date=datetime.date(),
-        observation_datetime=datetime,
+        observation_date=observation_datetime.date(),
+        observation_datetime=observation_datetime,
         observation_type_concept_id=concepts.EHR,
+        value_as_number=value_as_number,
+        value_as_string=value_as_string,
+        value_as_concept_id=value_as_concept_id,
+        unit_concept_id=unit_concept_id,
     )
 
 
 def create_procedure(
-    vo: VisitOccurrence, procedure_concept_id, start_datetime, end_datetime
-):
-    assert start_datetime >= vo.visit_start_datetime
-    assert end_datetime <= vo.visit_end_datetime
-    assert start_datetime <= end_datetime
+    vo: VisitOccurrence,
+    procedure_concept_id: int,
+    start_datetime: datetime.datetime,
+    end_datetime: datetime.datetime,
+) -> ProcedureOccurrence:
+    """
+    Create a procedure for a visit
+    """
+    assert (
+        start_datetime <= end_datetime
+    ), "procedure: start_datetime must be before end_datetime"
 
     return ProcedureOccurrence(
         person_id=vo.person_id,
@@ -138,7 +218,11 @@ def create_procedure(
     )
 
 
-def to_extended(df, observation_start_date, observation_end_date):
+def to_extended(df: pd.DataFrame, observation_window: TimeRange) -> pd.DataFrame:
+    """
+    Expand a dataframe with one row per person and one column per concept to a dataframe with one row per person and
+    per day and one column per concept between `observation_start_date` and `observation_end_date`.
+    """
     df = df.copy()
 
     # Set end_datetime equal to start_datetime if it's NaT
@@ -181,7 +265,9 @@ def to_extended(df, observation_start_date, observation_end_date):
 
     # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date and observation_end_date
     unique_person_ids = df["person_id"].unique()
-    date_range = pd.date_range(observation_start_date, observation_end_date, freq="D")
+    date_range = pd.date_range(
+        observation_window.start.date(), observation_window.end.date(), freq="D"
+    )
     aux_df = pd.DataFrame(
         {
             "person_id": np.repeat(unique_person_ids, len(date_range)),
@@ -198,5 +284,32 @@ def to_extended(df, observation_start_date, observation_end_date):
     return merged_df
 
 
-def to_snake(s):
+def to_snake(s: str) -> str:
+    """Converts a string from CamelCase to snake_case."""
     return re.sub(r"(?<!^)(?=[A-Z])", "_", s).lower()
+
+
+def get_fraction_per_day(
+    datetime_start: datetime.datetime, datetime_end: datetime.datetime
+) -> dict[datetime.date, float]:
+    """
+    Get the fraction of the total time between `datetime_start` and `datetime_end` that falls on each day between
+    `datetime_start` and `datetime_end`.
+    """
+    total_seconds = (datetime_end - datetime_start).total_seconds()
+    current_datetime = datetime_start
+    fractions = {}
+
+    while current_datetime.date() <= datetime_end.date():
+        next_datetime = (current_datetime + datetime.timedelta(days=1)).replace(
+            hour=0, minute=0, second=0
+        )
+        seconds_this_day = (
+            min(next_datetime, datetime_end) - current_datetime
+        ).total_seconds()
+        fractions[current_datetime.date()] = seconds_this_day / total_seconds
+        current_datetime = next_datetime
+
+    assert abs(sum(fractions.values()) - 1.0) < 0.00001, "Fractions do not sum up to 1"
+
+    return fractions

@@ -1,9 +1,17 @@
 from abc import ABC, ABCMeta, abstractmethod
+from datetime import date, datetime, timedelta
+from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, root_validator
+import pendulum
+from pydantic import BaseModel, PositiveInt, root_validator
 from sqlalchemy import and_, literal_column
-from sqlalchemy.sql.elements import ClauseList, ColumnClause
+from sqlalchemy.sql.elements import (
+    BinaryExpression,
+    ClauseList,
+    ColumnClause,
+    ColumnElement,
+)
 
 from execution_engine.omop.concepts import Concept
 
@@ -21,13 +29,32 @@ ucum_to_postgres = {
 class Value(BaseModel, ABC):
     """A value in a criterion."""
 
+    @staticmethod
+    def _get_column(
+        table_name: str | None, column_name: str | ColumnClause
+    ) -> ColumnClause:
+        if table_name is not None and isinstance(column_name, ColumnClause):
+            raise ValueError(
+                "If table_name is set, column_name must be a string, not a ColumnClause."
+            )
+
+        if table_name is not None:
+            table_name = f"{table_name}."
+        else:
+            table_name = ""
+
+        if isinstance(column_name, ColumnClause):
+            return column_name
+
+        return literal_column(f"{table_name}{column_name}")
+
     @abstractmethod
     def to_sql(
         self,
         table_name: str | None,
         column_name: str = "value_as_number",
         with_unit: bool = True,
-    ) -> str:
+    ) -> ColumnElement:
         """
         Get the SQL representation of the value.
         """
@@ -92,7 +119,7 @@ class ValueNumber(Value):
         elif self.value_max is not None:
             return f"Value <= {self.value_max} {self.unit.concept_name}"
 
-        return "Value (undefined)"
+        raise ValueError("Value is not set.")
 
     def __repr__(self) -> str:
         """
@@ -100,40 +127,63 @@ class ValueNumber(Value):
         """
         return str(self)
 
+    @classmethod
+    def parse(cls, s: str, unit: Concept) -> "ValueNumber":
+        """
+        Parse a string representation of a value.
+        """
+
+        value_min = None
+        value_max = None
+        value = None
+
+        if s.startswith(">="):
+            value_min = float(s[2:])
+        elif s.startswith("<="):
+            value_max = float(s[2:])
+        elif s.startswith(">"):
+            raise ValueError("ValueNumber does not support >.")
+        elif s.startswith("<"):
+            raise ValueError("ValueNumber does not support <.")
+        elif "--" in s:
+            parts = s.split("--")
+            value_min = float(parts[0])
+            value_max = -float(parts[1])
+        elif "-" in s and s.count("-") > 1:  # Check for more than one '-' sign.
+            parts = [
+                part for part in s.split("-") if part
+            ]  # Split and ignore empty strings
+            value_min = -float(parts[0])
+            value_max = float(parts[1])
+        elif "-" in s and s.count("-") == 1 and not s.startswith("-"):
+            parts = s.split("-")
+            value_min = float(parts[0])
+            value_max = float(parts[1])
+        else:
+            value = float(s)
+
+        return cls(value_min=value_min, value_max=value_max, value=value, unit=unit)
+
     def to_sql(
         self,
         table_name: str | None = None,
         column_name: str | ColumnClause = "value_as_number",
         with_unit: bool = True,
-    ) -> ClauseList:
+    ) -> ColumnElement:
         """
         Get the sqlalchemy representation of the value.
         """
 
         clauses = []
 
-        if table_name is not None and isinstance(column_name, ColumnClause):
-            raise ValueError(
-                "If table_name is set, column_name must be a string, not a ColumnClause."
-            )
-
-        if table_name is not None:
-            table_name = f"{table_name}."
-        else:
-            table_name = ""
-
-        if isinstance(column_name, ColumnClause):
-            c = column_name
-        else:
-            c = literal_column(f"{table_name}{column_name}")
+        c = self._get_column(table_name, column_name)
 
         if with_unit:
-            c_unit = literal_column(f"{table_name}unit_concept_id")
+            c_unit = self._get_column(table_name, "unit_concept_id")
             clauses.append(c_unit == self.unit.concept_id)
 
         if self.value is not None:
             clauses.append(c == self.value)
-
         else:
             if self.value_min is not None:
                 clauses.append(c >= self.value_min)
@@ -153,13 +203,20 @@ class ValueConcept(Value):
     def to_sql(
         self,
         table_name: str | None,
-        column_name: str = "value_as_number",
-        with_unit: bool = True,
-    ) -> str:
+        column_name: str | ColumnClause = "value_as_concept_id",
+        with_unit: bool = False,
+    ) -> ColumnElement:
         """
         Get the SQL representation of the value.
         """
-        return f"{table_name}.value_as_concept_id = {self.value.concept_id}"
+        if with_unit:
+            raise ValueError("ValueConcept does not support units.")
+
+        c = self._get_column(table_name, column_name)
+
+        clause = c == self.value.concept_id
+
+        return clause
 
     def __str__(self) -> str:
         """
@@ -172,6 +229,87 @@ class ValueConcept(Value):
         Get the string representation of the value.
         """
         return str(self)
+
+
+class TimeRange(BaseModel):
+    """
+    A time range.
+    """
+
+    start: datetime
+    end: datetime
+    name: str | None
+
+    @classmethod
+    def from_tuple(
+        cls, dt: tuple[datetime | str, datetime | str], name: str | None = None
+    ) -> "TimeRange":
+        """
+        Create a time range from a tuple of datetimes.
+        """
+        return cls(start=dt[0], end=dt[1], name=name)
+
+    @property
+    def period(self) -> pendulum.Period:
+        """
+        Get the period of the time range.
+        """
+        return pendulum.period(start=self.start.date(), end=self.end.date())
+
+    def date_range(self) -> set[date]:
+        """
+        Get the date range of the time range.
+        """
+        return set(self.period.range("days"))
+
+    @property
+    def duration(self) -> timedelta:
+        """
+        Get the duration of the time range.
+        """
+        return self.end - self.start
+
+    def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
+        """
+        Get the dictionary representation of the time range.
+        """
+        prefix = self.name + "_" if self.name else ""
+        return {
+            prefix + "start_datetime": self.start,
+            prefix + "end_datetime": self.end,
+        }
+
+
+class Interval(str, Enum):
+    """
+    An interval of time used in Drug Dosing.
+    """
+
+    SECOND = "s"
+    MINUTE = "min"
+    HOUR = "h"
+    DAY = "d"
+    WEEK = "wk"
+    MONTH = "mo"
+    YEAR = "a"
+
+
+class Dosage(BaseModel):
+    """
+    A dosage consisting of a dose, frequency and interval.
+    """
+
+    dose: ValueNumber
+    frequency: PositiveInt
+    interval: Interval
+
+    class Config:
+        """
+        Pydantic configuration.
+        """
+
+        use_enum_values = True
+        """ Use enum values instead of names. """
 
 
 class AbstractPrivateMethods(ABCMeta):

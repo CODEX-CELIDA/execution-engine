@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import func, select
+from sqlalchemy import NUMERIC, DateTime, bindparam, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import concat
@@ -9,7 +9,7 @@ from sqlalchemy.sql.functions import concat
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.util import ValueNumber, value_factory
+from execution_engine.util import Interval, ValueNumber, value_factory
 from execution_engine.util.sql import SelectInto
 
 __all__ = ["DrugExposure"]
@@ -27,7 +27,7 @@ class DrugExposure(Criterion):
         ingredient_concept: Concept,
         dose: ValueNumber | None,
         frequency: int | None,
-        interval: str | None,
+        interval: Interval | str | None,
         route: Concept | None,
     ) -> None:
         """
@@ -39,6 +39,12 @@ class DrugExposure(Criterion):
         self._ingredient_concept = ingredient_concept
         self._dose = dose
         self._frequency = frequency
+
+        if interval is not None:
+            if isinstance(interval, str):
+                interval = Interval(interval)
+            assert isinstance(interval, Interval), "interval must be an Interval or str"
+
         self._interval = interval
         self._route = route
 
@@ -71,23 +77,56 @@ class DrugExposure(Criterion):
                 # addressable in FHIR
                 logging.warning("Route specified, but not implemented yet")
 
-            interval = func.cast(concat(1, self._interval), INTERVAL)
+            # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
+            interval = func.cast(concat(1, self._interval.name), INTERVAL)  # type: ignore
+            interval_length_seconds = func.cast(
+                func.extract("EPOCH", interval), NUMERIC
+            ).label("interval_length_seconds")
             one_second = func.cast(concat(1, "second"), INTERVAL)
 
             # Filter only drug_exposures that are inbetween the start and end date of the cohort
             query = super()._insert_datetime(query)
 
-            date_ranges = query.add_columns(
-                func.generate_series(
+            interval_starts = query.add_columns(
+                (
                     func.date_trunc(
-                        "day", drug_exposure.c.drug_exposure_start_datetime
-                    ),
-                    drug_exposure.c.drug_exposure_end_datetime,
-                    interval,
+                        "day", bindparam("observation_start_datetime", type_=DateTime)
+                    )
+                    + interval_length_seconds
+                    * (
+                        func.floor(
+                            func.extract(
+                                "EPOCH",
+                                (
+                                    drug_exposure.c.drug_exposure_start_datetime
+                                    - func.date_trunc(
+                                        "day",
+                                        bindparam(
+                                            "observation_start_datetime", type_=DateTime
+                                        ),
+                                    )
+                                ),
+                            )
+                            / interval_length_seconds
+                        )
+                        * one_second
+                    )
                 ).label("interval_start"),
                 drug_exposure.c.drug_exposure_start_datetime.label("start_datetime"),
                 drug_exposure.c.drug_exposure_end_datetime.label("end_datetime"),
                 drug_exposure.c.quantity.label("quantity"),
+            ).cte("interval_starts")
+
+            date_ranges = select(
+                interval_starts.c.person_id,
+                func.generate_series(
+                    interval_starts.c.interval_start,
+                    interval_starts.c.end_datetime,
+                    interval,
+                ).label("interval_start"),
+                interval_starts.c.start_datetime,
+                interval_starts.c.end_datetime,
+                interval_starts.c.quantity,
             ).cte("date_ranges")
 
             interval_quantities = (
@@ -152,7 +191,7 @@ class DrugExposure(Criterion):
                 .having(
                     self._dose.to_sql(column_name=c_interval_quantity, with_unit=False)
                 )
-                .having(c_interval_count == self._frequency)
+                .having(c_interval_count >= self._frequency)
                 .order_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
             )
 

@@ -9,7 +9,7 @@ import logging
 import pendulum
 from fastapi import FastAPI, HTTPException
 
-from execution_engine import ExecutionEngine
+from execution_engine.execution_engine import ExecutionEngine
 
 
 class Recommendation(TypedDict):

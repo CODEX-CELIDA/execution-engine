@@ -10,11 +10,11 @@ from sqlalchemy import (
     Date,
     DateTime,
     Table,
+    and_,
     bindparam,
     distinct,
     func,
     literal_column,
-    or_,
     select,
 )
 from sqlalchemy.dialects.postgresql import INTERVAL
@@ -32,6 +32,7 @@ from execution_engine.omop.db.cdm import (
     Measurement,
     Observation,
     ProcedureOccurrence,
+    VisitDetail,
     VisitOccurrence,
 )
 from execution_engine.util.sql import SelectInto, select_into
@@ -92,6 +93,12 @@ class AbstractCriterion(ABC):
         """
         return self.type + "_" + self._name
 
+    def copy(self) -> "AbstractCriterion":
+        """
+        Copy the criterion.
+        """
+        return copy.deepcopy(self)
+
     def invert_exclude(self, inplace: bool = False) -> "AbstractCriterion":
         """
         Invert the exclude flag.
@@ -100,7 +107,7 @@ class AbstractCriterion(ABC):
             self._exclude = not self._exclude
             return self
         else:
-            criterion = copy.deepcopy(self)
+            criterion = self.copy()
             criterion._exclude = not criterion._exclude
             return criterion
 
@@ -198,7 +205,12 @@ class Criterion(AbstractCriterion):
             "value_required": False,
             "static": False,
         },
-        "visit": {"table": VisitOccurrence, "value_required": False, "static": True},
+        "visit": {"table": VisitOccurrence, "value_required": False, "static": False},
+        "visit_detail": {
+            "table": VisitDetail,
+            "value_required": False,
+            "static": False,
+        },
     }
 
     def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
@@ -364,15 +376,9 @@ class Criterion(AbstractCriterion):
 
         if isinstance(query, Select):
             query = query.filter(
-                or_(
-                    c_start.between(
-                        bindparam("observation_start_datetime"),
-                        bindparam("observation_end_datetime"),
-                    ),
-                    c_end.between(
-                        bindparam("observation_start_datetime"),
-                        bindparam("observation_end_datetime"),
-                    ),
+                and_(
+                    c_start <= bindparam("observation_end_datetime"),
+                    c_end >= bindparam("observation_start_datetime"),
                 )
             )
         else:
@@ -405,6 +411,32 @@ class Criterion(AbstractCriterion):
         if "valid_to" not in col_names:
             c_end = self._get_datetime_column(self._table, "end").label("valid_to")
             query = query.add_columns(c_end)
+
+        # Adjust the "valid_from" and "valid_to" columns in the query to not extend the observation start/end dates,
+        # which are introduced when executing the query. The reason is that these columns determine the start and end
+        # date of the date range that is created (using SQL generate_series) for each person. If the criterion extends
+        # the observation period, additional dates will be generated for each person (in the SQL output),
+        # which is not desired.
+        c_valid_from = query.selected_columns["valid_from"]
+        c_valid_to = query.selected_columns["valid_to"]
+
+        query = query.with_only_columns(
+            *[
+                c
+                for c in query.selected_columns
+                if c.name not in ["valid_from", "valid_to"]
+            ]
+        )
+        query = query.add_columns(
+            func.greatest(
+                c_valid_from, bindparam("observation_start_datetime", type_=DateTime)
+            ).label("valid_from")
+        )
+        query = query.add_columns(
+            func.least(
+                c_valid_to, bindparam("observation_end_datetime", type_=DateTime)
+            ).label("valid_to")
+        )
 
         query = query.cte("criterion")
 

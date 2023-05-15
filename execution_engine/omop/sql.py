@@ -64,7 +64,7 @@ class OMOPSQLClient:
         self._metadata = base.metadata
         self._metadata.bind = self._engine
 
-        self._init_result_tables()
+        self._init_tables()
 
         if vocabulary_logger is None:
             vocabulary_logger = logging.getLogger("vocabulary")
@@ -76,22 +76,17 @@ class OMOPSQLClient:
 
         self._vocabulary_logger = vocabulary_logger
 
-    def _init_result_tables(self, schema: str = "celida") -> None:
+    def _init_tables(self, schema: str = "celida") -> None:
         """
         Initialize the result schema.
         """
         with self.begin() as con:
+            if not con.dialect.has_schema(con, self._schema):
+                con.execute(sqlalchemy.schema.CreateSchema(self._schema))
             if not con.dialect.has_schema(con, schema):
                 con.execute(sqlalchemy.schema.CreateSchema(schema))
 
-            result_tables = [
-                self._metadata.tables[t]
-                for t in self._metadata.tables
-                if t.startswith("celida.")
-            ]
-            assert len(result_tables) > 0, "No results tables found"
-
-            self._metadata.create_all(tables=result_tables, bind=con)
+            self._metadata.create_all(bind=con)
 
     def connect(self) -> sqlalchemy.engine.Connection:
         """

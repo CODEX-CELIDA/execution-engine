@@ -5,7 +5,6 @@ import os
 import pandas as pd
 import pytest
 import sqlalchemy
-from pytest_postgresql import factories
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm.session import sessionmaker
 from tqdm import tqdm
@@ -15,44 +14,31 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     metadata,
 )
 from execution_engine.omop.db.cdm import Person
-from tests import concepts
+from tests._testdata import concepts
+from tests._testdata.parameter import criteria_defs
 from tests.functions import (
     create_condition,
     create_drug_exposure,
     create_measurement,
     create_observation,
     create_visit,
-    random_datetime,
 )
-from tests.parameter import criteria_defs
 
 logging.basicConfig()
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-postgresql_in_docker = factories.postgresql_noproc()
-postgresql = factories.postgresql("postgresql_in_docker")
 
+@pytest.fixture(scope="session")
+def db_setup():
+    """Database Session for SQLAlchemy."""
 
-@pytest.fixture
-def db_session(postgresql):
-    """Session for SQLAlchemy."""
-    pg_host = postgresql.info.host
-    pg_port = postgresql.info.port
-    pg_user = postgresql.info.user
-    pg_password = postgresql.info.password
-    pg_db = postgresql.info.dbname
+    pg_user = os.environ["OMOP__USER"]
+    pg_password = os.environ["OMOP__PASSWORD"]
+    pg_host = os.environ["OMOP__HOST"]
+    pg_port = os.environ["OMOP__PORT"]
+    pg_db = os.environ["OMOP__DATABASE"]
 
-    os.environ["OMOP__USER"] = pg_user
-    os.environ["OMOP__PASSWORD"] = pg_password
-    os.environ["OMOP__HOST"] = pg_host
-    os.environ["OMOP__PORT"] = str(pg_port)
-    os.environ["OMOP__DATABASE"] = pg_db
-    os.environ["OMOP__SCHEMA"] = "cds_cdm"
-
-    # with DatabaseJanitor(
-    #    pg_user, pg_host, pg_port, pg_db, postgresql.info.server_version, pg_password
-    # ):
     connection_str = (
         f"postgresql+psycopg://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
     )
@@ -76,7 +62,11 @@ def db_session(postgresql):
             "concept_ancestor",
             "drug_strength",
         ]:
-            df = pd.read_csv(f"tests/omop_cdm/{table}.csv.gz")
+            df = pd.read_csv(
+                f"tests/_testdata/omop_cdm/{table}.csv.gz",
+                na_values=[""],
+                keep_default_na=False,
+            )
             for c in df.columns:
                 if "_date" in c:
                     df[c] = pd.to_datetime(df[c])
@@ -84,16 +74,31 @@ def db_session(postgresql):
 
         con.commit()
 
-        logger.info("yielding a sessionmaker against the test postgres db.")
+        con.execute(
+            text("SET session_replication_role = 'origin';")
+        )  # Enable foreign key checks
 
-        yield sessionmaker(bind=engine, expire_on_commit=False)
+        con.commit()
 
-        # metadata.drop_all(con)
+    logger.info("yielding a sessionmaker against the test postgres db.")
+    yield sessionmaker(bind=engine, expire_on_commit=False)
+
+
+@pytest.fixture
+def db_session(db_setup):
+    session = db_setup()
+
+    yield session
+
+    session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
+    session.commit()
 
 
 @pytest.fixture
 def criteria(
-    person_combinations, visit_start_date, visit_end_date, population_intervention
+    person_combinations,
+    visit_datetime,
+    population_intervention,
 ):
 
     entries = []
@@ -120,8 +125,8 @@ def criteria(
             }
 
             if params["type"] == "condition":
-                entry["start_datetime"] = random_datetime(visit_start_date)
-                entry["end_datetime"] = random_datetime(visit_end_date)
+                entry["start_datetime"] = visit_datetime.start
+                entry["end_datetime"] = visit_datetime.end
             elif params["type"] == "observation":
                 entry["start_datetime"] = datetime.datetime(2023, 3, 15, 12, 0, 0)
             elif params["type"] == "drug":
@@ -146,7 +151,7 @@ def criteria(
                 "concept": "WEIGHT",
                 "concept_id": concepts.WEIGHT,
                 "start_datetime": datetime.datetime.combine(
-                    visit_start_date, datetime.time()
+                    visit_datetime.start.date(), datetime.time()
                 )
                 + datetime.timedelta(days=1),
                 "value": 71 if row["NADROPARIN_HIGH_WEIGHT"] else 69,
@@ -161,12 +166,10 @@ def criteria(
 
 
 @pytest.fixture
-def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
-    session = db_session()
-
-    session.execute(
-        text("SET session_replication_role = 'replica';")
-    )  # Disable foreign key checks
+def insert_criteria(db_session, criteria, visit_datetime):
+    # db_session.execute(
+    #    text("SET session_replication_role = 'replica';")
+    # )  # Disable foreign key checks
 
     for person_id, g in tqdm(
         criteria.groupby("person_id"),
@@ -183,7 +186,7 @@ def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
             race_concept_id=0,
             ethnicity_concept_id=0,
         )
-        vo = create_visit(p, visit_start_date, visit_end_date)
+        vo = create_visit(p.person_id, visit_datetime.start, visit_datetime.end)
 
         person_entries = [p, vo]
 
@@ -193,13 +196,13 @@ def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
                 entry = create_condition(vo, row["concept_id"])
             elif row["type"] == "observation":
                 entry = create_observation(
-                    vo, row["concept_id"], datetime=row["start_datetime"]
+                    vo, row["concept_id"], observation_datetime=row["start_datetime"]
                 )
             elif row["type"] == "measurement":
                 entry = create_measurement(
                     vo,
                     measurement_concept_id=row["concept_id"],
-                    datetime=row["start_datetime"],
+                    measurement_datetime=row["start_datetime"],
                     value_as_number=row["value"],
                     unit_concept_id=row["unit_concept_id"],
                 )
@@ -218,5 +221,5 @@ def insert_criteria(db_session, criteria, visit_start_date, visit_end_date):
 
             person_entries.append(entry)
 
-        session.add_all(person_entries)
-        session.commit()
+        db_session.add_all(person_entries)
+        db_session.commit()
