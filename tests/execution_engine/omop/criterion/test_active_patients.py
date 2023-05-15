@@ -1,11 +1,25 @@
+import pandas as pd
 import pendulum
-from sqlalchemy import func, text
+import pytest
+from sqlalchemy import func, select, text
 
-from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
+from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit
 
 
 class TestActivePatientsDuringPeriod(TestCriterion):
+    @staticmethod
+    def insert_visits(db_session, person, visit_datetimes):
+        for visit_start_datetime, visit_end_datetime in visit_datetimes:
+            vo = create_visit(
+                person.person_id,
+                pendulum.parse(visit_start_datetime),
+                pendulum.parse(visit_end_datetime),
+            )
+            db_session.add(vo)
+
+        db_session.commit()
+
     def test_active_patients_during_period(
         self,
         person,
@@ -13,6 +27,9 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         base_criterion,
         observation_window,
     ):
+
+        person = person[0]
+
         def count_day_entries(visit_datetimes: list[tuple[str, str]]) -> int:
             """
             Insert visit_occurrence entries into the database for a given person, then apply the base_criterion to
@@ -21,15 +38,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             second element is the visit end datetime.
             """
 
-            for visit_start_datetime, visit_end_datetime in visit_datetimes:
-                vo = create_visit(
-                    person[0].person_id,
-                    pendulum.parse(visit_start_datetime),
-                    pendulum.parse(visit_end_datetime),
-                )
-                db_session.add(vo)
-
-            db_session.commit()
+            self.insert_visits(db_session, person, visit_datetimes)
 
             base_table = self.create_base_table(
                 base_criterion,
@@ -37,13 +46,17 @@ class TestActivePatientsDuringPeriod(TestCriterion):
                 observation_window,
             )
 
-            count = db_session.query(func.count(base_table.c.person_id)).scalar()
+            stmt = select(
+                base_table.c.person_id, func.count("*").label("count")
+            ).group_by(base_table.c.person_id)
+            result = db_session.execute(stmt)
+            count = [dict(row._mapping) for row in result]
 
             base_table.drop(db_session.connection())
             db_session.execute(text('DELETE FROM "cds_cdm"."visit_occurrence";'))
             db_session.commit()
 
-            return count
+            return count[0]["count"] if len(count) > 0 else 0
 
         non_overlapping = [
             ("2023-03-04 00:00:00", "2023-03-04 02:00:00"),
@@ -120,3 +133,89 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             ("2023-03-29 23:59:00", "2023-04-01 02:00:00"),
         ]
         assert count_day_entries(during_end_observation_window) == 3
+
+    @pytest.mark.parametrize(
+        "test_cases",
+        [
+            (
+                [
+                    {
+                        "time_range": [  # non-overlapping
+                            ("2023-03-03 08:00:00", "2023-03-03 16:00:00"),
+                            ("2023-03-04 09:00:00", "2023-03-06 15:00:00"),
+                            ("2023-03-08 10:00:00", "2023-03-09 18:00:00"),
+                        ],
+                        "expected": {
+                            "2023-03-03",
+                            "2023-03-04",
+                            "2023-03-05",
+                            "2023-03-06",
+                            "2023-03-08",
+                            "2023-03-09",
+                        },
+                    },
+                    {
+                        "time_range": [  # exact overlap
+                            ("2023-03-01 08:00:00", "2023-03-02 16:00:00"),
+                            ("2023-03-02 16:00:00", "2023-03-03 23:59:00"),
+                            ("2023-03-03 23:59:00", "2023-03-04 11:00:00"),
+                        ],
+                        "expected": {
+                            "2023-03-01",
+                            "2023-03-02",
+                            "2023-03-03",
+                            "2023-03-04",
+                        },
+                    },
+                    {
+                        "time_range": [  # overlap by some margin
+                            ("2023-03-01 08:00:00", "2023-03-03 16:00:00"),
+                            ("2023-03-03 12:00:00", "2023-03-05 20:00:00"),
+                            ("2023-03-06 10:00:00", "2023-03-08 18:00:00"),
+                        ],
+                        "expected": {
+                            "2023-03-01",
+                            "2023-03-02",
+                            "2023-03-03",
+                            "2023-03-04",
+                            "2023-03-05",
+                            "2023-03-06",
+                            "2023-03-07",
+                            "2023-03-08",
+                        },
+                    },
+                ]
+            )
+        ],
+    )
+    def test_multiple_patients_active_during_period(
+        self, person, db_session, base_criterion, observation_window, test_cases
+    ):
+
+        for p, tc in zip(person, test_cases):
+            self.insert_visits(db_session, p, tc["time_range"])
+
+        base_table = self.create_base_table(
+            base_criterion,
+            db_session,
+            observation_window,
+        )
+
+        stmt = select(base_table.c.person_id, base_table.c.valid_date).select_from(
+            base_table
+        )
+        df = pd.read_sql(
+            stmt,
+            db_session.connection(),
+            params=observation_window.dict(),
+        )
+        df["valid_date"] = pd.to_datetime(df["valid_date"])
+
+        base_table.drop(db_session.connection())
+        db_session.execute(text('DELETE FROM "cds_cdm"."visit_occurrence";'))
+        db_session.commit()
+
+        for tc, p in zip(test_cases, person):
+            assert set(
+                df.query(f"person_id=={p.person_id}")["valid_date"].dt.date
+            ) == date_set(tc["expected"])

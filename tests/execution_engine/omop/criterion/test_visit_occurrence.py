@@ -334,3 +334,89 @@ class TestVisitOccurrence(TestCriterion):
         df = occurrence_criterion(exclude=False)
 
         assert set(df["valid_date"].dt.date) == date_set(expected)
+
+    @pytest.mark.parametrize(
+        "test_cases",
+        [
+            (
+                [
+                    {
+                        "time_range": [  # non-overlapping
+                            ("2023-03-03 08:00:00", "2023-03-03 16:00:00"),
+                            ("2023-03-04 09:00:00", "2023-03-06 15:00:00"),
+                            ("2023-03-08 10:00:00", "2023-03-09 18:00:00"),
+                        ],
+                        "expected": {
+                            "2023-03-03",
+                            "2023-03-04",
+                            "2023-03-05",
+                            "2023-03-06",
+                            "2023-03-08",
+                            "2023-03-09",
+                        },
+                    },
+                    {
+                        "time_range": [  # exact overlap
+                            ("2023-03-01 08:00:00", "2023-03-02 16:00:00"),
+                            ("2023-03-02 16:00:00", "2023-03-03 23:59:00"),
+                            ("2023-03-03 23:59:00", "2023-03-04 11:00:00"),
+                        ],
+                        "expected": {
+                            "2023-03-01",
+                            "2023-03-02",
+                            "2023-03-03",
+                            "2023-03-04",
+                        },
+                    },
+                    {
+                        "time_range": [  # overlap by some margin
+                            ("2023-03-01 08:00:00", "2023-03-03 16:00:00"),
+                            ("2023-03-03 12:00:00", "2023-03-05 20:00:00"),
+                            ("2023-03-06 10:00:00", "2023-03-08 18:00:00"),
+                        ],
+                        "expected": {
+                            "2023-03-01",
+                            "2023-03-02",
+                            "2023-03-03",
+                            "2023-03-04",
+                            "2023-03-05",
+                            "2023-03-06",
+                            "2023-03-07",
+                            "2023-03-08",
+                        },
+                    },
+                ]
+            )
+        ],
+    )
+    def test_visit_occurrence_multiple_patients(
+        self,
+        person,
+        db_session,
+        base_criterion,
+        observation_window,
+        occurrence_criterion,
+        test_cases,
+    ):
+        for tc, p in zip(test_cases, person):
+            for (
+                visit_start_datetime,
+                visit_end_datetime,
+            ) in tc["time_range"]:
+                vo = create_visit(
+                    person_id=p.person_id,
+                    visit_start_datetime=pendulum.parse(visit_start_datetime),
+                    visit_end_datetime=pendulum.parse(visit_end_datetime),
+                    visit_concept_id=INTENSIVE_CARE,
+                )
+                db_session.add(vo)
+
+        db_session.commit()
+
+        # run criterion against db
+        df = occurrence_criterion(exclude=False)
+
+        for tc, p in zip(test_cases, person):
+            assert set(
+                df.query(f"person_id=={p.person_id}")["valid_date"].dt.date
+            ) == date_set(tc["expected"])
