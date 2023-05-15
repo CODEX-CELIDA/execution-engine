@@ -7,105 +7,25 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.util import Dosage, Interval, ValueNumber
+from tests._fixtures.concept import (
+    concept_enoxparin_ingredient,
+    concept_heparin_ingredient,
+    concept_unit_mg,
+    concepts_heparin_other,
+)
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_drug_exposure
 
 
 class TestDrugExposure(TestCriterion):
 
-    concept_unit_mg = Concept(
-        concept_id=8576,
-        concept_name="milligram",
-        domain_id="Unit",
-        vocabulary_id="UCUM",
-        concept_class_id="Unit",
-        standard_concept="S",
-        concept_code="mg",
-        invalid_reason=None,
-    )
-
-    concept_heparin_ingredient = Concept(
-        concept_id=1367571,
-        concept_name="heparin",
-        domain_id="Drug",
-        vocabulary_id="RxNorm",
-        concept_class_id="Ingredient",
-        standard_concept="S",
-        concept_code="5224",
-        invalid_reason=None,
-    )
-
-    concepts_heparin_other = [
-        Concept(
-            concept_id=995426,
-            concept_name="101000 MG heparin 0.6 UNT/MG Topical Gel by Axicorp",
-            domain_id="Drug",
-            vocabulary_id="RxNorm Extension",
-            concept_class_id="Marketed Product",
-            standard_concept="S",
-            concept_code="OMOP4821932",
-            invalid_reason=None,
-        ),
-        Concept(
-            concept_id=1367697,
-            concept_name="heparin calcium 25000 UNT/ML",
-            domain_id="Drug",
-            vocabulary_id="RxNorm",
-            concept_class_id="Clinical Drug Comp",
-            standard_concept="S",
-            concept_code="849698",
-            invalid_reason=None,
-        ),
-        Concept(
-            concept_id=44216409,
-            concept_name="200000 MG heparin 1.8 UNT/MG Topical Gel [Heparin Ratiopharm]",
-            domain_id="Drug",
-            vocabulary_id="RxNorm Extension",
-            concept_class_id="Quant Branded Drug",
-            standard_concept="S",
-            concept_code="OMOP3093132",
-            invalid_reason=None,
-        ),
-        Concept(
-            concept_id=44507578,
-            concept_name="6 ML heparin sodium, porcine 100 UNT/ML Prefilled Syringe",
-            domain_id="Drug",
-            vocabulary_id="RxNorm",
-            concept_class_id="Quant Clinical Drug",
-            standard_concept="S",
-            concept_code="1442414",
-            invalid_reason=None,
-        ),
-        Concept(
-            concept_id=44215905,
-            concept_name="101000 MG Arnica extract 0.1 MG/MG / guaiazulene 0.00005 MG/MG / heparin 0.04 UNT/MG / Lecithin 0.01 MG/MG / Matricaria chamomilla flowering top oil 0.00005 MG/MG Topical Gel [Arnica Kneipp]",
-            domain_id="Drug",
-            vocabulary_id="RxNorm Extension",
-            concept_class_id="Quant Branded Drug",
-            standard_concept="S",
-            concept_code="OMOP3092628",
-            invalid_reason=None,
-        ),
-    ]
-
-    concept_enoxparin_ingredient = Concept(
-        concept_id=995271,
-        concept_name="0.4 ML Enoxaparin 100 MG/ML Injectable Solution [Inhixa] by Emra-Med",
-        domain_id="Drug",
-        vocabulary_id="RxNorm Extension",
-        concept_class_id="Marketed Product",
-        standard_concept="S",
-        concept_code="OMOP4821780",
-        invalid_reason=None,
-    )
-
     related_concepts: dict[int, list[str]] = {}
 
     @pytest.fixture(scope="class", autouse=True)
     def setup_related_concepts(self):
         concept_ids = [
-            self.concept_heparin_ingredient.concept_id,
-            self.concept_enoxparin_ingredient.concept_id,
+            concept_heparin_ingredient.concept_id,
+            concept_enoxparin_ingredient.concept_id,
         ]
 
         for concept_id in concept_ids:
@@ -202,7 +122,7 @@ class TestDrugExposure(TestCriterion):
 
         # Execute the criterion and compare the result with the expected output
         result = execute_drug_exposure_criterion(
-            ingredient_concept=self.concept_heparin_ingredient,
+            ingredient_concept=concept_heparin_ingredient,
             exclude=False,
             dose=dosage.dose,
             frequency=dosage.frequency,
@@ -1397,7 +1317,7 @@ class TestDrugExposure(TestCriterion):
 
         # Execute the criterion and compare the result with the expected output
         result = execute_drug_exposure_criterion(
-            ingredient_concept=self.concept_heparin_ingredient,
+            ingredient_concept=concept_heparin_ingredient,
             exclude=False,
             dose=dosage.dose,
             frequency=dosage.frequency,

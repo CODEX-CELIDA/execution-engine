@@ -93,6 +93,12 @@ class AbstractCriterion(ABC):
         """
         return self.type + "_" + self._name
 
+    def copy(self) -> "AbstractCriterion":
+        """
+        Copy the criterion.
+        """
+        return copy.deepcopy(self)
+
     def invert_exclude(self, inplace: bool = False) -> "AbstractCriterion":
         """
         Invert the exclude flag.
@@ -101,7 +107,7 @@ class AbstractCriterion(ABC):
             self._exclude = not self._exclude
             return self
         else:
-            criterion = copy.deepcopy(self)
+            criterion = self.copy()
             criterion._exclude = not criterion._exclude
             return criterion
 
