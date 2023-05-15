@@ -176,82 +176,6 @@ class TestDrugExposure(TestCriterion):
             quantity=quantity,
         )
 
-    # Test case 12: non-ingredient drug concepts
-    @pytest.mark.parametrize(
-        "drug_exposures",
-        [
-            (
-                {
-                    "drug_concept_id": concept1.concept_id,
-                    "start_datetime": "2023-03-01 00:00:00",
-                    "end_datetime": "2023-03-03 12:00:00",
-                    "quantity": 200,
-                },
-                {
-                    "drug_concept_id": concept2.concept_id,
-                    "start_datetime": "2023-03-02 00:00:00",
-                    "end_datetime": "2023-03-05 00:00:00",
-                    "quantity": 201,
-                },
-            )
-            for concept1, concept2 in list(
-                zip(concepts_heparin_other, concepts_heparin_other[1:])
-            )
-        ],
-    )
-    # date          qty     n
-    # 2023-03-01 	 80.0 	1
-    # 2023-03-02 	147.0 	2
-    # 2023-03-03 	107.0 	2
-    # 2023-03-04 	 67.0 	1
-    # 2023-03-05 	  0.0 	1
-    @pytest.mark.parametrize(
-        "dosage,expected",
-        [
-            (
-                Dosage(
-                    dose=ValueNumber(value=80, unit=concept_unit_mg),
-                    frequency=1,
-                    interval=Interval.DAY,
-                ),
-                {"2023-03-01"},
-            ),
-            (
-                Dosage(
-                    dose=ValueNumber(value=147, unit=concept_unit_mg),
-                    frequency=2,
-                    interval=Interval.DAY,
-                ),
-                {"2023-03-02"},
-            ),
-            (
-                Dosage(
-                    dose=ValueNumber(value_min=67, unit=concept_unit_mg),
-                    frequency=2,
-                    interval=Interval.DAY,
-                ),
-                {"2023-03-02", "2023-03-03"},
-            ),
-        ],
-    )
-    def test_non_ingredient_drug_concepts(
-        self,
-        db_session,
-        person_visit,
-        execute_drug_exposure_criterion,
-        drug_exposures,
-        dosage,
-        expected,
-    ):
-        self.perform_test(
-            db_session,
-            person_visit,
-            execute_drug_exposure_criterion,
-            drug_exposures,
-            dosage,
-            expected,
-        )
-
     def perform_test(
         self,
         db_session,
@@ -1328,3 +1252,163 @@ class TestDrugExposure(TestCriterion):
             dosage,
             expected,
         )
+
+    # Test case 12: non-ingredient drug concepts
+    @pytest.mark.parametrize(
+        "drug_exposures",
+        [
+            (
+                {
+                    "drug_concept_id": concept1.concept_id,
+                    "start_datetime": "2023-03-01 00:00:00",
+                    "end_datetime": "2023-03-03 12:00:00",
+                    "quantity": 200,
+                },
+                {
+                    "drug_concept_id": concept2.concept_id,
+                    "start_datetime": "2023-03-02 00:00:00",
+                    "end_datetime": "2023-03-05 00:00:00",
+                    "quantity": 201,
+                },
+            )
+            for concept1, concept2 in list(
+                zip(concepts_heparin_other, concepts_heparin_other[1:])
+            )
+        ],
+    )
+    # date          qty     n
+    # 2023-03-01 	 80.0 	1
+    # 2023-03-02 	147.0 	2
+    # 2023-03-03 	107.0 	2
+    # 2023-03-04 	 67.0 	1
+    # 2023-03-05 	  0.0 	1
+    @pytest.mark.parametrize(
+        "dosage,expected",
+        [
+            (
+                Dosage(
+                    dose=ValueNumber(value=80, unit=concept_unit_mg),
+                    frequency=1,
+                    interval=Interval.DAY,
+                ),
+                {"2023-03-01"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value=147, unit=concept_unit_mg),
+                    frequency=2,
+                    interval=Interval.DAY,
+                ),
+                {"2023-03-02"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=67, unit=concept_unit_mg),
+                    frequency=2,
+                    interval=Interval.DAY,
+                ),
+                {"2023-03-02", "2023-03-03"},
+            ),
+        ],
+    )
+    def test_non_ingredient_drug_concepts(
+        self,
+        db_session,
+        person_visit,
+        execute_drug_exposure_criterion,
+        drug_exposures,
+        dosage,
+        expected,
+    ):
+        self.perform_test(
+            db_session,
+            person_visit,
+            execute_drug_exposure_criterion,
+            drug_exposures,
+            dosage,
+            expected,
+        )
+
+    @pytest.mark.parametrize(
+        "test_cases",
+        [
+            [
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-01 09:36:24",
+                    "end_datetime": "2023-03-03 10:36:24",
+                    "quantity": 1000,
+                    "expected": {"2023-03-01", "2023-03-02", "2023-03-03"},
+                },
+                # date         qty
+                # 2023-03-01 100.0
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-02 09:36:24",
+                    "end_datetime": "2023-03-04 10:36:24",
+                    "quantity": 2000,
+                    "expected": {"2023-03-02", "2023-03-03", "2023-03-04"},
+                },
+                # date         qty
+                # 2023-03-02 200.0
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-04 09:36:24",
+                    "end_datetime": "2023-03-06 10:36:24",
+                    "quantity": 1000,
+                    "expected": {"2023-03-04", "2023-03-05", "2023-03-06"},
+                },
+                # date         qty
+                # 2023-03-03 100.0
+            ]
+        ],
+    )
+    @pytest.mark.parametrize(
+        "dosage",
+        [
+            Dosage(
+                dose=ValueNumber(value_min=100, unit=concept_unit_mg),
+                frequency=1,
+                interval=Interval.DAY,
+            )
+        ],
+    )
+    def test_drug_exposure_multiple_person(
+        self,
+        person_visit,
+        db_session,
+        execute_drug_exposure_criterion,
+        test_cases,
+        dosage,
+    ):
+        vos = [pv[1] for pv in person_visit]
+
+        for vo, exposure in zip(vos, test_cases):
+            c = self.create_drug_exposure(
+                visit_occurrence=vo,
+                drug_concept_id=exposure["drug_concept_id"],
+                start_datetime=pendulum.parse(exposure["start_datetime"]),
+                end_datetime=pendulum.parse(exposure["end_datetime"]),
+                quantity=exposure["quantity"],
+            )
+            db_session.add(c)
+
+        db_session.commit()
+
+        # Execute the criterion and compare the result with the expected output
+        result = execute_drug_exposure_criterion(
+            ingredient_concept=self.concept_heparin_ingredient,
+            exclude=False,
+            dose=dosage.dose,
+            frequency=dosage.frequency,
+            interval=dosage.interval,
+            route=None,
+        )
+
+        for vo, exposure in zip(vos, test_cases):
+            expected = date_set(exposure["expected"])
+            actual = set(
+                result.query(f"person_id == {vo.person_id}")["valid_date"].dt.date
+            )
+
+            assert actual == expected

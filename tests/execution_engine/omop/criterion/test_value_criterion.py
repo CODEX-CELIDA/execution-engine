@@ -373,3 +373,83 @@ class ValueCriterion(TestCriterion, ABC):
             )
 
         assert set(df["valid_date"].dt.date) == valid_dates
+
+    @pytest.mark.parametrize(
+        "test_cases",
+        [
+            [
+                {
+                    "times": ["2023-03-04 18:00:00"],
+                    "criterion_value": f">={VALUE_NUMERIC}",
+                    "value_db": [VALUE_NUMERIC],
+                    "expected": {"2023-03-04"},
+                },
+                {
+                    "times": [  # multiple per one day
+                        "2023-03-04 00:00:00",
+                        "2023-03-06 03:00:00",
+                        "2023-03-08 06:00:00",
+                    ],
+                    "criterion_value": f">={VALUE_NUMERIC}",
+                    "value_db": [VALUE_NUMERIC - 1, VALUE_NUMERIC, VALUE_NUMERIC + 1],
+                    "expected": {"2023-03-06", "2023-03-08"},
+                },
+                {
+                    "times": [  # multiple days
+                        "2023-03-04 00:00:00",
+                        "2023-03-15 01:00:00",
+                        "2023-03-19 03:00:00",
+                    ],
+                    "criterion_value": f">={VALUE_NUMERIC}",
+                    "value_db": [VALUE_NUMERIC + 1, VALUE_NUMERIC, VALUE_NUMERIC - 1],
+                    "expected": {"2023-03-04", "2023-03-15"},
+                },
+            ],
+        ],
+    )
+    @pytest.mark.parametrize("exclude", [True, False])  # exclude used in the criterion
+    def test_value_multiple_persons(
+        self,
+        person_visit,
+        db_session,
+        criterion_execute_func,
+        observation_window,
+        concept,
+        unit_concept,
+        test_cases,
+        exclude,
+    ):
+
+        vos = [pv[1] for pv in person_visit]
+
+        for vo, tc in zip(vos, test_cases):
+
+            times = [pendulum.parse(time) for time in tc["times"]]
+
+            for value, time in zip(tc["value_db"], times):
+                c = self.create_value(
+                    visit_occurrence=vo,
+                    concept_id=concept.concept_id,
+                    datetime=time,
+                    value=value,
+                    unit_concept_id=unit_concept.concept_id,
+                )
+                db_session.add(c)
+
+            db_session.commit()
+
+        value = ValueNumber.parse(tc["criterion_value"], unit=unit_concept)
+
+        # run criterion against db
+        df = criterion_execute_func(concept=concept, value=value, exclude=exclude)
+
+        for vo, tc in zip(vos, test_cases):
+            df_person = df.query(f"{vo.person_id} == person_id")
+            valid_dates = self.date_points(tc["expected"])
+
+            if exclude:
+                valid_dates = self.invert_date_points(
+                    time_range=observation_window,
+                    subtract=valid_dates,
+                )
+            assert set(df_person["valid_date"].dt.date) == valid_dates

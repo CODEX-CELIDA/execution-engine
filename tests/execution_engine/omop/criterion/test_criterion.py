@@ -1,5 +1,5 @@
 import datetime
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import pandas as pd
 import pendulum
@@ -196,12 +196,21 @@ class TestCriterion:
 
     @staticmethod
     def date_points(
-        times: list[datetime.datetime | datetime.date],
+        times: Sequence[datetime.datetime | datetime.date | str],
     ) -> set[datetime.date]:
         """
         Convert a list of datetimes to the corresponding set of (unique) dates.
         """
-        return set([t.date() if isinstance(t, datetime.datetime) else t for t in times])
+        res = []
+        for t in times:
+            if isinstance(t, datetime.datetime):
+                res.append(t.date())
+            elif isinstance(t, datetime.date):
+                res.append(t)
+            else:
+                res.append(pendulum.parse(t).date())
+
+        return set(res)
 
     def invert_date_points(
         self,
