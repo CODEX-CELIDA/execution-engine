@@ -1,22 +1,42 @@
 import datetime
 
+import pandas as pd
 import pendulum
 import pytest
 from sqlalchemy import Column, Date, Integer, MetaData, Table, func
 
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.cdm import Person
+from execution_engine.util import TimeRange
 from tests.functions import create_visit
+
+
+def to_table(name: str) -> Table:
+    """
+    Convert a name to a valid SQL table name.
+    """
+    metadata = MetaData()
+    return Table(
+        name,
+        metadata,
+        Column("person_id", Integer, primary_key=True),
+        Column("valid_date", Date),
+    )
 
 
 class TestCriterion:
     @pytest.fixture
-    def visit_start_datetime(self) -> datetime.datetime:
-        return pendulum.parse("2023-03-01 09:36:24")
+    def visit_datetime(self) -> TimeRange:
+        return TimeRange(
+            name="visit", start="2023-03-01 09:36:24", end="2023-03-31 14:21:11"
+        )
 
     @pytest.fixture
-    def visit_end_datetime(self) -> datetime.datetime:
-        return pendulum.parse("2023-03-31 14:21:11")
+    def observation_window(self, visit_datetime: TimeRange) -> TimeRange:
+        dt = visit_datetime.copy()
+        dt.name = "observation"
+        return dt
 
     @pytest.fixture
     def person(self, db_session):
@@ -36,11 +56,9 @@ class TestCriterion:
         return person
 
     @pytest.fixture
-    def person_visit(
-        self, person, visit_start_datetime, visit_end_datetime, db_session
-    ):
+    def person_visit(self, person, visit_datetime, db_session):
 
-        vo = create_visit(person, visit_start_datetime, visit_end_datetime)
+        vo = create_visit(person.person_id, visit_datetime.start, visit_datetime.end)
 
         db_session.add(vo)
         db_session.commit()
@@ -48,30 +66,13 @@ class TestCriterion:
         return [person, vo]
 
     @staticmethod
-    def create_base_table(
-        base_criterion, db_session, visit_start_datetime, visit_end_datetime
-    ):
-        def to_table(name: str) -> Table:
-            """
-            Convert a name to a valid SQL table name.
-            """
-            metadata = MetaData()
-            return Table(
-                name,
-                metadata,
-                Column("person_id", Integer, primary_key=True),
-                Column("valid_date", Date),
-            )
-
+    def create_base_table(base_criterion, db_session, observation_window):
         base_table = to_table("base_table")
         query = base_criterion.sql_generate(base_table=base_table)
         query = base_criterion.sql_insert_into_table(query, base_table, temporary=True)
         db_session.execute(
             query,
-            params={
-                "observation_start_datetime": visit_start_datetime,
-                "observation_end_datetime": visit_end_datetime,
-            },
+            params=observation_window.dict(),
         )
         db_session.commit()
 
@@ -83,11 +84,10 @@ class TestCriterion:
         person_visit,
         db_session,
         base_criterion,
-        visit_start_datetime,
-        visit_end_datetime,
+        observation_window,
     ):
         base_table = self.create_base_table(
-            base_criterion, db_session, visit_start_datetime, visit_end_datetime
+            base_criterion, db_session, observation_window
         )
 
         count = db_session.query(func.count(base_table.c.person_id)).scalar()
@@ -102,6 +102,58 @@ class TestCriterion:
     @pytest.fixture
     def base_criterion(self):
         return PatientsActiveDuringPeriod("TestActivePatients")
+
+    @pytest.fixture
+    def concept(self):
+        raise NotImplementedError(
+            "Subclasses should override this method to provide their own fixture"
+        )
+
+    @pytest.fixture
+    def criterion_class(self):
+        raise NotImplementedError(
+            "Subclasses should override this method to provide their own fixture"
+        )
+
+    def create_occurrence(
+        self, visit_occurrence, concept_id, start_datetime, end_datetime
+    ):
+        raise NotImplementedError(
+            "Subclasses should override this method to provide their own fixture"
+        )
+
+    @pytest.fixture
+    def occurrence_criterion(
+        self,
+        criterion_class,
+        concept,
+        base_table,
+        db_session,
+        observation_window,
+    ):
+        def _create_occurrence(exclude: bool):
+
+            criterion = criterion_class(
+                name="test",
+                exclude=exclude,
+                category=CohortCategory.POPULATION,
+                concept=concept,
+                value=None,
+                static=None,
+            )
+
+            query = criterion.sql_generate(base_table=base_table)
+
+            df = pd.read_sql(
+                query,
+                db_session.connection(),
+                params=observation_window.dict(),
+            )
+            df["valid_date"] = pd.to_datetime(df["valid_date"])
+
+            return df
+
+        return _create_occurrence
 
     def invert_date_range(
         self,

@@ -1,66 +1,12 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
-import pandas as pd
 import pendulum
 import pytest
 
-from execution_engine.constants import CohortCategory
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 
 
 class Occurrence(TestCriterion, ABC):
-    @pytest.fixture
-    def concept(self):
-        raise NotImplementedError(
-            "Subclasses should override this method to provide their own fixture"
-        )
-
-    @pytest.fixture
-    def criterion_class(self):
-        raise NotImplementedError(
-            "Subclasses should override this method to provide their own fixture"
-        )
-
-    @abstractmethod
-    def create_occurrence(
-        self, visit_occurrence, concept_id, start_datetime, end_datetime
-    ):
-        raise NotImplementedError(
-            "Subclasses should override this method to provide their own fixture"
-        )
-
-    @pytest.fixture
-    def occurrence_criterion(
-        self, criterion_class, concept, base_table, db_session, person_visit
-    ):
-        def _create_occurrence(exclude: bool):
-            p, vo = person_visit
-
-            criterion = criterion_class(
-                name="test",
-                exclude=exclude,
-                category=CohortCategory.POPULATION,
-                concept=concept,
-                value=None,
-                static=None,
-            )
-
-            query = criterion.sql_generate(base_table=base_table)
-
-            df = pd.read_sql(
-                query,
-                db_session.connection(),
-                params={
-                    "observation_start_datetime": vo.visit_start_datetime,
-                    "observation_end_datetime": vo.visit_end_datetime,
-                },
-            )
-            df["valid_date"] = pd.to_datetime(df["valid_date"])
-
-            return df
-
-        return _create_occurrence
-
     def test_single_occurrence_single_time(
         self, person_visit, db_session, concept, occurrence_criterion
     ):

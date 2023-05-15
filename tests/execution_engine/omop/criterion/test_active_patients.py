@@ -1,34 +1,17 @@
-import datetime
-
 import pendulum
-import pytest
 from sqlalchemy import func, text
 
-from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 from tests.functions import create_visit
 
 
 class TestActivePatientsDuringPeriod(TestCriterion):
-    @pytest.fixture
-    def observation_start_datetime(self) -> datetime.datetime:
-        return pendulum.parse("2023-03-01 09:36:24")
-
-    @pytest.fixture
-    def observation_end_datetime(self) -> datetime.datetime:
-        return pendulum.parse("2023-03-31 14:21:11")
-
-    @pytest.fixture
-    def base_criterion(self):
-        return PatientsActiveDuringPeriod("TestActivePatients")
-
     def test_active_patients_during_period(
         self,
         person,
         db_session,
         base_criterion,
-        observation_start_datetime,
-        observation_end_datetime,
+        observation_window,
     ):
         def count_day_entries(visit_datetimes: list[tuple[str, str]]) -> int:
             """
@@ -40,7 +23,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
 
             for visit_start_datetime, visit_end_datetime in visit_datetimes:
                 vo = create_visit(
-                    person,
+                    person.person_id,
                     pendulum.parse(visit_start_datetime),
                     pendulum.parse(visit_end_datetime),
                 )
@@ -51,8 +34,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             base_table = self.create_base_table(
                 base_criterion,
                 db_session,
-                observation_start_datetime,
-                observation_end_datetime,
+                observation_window,
             )
 
             count = db_session.query(func.count(base_table.c.person_id)).scalar()

@@ -32,6 +32,7 @@ from execution_engine.omop.db.cdm import (
     Measurement,
     Observation,
     ProcedureOccurrence,
+    VisitDetail,
     VisitOccurrence,
 )
 from execution_engine.util.sql import SelectInto, select_into
@@ -199,6 +200,11 @@ class Criterion(AbstractCriterion):
             "static": False,
         },
         "visit": {"table": VisitOccurrence, "value_required": False, "static": False},
+        "visit_detail": {
+            "table": VisitDetail,
+            "value_required": False,
+            "static": False,
+        },
     }
 
     def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:

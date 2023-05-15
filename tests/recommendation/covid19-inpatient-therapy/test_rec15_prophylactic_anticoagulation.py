@@ -8,6 +8,7 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     Base,
     metadata,
 )
+from execution_engine.util import TimeRange
 from tests._testdata import concepts
 from tests.functions import generate_dataframe, to_extended
 
@@ -15,12 +16,18 @@ from tests.functions import generate_dataframe, to_extended
 @pytest.mark.recommendation
 class TestRecommendation15ProphylacticAnticoagulation:
     @pytest.fixture
-    def visit_start_datetime(self) -> datetime.datetime:
-        return datetime.datetime(2023, 3, 1, 7, 0, 0)
+    def visit_datetime(self) -> TimeRange:
+        return TimeRange(
+            start="2023-03-01 07:00:00", end="2023-03-31 22:00:00", name="visit"
+        )
 
     @pytest.fixture
-    def visit_end_datetime(self) -> datetime.datetime:
-        return datetime.datetime(2023, 3, 31, 22, 0, 0)
+    def observation_window(self, visit_datetime: TimeRange) -> TimeRange:
+        return TimeRange(
+            start=visit_datetime.start - datetime.timedelta(days=3),
+            end=visit_datetime.end + datetime.timedelta(days=3),
+            name="observation",
+        )
 
     @pytest.fixture
     def population_intervention(self) -> dict:
@@ -68,17 +75,15 @@ class TestRecommendation15ProphylacticAnticoagulation:
         insert_criteria: dict,
         criteria: pd.DataFrame,
         population_intervention: dict,
-        visit_start_datetime: datetime.datetime,
-        visit_end_datetime: datetime.datetime,
+        observation_window: TimeRange,
     ) -> pd.DataFrame:
 
         idx_static = criteria["static"]
-        criteria.loc[idx_static, "start_datetime"] = visit_start_datetime
-        criteria.loc[idx_static, "end_datetime"] = visit_end_datetime
+        criteria.loc[idx_static, "start_datetime"] = observation_window.start
+        criteria.loc[idx_static, "end_datetime"] = observation_window.end
         df = to_extended(
             criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
-            observation_start_date=visit_start_datetime,
-            observation_end_date=visit_end_datetime,
+            observation_window=observation_window,
         )
         df.loc[
             :, [c for c in population_intervention.keys() if c not in df.columns]
@@ -158,8 +163,7 @@ class TestRecommendation15ProphylacticAnticoagulation:
         self,
         db_session: sessionmaker,
         criteria_extended: pd.DataFrame,
-        visit_start_datetime: datetime.datetime,
-        visit_end_datetime: datetime.datetime,
+        observation_window: TimeRange,
     ) -> None:
         import itertools
 
@@ -173,15 +177,16 @@ class TestRecommendation15ProphylacticAnticoagulation:
             "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
         )
 
-        start_datetime = visit_start_datetime - datetime.timedelta(days=3)
-        end_datetime = visit_end_datetime + datetime.timedelta(days=3)
-
         e = ExecutionEngine(verbose=False)
 
         print(recommendation_url)
         cdd = e.load_recommendation(base_url + recommendation_url, force_reload=False)
 
-        e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)
+        e.execute(
+            cdd,
+            start_datetime=observation_window.start,
+            end_datetime=observation_window.end,
+        )
 
         df_result = omopdb.query(
             """

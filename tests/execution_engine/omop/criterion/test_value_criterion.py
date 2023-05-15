@@ -100,13 +100,11 @@ class ValueCriterion(TestCriterion, ABC):
 
     @pytest.fixture
     def criterion_execute_func(
-        self, base_table, db_session, person_visit, criterion_class
+        self, base_table, db_session, criterion_class, observation_window
     ):
         def _create_value(
             concept: Concept, value: ValueNumber | ValueConcept, exclude: bool
         ) -> pd.DataFrame:
-            p, vo = person_visit
-
             criterion = criterion_class(
                 name="test",
                 exclude=exclude,
@@ -121,10 +119,7 @@ class ValueCriterion(TestCriterion, ABC):
             df = pd.read_sql(
                 query,
                 db_session.connection(),
-                params={
-                    "observation_start_datetime": vo.visit_start_datetime,
-                    "observation_end_datetime": vo.visit_end_datetime,
-                },
+                params=observation_window.dict(),
             )
             df["valid_date"] = pd.to_datetime(df["valid_date"])
 

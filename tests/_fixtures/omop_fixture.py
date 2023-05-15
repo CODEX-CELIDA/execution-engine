@@ -97,8 +97,7 @@ def db_session(db_setup):
 @pytest.fixture
 def criteria(
     person_combinations,
-    visit_start_datetime,
-    visit_end_datetime,
+    visit_datetime,
     population_intervention,
 ):
 
@@ -126,8 +125,8 @@ def criteria(
             }
 
             if params["type"] == "condition":
-                entry["start_datetime"] = visit_start_datetime
-                entry["end_datetime"] = visit_end_datetime
+                entry["start_datetime"] = visit_datetime.start
+                entry["end_datetime"] = visit_datetime.end
             elif params["type"] == "observation":
                 entry["start_datetime"] = datetime.datetime(2023, 3, 15, 12, 0, 0)
             elif params["type"] == "drug":
@@ -152,7 +151,7 @@ def criteria(
                 "concept": "WEIGHT",
                 "concept_id": concepts.WEIGHT,
                 "start_datetime": datetime.datetime.combine(
-                    visit_start_datetime.date(), datetime.time()
+                    visit_datetime.start.date(), datetime.time()
                 )
                 + datetime.timedelta(days=1),
                 "value": 71 if row["NADROPARIN_HIGH_WEIGHT"] else 69,
@@ -167,7 +166,7 @@ def criteria(
 
 
 @pytest.fixture
-def insert_criteria(db_session, criteria, visit_start_datetime, visit_end_datetime):
+def insert_criteria(db_session, criteria, visit_datetime):
     # db_session.execute(
     #    text("SET session_replication_role = 'replica';")
     # )  # Disable foreign key checks
@@ -187,7 +186,7 @@ def insert_criteria(db_session, criteria, visit_start_datetime, visit_end_dateti
             race_concept_id=0,
             ethnicity_concept_id=0,
         )
-        vo = create_visit(p, visit_start_datetime, visit_end_datetime)
+        vo = create_visit(p.person_id, visit_datetime.start, visit_datetime.end)
 
         person_entries = [p, vo]
 

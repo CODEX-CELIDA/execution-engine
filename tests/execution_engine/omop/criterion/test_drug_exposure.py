@@ -128,7 +128,9 @@ class TestDrugExposure(TestCriterion):
         return {"ingredient": ingredient, "drugs": drugs}
 
     @pytest.fixture
-    def execute_drug_exposure_criterion(self, base_table, db_session, person_visit):
+    def execute_drug_exposure_criterion(
+        self, base_table, db_session, observation_window
+    ):
         def _run_drug_exposure(
             ingredient_concept: Concept,
             exclude: bool,
@@ -137,8 +139,6 @@ class TestDrugExposure(TestCriterion):
             interval: Interval | None,
             route: Concept | None,
         ) -> pd.DataFrame:
-            p, vo = person_visit
-
             criterion = DrugExposure(
                 name="test",
                 exclude=exclude,
@@ -156,10 +156,7 @@ class TestDrugExposure(TestCriterion):
             df = pd.read_sql(
                 query,
                 db_session.connection(),
-                params={
-                    "observation_start_datetime": vo.visit_start_datetime,
-                    "observation_end_datetime": vo.visit_end_datetime,
-                },
+                params=observation_window.dict(),
             )
             df["valid_date"] = pd.to_datetime(df["valid_date"])
 

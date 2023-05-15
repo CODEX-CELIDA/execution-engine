@@ -11,10 +11,11 @@ from execution_engine.omop.db.cdm import (
     DrugExposure,
     Measurement,
     Observation,
-    Person,
     ProcedureOccurrence,
+    VisitDetail,
     VisitOccurrence,
 )
+from execution_engine.util import TimeRange
 from tests._testdata import concepts
 
 
@@ -47,22 +48,43 @@ def generate_dataframe(keys: dict) -> pd.DataFrame:
 
 
 def create_visit(
-    p: Person,
+    person_id: int,
     visit_start_datetime: datetime.datetime,
     visit_end_datetime: datetime.datetime,
-    icu: bool = True,
+    visit_concept_id: int = concepts.INTENSIVE_CARE,
 ) -> VisitOccurrence:
     """
-    Create a visit for a person
+    Create a visit for a person (one single encounter)
     """
     return VisitOccurrence(
-        person_id=p.person_id,
+        person_id=person_id,
         visit_start_date=visit_start_datetime.date(),
         visit_start_datetime=visit_start_datetime,
         visit_end_date=visit_end_datetime.date(),
         visit_end_datetime=visit_end_datetime,
-        visit_concept_id=concepts.INTENSIVE_CARE if icu else concepts.INPATIENT_VISIT,
+        visit_concept_id=visit_concept_id,
         visit_type_concept_id=concepts.VISIT_TYPE_STILL_PATIENT,
+    )
+
+
+def create_visit_detail(
+    vo: VisitOccurrence,
+    visit_detail_start_datetime: datetime.datetime,
+    visit_detail_end_datetime: datetime.datetime,
+    visit_detail_concept_id: int,
+) -> VisitDetail:
+    """
+    Create a visit detail for a person (e.g. transfer between units in the hospital)
+    """
+    return VisitDetail(
+        person_id=vo.person_id,
+        visit_detail_concept_id=visit_detail_concept_id,
+        visit_detail_start_date=visit_detail_start_datetime.date(),
+        visit_detail_start_datetime=visit_detail_start_datetime,
+        visit_detail_end_date=visit_detail_end_datetime.date(),
+        visit_detail_end_datetime=visit_detail_end_datetime,
+        visit_detail_type_concept_id=concepts.EHR,
+        visit_occurrence_id=vo.visit_occurrence_id,
     )
 
 
@@ -196,11 +218,7 @@ def create_procedure(
     )
 
 
-def to_extended(
-    df: pd.DataFrame,
-    observation_start_date: datetime.datetime,
-    observation_end_date: datetime.datetime,
-) -> pd.DataFrame:
+def to_extended(df: pd.DataFrame, observation_window: TimeRange) -> pd.DataFrame:
     """
     Expand a dataframe with one row per person and one column per concept to a dataframe with one row per person and
     per day and one column per concept between `observation_start_date` and `observation_end_date`.
@@ -248,7 +266,7 @@ def to_extended(
     # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date and observation_end_date
     unique_person_ids = df["person_id"].unique()
     date_range = pd.date_range(
-        observation_start_date.date(), observation_end_date.date(), freq="D"
+        observation_window.start.date(), observation_window.end.date(), freq="D"
     )
     aux_df = pd.DataFrame(
         {

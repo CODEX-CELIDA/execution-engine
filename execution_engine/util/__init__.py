@@ -1,4 +1,5 @@
 from abc import ABC, ABCMeta, abstractmethod
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -227,6 +228,26 @@ class ValueConcept(Value):
         Get the string representation of the value.
         """
         return str(self)
+
+
+class TimeRange(BaseModel):
+    """
+    A time range.
+    """
+
+    start: datetime
+    end: datetime
+    name: str | None
+
+    def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
+        """
+        Get the dictionary representation of the time range.
+        """
+        prefix = self.name + "_" if self.name else ""
+        return {
+            prefix + "start_datetime": self.start,
+            prefix + "end_datetime": self.end,
+        }
 
 
 class Interval(str, Enum):
