@@ -46,7 +46,6 @@ class OMOPSQLClient:
         port: int,
         database: str,
         schema: str,
-        vocabulary_logger: logging.Logger | None = None,
     ) -> None:
         """Initialize the OMOP SQL client."""
 
@@ -66,15 +65,25 @@ class OMOPSQLClient:
 
         self._init_tables()
 
-        if vocabulary_logger is None:
-            vocabulary_logger = logging.getLogger("vocabulary")
+        self._vocabulary_logger = self._setup_logger("vocabulary")
+        self._query_logger = self._setup_logger("query")
 
-            if not vocabulary_logger.hasHandlers():
-                vocabulary_logger.setLevel(logging.DEBUG)
-                vocabulary_logger.addHandler(logging.NullHandler())
-                vocabulary_logger.propagate = False  # Do not propagate to root logger
+    def _setup_logger(self, name: str) -> logging.Logger:
+        """Setup a logger for the given name.
 
-        self._vocabulary_logger = vocabulary_logger
+        Parameters
+        ----------
+        name : str
+            The name of the logger.
+        """
+        logger = logging.getLogger(name)
+        logger.propagate = False
+
+        if not logger.hasHandlers():
+            logger.setLevel(logging.DEBUG)
+            logger.addHandler(logging.NullHandler())
+
+        return logger
 
     def _init_tables(self, schema: str = "celida") -> None:
         """
@@ -124,6 +133,12 @@ class OMOPSQLClient:
                 compile_kwargs={"literal_binds": True},
             )
         )
+
+    def log_query(self, query: Select | Insert, params: dict | None = None) -> None:
+        """
+        Log the given query against the OMOP CDM database.
+        """
+        self._query_logger.info(self.compile_query(query, params))
 
     def get_concept_info(self, concept_id: int) -> Concept:
         """Get the concept info for the given concept ID."""
