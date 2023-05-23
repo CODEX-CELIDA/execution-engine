@@ -91,9 +91,8 @@ class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
         recommendation_url: str,
     ) -> None:
 
-        assert self.recommendation_test_runner(
+        self.recommendation_test_runner(
             recommendation_url=recommendation_url,
             observation_window=observation_window,
             criteria_extended=criteria_extended,
-            plan_names=list(population_intervention_groups.keys()),
         )
