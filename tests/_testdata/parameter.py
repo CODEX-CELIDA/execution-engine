@@ -50,41 +50,34 @@ criteria_defs = {
         "p_dose_specific_day": 0.2,
         "static": False,
     },
-    "drug_certoparin": {
-        "type": "drug",
-        "dosage": 1,
-        "doses_per_day": [0, 5],
-        "p_dose_specific_day": 0.2,
-        "static": False,
-    },
     "HEPARIN": {"type": "drug", "dosage": 1, "doses_per_day": [0, 5], "static": False},
-    "AGARTROBAN": {
+    "ARGATROBAN": {
         "type": "drug",
         "dosage": 1,
         "doses_per_day": [0, 5],
         "static": False,
     },
-    "icu": {
+    "ICU": {
         "type": "episode",
         "range": [0, 30],
         "n_occurrences": [0, 2],
         "static": False,
     },
-    "pronining": {
+    "PRONING": {
         "type": "episode",
         "range": [1, 20],
         "n_occurrences": [0, 20],
         "static": False,
     },
-    "ventilated": {
+    "VENTILATED": {
         "type": "episode",
         "range": [1, 20],
         "n_occurrences": [0, 20],
         "static": False,
     },
-    "lab_ddimer": {"type": "lab", "threshold": 2, "range": [0, 4], "static": False},
-    "lab_aptt": {"type": "lab", "threshold": 50, "static": False},
-    "obs_tidal_volume": {
+    "D_DIMER": {"type": "lab", "threshold": 2, "range": [0, 4], "static": False},
+    "APTT": {"type": "lab", "threshold": 50, "static": False},
+    "TIDAL_VOLUME": {
         "type": "observation",
         "threshold": 6,
         "range": [2, 10],
@@ -92,26 +85,26 @@ criteria_defs = {
         "occurrences_per_day": [6, 30],
         "static": False,
     },
-    "obs_pmax": {
+    "PMAX": {
         "type": "observation",
         "threshold": 30,
         "range": [10, 100],
         "occurrences_per_day": [6, 30],
         "static": False,
     },
-    "obs_fio2": {
+    "FiO2": {
         "type": "observation",
         "range": [0, 1.0],
         "occurrences_per_day": [6, 30],
         "static": False,
     },
-    "obs_peep": {
+    "PEEP": {
         "type": "observation",
         "range": [4, 20],
         "occurrences_per_day": [6, 30],
         "static": False,
     },
-    "obs_oxygenation_index": {
+    "OXYGENATION_INDEX": {
         "type": "observation",
         "range": [100, 200],
         "occurrences_per_day": [6, 30],

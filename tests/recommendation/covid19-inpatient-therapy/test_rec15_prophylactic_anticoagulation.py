@@ -10,11 +10,10 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
 )
 from execution_engine.util import TimeRange
 from tests._testdata import concepts
-from tests.functions import generate_dataframe, to_extended
+from tests.recommendation.test_recommendation import TestRecommendationBase
 
 
-@pytest.mark.recommendation
-class TestRecommendation15ProphylacticAnticoagulation:
+class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
         return TimeRange(
@@ -28,6 +27,17 @@ class TestRecommendation15ProphylacticAnticoagulation:
             end=visit_datetime.end + datetime.timedelta(days=3),
             name="observation",
         )
+
+    @pytest.fixture
+    def recommendation_url(self) -> str:
+        base_url = (
+            "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
+        )
+        recommendation_url = (
+            "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
+        )
+
+        return f"{base_url}{recommendation_url}"
 
     @pytest.fixture
     def population_intervention(self) -> dict:
@@ -52,195 +62,38 @@ class TestRecommendation15ProphylacticAnticoagulation:
         return population | interventions
 
     @pytest.fixture
-    def person_combinations(
-        self,
-        population_intervention: dict,
-        run_slow_tests: bool,
-    ) -> pd.DataFrame:
-
-        df = generate_dataframe(population_intervention)
-
-        # Remove invalid combinations
-        idx_invalid = df["NADROPARIN_HIGH_WEIGHT"] & df["NADROPARIN_LOW_WEIGHT"]
-        df = df[~idx_invalid].copy()
-
-        if not run_slow_tests:
-            df = df.iloc[:20]
-
-        return df
+    def population_intervention_groups(self, population_intervention: dict) -> dict:
+        return {
+            "AntithromboticProphylaxisWithLWMH": {
+                "population": "COVID19 & ~VENOUS_THROMBOSIS & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY | THROMBOCYTOPENIA)",
+                "intervention": "DALTEPARIN | ENOXAPARIN | NADROPARIN_LOW_WEIGHT | NADROPARIN_HIGH_WEIGHT | CERTOPARIN",
+            },
+            "AntithromboticProphylaxisWithFondaparinux": {
+                "population": "COVID19 & ~VENOUS_THROMBOSIS & (HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY | THROMBOCYTOPENIA)",
+                "intervention": "FONDAPARINUX",
+            },
+            "NoAntithromboticProphylaxis": {
+                "population": "COVID19 & VENOUS_THROMBOSIS",
+                "intervention": "~(DALTEPARIN | ENOXAPARIN | NADROPARIN_LOW_WEIGHT | NADROPARIN_HIGH_WEIGHT | CERTOPARIN | FONDAPARINUX)",
+            },
+        }
 
     @pytest.fixture
-    def criteria_extended(
-        self,
-        insert_criteria: dict,
-        criteria: pd.DataFrame,
-        population_intervention: dict,
-        visit_datetime: TimeRange,
-        observation_window: TimeRange,
-    ) -> pd.DataFrame:
-
-        idx_static = criteria["static"]
-        # todo: should be observation_window, not visit_datetime (but that doesn't work, needs to be fixed in the test)
-        criteria.loc[idx_static, "start_datetime"] = visit_datetime.start
-        criteria.loc[idx_static, "end_datetime"] = visit_datetime.end
-        df = to_extended(
-            criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
-            observation_window=observation_window,
-        )
-        df.loc[
-            :, [c for c in population_intervention.keys() if c not in df.columns]
-        ] = False
-
-        df["p_AntithromboticProphylaxisWithLWMH"] = (
-            df["COVID19"]
-            & ~df["VENOUS_THROMBOSIS"]
-            & ~(
-                df["HIT2"]
-                | df["HEPARIN_ALLERGY"]
-                | df["HEPARINOID_ALLERGY"]
-                | df["THROMBOCYTOPENIA"]
-            )
-        )
-        df["p_AntithromboticProphylaxisWithFondaparinux"] = (
-            df["COVID19"]
-            & ~df["VENOUS_THROMBOSIS"]
-            & (
-                df["HIT2"]
-                | df["HEPARIN_ALLERGY"]
-                | df["HEPARINOID_ALLERGY"]
-                | df["THROMBOCYTOPENIA"]
-            )
-        )
-        df["p_NoAntithromboticProphylaxis"] = df["COVID19"] & df["VENOUS_THROMBOSIS"]
-
-        df["i_AntithromboticProphylaxisWithLWMH"] = (
-            df["DALTEPARIN"]
-            | df["ENOXAPARIN"]
-            | df["NADROPARIN_LOW_WEIGHT"]
-            | df["NADROPARIN_HIGH_WEIGHT"]
-            | df["CERTOPARIN"]
-        )
-        df["i_AntithromboticProphylaxisWithFondaparinux"] = df["FONDAPARINUX"]
-        df["i_NoAntithromboticProphylaxis"] = ~(
-            df["DALTEPARIN"]
-            | df["ENOXAPARIN"]
-            | df["NADROPARIN_LOW_WEIGHT"]
-            | df["NADROPARIN_HIGH_WEIGHT"]
-            | df["CERTOPARIN"]
-            | df["FONDAPARINUX"]
-        )
-
-        df["p_i_AntithromboticProphylaxisWithLWMH"] = (
-            df["p_AntithromboticProphylaxisWithLWMH"]
-            & df["i_AntithromboticProphylaxisWithLWMH"]
-        )
-        df["p_i_AntithromboticProphylaxisWithFondaparinux"] = (
-            df["p_AntithromboticProphylaxisWithFondaparinux"]
-            & df["i_AntithromboticProphylaxisWithFondaparinux"]
-        )
-        df["p_i_NoAntithromboticProphylaxis"] = (
-            df["p_NoAntithromboticProphylaxis"] & df["i_NoAntithromboticProphylaxis"]
-        )
-
-        df["p"] = (
-            df["p_AntithromboticProphylaxisWithLWMH"]
-            | df["p_AntithromboticProphylaxisWithFondaparinux"]
-            | df["p_NoAntithromboticProphylaxis"]
-        )
-        df["i"] = (
-            df["i_AntithromboticProphylaxisWithLWMH"]
-            | df["i_AntithromboticProphylaxisWithFondaparinux"]
-            | df["i_NoAntithromboticProphylaxis"]
-        )
-
-        df["p_i"] = (
-            df["p_i_AntithromboticProphylaxisWithLWMH"]
-            | df["p_i_AntithromboticProphylaxisWithFondaparinux"]
-            | df["p_i_NoAntithromboticProphylaxis"]
-        )
-
-        return df
+    def invalid_combinations(self, population_intervention: dict) -> str:
+        return "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
 
     def test_recommendation_15_prophylactic_anticoagulation(
         self,
         db_session: sessionmaker,
+        population_intervention_groups: dict,
         criteria_extended: pd.DataFrame,
         observation_window: TimeRange,
+        recommendation_url: str,
     ) -> None:
-        import itertools
 
-        from execution_engine.clients import omopdb
-        from execution_engine.execution_engine import ExecutionEngine
-
-        base_url = (
-            "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
+        assert self.recommendation_test_runner(
+            recommendation_url=recommendation_url,
+            observation_window=observation_window,
+            criteria_extended=criteria_extended,
+            plan_names=list(population_intervention_groups.keys()),
         )
-        recommendation_url = (
-            "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
-        )
-
-        e = ExecutionEngine(verbose=False)
-
-        print(recommendation_url)
-        cdd = e.load_recommendation(base_url + recommendation_url, force_reload=False)
-
-        e.execute(
-            cdd,
-            start_datetime=observation_window.start,
-            end_datetime=observation_window.end,
-        )
-
-        df_result = omopdb.query(
-            """
-        SELECT * FROM celida.recommendation_result
-        WHERE
-
-             criterion_name is null
-        """
-        )
-        df_result["valid_date"] = pd.to_datetime(df_result["valid_date"])
-        df_result["name"] = df_result["cohort_category"].map(
-            {
-                "INTERVENTION": "db_i_",
-                "POPULATION": "db_p_",
-                "POPULATION_INTERVENTION": "db_p_i_",
-            }
-        ) + df_result["recommendation_plan_name"].fillna("")
-
-        df_result = df_result.rename(columns={"valid_date": "date"})
-        df_result = df_result.pivot_table(
-            columns="name",
-            index=["person_id", "date"],
-            values="recommendation_results_id",
-            aggfunc=len,
-            fill_value=0,
-        ).astype(bool)
-
-        plan_names = [
-            "AntithromboticProphylaxisWithLWMH",
-            "AntithromboticProphylaxisWithFondaparinux",
-            "NoAntithromboticProphylaxis",
-        ]
-
-        cols = ["_".join(i) for i in itertools.product(["p", "i", "p_i"], plan_names)]
-        cols_db = [
-            "_".join(i)
-            for i in itertools.product(["db_p", "db_i", "db_p_i"], plan_names)
-        ]
-
-        m = criteria_extended.set_index(["person_id", "date"])[cols]
-        m = m.join(df_result)
-
-        m.loc[:, [c for c in cols_db if c not in m.columns]] = False
-
-        for plan in plan_names:
-            m[f"p_{plan}_eq"] = m[f"p_{plan}"] == m[f"db_p_{plan}"]
-            m[f"i_{plan}_eq"] = m[f"i_{plan}"] == m[f"db_i_{plan}"]
-            m[f"p_i_{plan}_eq"] = m[f"p_i_{plan}"] == m[f"db_p_i_{plan}"]
-
-        eq = m[[c for c in m.columns if c.endswith("_eq")]]
-
-        # assert eq.all(axis=1).all()
-
-        peq = eq.groupby("person_id").all()
-        assert peq.all(axis=1).all()

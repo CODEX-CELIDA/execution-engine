@@ -3,7 +3,6 @@ import itertools
 import random
 import re
 
-import numpy as np
 import pandas as pd
 
 from execution_engine.omop.db.cdm import (
@@ -15,7 +14,6 @@ from execution_engine.omop.db.cdm import (
     VisitDetail,
     VisitOccurrence,
 )
-from execution_engine.util import TimeRange
 from tests._testdata import concepts
 
 
@@ -33,7 +31,7 @@ def random_datetime(date: datetime.date, max_hours: int = 24) -> datetime.dateti
     )
 
 
-def generate_dataframe(keys: dict) -> pd.DataFrame:
+def generate_binary_combinations_dataframe(keys: dict) -> pd.DataFrame:
     """
     Generate a pandas DataFrame with all possible combinations of binary factors
     """
@@ -216,72 +214,6 @@ def create_procedure(
         procedure_end_date=end_datetime.date(),
         procedure_end_datetime=end_datetime,
     )
-
-
-def to_extended(df: pd.DataFrame, observation_window: TimeRange) -> pd.DataFrame:
-    """
-    Expand a dataframe with one row per person and one column per concept to a dataframe with one row per person and
-    per day and one column per concept between `observation_start_date` and `observation_end_date`.
-    """
-    df = df.copy()
-
-    # Set end_datetime equal to start_datetime if it's NaT
-    df["end_datetime"].fillna(df["start_datetime"], inplace=True)
-
-    # Create a new dataframe with one row for each date (ignoring time) between start_datetime and end_datetime
-    df_expanded = pd.concat(
-        [
-            pd.DataFrame(
-                {
-                    "person_id": row["person_id"],
-                    "date": pd.date_range(
-                        row["start_datetime"].date(),
-                        row["end_datetime"].date(),
-                        freq="D",
-                    ),
-                    "concept": row["concept"],
-                },
-                columns=["person_id", "date", "concept"],
-            )
-            for _, row in df.iterrows()
-        ],
-        ignore_index=True,
-    )
-
-    # Pivot the expanded dataframe to have one column for each unique concept
-    df_pivot = df_expanded.pivot_table(
-        index=["person_id", "date"], columns="concept", aggfunc=len, fill_value=0
-    )
-
-    # Reset index and column names
-    df_pivot = df_pivot.reset_index()
-    df_pivot.columns.name = None
-    df_pivot.columns = ["person_id", "date"] + [col for col in df_pivot.columns[2:]]
-
-    # Fill the new concept columns with True where the condition is met
-    df_pivot[df_pivot.columns[2:]] = df_pivot[df_pivot.columns[2:]].applymap(
-        lambda x: x > 0
-    )
-
-    # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date and observation_end_date
-    unique_person_ids = df["person_id"].unique()
-    date_range = pd.date_range(
-        observation_window.start.date(), observation_window.end.date(), freq="D"
-    )
-    aux_df = pd.DataFrame(
-        {
-            "person_id": np.repeat(unique_person_ids, len(date_range)),
-            "date": np.tile(date_range, len(unique_person_ids)),
-        }
-    )
-
-    # Merge the auxiliary DataFrame with the pivoted DataFrame
-    merged_df = pd.merge(aux_df, df_pivot, on=["person_id", "date"], how="left")
-
-    # Fill missing values with False
-    merged_df[merged_df.columns[2:]] = merged_df[merged_df.columns[2:]].fillna(False)
-
-    return merged_df
 
 
 def to_snake(s: str) -> str:
