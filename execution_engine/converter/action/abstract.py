@@ -82,11 +82,9 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
                 category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("AND"),
             )
-            action.exclude = (  # type: ignore   # action is not None, as tested above
-                False  # reset the exclude flag, as it is now part of the combination
-            )
-
-            combination.add(action)  # type: ignore  # action is not None, as tested above
+            if action is not None:
+                action.exclude = False  # reset the exclude flag, as it is now part of the combination
+                combination.add(action)
 
             for goal in self.goals:
                 combination.add(goal.to_criterion())
