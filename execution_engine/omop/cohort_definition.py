@@ -236,7 +236,8 @@ class CohortDefinition:
                     )
                 else:
                     return any(
-                        _base_table_in_select(f) for f in sql_select.original.froms
+                        _base_table_in_select(f)
+                        for f in sql_select.original.get_final_froms()
                     )
             else:
                 raise NotImplementedError(f"Unknown type {type(sql_select)}")

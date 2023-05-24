@@ -329,6 +329,20 @@ class TestRecommendationBase(ABC):
                     "static": False,
                 }
                 entries.append(entry_appt)
+            elif row.get("TIDAL_VOLUME"):
+                # need to add weight to calculate tidal volume per kg
+                entry_weight = {
+                    "person_id": person_id,
+                    "type": "measurement",
+                    "concept": "WEIGHT",
+                    "concept_id": concepts.WEIGHT,
+                    "start_datetime": entry["start_datetime"]
+                    - datetime.timedelta(days=1),
+                    "value": 70,
+                    "unit_concept_id": concepts.UNIT_KG,
+                    "static": True,
+                }
+                entries.append(entry_weight)
 
         return pd.DataFrame(entries)
 

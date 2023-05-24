@@ -180,7 +180,8 @@ APTT = CriterionDefinition(
 TIDAL_VOLUME = CriterionDefinition(
     name="TIDAL_VOLUME",
     type="measurement",
-    threshold=6,
+    threshold=6
+    * 70,  # 6 ml/kg for 70 kg patient -- WEIGHT needs to be inserted before this
     static=False,
     occurrences_per_day=[6, 30],
     unit_concept_id=concepts.UNIT_ML,
