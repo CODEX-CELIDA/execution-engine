@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     fhir_terminology_server_url: str = "http://tx.fhir.org/r4"
     fhir_base_url: str
 
+    celida_ee_timezone: str
+
     omop: OMOPSettings
 
     class Config:

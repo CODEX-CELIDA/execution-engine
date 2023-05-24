@@ -3,7 +3,9 @@ from typing import Any
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import and_, func
+from sqlalchemy import and_, event, func
+from sqlalchemy.engine.interfaces import DBAPIConnection
+from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql import Insert, Select
 
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
@@ -46,6 +48,7 @@ class OMOPSQLClient:
         port: int,
         database: str,
         schema: str,
+        timezone: str = "Europe/Berlin",
     ) -> None:
         """Initialize the OMOP SQL client."""
 
@@ -59,6 +62,20 @@ class OMOPSQLClient:
             connect_args={"options": "-csearch_path={}".format(schema)},
             future=True,
         )
+
+        @event.listens_for(self._engine, "connect")
+        def set_timezone(
+            dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
+        ) -> None:
+            """
+            Set the timezone for the database connection.
+            """
+            cursor = dbapi_connection.cursor()
+            cursor.execute(
+                "SELECT set_config('TIMEZONE', %(timezone)s, false)",
+                {"timezone": timezone},
+            )
+            cursor.close()
 
         self._metadata = base.metadata
         self._metadata.bind = self._engine

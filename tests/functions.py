@@ -1,6 +1,5 @@
 import datetime
 import itertools
-import random
 import re
 
 import pandas as pd
@@ -17,21 +16,7 @@ from execution_engine.omop.db.cdm import (
 from tests._testdata import concepts
 
 
-def random_date(start_date: datetime.date, end_date: datetime.date) -> datetime.date:
-    """Generate a random datetime between `start_date` and `end_date`"""
-    return start_date + datetime.timedelta(
-        days=random.randint(0, (end_date - start_date).days),
-    )
-
-
-def random_datetime(date: datetime.date, max_hours: int = 24) -> datetime.datetime:
-    """Generate a random datetime between `date` and `date` + 1 day"""
-    return datetime.datetime.combine(date, datetime.time()) + datetime.timedelta(
-        seconds=random.randint(0, max_hours * 3600)
-    )
-
-
-def generate_binary_combinations_dataframe(keys: dict) -> pd.DataFrame:
+def generate_binary_combinations_dataframe(keys: list[str]) -> pd.DataFrame:
     """
     Generate a pandas DataFrame with all possible combinations of binary factors
     """
@@ -49,7 +34,7 @@ def create_visit(
     person_id: int,
     visit_start_datetime: datetime.datetime,
     visit_end_datetime: datetime.datetime,
-    visit_concept_id: int = concepts.INTENSIVE_CARE,
+    visit_concept_id: int,
 ) -> VisitOccurrence:
     """
     Create a visit for a person (one single encounter)

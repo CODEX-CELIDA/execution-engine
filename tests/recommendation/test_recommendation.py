@@ -5,8 +5,10 @@ from abc import ABC
 
 import numpy as np
 import pandas as pd
+import pendulum
 import pytest
 import sympy
+from numpy import typing as npt
 from sqlalchemy import select
 from tqdm import tqdm
 
@@ -14,8 +16,7 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.db.cdm import Person
 from execution_engine.omop.db.result import RecommendationResult
 from execution_engine.util import TimeRange
-from tests._testdata import concepts
-from tests._testdata.parameter import criteria_defs
+from tests._testdata import concepts, parameter
 from tests.functions import (
     create_condition,
     create_drug_exposure,
@@ -118,9 +119,7 @@ class RecommendationCriteriaCombination:
                 for col, val in df1_subset[other_cols].any().items()
             )
 
-            if logical_expression:
-                reports.append(f"person_id '{person_id}': {logical_expression}")
-
+            mismatch_reported = False
             # Loop over each overlapping column
             for col in overlapping_cols:
                 # Find dates where the column doesn't match
@@ -131,12 +130,17 @@ class RecommendationCriteriaCombination:
 
                 # If any mismatches exist, add a report for this column
                 if not mismatches.empty:
+
+                    if not mismatch_reported:
+                        reports.append(f"person_id '{person_id}': {logical_expression}")
+                        mismatch_reported = True
+
                     mismatch_reports = []
                     for date, value in mismatches.items():
                         expected_value = value
                         actual_value = s2.loc[date]
                         mismatch_reports.append(
-                            f"{date} (expected: {expected_value}, actual: {actual_value})"
+                            f"{date.date()} (expected: {expected_value}, actual: {actual_value})"
                         )
 
                     reports.append(
@@ -148,7 +152,7 @@ class RecommendationCriteriaCombination:
 
 def create_index_from_logical_expression(
     df: pd.DataFrame, expression: str
-) -> list[bool]:
+) -> npt.NDArray[np.bool_]:
     # parse the sympy expression
     parsed_expr = sympy.parse_expr(expression)
 
@@ -170,7 +174,9 @@ class TestRecommendationBase(ABC):
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
         return TimeRange(
-            start="2023-03-01 07:00:00", end="2023-03-31 22:00:00", name="visit"
+            start="2023-03-01 07:00:00+01:00",
+            end="2023-03-31 22:00:00+01:00",
+            name="visit",
         )
 
     @pytest.fixture
@@ -190,24 +196,18 @@ class TestRecommendationBase(ABC):
         raise NotImplementedError("Must be implemented by subclass")
 
     @pytest.fixture
-    def population_intervention_groups(self, population_intervention):
-        raise NotImplementedError("Must be implemented by subclass")
-
-    @pytest.fixture
     def invalid_combinations(self, population_intervention):
         raise NotImplementedError("Must be implemented by subclass")
 
     @pytest.fixture
     def person_combinations(
-        self,
-        population_intervention: dict,
-        run_slow_tests: bool,
+        self, unique_criteria: set[str], run_slow_tests: bool, invalid_combinations: str
     ) -> pd.DataFrame:
 
-        df = generate_binary_combinations_dataframe(population_intervention)
+        df = generate_binary_combinations_dataframe(list(unique_criteria))
 
         # Remove invalid combinations
-        idx_invalid = df["NADROPARIN_HIGH_WEIGHT"] & df["NADROPARIN_LOW_WEIGHT"]
+        idx_invalid = create_index_from_logical_expression(df, invalid_combinations)
         df = df[~idx_invalid].copy()
 
         if not run_slow_tests:
@@ -218,11 +218,10 @@ class TestRecommendationBase(ABC):
     @pytest.fixture
     def criteria(
         self,
-        person_combinations,
-        visit_datetime,
-        population_intervention,
+        person_combinations: pd.DataFrame,
+        visit_datetime: TimeRange,
+        population_intervention: dict,
     ):
-
         entries = []
 
         for person_id, row in tqdm(
@@ -231,50 +230,73 @@ class TestRecommendationBase(ABC):
             desc="Generating criteria",
         ):
 
-            for criterion in population_intervention:
+            for criterion_name, comparator in self.extract_criteria(
+                population_intervention
+            ):
 
-                if not row[criterion]:
+                criterion: parameter.CriterionDefinition = getattr(
+                    parameter, criterion_name
+                )
+
+                if not row[criterion_name]:
                     continue
 
-                params = criteria_defs[criterion]
+                add = {">": 1, "<": -1, "=": 0, "": 0}[comparator]
 
                 entry = {
                     "person_id": person_id,
-                    "type": params["type"],
-                    "concept": criterion,
-                    "concept_id": population_intervention[criterion],
-                    "static": params["static"],
+                    "type": criterion.type,
+                    "concept": criterion.name,
+                    "concept_id": criterion.concept_id,
+                    "static": criterion.static,
                 }
 
-                if params["type"] == "condition":
+                if criterion.type == "condition":
                     entry["start_datetime"] = visit_datetime.start
                     entry["end_datetime"] = visit_datetime.end
-                elif params["type"] == "observation":
-                    entry["start_datetime"] = datetime.datetime(2023, 3, 15, 12, 0, 0)
-                elif params["type"] == "drug":
-                    entry["start_datetime"] = datetime.datetime(2023, 3, 2, 12, 0, 0)
-                    entry["end_datetime"] = datetime.datetime(2023, 3, 3, 12, 0, 0)
-                    entry["quantity"] = (
-                        params["dosage_threshold"] - 1
-                        if "dosage_threshold" in params
-                        else params["dosage"]
+                elif criterion.type == "observation":
+                    entry["start_datetime"] = pendulum.parse(
+                        "2023-03-15 12:00:00+01:00"
                     )
+                elif criterion.type == "drug":
+                    entry["start_datetime"] = pendulum.parse(
+                        "2023-03-02 12:00:00+01:00"
+                    )
+                    entry["end_datetime"] = pendulum.parse("2023-03-03 12:00:00+01:00")
+                    entry["quantity"] = (  # type: ignore
+                        criterion.dosage_threshold
+                        if criterion.dosage_threshold is not None
+                        else criterion.dosage
+                    ) + add
                     entry["quantity"] *= 2  # over two days
+
+                    assert criterion.doses_per_day is not None
+                    if criterion.doses_per_day > 1:  # add more doses
+                        entry["quantity"] /= criterion.doses_per_day
+                        entries += [
+                            entry.copy() for _ in range(criterion.doses_per_day - 1)
+                        ]
                 # create_measurement(vo, concepts.LAB_APTT, datetime.datetime(2023,3,4, 18), 50, concepts.UNIT_SECOND)
-                elif params["type"] == "visit":
-                    entry["start_datetime"] = datetime.datetime(2023, 3, 2, 12, 0, 0)
-                    entry["end_datetime"] = datetime.datetime(2023, 3, 18, 12, 0, 0)
-                elif params["type"] == "measurement":
-                    entry["start_datetime"] = datetime.datetime(2023, 3, 2, 12, 0, 0)
-                    entry["end_datetime"] = datetime.datetime(2023, 3, 3, 12, 0, 0)
-                    entry["value"] = params["threshold"]
-                    entry["unit_concept_id"] = params["unit_concept_id"]
-                elif params["type"] == "procedure":
-                    entry["start_datetime"] = datetime.datetime(2023, 3, 2, 12, 0, 0)
-                    entry["end_datetime"] = datetime.datetime(2023, 3, 3, 12, 0, 0)
+                elif criterion.type == "visit":
+                    entry["start_datetime"] = pendulum.parse(
+                        "2023-03-02 12:00:00+01:00"
+                    )
+                    entry["end_datetime"] = pendulum.parse("2023-03-18 12:00:00+01:00")
+                elif criterion.type == "measurement":
+                    entry["start_datetime"] = pendulum.parse(
+                        "2023-03-02 12:00:00+01:00"
+                    )
+                    assert criterion.threshold is not None
+                    entry["value"] = criterion.threshold + add
+                    entry["unit_concept_id"] = criterion.unit_concept_id
+                elif criterion.type == "procedure":
+                    entry["start_datetime"] = pendulum.parse(
+                        "2023-03-02 12:00:00+01:00"
+                    )
+                    entry["end_datetime"] = pendulum.parse("2023-03-03 12:00:00+01:00")
                 else:
                     raise NotImplementedError(
-                        f"Unknown criterion type: {params['type']}"
+                        f"Unknown criterion type: {criterion.type}"
                     )
                 entries.append(entry)
 
@@ -330,7 +352,12 @@ class TestRecommendationBase(ABC):
                 race_concept_id=0,
                 ethnicity_concept_id=0,
             )
-            vo = create_visit(p.person_id, visit_datetime.start, visit_datetime.end)
+            vo = create_visit(
+                p.person_id,
+                visit_datetime.start,
+                visit_datetime.end,
+                visit_concept_id=concepts.INPATIENT_VISIT,
+            )
 
             person_entries = [p, vo]
 
@@ -360,7 +387,6 @@ class TestRecommendationBase(ABC):
                         end_datetime=row["end_datetime"],
                         quantity=row["quantity"],
                     )
-                # create_measurement(vo, concepts.LAB_APTT, datetime.datetime(2023,3,4, 18), 50, concepts.UNIT_SECOND)
                 elif row["type"] == "visit":
                     entry = create_visit(
                         person_id=vo.person_id,
@@ -384,39 +410,40 @@ class TestRecommendationBase(ABC):
             db_session.add_all(person_entries)
             db_session.commit()
 
+    @staticmethod
+    def extract_criteria(population_intervention) -> list[tuple[str, str]]:
+        criteria: list[tuple[str, str]] = sum(
+            [
+                re.findall(
+                    r"(\b\w+\b)([<=>]?)",
+                    plan["population"] + " " + plan["intervention"],
+                )
+                for plan in population_intervention.values()
+            ],
+            [],
+        )
+
+        unique_criteria = list(dict.fromkeys(criteria))  # order preserving
+
+        return unique_criteria
+
+    @pytest.fixture
+    def unique_criteria(self, population_intervention) -> list[str]:
+        names = [c[0] for c in self.extract_criteria(population_intervention)]
+        return list(dict.fromkeys(names))  # order preserving
+
     @pytest.fixture
     def criteria_extended(
         self,
         insert_criteria: dict,
         criteria: pd.DataFrame,
-        population_intervention: dict,
-        population_intervention_groups: dict,
+        unique_criteria: set[tuple[str, str]],
+        population_intervention: dict[str, dict],
         visit_datetime: TimeRange,
         observation_window: TimeRange,
     ) -> pd.DataFrame:
-
-        # assert that population_intervention and population_intervention_groups match
-        p = set(
-            sum(
-                [
-                    re.findall(r"\b\w+\b", plan["population"])
-                    for plan in population_intervention_groups.values()
-                ],
-                [],
-            )
-        )
-        i = set(
-            sum(
-                [
-                    re.findall(r"\b\w+\b", plan["intervention"])
-                    for plan in population_intervention_groups.values()
-                ],
-                [],
-            )
-        )
-        assert p | i == set(
-            population_intervention.keys()
-        ), "population_intervention and population_intervention_groups do not match"
+        def remove_comparators(s):
+            return s.translate(str.maketrans("", "", "<>="))
 
         idx_static = criteria["static"]
         # todo: should be observation_window, not visit_datetime (but that doesn't work, needs to be fixed in the test)
@@ -426,16 +453,14 @@ class TestRecommendationBase(ABC):
             criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
             observation_window=observation_window,
         )
-        df.loc[
-            :, [c for c in population_intervention.keys() if c not in df.columns]
-        ] = False
+        df.loc[:, [c for c in unique_criteria if c not in df.columns]] = False
 
-        for group_name, group in population_intervention_groups.items():
+        for group_name, group in population_intervention.items():
             df[f"p_{group_name}"] = create_index_from_logical_expression(
-                df, group["population"]
+                df, remove_comparators(group["population"])
             )
             df[f"i_{group_name}"] = create_index_from_logical_expression(
-                df, group["intervention"]
+                df, remove_comparators(group["intervention"])
             )
             df[f"p_i_{group_name}"] = df[f"p_{group_name}"] & df[f"i_{group_name}"]
 
