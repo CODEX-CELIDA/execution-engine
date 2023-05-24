@@ -59,7 +59,7 @@ class ConceptCriterion(Criterion):
         return self._concept
 
     def _sql_filter_concept(
-        self, query: Select, override_concept_id: str | None = None
+        self, query: Select, override_concept_id: int | None = None
     ) -> Select:
         concept_column_name = f"{self._OMOP_COLUMN_PREFIX}_concept_id"
 

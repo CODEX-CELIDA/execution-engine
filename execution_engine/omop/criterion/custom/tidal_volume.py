@@ -56,11 +56,13 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
             query.add_columns(
                 case(
                     (
-                        person.c.gender_concept_id == OMOPConcepts.GENDER_MALE.value,
+                        person.c.gender_concept_id
+                        == int(OMOPConcepts.GENDER_MALE.value),
                         50.5 + 0.91 * (measurement.c.value_as_number - 152.4),
                     ),
                     (
-                        person.c.gender_concept_id == OMOPConcepts.GENDER_FEMALE.value,
+                        person.c.gender_concept_id
+                        == int(OMOPConcepts.GENDER_FEMALE.value),
                         45.5 + 0.91 * (measurement.c.value_as_number - 152.4),
                     ),
                     else_=(47.75 + 0.91 * (measurement.c.value_as_number - 152.4)),
