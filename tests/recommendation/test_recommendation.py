@@ -353,9 +353,9 @@ class TestRecommendationBase(ABC):
                 ethnicity_concept_id=0,
             )
             vo = create_visit(
-                p.person_id,
-                visit_datetime.start,
-                visit_datetime.end,
+                person_id=p.person_id,
+                visit_start_datetime=visit_datetime.start,
+                visit_end_datetime=visit_datetime.end,
                 visit_concept_id=concepts.INPATIENT_VISIT,
             )
 

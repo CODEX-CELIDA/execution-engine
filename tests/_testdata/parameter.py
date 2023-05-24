@@ -50,6 +50,13 @@ THROMBOCYTOPENIA = CriterionDefinition(
     static=True,
     concept_id=concepts.THROMBOCYTOPENIA,
 )
+PULMONARY_EMBOLISM = CriterionDefinition(
+    name="PULMONARY_EMBOLISM",
+    type="condition",
+    static=True,
+    concept_id=concepts.PULMONARY_EMBOLISM,
+)
+
 WEIGHT = CriterionDefinition(
     name="WEIGHT",
     type="observation",
