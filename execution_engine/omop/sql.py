@@ -3,7 +3,9 @@ from typing import Any
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import and_, func
+from sqlalchemy import and_, event, func
+from sqlalchemy.engine.interfaces import DBAPIConnection
+from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql import Insert, Select
 
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
@@ -46,7 +48,7 @@ class OMOPSQLClient:
         port: int,
         database: str,
         schema: str,
-        vocabulary_logger: logging.Logger | None = None,
+        timezone: str = "Europe/Berlin",
     ) -> None:
         """Initialize the OMOP SQL client."""
 
@@ -61,20 +63,44 @@ class OMOPSQLClient:
             future=True,
         )
 
+        @event.listens_for(self._engine, "connect")
+        def set_timezone(
+            dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
+        ) -> None:
+            """
+            Set the timezone for the database connection.
+            """
+            cursor = dbapi_connection.cursor()
+            cursor.execute(
+                "SELECT set_config('TIMEZONE', %(timezone)s, false)",
+                {"timezone": timezone},
+            )
+            cursor.close()
+
         self._metadata = base.metadata
         self._metadata.bind = self._engine
 
         self._init_tables()
 
-        if vocabulary_logger is None:
-            vocabulary_logger = logging.getLogger("vocabulary")
+        self._vocabulary_logger = self._setup_logger("vocabulary")
+        self._query_logger = self._setup_logger("query")
 
-            if not vocabulary_logger.hasHandlers():
-                vocabulary_logger.setLevel(logging.DEBUG)
-                vocabulary_logger.addHandler(logging.NullHandler())
-                vocabulary_logger.propagate = False  # Do not propagate to root logger
+    def _setup_logger(self, name: str) -> logging.Logger:
+        """Setup a logger for the given name.
 
-        self._vocabulary_logger = vocabulary_logger
+        Parameters
+        ----------
+        name : str
+            The name of the logger.
+        """
+        logger = logging.getLogger(name)
+        logger.propagate = False
+
+        if not logger.hasHandlers():
+            logger.setLevel(logging.DEBUG)
+            logger.addHandler(logging.NullHandler())
+
+        return logger
 
     def _init_tables(self, schema: str = "celida") -> None:
         """
@@ -124,6 +150,12 @@ class OMOPSQLClient:
                 compile_kwargs={"literal_binds": True},
             )
         )
+
+    def log_query(self, query: Select | Insert, params: dict | None = None) -> None:
+        """
+        Log the given query against the OMOP CDM database.
+        """
+        self._query_logger.info(self.compile_query(query, params))
 
     def get_concept_info(self, concept_id: int) -> Concept:
         """Get the concept info for the given concept ID."""

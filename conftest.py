@@ -4,6 +4,8 @@ from glob import glob
 import pytest
 from pytest_postgresql.janitor import DatabaseJanitor
 
+from tests.recommendation.test_recommendation import RecommendationCriteriaCombination
+
 pytest_plugins = [
     fixture_file.replace("/", ".").replace(".py", "")
     for fixture_file in glob("tests/_fixtures/[!__]*.py", recursive=True)
@@ -140,6 +142,24 @@ def pytest_collection_modifyitems(config, items):  # type: ignore
         for item in items:
             if "recommendation" in item.keywords:
                 item.add_marker(skip_recommendation)
+
+
+def pytest_assertrepr_compare(
+    op: str,
+    left: RecommendationCriteriaCombination,
+    right: RecommendationCriteriaCombination,
+) -> list[str] | None:
+    """
+    Custom error message for RecommendationCriteriaCombination.
+    """
+    if (
+        isinstance(left, RecommendationCriteriaCombination)
+        and isinstance(right, RecommendationCriteriaCombination)
+        and op == "=="
+    ):
+        return left.comparison_report(right)
+
+    return None
 
 
 @pytest.fixture

@@ -10,7 +10,7 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.cdm import Person
 from execution_engine.util import TimeRange
-from tests._testdata.concepts import GENDER_FEMALE, GENDER_MALE, UNKNOWN
+from tests._testdata import concepts
 from tests.functions import create_visit
 
 
@@ -57,7 +57,11 @@ class TestCriterion:
         persons = [
             Person(
                 person_id=i + 1,
-                gender_concept_id=[GENDER_MALE, GENDER_FEMALE, UNKNOWN][i % 3],
+                gender_concept_id=[
+                    concepts.GENDER_MALE,
+                    concepts.GENDER_FEMALE,
+                    concepts.UNKNOWN,
+                ][i % 3],
                 year_of_birth=1980 + i,
                 month_of_birth=1,
                 day_of_birth=1,
@@ -77,9 +81,10 @@ class TestCriterion:
 
         vos = [
             create_visit(
-                p.person_id,
-                visit_datetime.start + datetime.timedelta(days=i),
-                visit_datetime.end - datetime.timedelta(days=i),
+                person_id=p.person_id,
+                visit_start_datetime=visit_datetime.start + datetime.timedelta(days=i),
+                visit_end_datetime=visit_datetime.end - datetime.timedelta(days=i),
+                visit_concept_id=concepts.INTENSIVE_CARE,
             )
             for i, p in enumerate(person)
         ]

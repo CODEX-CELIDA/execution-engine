@@ -444,8 +444,10 @@ class Criterion(AbstractCriterion):
             select(
                 literal_column("person_id"),
                 func.generate_series(
-                    func.date_trunc("day", literal_column("valid_from")),
-                    func.date_trunc("day", literal_column("valid_to")),
+                    func.date_trunc(
+                        "day", literal_column("valid_from", type_=DateTime)
+                    ),
+                    func.date_trunc("day", literal_column("valid_to", type_=DateTime)),
                     func.cast(concat(1, "day"), INTERVAL),
                 )
                 .cast(Date)

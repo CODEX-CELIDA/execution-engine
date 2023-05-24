@@ -424,7 +424,7 @@ class ExecutionEngine:
         with self._db.begin() as con:
             for statement in cd.process():
 
-                logging.debug(self._db.compile_query(statement.select, params))
+                self._db.log_query(statement.select, params)
 
                 r = con.execute(
                     statement,
@@ -439,8 +439,7 @@ class ExecutionEngine:
         """Cleans up the temporary tables."""
         with self._db.begin() as con:
             for statement in cd.cleanup():
-
-                logging.debug(self._db.compile_query(statement))
+                self._db.log_query(statement)
 
                 con.execute(statement)
 
@@ -524,6 +523,6 @@ class ExecutionEngine:
             "end_datetime": end_datetime,
         }
 
-        logging.debug(self._db.compile_query(statement, params))
+        self._db.log_query(statement, params)
 
         return self._db.query(statement, **params)
