@@ -3,7 +3,7 @@ import pendulum
 import pytest
 from sqlalchemy import func, select, text
 
-from tests._fixtures import concept
+from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit
 
@@ -16,7 +16,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
                 person_id=person.person_id,
                 visit_start_datetime=pendulum.parse(visit_start_datetime),
                 visit_end_datetime=pendulum.parse(visit_end_datetime),
-                visit_concept_id=concept.INTENSIVE_CARE,
+                visit_concept_id=concepts.INTENSIVE_CARE,
             )
             db_session.add(vo)
 
