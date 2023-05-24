@@ -86,6 +86,7 @@ jobs:
         env:
           FHIR_BASE_URL: http://localhost:8000/fhir
           FHIR_TERMINOLOGY_SERVER_URL: http://tx.fhir.org/r4
+          CELIDA_EE_TIMEZONE: Europe/Berlin
           OMOP__USER: ${{ env.POSTGRES_USER }}
           OMOP__PASSWORD: ${{ env.POSTGRES_PASSWORD }}
           OMOP__HOST: localhost
