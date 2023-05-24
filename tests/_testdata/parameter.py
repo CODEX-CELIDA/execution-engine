@@ -56,6 +56,9 @@ PULMONARY_EMBOLISM = CriterionDefinition(
     static=True,
     concept_id=concepts.PULMONARY_EMBOLISM,
 )
+ARDS = CriterionDefinition(
+    name="ARDS", type="condition", static=True, concept_id=concepts.ARDS
+)
 
 WEIGHT = CriterionDefinition(
     name="WEIGHT",

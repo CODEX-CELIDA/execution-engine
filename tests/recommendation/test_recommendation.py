@@ -196,8 +196,8 @@ class TestRecommendationBase(ABC):
         raise NotImplementedError("Must be implemented by subclass")
 
     @pytest.fixture
-    def invalid_combinations(self, population_intervention):
-        raise NotImplementedError("Must be implemented by subclass")
+    def invalid_combinations(self, population_intervention) -> str:
+        return ""
 
     @pytest.fixture
     def person_combinations(
@@ -207,8 +207,9 @@ class TestRecommendationBase(ABC):
         df = generate_binary_combinations_dataframe(list(unique_criteria))
 
         # Remove invalid combinations
-        idx_invalid = create_index_from_logical_expression(df, invalid_combinations)
-        df = df[~idx_invalid].copy()
+        if invalid_combinations:
+            idx_invalid = create_index_from_logical_expression(df, invalid_combinations)
+            df = df[~idx_invalid].copy()
 
         if not run_slow_tests:
             df = pd.concat([df.head(15), df.tail(15)])
