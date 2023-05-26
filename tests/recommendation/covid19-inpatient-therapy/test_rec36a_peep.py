@@ -59,8 +59,9 @@ class TestRecommendation36aPeep(TestRecommendationBase):
             },
         }
 
-    # @pytest.fixture
-    # def invalid_combinations(self):
+    @pytest.fixture
+    def invalid_combinations(self) -> str:
+        return "(PEEP_18 & PEEP_14) | (PEEP_18 & PEEP_10) | (PEEP_18 & PEEP_8) | (PEEP_18 & PEEP_5) | (PEEP_14 & PEEP_10) | (PEEP_14 & PEEP_8) | (PEEP_14 & PEEP_5) | (PEEP_10 & PEEP_8) | (PEEP_10 & PEEP_5) | (PEEP_8 & PEEP_5)"
 
     def test_recommendation_36a_peep(
         self,
