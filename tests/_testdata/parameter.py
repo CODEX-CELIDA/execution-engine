@@ -206,14 +206,14 @@ FiO2 = CriterionDefinition(
 )
 
 
-FiO2_30 = FiO2.copy(update={"name": "FiO2_30", "threshold": 0.3})
-FiO2_40 = FiO2.copy(update={"name": "FiO2_40", "threshold": 0.4})
-FiO2_50 = FiO2.copy(update={"name": "FiO2_50", "threshold": 0.5})
-FiO2_60 = FiO2.copy(update={"name": "FiO2_60", "threshold": 0.6})
-FiO2_70 = FiO2.copy(update={"name": "FiO2_70", "threshold": 0.7})
-FiO2_80 = FiO2.copy(update={"name": "FiO2_80", "threshold": 0.8})
-FiO2_90 = FiO2.copy(update={"name": "FiO2_90", "threshold": 0.9})
-FiO2_100 = FiO2.copy(update={"name": "FiO2_100", "threshold": 1.0})
+FiO2_30 = FiO2.copy(update={"name": "FiO2_30", "threshold": 30})
+FiO2_40 = FiO2.copy(update={"name": "FiO2_40", "threshold": 40})
+FiO2_50 = FiO2.copy(update={"name": "FiO2_50", "threshold": 50})
+FiO2_60 = FiO2.copy(update={"name": "FiO2_60", "threshold": 60})
+FiO2_70 = FiO2.copy(update={"name": "FiO2_70", "threshold": 70})
+FiO2_80 = FiO2.copy(update={"name": "FiO2_80", "threshold": 80})
+FiO2_90 = FiO2.copy(update={"name": "FiO2_90", "threshold": 90})
+FiO2_100 = FiO2.copy(update={"name": "FiO2_100", "threshold": 100})
 
 
 PEEP = CriterionDefinition(

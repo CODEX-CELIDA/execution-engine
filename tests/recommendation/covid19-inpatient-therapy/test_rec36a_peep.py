@@ -24,7 +24,7 @@ class TestRecommendation36aPeep(TestRecommendationBase):
     def population_intervention(self) -> dict:
         return {
             "PEEP_Intervention_Plan_With_ARDS_FiO2_0.3": {
-                "population": "COVID19 & VENTILATED & ARDS & FiO2_30<",
+                "population": "COVID19 & VENTILATED & ARDS & FiO2_30",
                 # need to specify all higher values too because otherwise the expected values are incorrectly inferred
                 "intervention": "PEEP_5> | PEEP_8> | PEEP_10> | PEEP_14> | PEEP_18>",
             },
