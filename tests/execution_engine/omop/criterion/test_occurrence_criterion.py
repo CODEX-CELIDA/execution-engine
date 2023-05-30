@@ -12,7 +12,7 @@ class Occurrence(TestCriterion, ABC):
         person_visit,
         db_session,
         concept,
-        occurrence_criterion,
+        criterion_execute_func,
         observation_window,
     ):
         _, vo = person_visit[0]
@@ -23,7 +23,7 @@ class Occurrence(TestCriterion, ABC):
             person_visit,
             concept,
             db_session,
-            occurrence_criterion,
+            criterion_execute_func,
             observation_window,
             time_ranges,
         )
@@ -33,7 +33,7 @@ class Occurrence(TestCriterion, ABC):
         person_visit,
         db_session,
         concept,
-        occurrence_criterion,
+        criterion_execute_func,
         observation_window,
     ):
         _, vo = person_visit[0]
@@ -44,7 +44,7 @@ class Occurrence(TestCriterion, ABC):
             person_visit,
             concept,
             db_session,
-            occurrence_criterion,
+            criterion_execute_func,
             observation_window,
             time_ranges,
         )
@@ -54,7 +54,7 @@ class Occurrence(TestCriterion, ABC):
         person_visit,
         db_session,
         concept,
-        occurrence_criterion,
+        criterion_execute_func,
         observation_window,
     ):
         time_ranges = [("2023-03-04 18:00:00", "2023-03-06 18:00:00")]
@@ -63,7 +63,7 @@ class Occurrence(TestCriterion, ABC):
             person_visit,
             concept,
             db_session,
-            occurrence_criterion,
+            criterion_execute_func,
             observation_window,
             time_ranges,
         )
@@ -98,7 +98,7 @@ class Occurrence(TestCriterion, ABC):
         person_visit,
         db_session,
         concept,
-        occurrence_criterion,
+        criterion_execute_func,
         observation_window,
         time_ranges,
     ):
@@ -106,7 +106,7 @@ class Occurrence(TestCriterion, ABC):
             person_visit,
             concept,
             db_session,
-            occurrence_criterion,
+            criterion_execute_func,
             observation_window,
             time_ranges,
         )
@@ -141,7 +141,7 @@ class Occurrence(TestCriterion, ABC):
         person_visit,
         db_session,
         concept,
-        occurrence_criterion,
+        criterion_execute_func,
         observation_window,
         time_ranges,
     ):
@@ -149,7 +149,7 @@ class Occurrence(TestCriterion, ABC):
             person_visit,
             concept,
             db_session,
-            occurrence_criterion,
+            criterion_execute_func,
             observation_window,
             time_ranges,
         )
@@ -209,7 +209,7 @@ class Occurrence(TestCriterion, ABC):
         ],
     )
     def test_multiple_persons(
-        self, person_visit, db_session, concept, occurrence_criterion, test_cases
+        self, person_visit, db_session, concept, criterion_execute_func, test_cases
     ):
         vos = [pv[1] for pv in person_visit]
 
@@ -223,7 +223,7 @@ class Occurrence(TestCriterion, ABC):
             self.insert_occurrences(concept, db_session, vo, time_ranges)
 
         # run criterion against db
-        df = occurrence_criterion(exclude=False)
+        df = criterion_execute_func(concept=concept, exclude=False)
 
         for test_case, vo in zip(test_cases, vos):
             assert set(
@@ -248,7 +248,7 @@ class Occurrence(TestCriterion, ABC):
         person_visit,
         concept,
         db_session,
-        occurrence_criterion,
+        criterion_execute_func,
         observation_window,
         time_ranges,
     ):
@@ -259,14 +259,14 @@ class Occurrence(TestCriterion, ABC):
         self.insert_occurrences(concept, db_session, vo, time_ranges)
 
         # run criterion against db
-        df = occurrence_criterion(exclude=False)
+        df = criterion_execute_func(concept=concept, exclude=False)
         valid_daterange = self.date_ranges(time_ranges)
         assert (
             set(df.query(f"person_id=={p.person_id}")["valid_date"].dt.date)
             == valid_daterange
         )
 
-        df = occurrence_criterion(exclude=True)
+        df = criterion_execute_func(concept=concept, exclude=True)
         valid_daterange = self.invert_date_range(
             time_range=observation_window,
             subtract=time_ranges,

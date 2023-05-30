@@ -7,9 +7,10 @@ import pytest
 from sqlalchemy import Column, Date, Integer, MetaData, Table, func
 
 from execution_engine.constants import CohortCategory
+from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.cdm import Person
-from execution_engine.util import TimeRange
+from execution_engine.util import TimeRange, ValueConcept, ValueNumber
 from tests._testdata import concepts
 from tests.functions import create_visit
 
@@ -152,22 +153,20 @@ class TestCriterion:
         )
 
     @pytest.fixture
-    def occurrence_criterion(
-        self,
-        criterion_class,
-        concept,
-        base_table,
-        db_session,
-        observation_window,
+    def criterion_execute_func(
+        self, base_table, db_session, criterion_class, observation_window
     ):
-        def _create_occurrence(exclude: bool):
-
+        def _create_value(
+            concept: Concept,
+            exclude: bool,
+            value: ValueNumber | ValueConcept | None = None,
+        ) -> pd.DataFrame:
             criterion = criterion_class(
                 name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
-                value=None,
+                value=value,
                 static=None,
             )
 
@@ -182,7 +181,7 @@ class TestCriterion:
 
             return df
 
-        return _create_occurrence
+        return _create_value
 
     def invert_date_range(
         self,

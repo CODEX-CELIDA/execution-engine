@@ -310,9 +310,10 @@ class TestVisitOccurrence(TestCriterion):
     def test_visit_occurrence(
         self,
         person,
+        concept,
         db_session,
         base_criterion,
-        occurrence_criterion,
+        criterion_execute_func,
         visit_datetimes,
         expected,
     ):
@@ -331,7 +332,7 @@ class TestVisitOccurrence(TestCriterion):
         db_session.commit()
 
         # run criterion against db
-        df = occurrence_criterion(exclude=False)
+        df = criterion_execute_func(concept=concept, exclude=False)
 
         assert set(df["valid_date"].dt.date) == date_set(expected)
 
@@ -393,9 +394,10 @@ class TestVisitOccurrence(TestCriterion):
         self,
         person,
         db_session,
+        concept,
         base_criterion,
         observation_window,
-        occurrence_criterion,
+        criterion_execute_func,
         test_cases,
     ):
         for tc, p in zip(test_cases, person):
@@ -414,7 +416,7 @@ class TestVisitOccurrence(TestCriterion):
         db_session.commit()
 
         # run criterion against db
-        df = occurrence_criterion(exclude=False)
+        df = criterion_execute_func(concept=concept, exclude=False)
 
         for tc, p in zip(test_cases, person):
             assert set(
