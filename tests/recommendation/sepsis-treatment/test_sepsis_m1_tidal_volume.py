@@ -25,7 +25,7 @@ class TestRecommendationSepsisM1TidalVolume(TestRecommendationBase):
         return {
             "Ventilation_Plan_ARDS": {
                 "population": "VENTILATED & ARDS",
-                "intervention": "TIDAL_VOLUME< & PMAX<",
+                "intervention": "TIDAL_VOLUME<",
             },
         }
 
