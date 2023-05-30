@@ -25,6 +25,8 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
     _value: ValueNumber
 
+    __GENDER_TO_INT = {"female": 0, "male": 1}
+
     def _sql_filter_tidal_volume(self, query: Select) -> Select:
         """
         Return the SQL to filter the data for the criterion.
@@ -58,7 +60,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
                     (
                         person.c.gender_concept_id
                         == int(OMOPConcepts.GENDER_MALE.value),
-                        50.5 + 0.91 * (measurement.c.value_as_number - 152.4),
+                        50.0 + 0.91 * (measurement.c.value_as_number - 152.4),
                     ),
                     (
                         person.c.gender_concept_id
@@ -70,7 +72,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
             )
             .join(person, person.c.person_id == measurement.c.person_id)
             .where(
-                measurement.c.measurement_concept_id == OMOPConcepts.BODY_WEIGHT.value
+                measurement.c.measurement_concept_id == OMOPConcepts.BODY_HEIGHT.value
             )
         )
 
@@ -129,8 +131,8 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         # and tidal volume data. The _sql_generate() method is not used.
         raise NotImplementedError()
 
-    @staticmethod
-    def predicted_body_weight_ardsnet(gender: int, height_in_cm: float) -> float:
+    @classmethod
+    def predicted_body_weight_ardsnet(self, gender: str, height_in_cm: float) -> float:
         """
         Predicted body weight according to ARDSNet
 
@@ -138,4 +140,28 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         coding: female = 0, male = 1
         height must be in cm
         """
-        return 45.5 + (4.5 * gender) + 0.91 * (height_in_cm - 152.4)
+
+        if gender not in self.__GENDER_TO_INT:
+            raise ValueError(
+                f"Unrecognized gender {gender}, must be one of {self.__GENDER_TO_INT.keys()}"
+            )
+
+        return (
+            45.5 + (4.5 * self.__GENDER_TO_INT[gender]) + 0.91 * (height_in_cm - 152.4)
+        )
+
+    @classmethod
+    def height_for_predicted_body_weight_ardsnet(
+        self, gender: str, predicted_weight: float
+    ) -> float:
+        """
+        Height for predicted body weight according to ARDSNet
+        """
+        if gender not in self.__GENDER_TO_INT:
+            raise ValueError(
+                f"Unrecognized gender {gender}, must be one of {self.__GENDER_TO_INT.keys()}"
+            )
+
+        return (
+            predicted_weight - (45.5 + (4.5 * self.__GENDER_TO_INT[gender]))
+        ) / 0.91 + 152.4

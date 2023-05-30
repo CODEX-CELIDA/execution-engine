@@ -13,6 +13,7 @@ from sqlalchemy import select
 from tqdm import tqdm
 
 from execution_engine.constants import CohortCategory
+from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
 from execution_engine.omop.db.cdm import Person
 from execution_engine.omop.db.result import RecommendationResult
 from execution_engine.util import TimeRange
@@ -339,16 +340,18 @@ class TestRecommendationBase(ABC):
                 }
                 entries.append(entry_appt)
             elif row.get("TIDAL_VOLUME"):
-                # need to add weight to calculate tidal volume per kg
+                # need to add height to calculate ideal body weight and then tidal volume per kg
                 entry_weight = {
                     "person_id": person_id,
                     "type": "measurement",
-                    "concept": "WEIGHT",
-                    "concept_id": concepts.WEIGHT,
+                    "concept": "HEIGHT",
+                    "concept_id": concepts.HEIGHT,
                     "start_datetime": entry["start_datetime"]
                     - datetime.timedelta(days=1),
-                    "value": 70,
-                    "unit_concept_id": concepts.UNIT_KG,
+                    "value": TidalVolumePerIdealBodyWeight.height_for_predicted_body_weight_ardsnet(
+                        "female", 70
+                    ),
+                    "unit_concept_id": concepts.UNIT_CM,
                     "static": True,
                 }
                 entries.append(entry_weight)
@@ -369,7 +372,7 @@ class TestRecommendationBase(ABC):
 
             p = Person(
                 person_id=person_id,
-                gender_concept_id=0,
+                gender_concept_id=concepts.GENDER_FEMALE,
                 year_of_birth=1990,
                 month_of_birth=1,
                 day_of_birth=1,

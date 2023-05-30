@@ -1,10 +1,9 @@
 import os
 from glob import glob
+from typing import Any
 
 import pytest
 from pytest_postgresql.janitor import DatabaseJanitor
-
-from tests.recommendation.test_recommendation import RecommendationCriteriaCombination
 
 pytest_plugins = [
     fixture_file.replace("/", ".").replace(".py", "")
@@ -146,12 +145,16 @@ def pytest_collection_modifyitems(config, items):  # type: ignore
 
 def pytest_assertrepr_compare(
     op: str,
-    left: RecommendationCriteriaCombination,
-    right: RecommendationCriteriaCombination,
+    left: Any,
+    right: Any,
 ) -> list[str] | None:
     """
     Custom error message for RecommendationCriteriaCombination.
     """
+    from tests.recommendation.test_recommendation import (
+        RecommendationCriteriaCombination,
+    )
+
     if (
         isinstance(left, RecommendationCriteriaCombination)
         and isinstance(right, RecommendationCriteriaCombination)

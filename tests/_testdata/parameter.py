@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
 from tests._testdata import concepts
 
 
@@ -69,6 +70,18 @@ WEIGHT = CriterionDefinition(
     unit_concept_id=concepts.UNIT_KG,
     concept_id=concepts.WEIGHT,
 )
+
+HEIGHT = CriterionDefinition(
+    name="HEIGHT",
+    type="observation",
+    static=True,
+    threshold=TidalVolumePerIdealBodyWeight.height_for_predicted_body_weight_ardsnet(
+        "female", 70
+    ),  # needs to be the height for female 70 kg (because ideal body weight is calculated from that)
+    unit_concept_id=concepts.UNIT_CM,
+    concept_id=concepts.HEIGHT,
+)
+
 DALTEPARIN = CriterionDefinition(
     name="DALTEPARIN",
     type="drug",
@@ -182,7 +195,7 @@ TIDAL_VOLUME = CriterionDefinition(
     name="TIDAL_VOLUME",
     type="measurement",
     threshold=6
-    * 70,  # 6 ml/kg for 70 kg patient -- WEIGHT needs to be inserted before this
+    * 70,  # 6 ml/kg for 70 kg patient -- HEIGHT needs to be inserted before this (to calculate ideal body weight)
     static=False,
     occurrences_per_day=[6, 30],
     unit_concept_id=concepts.UNIT_ML,
