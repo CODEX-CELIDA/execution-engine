@@ -25,7 +25,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
     _value: ValueNumber
 
-    __GENDER_TO_INT = {"female": 0, "male": 1}
+    __GENDER_TO_INT = {"female": 0, "male": 1, "unknown": 0.5}
 
     def _sql_filter_tidal_volume(self, query: Select) -> Select:
         """

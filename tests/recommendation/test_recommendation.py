@@ -316,7 +316,7 @@ class TestRecommendationBase(ABC):
                     "person_id": person_id,
                     "type": "measurement",
                     "concept": "WEIGHT",
-                    "concept_id": concepts.WEIGHT,
+                    "concept_id": concepts.BODY_WEIGHT,
                     "start_datetime": datetime.datetime.combine(
                         visit_datetime.start.date(), datetime.time()
                     )
@@ -345,7 +345,7 @@ class TestRecommendationBase(ABC):
                     "person_id": person_id,
                     "type": "measurement",
                     "concept": "HEIGHT",
-                    "concept_id": concepts.HEIGHT,
+                    "concept_id": concepts.BODY_HEIGHT,
                     "start_datetime": entry["start_datetime"]
                     - datetime.timedelta(days=1),
                     "value": TidalVolumePerIdealBodyWeight.height_for_predicted_body_weight_ardsnet(

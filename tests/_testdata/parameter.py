@@ -68,7 +68,7 @@ WEIGHT = CriterionDefinition(
     static=True,
     threshold=70,
     unit_concept_id=concepts.UNIT_KG,
-    concept_id=concepts.WEIGHT,
+    concept_id=concepts.BODY_WEIGHT,
 )
 
 HEIGHT = CriterionDefinition(
@@ -79,7 +79,7 @@ HEIGHT = CriterionDefinition(
         "female", 70
     ),  # needs to be the height for female 70 kg (because ideal body weight is calculated from that)
     unit_concept_id=concepts.UNIT_CM,
-    concept_id=concepts.HEIGHT,
+    concept_id=concepts.BODY_HEIGHT,
 )
 
 DALTEPARIN = CriterionDefinition(
