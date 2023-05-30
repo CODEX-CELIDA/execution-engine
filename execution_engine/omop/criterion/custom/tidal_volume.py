@@ -2,9 +2,8 @@ from sqlalchemy import case, literal_column, select, union_all
 from sqlalchemy.sql import Select
 
 from execution_engine.clients import omopdb
-from execution_engine.constants import LOINC_TIDAL_VOLUME, OMOPConcepts
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.criterion.concept import ConceptCriterion
-from execution_engine.omop.vocabulary import LOINC, standard_vocabulary
 from execution_engine.util import ValueNumber
 
 __all__ = ["TidalVolumePerIdealBodyWeight"]
@@ -26,23 +25,6 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
     _value: ValueNumber
 
     __GENDER_TO_INT = {"female": 0, "male": 1, "unknown": 0.5}
-
-    def _sql_filter_tidal_volume(self, query: Select) -> Select:
-        """
-        Return the SQL to filter the data for the criterion.
-
-        Filtering for TIDAL VOLUME LOINC.
-        """
-
-        # todo: cache concept
-        concept_tv = standard_vocabulary.get_standard_concept(
-            system_uri=LOINC.system_uri, concept=LOINC_TIDAL_VOLUME
-        )
-
-        query = query.filter(
-            self._table.c.measurement_concept_id == concept_tv.concept_id
-        )
-        return query
 
     def _sql_select_ideal_body_weight(
         self, label: str = "ideal_body_weight", person_id: int | None = None
