@@ -203,7 +203,7 @@ class ValueNumber(Value):
             clauses.append(c_unit == self.unit.concept_id)
 
         def eps(number: float) -> float:
-            return min(0.001, 10 ** (-get_precision(number)))
+            return min(0.001, 10 ** (-(get_precision(number) + 1)))
 
         if self.value is not None:
             clauses.append(func.abs(c - self.value) < eps(self.value))
