@@ -360,10 +360,6 @@ class TestRecommendationBase(ABC):
 
     @pytest.fixture
     def insert_criteria(self, db_session, criteria, visit_datetime):
-        # db_session.execute(
-        #    text("SET session_replication_role = 'replica';")
-        # )  # Disable foreign key checks
-
         for person_id, g in tqdm(
             criteria.groupby("person_id"),
             total=criteria["person_id"].nunique(),
@@ -573,8 +569,6 @@ class TestRecommendationBase(ABC):
         observation_window: TimeRange,
         criteria_extended: pd.DataFrame,
     ) -> None:
-        pass
-
         from execution_engine.clients import omopdb
         from execution_engine.execution_engine import ExecutionEngine
 
