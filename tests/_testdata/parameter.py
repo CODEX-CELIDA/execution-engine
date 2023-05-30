@@ -196,22 +196,40 @@ PMAX = CriterionDefinition(
     unit_concept_id=concepts.UNIT_CM_H2O,
     concept_id=concepts.PRESSURE_MAX,
 )
+
 FiO2 = CriterionDefinition(
     name="FiO2",
     type="measurement",
-    occurrences_per_day=[6, 30],
     static=False,
     unit_concept_id=concepts.UNIT_PERCENT,
     concept_id=concepts.INHALED_OXYGEN_CONCENTRATION,
 )
+
+
+FiO2_30 = FiO2.copy(update={"name": "FiO2_30", "threshold": 30})
+FiO2_40 = FiO2.copy(update={"name": "FiO2_40", "threshold": 40})
+FiO2_50 = FiO2.copy(update={"name": "FiO2_50", "threshold": 50})
+FiO2_60 = FiO2.copy(update={"name": "FiO2_60", "threshold": 60})
+FiO2_70 = FiO2.copy(update={"name": "FiO2_70", "threshold": 70})
+FiO2_80 = FiO2.copy(update={"name": "FiO2_80", "threshold": 80})
+FiO2_90 = FiO2.copy(update={"name": "FiO2_90", "threshold": 90})
+FiO2_100 = FiO2.copy(update={"name": "FiO2_100", "threshold": 100})
+
+
 PEEP = CriterionDefinition(
     name="PEEP",
     type="measurement",
-    occurrences_per_day=[6, 30],
     static=False,
     unit_concept_id=concepts.UNIT_CM_H2O,
     concept_id=concepts.PEEP,
 )
+PEEP_5 = PEEP.copy(update={"name": "PEEP_5", "threshold": 5})
+PEEP_8 = PEEP.copy(update={"name": "PEEP_8", "threshold": 8})
+PEEP_10 = PEEP.copy(update={"name": "PEEP_10", "threshold": 10})
+PEEP_14 = PEEP.copy(update={"name": "PEEP_14", "threshold": 14})
+PEEP_18 = PEEP.copy(update={"name": "PEEP_18", "threshold": 18})
+
+
 OXYGENATION_INDEX = CriterionDefinition(
     name="OXYGENATION_INDEX",
     type="measurement",
