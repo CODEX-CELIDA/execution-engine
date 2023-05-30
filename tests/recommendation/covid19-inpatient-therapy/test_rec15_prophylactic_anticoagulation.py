@@ -6,7 +6,7 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     metadata,
 )
 from execution_engine.util import TimeRange
-from tests.recommendation.test_recommendation import TestRecommendationBase
+from tests.recommendation.test_recommendation_base import TestRecommendationBase
 
 
 class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
