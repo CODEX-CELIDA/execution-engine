@@ -295,7 +295,16 @@ class TestRecommendationBase(ABC):
                     entry["start_datetime"] = pendulum.parse(
                         "2023-03-02 12:00:00+01:00"
                     )
-                    entry["end_datetime"] = pendulum.parse("2023-03-03 12:00:00+01:00")
+                    if criterion.duration_threshold_hours is not None:
+                        entry["end_datetime"] = entry[
+                            "start_datetime"
+                        ] + datetime.timedelta(
+                            hours=criterion.duration_threshold_hours + add
+                        )
+                    else:
+                        entry["end_datetime"] = pendulum.parse(
+                            "2023-03-03 12:00:00+01:00"
+                        )
                 else:
                     raise NotImplementedError(
                         f"Unknown criterion type: {criterion.type}"

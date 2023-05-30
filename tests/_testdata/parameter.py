@@ -13,6 +13,7 @@ class CriterionDefinition(BaseModel):
     dosage: float | None = None
     dosage_threshold: float | None = None
     doses_per_day: int | None = None
+    duration_threshold_hours: int | None = None
     unit_concept_id: int | None = None
     n_occurrences: list[int] | None = None
     occurrences_per_day: list[int] | None = None
@@ -163,7 +164,7 @@ ICU = CriterionDefinition(
 PRONING = CriterionDefinition(
     name="PRONING",
     type="procedure",
-    n_occurrences=[0, 20],
+    duration_threshold_hours=16,
     static=False,
     concept_id=concepts.PRONE_POSITIONING,
 )
