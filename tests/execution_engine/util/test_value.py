@@ -3,7 +3,32 @@ from pydantic import ValidationError
 from sqlalchemy import ColumnClause
 
 from execution_engine.omop.concepts import Concept
-from execution_engine.util import ValueConcept, ValueNumber, value_factory
+from execution_engine.util import (
+    ValueConcept,
+    ValueNumber,
+    get_precision,
+    value_factory,
+)
+
+
+def test_get_precision():
+    # Test the function for a few basic cases to make sure it's working
+    assert get_precision(20) == 0
+    assert get_precision(0.003) == 3
+    assert get_precision(2e-5) == 5
+
+    # Test the function for some edge cases
+    assert get_precision(0) == 0
+    assert get_precision(0.0) == 1
+    assert get_precision(1e-0) == 0
+
+    # Test the function for some invalid inputs
+    with pytest.raises(ValueError):
+        get_precision("2e-abc")
+
+    # Test the function for empty input
+    with pytest.raises(IndexError):
+        get_precision("")
 
 
 class TestValueNumber:
