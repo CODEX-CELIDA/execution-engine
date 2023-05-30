@@ -5,7 +5,7 @@ from typing import Any
 
 import pendulum
 from pydantic import BaseModel, PositiveInt, root_validator
-from sqlalchemy import and_, literal_column
+from sqlalchemy import and_, func, literal_column
 from sqlalchemy.sql.elements import (
     BinaryExpression,
     ClauseList,
@@ -24,6 +24,26 @@ ucum_to_postgres = {
     "mo": "month",
     "a": "year",
 }
+
+
+def get_precision(value: float | int) -> int:
+    """
+    Get the precision (i.e. the number of decimal places) of a float or int.
+    """
+    if not isinstance(value, (int, float)):
+        raise TypeError("value must be a float or an int.")
+
+    n = str(value)
+
+    if "." not in n:
+        if "e" in n:
+            return int(
+                n.split("e")[1][1:]
+            )  # In case of scientific notation, return the magnitude as precision.
+        return 0  # the number is an integer, so its precision is 0
+    return len(
+        n.split(".")[1]
+    )  # the number of digits after the decimal point is the precision
 
 
 class Value(BaseModel, ABC):
@@ -182,13 +202,16 @@ class ValueNumber(Value):
             c_unit = self._get_column(table_name, "unit_concept_id")
             clauses.append(c_unit == self.unit.concept_id)
 
+        def eps(number: float) -> float:
+            return min(0.001, 10 ** (-(get_precision(number) + 1)))
+
         if self.value is not None:
-            clauses.append(c == self.value)
+            clauses.append(func.abs(c - self.value) < eps(self.value))
         else:
             if self.value_min is not None:
-                clauses.append(c >= self.value_min)
+                clauses.append((c - self.value_min) >= -eps(self.value_min))
             if self.value_max is not None:
-                clauses.append(c <= self.value_max)
+                clauses.append((c - self.value_max) <= eps(self.value_max))
 
         return and_(*clauses)
 

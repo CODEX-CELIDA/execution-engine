@@ -1,10 +1,8 @@
 from abc import ABC, abstractmethod
 
-import pandas as pd
 import pendulum
 import pytest
 
-from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.util import ValueConcept, ValueNumber
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
@@ -97,35 +95,6 @@ class ValueCriterion(TestCriterion, ABC):
             "value_concept": value_concept,
             "value_concept_no_match": value_concept_no_match,
         }
-
-    @pytest.fixture
-    def criterion_execute_func(
-        self, base_table, db_session, criterion_class, observation_window
-    ):
-        def _create_value(
-            concept: Concept, value: ValueNumber | ValueConcept, exclude: bool
-        ) -> pd.DataFrame:
-            criterion = criterion_class(
-                name="test",
-                exclude=exclude,
-                category=CohortCategory.POPULATION,
-                concept=concept,
-                value=value,
-                static=None,
-            )
-
-            query = criterion.sql_generate(base_table=base_table)
-
-            df = pd.read_sql(
-                query,
-                db_session.connection(),
-                params=observation_window.dict(),
-            )
-            df["valid_date"] = pd.to_datetime(df["valid_date"])
-
-            return df
-
-        return _create_value
 
     @pytest.mark.parametrize(
         "times",
