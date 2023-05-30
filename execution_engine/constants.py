@@ -41,6 +41,7 @@ class OMOPConcepts(Enum):
     """
 
     VISIT_TYPE_STILL_PATIENT = "32220"
+    BODY_HEIGHT = 3036277  # Body height (observation)
     BODY_WEIGHT = 3025315  # Body weight (observation)
     GENDER_FEMALE = 8532
     GENDER_MALE = 8507
