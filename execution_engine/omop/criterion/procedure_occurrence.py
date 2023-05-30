@@ -50,7 +50,7 @@ class ProcedureOccurrence(ConceptCriterion):
 
         if self._timing is not None:
             interval = Interval(self._timing.unit.concept_code)
-            column = extract(interval.name, start_datetime - end_datetime).label(
+            column = extract(interval.name, end_datetime - start_datetime).label(
                 "duration"
             )
             query = query.add_columns(column)
