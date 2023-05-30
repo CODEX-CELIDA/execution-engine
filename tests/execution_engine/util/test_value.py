@@ -20,14 +20,14 @@ def test_get_precision():
     # Test the function for some edge cases
     assert get_precision(0) == 0
     assert get_precision(0.0) == 1
-    assert get_precision(1e-0) == 0
+    assert get_precision(1e-0) == 1
 
     # Test the function for some invalid inputs
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         get_precision("2e-abc")
 
     # Test the function for empty input
-    with pytest.raises(IndexError):
+    with pytest.raises(TypeError):
         get_precision("")
 
 
@@ -115,7 +115,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "unit_concept_id = :unit_concept_id_1 AND value_as_number = :value_as_number_1"
+            == "unit_concept_id = :unit_concept_id_1 AND abs(value_as_number - :value_as_number_1) < :abs_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
@@ -123,7 +123,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 3
         assert (
             str(clauses)
-            == "unit_concept_id = :unit_concept_id_1 AND value_as_number >= :value_as_number_1 AND value_as_number <= :value_as_number_2"
+            == "unit_concept_id = :unit_concept_id_1 AND value_as_number - :value_as_number_1 >= :param_1 AND value_as_number - :value_as_number_2 <= :param_2"
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1)
@@ -131,7 +131,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "unit_concept_id = :unit_concept_id_1 AND value_as_number >= :value_as_number_1"
+            == "unit_concept_id = :unit_concept_id_1 AND value_as_number - :value_as_number_1 >= :param_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value_max=10)
@@ -139,7 +139,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "unit_concept_id = :unit_concept_id_1 AND value_as_number <= :value_as_number_1"
+            == "unit_concept_id = :unit_concept_id_1 AND value_as_number - :value_as_number_1 <= :param_1"
         )
 
         with pytest.raises(
@@ -155,7 +155,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number = :test_table_value_as_number_1"
+            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND abs(test_table.value_as_number - :test_table_value_as_number_1) < :abs_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
@@ -163,7 +163,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 3
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number >= :test_table_value_as_number_1 AND test_table.value_as_number <= :test_table_value_as_number_2"
+            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number - :test_table_value_as_number_1 >= :param_1 AND test_table.value_as_number - :test_table_value_as_number_2 <= :param_2"
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1)
@@ -171,7 +171,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number >= :test_table_value_as_number_1"
+            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number - :test_table_value_as_number_1 >= :param_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value_max=10)
@@ -179,7 +179,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number <= :test_table_value_as_number_1"
+            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number - :test_table_value_as_number_1 <= :param_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value=5)
@@ -188,7 +188,7 @@ class TestValueNumber:
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "unit_concept_id = :unit_concept_id_1 AND custom_column = :custom_column_1"
+            == "unit_concept_id = :unit_concept_id_1 AND abs(custom_column - :custom_column_1) < :abs_1"
         )
 
     def test_value_number_parse_value(self, unit_concept):

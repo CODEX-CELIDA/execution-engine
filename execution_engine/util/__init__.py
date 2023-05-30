@@ -26,15 +26,19 @@ ucum_to_postgres = {
 }
 
 
-def get_precision(f: float | int) -> int:
+def get_precision(value: float | int) -> int:
     """
     Get the precision (i.e. the number of decimal places) of a float or int.
     """
-    n = str(f)
+    if not isinstance(value, (int, float)):
+        raise TypeError("value must be a float or an int.")
+
+    n = str(value)
+
     if "." not in n:
         if "e" in n:
             return int(
-                n.split("e")[1]
+                n.split("e")[1][1:]
             )  # In case of scientific notation, return the magnitude as precision.
         return 0  # the number is an integer, so its precision is 0
     return len(
