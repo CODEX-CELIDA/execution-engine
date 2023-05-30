@@ -151,7 +151,7 @@ def pytest_assertrepr_compare(
     """
     Custom error message for RecommendationCriteriaCombination.
     """
-    from tests.recommendation.test_recommendation import (
+    from tests.recommendation.test_recommendation_base import (
         RecommendationCriteriaCombination,
     )
 
