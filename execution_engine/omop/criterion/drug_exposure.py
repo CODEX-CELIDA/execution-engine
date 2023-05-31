@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import NUMERIC, DateTime, bindparam, func, select
+from sqlalchemy import NUMERIC, DateTime, bindparam, case, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import concat
@@ -151,19 +151,21 @@ class DrugExposure(Criterion):
                 .cte("interval_quantities")
             )
 
+            # Calculate the ratio of the interval that the drug was taken and handle the case where the
+            # interval is 0 (set ratio to 1 explicitly, this is a "bolus" dose)
+            ir_ratio_num = func.extract("EPOCH", interval_quantities.c.time_diff)
+            ir_ratio_denom = func.extract(
+                "EPOCH", interval_quantities.c.end_datetime
+            ) - func.extract("EPOCH", interval_quantities.c.start_datetime)
+            ir_ratio = case(
+                (ir_ratio_denom == 0, 1), else_=ir_ratio_num / ir_ratio_denom
+            ).label("ratio")
+
             interval_ratios = (
                 select(
                     interval_quantities.c.person_id,
                     interval_quantities.c.interval_start,
-                    (
-                        func.extract("EPOCH", interval_quantities.c.time_diff)
-                        / (
-                            func.extract("EPOCH", interval_quantities.c.end_datetime)
-                            - func.extract(
-                                "EPOCH", interval_quantities.c.start_datetime
-                            )
-                        )
-                    ).label("ratio"),
+                    ir_ratio,
                     interval_quantities.c.quantity,
                 )
                 .select_from(interval_quantities)

@@ -1250,6 +1250,52 @@ class TestDrugExposure(TestCriterion):
         )
 
     @pytest.mark.parametrize(
+        "drug_exposures",
+        [
+            (
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-04 09:36:24",
+                    "end_datetime": "2023-03-04 09:36:24",
+                    "quantity": 100,
+                },
+                # date         qty
+                # 2023-03-04 100.0
+            )
+        ],
+    )
+    @pytest.mark.parametrize(
+        "dosage,expected",
+        [
+            (
+                Dosage(
+                    dose=ValueNumber(value=100, unit=concept_unit_mg),
+                    frequency=1,
+                    interval=Interval.DAY,
+                ),
+                {"2023-03-04"},
+            ),
+        ],
+    )
+    def test_zero_second_dosage(
+        self,
+        db_session,
+        person_visit,
+        execute_drug_exposure_criterion,
+        drug_exposures,
+        dosage,
+        expected,
+    ):
+        self.perform_test(
+            db_session,
+            person_visit,
+            execute_drug_exposure_criterion,
+            drug_exposures,
+            dosage,
+            expected,
+        )
+
+    @pytest.mark.parametrize(
         "test_cases",
         [
             [
