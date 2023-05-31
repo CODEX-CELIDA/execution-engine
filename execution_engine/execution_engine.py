@@ -403,10 +403,12 @@ class ExecutionEngine:
         """
         Executes the Cohort Definition and stores the results in the result tables.
         """
-        assert (
-            type(start_datetime) == datetime
+        assert isinstance(
+            start_datetime, datetime
         ), "start_datetime must be of type datetime"
-        assert type(end_datetime) == datetime, "end_datetime must be of type datetime"
+        assert isinstance(
+            end_datetime, datetime
+        ), "end_datetime must be of type datetime"
 
         date_format = "%Y-%m-%d %H:%M:%S"
 
