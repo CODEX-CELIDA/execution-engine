@@ -128,6 +128,9 @@ class AbstractCriterion(ABC):
     def unique_name(self) -> str:
         """
         Get a unique name for the criterion.
+
+        The name is based on the JSON representation of the criterion, i.e. multiple objects with the same parameters
+        will have the same name (in that sense, the uniqueness is related to the parameters, not the object itself).
         """
         # fixme: will be difficult in the user interface to understand where this name comes from
         # fixme: can we generate a name that is more readable? Or otherwise link it to the FHIR element it came from?

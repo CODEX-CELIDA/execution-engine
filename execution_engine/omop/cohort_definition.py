@@ -8,6 +8,7 @@ from sqlalchemy import (
     Column,
     Date,
     Enum,
+    Index,
     Integer,
     MetaData,
     Table,
@@ -488,6 +489,11 @@ class CohortDefinitionCombination:
         ), f"Invalid query - expected SelectInto, got {type(query)}"
 
         yield query
+        yield Index(
+            "ix_person_id_valid_date",
+            self.base_table.c.person_id,
+            self.base_table.c.valid_date,
+        )
 
         # let's also insert the base criterion into the recommendation_result table (for the full list of patients)
         yield add_result_insert(

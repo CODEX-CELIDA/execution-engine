@@ -8,7 +8,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from sqlalchemy import and_, insert, select
+from sqlalchemy import Index, and_, insert, select
 
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
@@ -425,6 +425,10 @@ class ExecutionEngine:
         """Executes the Cohort Definition"""
         with self._db.begin() as con:
             for statement in cd.process():
+
+                if isinstance(statement, Index):
+                    statement.create(bind=con, checkfirst=True)
+                    continue
 
                 self._db.log_query(statement.select, params)
 

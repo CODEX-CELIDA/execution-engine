@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Enum, ForeignKey, Integer, LargeBinary, String
+from sqlalchemy import Enum, ForeignKey, Index, Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from execution_engine.constants import CohortCategory
@@ -30,6 +30,42 @@ class CohortDefinition(Base):  # noqa: D101
     create_datetime: Mapped[datetime]
 
 
+class RecommendationPlan(Base):  # noqa: D101
+    __tablename__ = "recommendation_plan"
+    __table_args__ = {"schema": "celida"}
+
+    plan_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+    cohort_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.cohort_definition.cohort_definition_id"),
+        index=True,
+    )
+    recommendation_plan_name: Mapped[str]
+
+
+class RecommendationCriterion(Base):  # noqa: D101
+    __tablename__ = "recommendation_criterion"
+    __table_args__ = {"schema": "celida"}
+
+    criterion_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+    cohort_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.cohort_definition.cohort_definition_id"),
+        index=True,
+    )
+    plan_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.recommendation_plan.plan_id"),
+        index=True,
+    )
+    criterion_name: Mapped[str]
+
+
 class RecommendationRun(Base):  # noqa: D101
     __tablename__ = "recommendation_run"
     __table_args__ = {"schema": "celida"}
@@ -54,7 +90,15 @@ class RecommendationRun(Base):  # noqa: D101
 
 class RecommendationResult(Base):  # noqa: D101
     __tablename__ = "recommendation_result"
-    __table_args__ = {"schema": "celida"}
+    __table_args__ = (
+        Index(
+            "ix_run_id_criterion_name_valid_date",
+            "recommendation_run_id",
+            "criterion_name",
+            "valid_date",
+        ),
+        {"schema": "celida"},
+    )
 
     recommendation_results_id: Mapped[int] = mapped_column(
         Integer,
