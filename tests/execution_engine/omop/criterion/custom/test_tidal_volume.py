@@ -196,11 +196,12 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
             concept=concept, value=value, exclude=exclude
         ).query(f"{p.person_id} == person_id")
 
-        if exclude:
-            expected = self.invert_date_points(
-                time_range=observation_window,
-                subtract=expected,
-            )
+        # exclusion is now performed only when combining the criteria into population/intervention
+        # if exclude:
+        #    expected = self.invert_date_points(
+        #        time_range=observation_window,
+        #        subtract=expected,
+        #    )
 
         assert set(df["valid_date"].dt.date) == self.date_points(expected)
 

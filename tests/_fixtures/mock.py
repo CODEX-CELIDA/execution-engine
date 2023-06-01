@@ -14,6 +14,7 @@ class MockCriterion(Criterion):
         exclude: bool = False,
         category: CohortCategory = CohortCategory.POPULATION,
     ):
+        self._id = None
         self._name = name
         self._exclude = exclude
         self._category = category
@@ -29,6 +30,9 @@ class MockCriterion(Criterion):
 
     def _sql_select_data(self, query: Select) -> Select:
         pass
+
+    def description(self) -> str:
+        return f"MockCriterion({self._name})"
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Self:

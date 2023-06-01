@@ -4,9 +4,10 @@ from typing import Iterable, Sequence
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Table, func
+from sqlalchemy import Column, Date, Integer, MetaData, Table, func, select, text
 
 from execution_engine.constants import CohortCategory
+from execution_engine.omop.cohort_definition import add_result_insert
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.cdm import Person
@@ -50,7 +51,6 @@ class TestCriterion:
 
     @pytest.fixture
     def person(self, db_session, visit_datetime: TimeRange, n: int = 3):
-
         assert (
             0 < n < visit_datetime.duration.days / 2
         )  # because each further person's visit is 2 days shorter
@@ -79,7 +79,6 @@ class TestCriterion:
 
     @pytest.fixture
     def person_visit(self, person, visit_datetime, db_session):
-
         vos = [
             create_visit(
                 person_id=p.person_id,
@@ -97,6 +96,10 @@ class TestCriterion:
 
     @staticmethod
     def create_base_table(base_criterion, db_session, observation_window):
+        db_session.execute(
+            text("SET session_replication_role = 'replica';")
+        )  # Disable foreign key checks
+
         base_table = to_table("base_table")
         query = base_criterion.sql_generate(base_table=base_table)
         query = base_criterion.sql_insert_into_table(query, base_table, temporary=True)
@@ -104,6 +107,16 @@ class TestCriterion:
             query,
             params=observation_window.dict(),
         )
+        # add base table patients to results table, so they can be used when combining statements (execution_map)
+        query = add_result_insert(
+            select(base_table),
+            plan_id=None,
+            criterion_id=None,
+            cohort_category=CohortCategory.BASE,
+        )
+
+        db_session.execute(query, params={"run_id": 1})
+
         db_session.commit()
 
         return base_table
