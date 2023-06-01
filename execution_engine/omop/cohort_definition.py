@@ -279,7 +279,7 @@ class CohortDefinition(Serializable):
         criterion: Criterion
 
         for i, criterion in enumerate(self._execution_map.sequential()):
-            logging.info(f"Processing {criterion.name} (exclude={criterion.exclude})")
+            logging.info(f"Processing {criterion.description()}")
 
             query = criterion.sql_generate(base_table=base_table)
             # fixme: remove (used for debugging only)
