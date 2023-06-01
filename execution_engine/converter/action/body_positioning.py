@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Self, cast
 
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
@@ -35,7 +35,7 @@ class BodyPositioningAction(AbstractAction):
         self._timing = timing
 
     @classmethod
-    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
         """Creates a new action from a FHIR PlanDefinition."""
 
         if action_def.activity is None:

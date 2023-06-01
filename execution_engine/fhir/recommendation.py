@@ -257,6 +257,16 @@ class RecommendationPlan:
         return self._recommendation.name
 
     @property
+    def url(self) -> str:
+        """
+        Get the canonical URL of the recommendation plan.
+        """
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        return self._recommendation.url
+
+    @property
     def population(self) -> EvidenceVariable:
         """
         The population for the recommendation.

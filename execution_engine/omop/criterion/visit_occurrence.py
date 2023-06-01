@@ -51,6 +51,12 @@ class ActivePatients(VisitOccurrence):
 
         return query
 
+    def description(self) -> str:
+        """
+        Get a human-readable description of the criterion.
+        """
+        return f"{self.__class__.__name__}['{self._name}']()"
+
     def dict(self) -> dict[str, Any]:
         """
         Get a JSON representation of the criterion.

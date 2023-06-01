@@ -15,7 +15,7 @@ from tqdm import tqdm
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
 from execution_engine.omop.db.cdm import Person
-from execution_engine.omop.db.result import RecommendationResult
+from execution_engine.omop.db.result import RecommendationPlan, RecommendationResult
 from execution_engine.util import TimeRange
 from tests._testdata import concepts, parameter
 from tests.functions import (
@@ -131,7 +131,6 @@ class RecommendationCriteriaCombination:
 
                 # If any mismatches exist, add a report for this column
                 if not mismatches.empty:
-
                     if not mismatch_reported:
                         reports.append(f"person_id '{person_id}': {logical_expression}")
                         mismatch_reported = True
@@ -204,7 +203,6 @@ class TestRecommendationBase(ABC):
     def person_combinations(
         self, unique_criteria: set[str], run_slow_tests: bool, invalid_combinations: str
     ) -> pd.DataFrame:
-
         df = generate_binary_combinations_dataframe(list(unique_criteria))
 
         # Remove invalid combinations
@@ -231,11 +229,9 @@ class TestRecommendationBase(ABC):
             total=len(person_combinations),
             desc="Generating criteria",
         ):
-
             for criterion_name, comparator in self.extract_criteria(
                 population_intervention
             ):
-
                 criterion: parameter.CriterionDefinition = getattr(
                     parameter, criterion_name
                 )
@@ -365,7 +361,6 @@ class TestRecommendationBase(ABC):
             total=criteria["person_id"].nunique(),
             desc="Inserting criteria",
         ):
-
             p = Person(
                 person_id=person_id,
                 gender_concept_id=concepts.GENDER_FEMALE,
@@ -385,7 +380,6 @@ class TestRecommendationBase(ABC):
             person_entries = [p, vo]
 
             for _, row in g.iterrows():
-
                 if row["type"] == "condition":
                     entry = create_condition(vo, row["concept_id"])
                 elif row["type"] == "observation":
@@ -582,8 +576,19 @@ class TestRecommendationBase(ABC):
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
         )
-        query = select(RecommendationResult).where(
-            RecommendationResult.criterion_name.is_(None)
+        t = RecommendationResult
+        t_plan = RecommendationPlan
+
+        query = (
+            select(
+                t.recommendation_result_id,
+                t.person_id,
+                t_plan.recommendation_plan_name,
+                t.cohort_category,
+                t.valid_date,
+            )
+            .outerjoin(RecommendationPlan)
+            .where(t.criterion_id.is_(None))
         )
         df_result = omopdb.query(query)
         df_result["valid_date"] = pd.to_datetime(df_result["valid_date"])
@@ -605,7 +610,7 @@ class TestRecommendationBase(ABC):
         df_result = df_result.pivot_table(
             columns="name",
             index=["person_id", "date"],
-            values="recommendation_results_id",
+            values="recommendation_result_id",
             aggfunc=len,
             fill_value=0,
         ).astype(bool)

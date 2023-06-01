@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, TypedDict, cast
+from typing import Self, Tuple, TypedDict, cast
 
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
@@ -66,7 +66,7 @@ class DrugAdministrationAction(AbstractAction):
         self._extensions = extensions
 
     @classmethod
-    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
         """Creates a new action from a FHIR PlanDefinition."""
 
         if action_def.activity is None:

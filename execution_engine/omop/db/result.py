@@ -1,5 +1,4 @@
 from datetime import date, datetime
-from typing import Optional
 
 from sqlalchemy import Enum, ForeignKey, Index, Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -43,7 +42,11 @@ class RecommendationPlan(Base):  # noqa: D101
         ForeignKey("celida.cohort_definition.cohort_definition_id"),
         index=True,
     )
+    recommendation_plan_url: Mapped[str]
     recommendation_plan_name: Mapped[str]
+    recommendation_plan_hash: Mapped[str] = mapped_column(
+        String(64), index=True, unique=True
+    )
 
 
 class RecommendationCriterion(Base):  # noqa: D101
@@ -55,15 +58,10 @@ class RecommendationCriterion(Base):  # noqa: D101
         primary_key=True,
         index=True,
     )
-    cohort_definition_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.cohort_definition.cohort_definition_id"),
-        index=True,
-    )
-    plan_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.recommendation_plan.plan_id"),
-        index=True,
-    )
+    # todo: add link to cohort definition or 1:n to recommendation plan?
     criterion_name: Mapped[str]
+    criterion_description: Mapped[str]
+    criterion_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
 
 
 class RecommendationRun(Base):  # noqa: D101
@@ -92,15 +90,16 @@ class RecommendationResult(Base):  # noqa: D101
     __tablename__ = "recommendation_result"
     __table_args__ = (
         Index(
-            "ix_run_id_criterion_name_valid_date",
+            "ix_run_id_plan_id_criterion_id_valid_date",
             "recommendation_run_id",
-            "criterion_name",
+            "plan_id",
+            "criterion_id",
             "valid_date",
         ),
         {"schema": "celida"},
     )
 
-    recommendation_results_id: Mapped[int] = mapped_column(
+    recommendation_result_id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
         index=True,
@@ -109,14 +108,30 @@ class RecommendationResult(Base):  # noqa: D101
         ForeignKey("celida.recommendation_run.recommendation_run_id"),
         index=True,
     )
+    plan_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.recommendation_plan.plan_id"), index=True, nullable=True
+    )
+    criterion_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.recommendation_criterion.criterion_id"),
+        index=True,
+        nullable=True,
+    )
     cohort_category = mapped_column(Enum(CohortCategory, schema="celida"))
-    recommendation_plan_name: Mapped[Optional[str]]
-    criterion_name: Mapped[Optional[str]]
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
+    )
     valid_date: Mapped[date]
-    person_id = mapped_column(ForeignKey("cds_cdm.person.person_id"), index=True)
 
     recommendation_run: Mapped["RecommendationRun"] = relationship(
         primaryjoin="RecommendationResult.recommendation_run_id == RecommendationRun.recommendation_run_id",
+    )
+
+    recommendation_plan: Mapped["RecommendationPlan"] = relationship(
+        primaryjoin="RecommendationResult.plan_id == RecommendationPlan.plan_id",
+    )
+
+    recommendation_criterion: Mapped["RecommendationCriterion"] = relationship(
+        primaryjoin="RecommendationResult.criterion_id == RecommendationCriterion.criterion_id",
     )
 
     # person = relationship(

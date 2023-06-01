@@ -138,7 +138,6 @@ class TestCriterionCombination(TestCriterion):
         )  # disable fkey checks (because of recommendation_result.run_id)
 
         for criterion in execution_map.sequential():
-
             query = criterion.sql_generate(base_table=base_table)
             query = add_result_insert(
                 query,
@@ -146,6 +145,8 @@ class TestCriterionCombination(TestCriterion):
                 cohort_category=criterion.category,
                 criterion_name=criterion.unique_name(),
             )
+
+            query.description = query.select.description
 
             db_session.execute(query, params=query_params)
 

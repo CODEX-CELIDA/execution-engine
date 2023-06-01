@@ -136,7 +136,6 @@ class ExecutionMap:
             Traverse the execution map and return a list of criteria that can be executed sequentially.
             """
             for arg in args:
-
                 if arg.is_Atom:
                     yield self._hashmap[arg]
                 elif arg.is_Not:
@@ -163,7 +162,7 @@ class ExecutionMap:
                 select(table.c.person_id, table.c.valid_date)
                 .select_from(table)
                 .filter(table.c.recommendation_run_id == bindparam("run_id"))
-                .filter(table.c.criterion_name == criterion.unique_name())
+                .filter(table.c.criterion_id == criterion.id)
             )
 
         def _traverse(combination: sympy.Symbol) -> CompoundSelect:
@@ -210,4 +209,7 @@ class ExecutionMap:
 
             return conjunction(*[sql_select(c) for c in criteria])
 
-        return _traverse(self._nnf)
+        query = _traverse(self._nnf)
+        query.description = f"Combination of criteria({cohort_category.value})"
+
+        return query

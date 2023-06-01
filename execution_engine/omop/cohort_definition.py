@@ -1,8 +1,7 @@
 import itertools
-import json
 import logging
 import re
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Self
 
 from sqlalchemy import (
     Column,
@@ -37,14 +36,15 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.db.result import RecommendationResult
+from execution_engine.omop.serializable import Serializable
 from execution_engine.util.sql import SelectInto
 
 
 def add_result_insert(
     query: Select | CompoundSelect,
-    name: str | None,
+    plan_id: int | None,
+    criterion_id: int | None,
     cohort_category: CohortCategory,
-    criterion_name: str | None,
 ) -> Insert:
     """
     Insert the result of the query into the result table.
@@ -56,16 +56,17 @@ def add_result_insert(
 
     # Always surround the original query by a select () query, as
     # otherwise problemes arise when using CompoundSelect, multiple columns or DISTINCT person_id
+    description = query.description
     query = query.alias("base_select")
     query_select = select(query.c.person_id, query.c.valid_date).select_from(query)
 
     query_select = query_select.add_columns(
         bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
-        bindparam("recommendation_plan_name", name).label("recommendation_plan_name"),
+        bindparam("plan_id", plan_id).label("plan_id"),
         bindparam("cohort_category", cohort_category, type_=Enum(CohortCategory)).label(
             "cohort_category"
         ),
-        bindparam("criterion_name", criterion_name).label("criterion_name"),
+        bindparam("criterion_id", criterion_id).label("criterion_id"),
     )
 
     t_result = RecommendationResult.__table__
@@ -73,10 +74,13 @@ def add_result_insert(
         query_select.selected_columns, query_select
     )
 
+    query_select.description = description
+    query_insert.description = description
+
     return query_insert
 
 
-class CohortDefinition:
+class CohortDefinition(Serializable):
     """
     A cohort definition in OMOP as a collection of separate criteria.
 
@@ -89,6 +93,7 @@ class CohortDefinition:
     (e.g. "has condition X and lab value Y >= Z").
     """
 
+    _id: int | None = None
     _name: str
     _criteria: CriterionCombination
     _execution_map: ExecutionMap | None = None
@@ -96,10 +101,12 @@ class CohortDefinition:
     def __init__(
         self,
         name: str,
+        url: str,
         base_criterion: Criterion,
         criteria: CriterionCombination | None = None,
     ) -> None:
         self._name = name
+        self._url = url
         self._base_criterion = base_criterion
 
         if criteria is None:
@@ -127,6 +134,13 @@ class CohortDefinition:
         Get the name of the cohort definition.
         """
         return self._name
+
+    @property
+    def url(self) -> str:
+        """
+        Get the url of the cohort definition combination.
+        """
+        return self._url
 
     def __iter__(self) -> Iterator[Criterion | CriterionCombination]:
         """
@@ -274,9 +288,9 @@ class CohortDefinition:
             self._assert_base_table_in_select(query, base_table.name)
             query = add_result_insert(
                 query,
-                name=self.name,
+                plan_id=self.id,
+                criterion_id=criterion.id,
                 cohort_category=criterion.category,
-                criterion_name=criterion.unique_name(),
             )
 
             yield query
@@ -321,9 +335,9 @@ class CohortDefinition:
             query = self._execution_map.combine(cohort_category=category)
             query = add_result_insert(
                 query,
-                name=self.name,
+                plan_id=self.id,
+                criterion_id=None,
                 cohort_category=category,
-                criterion_name=None,
             )
             yield query
 
@@ -333,6 +347,7 @@ class CohortDefinition:
         """
         return {
             "name": self.name,
+            "url": self.url,
             "base_criterion": self._base_criterion.dict(),
             "criteria": self._criteria.dict(),
         }
@@ -350,12 +365,13 @@ class CohortDefinition:
 
         return cls(
             name=data["name"],
+            url=data["url"],
             base_criterion=base_criterion,
             criteria=CriterionCombination.from_dict(data["criteria"]),
         )
 
 
-class CohortDefinitionCombination:
+class CohortDefinitionCombination(Serializable):
     """
     A cohort definition combination in OMOP as a collection of separate cohort definitions.
 
@@ -385,27 +401,7 @@ class CohortDefinitionCombination:
         self._version: str = version
         self._description: str = description
         # The id is used in the cohort_definition_id field in the result tables.
-        self._id: int | None = cohort_definition_id
-
-    @property
-    def id(self) -> int:
-        """
-        Get the id of the cohort definition combination.
-
-        The id is used in the cohort_definition_id field in the result tables.
-        """
-        if self._id is None:
-            raise Exception("Id not set")
-        return self._id
-
-    @id.setter
-    def id(self, value: int) -> None:
-        """
-        Set the id of the cohort definition.
-
-        The id is used in the cohort_definition_id field in the result tables.
-        """
-        self._id = value
+        self._id = cohort_definition_id
 
     @property
     def name(self) -> str:
@@ -496,12 +492,14 @@ class CohortDefinitionCombination:
         )
 
         # let's also insert the base criterion into the recommendation_result table (for the full list of patients)
-        yield add_result_insert(
+        query = add_result_insert(
             self.base_table.select(),
-            name=None,
+            plan_id=None,
+            criterion_id=None,
             cohort_category=CohortCategory.BASE,
-            criterion_name=self._base_criterion.unique_name(),
         )
+        query.description = "Insert base criterion into recommendation_result table"
+        yield query
 
     def process(self) -> Iterator[Query]:
         """
@@ -511,7 +509,6 @@ class CohortDefinitionCombination:
         yield from self.create_base_table()
 
         for i, cohort_definition in enumerate(self._cohort_definitions):
-
             yield from cohort_definition.process(
                 base_table=self.base_table,
             )
@@ -533,9 +530,9 @@ class CohortDefinitionCombination:
                 .distinct(table.c.person_id, table.c.valid_date)
                 .where(
                     and_(
-                        table.c.recommendation_plan_name == cohort_definition.name,
+                        table.c.plan_id == cohort_definition.id,
                         table.c.cohort_category == category.name,
-                        table.c.criterion_name.is_(None),
+                        table.c.criterion_id.is_(None),
                         table.c.recommendation_run_id == bindparam("run_id"),
                     )
                 )
@@ -552,7 +549,10 @@ class CohortDefinitionCombination:
             statements = get_statements(category)
             query = union(*statements)
             query = add_result_insert(
-                query, name=None, cohort_category=category, criterion_name=None
+                query,
+                plan_id=None,
+                criterion_id=None,
+                cohort_category=category,
             )
 
             yield query
@@ -573,10 +573,10 @@ class CohortDefinitionCombination:
 
         return select(table.c.person_id).where(
             and_(
-                table.c.recommendation_plan_name.is_(None),
-                table.c.criterion_name.is_(None),
-                table.c.cohort_category == category.name,
                 table.c.recommendation_run_id == bindparam("run_id"),
+                table.c.plan_id.is_(None),
+                table.c.criterion_id.is_(None),
+                table.c.cohort_category == category.name,
             )
         )
 
@@ -600,19 +600,6 @@ class CohortDefinitionCombination:
             itertools.chain(*[cd.criteria() for cd in self._cohort_definitions])
         )
 
-    def json(self) -> bytes:
-        """
-        Get a JSON representation of the cohort definition combination.
-
-        The json excludes the cohort definition id, as this is auto-inserted by the database
-        and not known during the creation of the cohort definition combination.
-        """
-
-        cd_json = self.dict()
-        del cd_json["id"]
-
-        return json.dumps(cd_json, sort_keys=True).encode()
-
     def dict(self) -> dict:
         """
         Get the combination as a dictionary.
@@ -629,7 +616,7 @@ class CohortDefinitionCombination:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "CohortDefinitionCombination":
+    def from_dict(cls, data: Dict[str, Any]) -> Self:
         """
         Create a combination from a dictionary.
         """
@@ -650,10 +637,3 @@ class CohortDefinitionCombination:
             description=data["recommendation_description"],
             cohort_definition_id=data["id"] if "id" in data else None,
         )
-
-    @classmethod
-    def from_json(cls, data: str) -> "CohortDefinitionCombination":
-        """
-        Create a combination from a JSON string.
-        """
-        return cls.from_dict(json.loads(data))

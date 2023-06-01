@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Self
 
 from sqlalchemy import Select
 
@@ -31,7 +31,7 @@ class MockCriterion(Criterion):
         pass
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Criterion":
+    def from_dict(cls, data: Dict[str, Any]) -> Self:
         return cls(
             name=data["name"],
             exclude=data["exclude"],

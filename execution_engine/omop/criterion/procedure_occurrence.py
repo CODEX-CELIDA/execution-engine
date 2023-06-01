@@ -67,7 +67,6 @@ class ProcedureOccurrence(ConceptCriterion):
         return query
 
     def _sql_select_data(self, query: Select) -> Select:
-
         query = query.add_columns(
             self._table.c["procedure_concept_id"].label("parameter_concept_id"),
             self._table.c["procedure_datetime"].label("start_datetime"),
@@ -75,6 +74,12 @@ class ProcedureOccurrence(ConceptCriterion):
         )
 
         return query
+
+    def description(self) -> str:
+        """
+        Get a human-readable description of the criterion.
+        """
+        return f"{self.__class__.__name__}['{self._name}'](concept={self._concept.concept_name}, value={str(self._value)}, timing={str(self._timing)})"
 
     def dict(self) -> dict[str, Any]:
         """

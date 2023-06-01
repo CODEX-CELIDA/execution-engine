@@ -35,6 +35,7 @@ from execution_engine.omop.db.cdm import (
     VisitDetail,
     VisitOccurrence,
 )
+from execution_engine.omop.serializable import Serializable
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]
@@ -49,12 +50,13 @@ Domain = TypedDict(
 )
 
 
-class AbstractCriterion(ABC):
+class AbstractCriterion(Serializable, ABC):
     """
     Abstract base class for Criterion and CriterionCombination.
     """
 
     def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
+        self._id = None
         self._name: str = re.sub(r"[ \t]", "-", name)
         self._exclude: bool = exclude
 
@@ -138,22 +140,10 @@ class AbstractCriterion(ABC):
         hash_ = hashlib.md5(  # nosec (just used for naming, not security related)
             s.encode()
         ).hexdigest()
-        return f"{self.name}_{hash_}"
 
-    @abstractmethod
-    def dict(self) -> dict[str, Any]:
-        """
-        Get the JSON representation of the criterion.
-        """
-        raise NotImplementedError()
+        exclude_str = "(NOT)" if self.exclude else ""
 
-    @classmethod
-    @abstractmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AbstractCriterion":
-        """
-        Create a criterion from a JSON object.
-        """
-        raise NotImplementedError()
+        return f"{self.name}{exclude_str}_{hash_}"
 
 
 class Criterion(AbstractCriterion):
@@ -320,6 +310,8 @@ class Criterion(AbstractCriterion):
         query = self._select_per_day(query)
         query = self._process_exclude(query)
 
+        query.description = self.description()
+
         return query
 
     def set_base_table(self, base_table: Table) -> None:
@@ -338,7 +330,6 @@ class Criterion(AbstractCriterion):
     def _get_datetime_column(
         self, table: TableClause, type_: str = "start"
     ) -> sqlalchemy.Column:
-
         table_name = table.original.name
 
         candidate_prefixes = [
@@ -543,6 +534,7 @@ class Criterion(AbstractCriterion):
             raise ValueError("query must be a Select or CTE")
 
         query = select_into(query, table, temporary=temporary)
+        query.description = query.select.description
 
         return query
 
@@ -551,5 +543,12 @@ class Criterion(AbstractCriterion):
     def from_dict(cls, data: Dict[str, Any]) -> "Criterion":
         """
         Create a criterion from a JSON object.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def description(self) -> str:
+        """
+        Return a description of the criterion.
         """
         raise NotImplementedError()
