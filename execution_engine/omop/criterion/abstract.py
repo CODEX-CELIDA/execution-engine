@@ -12,7 +12,6 @@ from sqlalchemy import (
     Table,
     and_,
     bindparam,
-    distinct,
     func,
     literal_column,
     select,
@@ -20,7 +19,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select, TableClause
 from sqlalchemy.sql.functions import concat
-from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
@@ -136,7 +134,13 @@ class AbstractCriterion(Serializable, ABC):
         """
         # fixme: will be difficult in the user interface to understand where this name comes from
         # fixme: can we generate a name that is more readable? Or otherwise link it to the FHIR element it came from?
+        # exclusion is only performed during combination of criteria, and therefore criteria behave the same
+        # independent of whether they are excluded or not
+        criterion_dict = self.dict()
+        criterion_dict.pop("exclude", None)
+
         s = json.dumps(self.dict(), sort_keys=True)
+
         hash_ = hashlib.md5(  # nosec (just used for naming, not security related)
             s.encode()
         ).hexdigest()
@@ -308,7 +312,6 @@ class Criterion(AbstractCriterion):
         query = self._sql_generate(query)
         query = self._insert_datetime(query)
         query = self._select_per_day(query)
-        query = self._process_exclude(query)
 
         query.description = self.description()
 
@@ -452,58 +455,6 @@ class Criterion(AbstractCriterion):
         )
 
         return person_dates
-
-    def _process_exclude(self, query: str | Select) -> Select:
-        """
-        Converts a query, which returns a list of dates (one per row) per person_id, to a query that return a list of
-        all days (per person_id) that are within the time range given by observation_start_datetime
-        and observation_end_datetime but that are not included in the result of the original query.
-
-        I.e. it performs the following set operation:
-        set({day | observation_start_datetime <= day <= observation_end_datetime}) - set(days_from_original_query}
-        """
-
-        assert isinstance(query, Select | CTE), "query must be instance of Select"
-
-        if self._exclude:
-            distinct_persons = select(
-                distinct(self._base_table.c.person_id).label("person_id")
-            ).cte("distinct_persons")
-            fixed_date_range = (
-                select(
-                    distinct_persons.c.person_id,
-                    func.generate_series(
-                        bindparam("observation_start_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        bindparam("observation_end_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        func.cast(concat(1, "day"), INTERVAL),
-                    )
-                    .cast(Date)
-                    .label("valid_date"),
-                )
-                .select_from(distinct_persons)
-                .cte("fixed_date_range")
-            )
-
-            query = query.cte("person_dates")
-
-            query = (
-                select(fixed_date_range.c.person_id, fixed_date_range.c.valid_date)
-                .select_from(
-                    fixed_date_range.outerjoin(
-                        query,
-                        (fixed_date_range.c.person_id == query.c.person_id)
-                        & (fixed_date_range.c.valid_date == query.c.valid_date),
-                    )
-                )
-                .where(query.c.valid_date.is_(None))
-                .order_by(fixed_date_range.c.person_id, fixed_date_range.c.valid_date)
-            )
-
-        return query
 
     def sql_select_data(self, person_id: int | None = None) -> Select:
         """

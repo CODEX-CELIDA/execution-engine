@@ -3,8 +3,20 @@ import logging
 from typing import Iterator, Tuple
 
 import sympy
-from sqlalchemy import bindparam, intersect, select, union
+from sqlalchemy import (
+    CTE,
+    Date,
+    DateTime,
+    bindparam,
+    distinct,
+    func,
+    intersect,
+    select,
+    union,
+)
+from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import CompoundSelect, Select
+from sqlalchemy.sql.functions import concat
 
 from .constants import CohortCategory
 from .omop.criterion.abstract import Criterion
@@ -151,19 +163,88 @@ class ExecutionMap:
         Generate the combined SQL query for all criteria in the execution map.
         """
 
-        def sql_select(criterion: Criterion | CompoundSelect) -> Select:
+        def fixed_date_range() -> CTE:
+            table = RecommendationResult.__table__
+
+            distinct_persons = (
+                select(distinct(table.c.person_id).label("person_id"))
+                .select_from(table)
+                .filter(table.c.recommendation_run_id == bindparam("run_id"))
+                .filter(table.c.cohort_category == CohortCategory.BASE)
+            ).cte("distinct_persons")
+
+            fixed_date_range = (
+                select(
+                    distinct_persons.c.person_id,
+                    func.generate_series(
+                        bindparam("observation_start_datetime", type_=DateTime).cast(
+                            Date
+                        ),
+                        bindparam("observation_end_datetime", type_=DateTime).cast(
+                            Date
+                        ),
+                        func.cast(concat(1, "day"), INTERVAL),
+                    )
+                    .cast(Date)
+                    .label("valid_date"),
+                )
+                .select_from(distinct_persons)
+                .cte("fixed_date_range")
+            )
+
+            return fixed_date_range
+
+        def sql_select(criterion: Criterion | CompoundSelect, exclude: bool) -> Select:
             """
             Generate the SQL query for a single criterion.
             """
             if isinstance(criterion, CompoundSelect):
                 return criterion
             table = RecommendationResult.__table__
-            return (
+
+            query = (
                 select(table.c.person_id, table.c.valid_date)
                 .select_from(table)
                 .filter(table.c.recommendation_run_id == bindparam("run_id"))
                 .filter(table.c.criterion_id == criterion.id)
             )
+
+            if exclude:
+                query = add_exclude(query)
+
+            return query
+
+        def add_exclude(query: str | Select) -> Select:
+            """
+            Converts a query, which returns a list of dates (one per row) per person_id, to a query that return a list of
+            all days (per person_id) that are within the time range given by observation_start_datetime
+            and observation_end_datetime but that are not included in the result of the original query.
+
+            I.e. it performs the following set operation:
+            set({day | observation_start_datetime <= day <= observation_end_datetime}) - set(days_from_original_query}
+            """
+            assert isinstance(query, Select | CTE), "query must be instance of Select"
+
+            query = query.alias("person_dates")
+
+            query = (
+                select(
+                    cte_fixed_date_range.c.person_id, cte_fixed_date_range.c.valid_date
+                )
+                .select_from(
+                    cte_fixed_date_range.outerjoin(
+                        query,
+                        (cte_fixed_date_range.c.person_id == query.c.person_id)
+                        & (cte_fixed_date_range.c.valid_date == query.c.valid_date),
+                    )
+                )
+                .where(query.c.valid_date.is_(None))
+                .order_by(
+                    cte_fixed_date_range.c.person_id, cte_fixed_date_range.c.valid_date
+                )
+            )
+
+            return query
 
         def _traverse(combination: sympy.Symbol) -> CompoundSelect:
             """
@@ -182,12 +263,12 @@ class ExecutionMap:
 
             for arg in combination.args:
                 if arg.is_Atom:
-                    criterion = self._hashmap[arg]
+                    criterion, exclude = self._hashmap[arg], False
                 elif arg.is_Not:
                     # exclude flag is already pushed into the criterion (i.e. inverted) in _push_negation_in_criterion()
-                    criterion = self._hashmap[arg.args[0]]
+                    criterion, exclude = self._hashmap[arg.args[0]], True
                 else:
-                    criterion = _traverse(arg)
+                    criterion, exclude = _traverse(arg), False
 
                 if isinstance(criterion, Criterion):
                     if (
@@ -205,10 +286,13 @@ class ExecutionMap:
                         # returned. In this case, we skip the compound select and continue with the next criterion.
                         continue
 
-                criteria.append(criterion)
+                criteria.append([criterion, exclude])
 
-            return conjunction(*[sql_select(c) for c in criteria])
+            return conjunction(
+                *[sql_select(criterion, exclude) for [criterion, exclude] in criteria]
+            )
 
+        cte_fixed_date_range = fixed_date_range()
         query = _traverse(self._nnf)
         query.description = f"Combination of criteria({cohort_category.value})"
 
