@@ -3,20 +3,8 @@ import logging
 from typing import Iterator, Tuple
 
 import sympy
-from sqlalchemy import (
-    CTE,
-    Date,
-    DateTime,
-    bindparam,
-    distinct,
-    func,
-    intersect,
-    select,
-    union,
-)
-from sqlalchemy.dialects.postgresql import INTERVAL
+from sqlalchemy import CTE, bindparam, intersect, select, union
 from sqlalchemy.sql import CompoundSelect, Select
-from sqlalchemy.sql.functions import concat
 
 from .constants import CohortCategory
 from .omop.criterion.abstract import Criterion
@@ -166,33 +154,14 @@ class ExecutionMap:
         def fixed_date_range() -> CTE:
             table = RecommendationResult.__table__
 
-            distinct_persons = (
-                select(distinct(table.c.person_id).label("person_id"))
+            query = (
+                select(table.c.person_id, table.c.valid_date)
                 .select_from(table)
                 .filter(table.c.recommendation_run_id == bindparam("run_id"))
                 .filter(table.c.cohort_category == CohortCategory.BASE)
-            ).cte("distinct_persons")
-
-            fixed_date_range = (
-                select(
-                    distinct_persons.c.person_id,
-                    func.generate_series(
-                        bindparam("observation_start_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        bindparam("observation_end_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        func.cast(concat(1, "day"), INTERVAL),
-                    )
-                    .cast(Date)
-                    .label("valid_date"),
-                )
-                .select_from(distinct_persons)
-                .cte("fixed_date_range")
             )
 
-            return fixed_date_range
+            return query.cte("fixed_date_range")
 
         def sql_select(criterion: Criterion | CompoundSelect, exclude: bool) -> Select:
             """
@@ -239,9 +208,6 @@ class ExecutionMap:
                     )
                 )
                 .where(query.c.valid_date.is_(None))
-                .order_by(
-                    cte_fixed_date_range.c.person_id, cte_fixed_date_range.c.valid_date
-                )
             )
 
             return query

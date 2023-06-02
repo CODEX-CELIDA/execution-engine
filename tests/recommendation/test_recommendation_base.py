@@ -211,7 +211,7 @@ class TestRecommendationBase(ABC):
             df = df[~idx_invalid].copy()
 
         if not run_slow_tests:
-            df = pd.concat([df.head(15), df.tail(15)])
+            df = pd.concat([df.head(15), df.tail(15)]).drop_duplicates()
 
         return df
 
@@ -463,13 +463,25 @@ class TestRecommendationBase(ABC):
             return s.translate(str.maketrans("", "", "<>="))
 
         idx_static = criteria["static"]
-        # todo: should be observation_window, not visit_datetime (but that doesn't work, needs to be fixed in the test)
-        criteria.loc[idx_static, "start_datetime"] = visit_datetime.start
-        criteria.loc[idx_static, "end_datetime"] = visit_datetime.end
+        criteria.loc[idx_static, "start_datetime"] = observation_window.start
+        criteria.loc[idx_static, "end_datetime"] = observation_window.end
         df = self.expand_dataframe_by_date(
             criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
             observation_window=observation_window,
         )
+        # the base criterion is the visit, all other criteria are &-combined with the base criterion
+        df_base = self.expand_dataframe_by_date(
+            pd.DataFrame(
+                {
+                    "person_id": criteria["person_id"].unique(),
+                    "start_datetime": visit_datetime.start,
+                    "end_datetime": visit_datetime.end,
+                    "concept": "BASE",
+                }
+            ),
+            observation_window,
+        )
+
         df.loc[:, [c for c in unique_criteria if c not in df.columns]] = False
 
         for group_name, group in population_intervention.items():
@@ -485,7 +497,16 @@ class TestRecommendationBase(ABC):
         df["i"] = df[[c for c in df.columns if c.startswith("i_")]].any(axis=1)
         df["p_i"] = df[[c for c in df.columns if c.startswith("p_i_")]].any(axis=1)
 
-        return df
+        assert len(df_base) == len(df)
+
+        # &-combine all criteria with the base criterion to make sure that each criterion is only valid when the base
+        # criterion is valid
+        df = pd.merge(df_base, df, on=["person_id", "date"], how="left", validate="1:1")
+        df = df.set_index(["person_id", "date"])
+        df = df.apply(lambda x: x & df["BASE"])
+        df = df.drop(columns="BASE")
+
+        return df.reset_index()
 
     @staticmethod
     def expand_dataframe_by_date(
