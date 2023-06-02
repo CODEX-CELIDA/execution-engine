@@ -145,16 +145,19 @@ class TestExecutionMap:
         comb_i.add_all([c1, c2, c3])
         comb_pi.add_all([c1, c2, c3])
 
+        def n_selects_in_combination(nnf):
+            return len(nnf.selects[1].element.selects)
+
         nnf_p = ExecutionMap(comb_p).combine(CohortCategory.POPULATION)
-        assert len(nnf_p.selects) == 1
+        assert n_selects_in_combination(nnf_p) == 1
         assert nnf_p.compile().params["criterion_id_1"] == 1
 
         nnf_i = ExecutionMap(comb_i).combine(CohortCategory.INTERVENTION)
-        assert len(nnf_i.selects) == 1
+        assert n_selects_in_combination(nnf_i) == 1
         assert nnf_i.compile().params["criterion_id_1"] == 2
 
         nnf_pi = ExecutionMap(comb_pi).combine(CohortCategory.POPULATION_INTERVENTION)
-        assert len(nnf_pi.selects) == 3
+        assert n_selects_in_combination(nnf_pi) == 3
         assert nnf_pi.compile().params["criterion_id_1"] == 1
         assert nnf_pi.compile().params["criterion_id_2"] == 2
         assert nnf_pi.compile().params["criterion_id_3"] == 3
