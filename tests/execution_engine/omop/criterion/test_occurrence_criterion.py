@@ -231,7 +231,6 @@ class Occurrence(TestCriterion, ABC):
             ) == date_set(test_case["expected"])
 
     def insert_occurrences(self, concept, db_session, visit_occurrence, time_ranges):
-
         for tr in time_ranges:
             c = self.create_occurrence(
                 visit_occurrence=visit_occurrence,
@@ -267,10 +266,11 @@ class Occurrence(TestCriterion, ABC):
         )
 
         df = criterion_execute_func(concept=concept, exclude=True)
-        valid_daterange = self.invert_date_range(
-            time_range=observation_window,
-            subtract=time_ranges,
-        )
+        # exclusion is now performed only when combining the criteria into population/intervention
+        # valid_daterange = self.invert_date_range(
+        #    time_range=observation_window,
+        #    subtract=time_ranges,
+        # )
         assert (
             set(df.query(f"person_id=={p.person_id}")["valid_date"].dt.date)
             == valid_daterange

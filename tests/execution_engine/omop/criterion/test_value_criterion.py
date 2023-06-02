@@ -335,11 +335,12 @@ class ValueCriterion(TestCriterion, ABC):
         else:
             valid_dates = set()
 
-        if exclude:
-            valid_dates = self.invert_date_points(
-                time_range=observation_window,
-                subtract=valid_dates,
-            )
+        # exclusion is now only performed when combining criteria into population/intervention/population_intervention
+        # if exclude:
+        #    valid_dates = self.invert_date_points(
+        #        time_range=observation_window,
+        #        subtract=valid_dates,
+        #    )
 
         assert set(df["valid_date"].dt.date) == valid_dates
 
@@ -388,11 +389,9 @@ class ValueCriterion(TestCriterion, ABC):
         test_cases,
         exclude,
     ):
-
         vos = [pv[1] for pv in person_visit]
 
         for vo, tc in zip(vos, test_cases):
-
             times = [pendulum.parse(time) for time in tc["times"]]
 
             for value, time in zip(tc["value_db"], times):
@@ -416,9 +415,10 @@ class ValueCriterion(TestCriterion, ABC):
             df_person = df.query(f"{vo.person_id} == person_id")
             valid_dates = self.date_points(tc["expected"])
 
-            if exclude:
-                valid_dates = self.invert_date_points(
-                    time_range=observation_window,
-                    subtract=valid_dates,
-                )
+            # exclusion is now performed only when combining the criteria into population/intervention
+            # if exclude:
+            #    valid_dates = self.invert_date_points(
+            #        time_range=observation_window,
+            #        subtract=valid_dates,
+            #    )
             assert set(df_person["valid_date"].dt.date) == valid_dates

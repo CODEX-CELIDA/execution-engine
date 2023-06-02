@@ -108,6 +108,12 @@ class ConceptCriterion(Criterion):
 
         return query
 
+    def description(self) -> str:
+        """
+        Get a human-readable description of the criterion.
+        """
+        return f"{self.__class__.__name__}['{self._name}'](concept={self._concept.concept_name}, value={str(self._value)})"
+
     def dict(self) -> dict[str, Any]:
         """
         Get a JSON representation of the criterion.

@@ -8,7 +8,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from sqlalchemy import and_, insert, select
+from sqlalchemy import Index, and_, func, insert, select, text
 
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
@@ -56,7 +56,12 @@ from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db import result as result_db
 from execution_engine.omop.db.result import CohortDefinition as CohortDefinitionTable
-from execution_engine.omop.db.result import RecommendationResult, RecommendationRun
+from execution_engine.omop.db.result import (
+    RecommendationCriterion,
+    RecommendationResult,
+    RecommendationRun,
+)
+from execution_engine.omop.serializable import Serializable
 from execution_engine.util.sql import SelectInto
 
 
@@ -66,7 +71,6 @@ class ExecutionEngine:
     and creating an OMOP Cohort Definition from them."""
 
     def __init__(self, verbose: bool = False) -> None:
-
         self.setup_logging(verbose)
         self._fhir = fhir_client
         self._db = omopdb
@@ -245,6 +249,7 @@ class ExecutionEngine:
         for rec_plan in rec.plans():
             cd = CohortDefinition(
                 name=rec_plan.name,
+                url=rec_plan.url,
                 base_criterion=base_criterion,
             )
 
@@ -292,7 +297,7 @@ class ExecutionEngine:
         # fixme: potentially also register run_id as class variable
 
         with self._db.begin():
-            cd.id = self.register_cohort_definition(cd)
+            self.register_cohort_definition(cd)
             run_id = self.register_run(
                 cd, start_datetime=start_datetime, end_datetime=end_datetime
             )
@@ -334,41 +339,90 @@ class ExecutionEngine:
 
         return None
 
-    def register_cohort_definition(self, cd: CohortDefinitionCombination) -> int:
+    def register_cohort_definition(self, cd: CohortDefinitionCombination) -> None:
         """Registers the Cohort Definition in the result database."""
 
         cd_table = result_db.CohortDefinition
 
-        cd_json = cd.json()
-        cd_hash = hashlib.sha256(cd_json).hexdigest()
+        def _hash(obj: Serializable) -> tuple[bytes, str]:
+            json = obj.json()
+            return json, hashlib.sha256(json).hexdigest()
 
+        cd_json, cd_hash = _hash(cd)
         query = select(cd_table).where(cd_table.cohort_definition_hash == cd_hash)
 
         with self._db.begin() as con:
-
             cd_db = con.execute(query).fetchone()
 
             if cd_db is not None:
-                return cd_db.cohort_definition_id
-
-            query = (
-                insert(result_db.CohortDefinition)
-                .values(
-                    recommendation_name=cd.name,
-                    recommendation_title=cd.title,
-                    recommendation_url=cd.url,
-                    recommendation_version=cd.version,
-                    cohort_definition_hash=cd_hash,
-                    cohort_definition_json=cd_json,
-                    create_datetime=datetime.now(),
+                cd.id = cd_db.cohort_definition_id
+            else:
+                query = (
+                    insert(result_db.CohortDefinition)
+                    .values(
+                        recommendation_name=cd.name,
+                        recommendation_title=cd.title,
+                        recommendation_url=cd.url,
+                        recommendation_version=cd.version,
+                        cohort_definition_hash=cd_hash,
+                        cohort_definition_json=cd_json,
+                        create_datetime=datetime.now(),
+                    )
+                    .returning(result_db.CohortDefinition.cohort_definition_id)
                 )
-                .returning(result_db.CohortDefinition.cohort_definition_id)
-            )
 
-            result = con.execute(query)
-            cd.id = result.fetchone().cohort_definition_id
+                result = con.execute(query)
+                cd.id = result.fetchone().cohort_definition_id
 
-        return cd.id
+            for cd_plan in cd:
+                _, cd_plan_hash = _hash(cd_plan)
+                query = select(result_db.RecommendationPlan).where(
+                    result_db.RecommendationPlan.recommendation_plan_hash
+                    == cd_plan_hash
+                )
+                cd_plan_db = con.execute(query).fetchone()
+
+                if cd_plan_db is not None:
+                    cd_plan.id = cd_plan_db.plan_id
+                else:
+                    query = (
+                        insert(result_db.RecommendationPlan)
+                        .values(
+                            cohort_definition_id=cd.id,
+                            recommendation_plan_url=cd_plan.url,
+                            recommendation_plan_name=cd_plan.name,
+                            recommendation_plan_hash=cd_plan_hash,
+                        )
+                        .returning(result_db.RecommendationPlan.plan_id)
+                    )
+
+                    result = con.execute(query)
+                    cd_plan.id = result.fetchone().plan_id
+
+                for criterion in cd_plan.criteria():
+                    _, crit_hash = _hash(criterion)
+
+                    query = select(result_db.RecommendationCriterion).where(
+                        result_db.RecommendationCriterion.criterion_hash == crit_hash
+                    )
+
+                    criterion_db = con.execute(query).fetchone()
+
+                    if criterion_db is not None:
+                        criterion.id = criterion_db.criterion_id
+                    else:
+                        query = (
+                            insert(result_db.RecommendationCriterion)
+                            .values(
+                                criterion_hash=crit_hash,
+                                criterion_name=criterion.unique_name(),
+                                criterion_description=criterion.description(),
+                            )
+                            .returning(result_db.RecommendationCriterion.criterion_id)
+                        )
+
+                        result = con.execute(query)
+                        criterion.id = result.fetchone().criterion_id
 
     def register_run(
         self,
@@ -425,13 +479,24 @@ class ExecutionEngine:
         """Executes the Cohort Definition"""
         with self._db.begin() as con:
             for statement in cd.process():
+                if isinstance(statement, Index):
+                    statement.create(bind=con, checkfirst=True)
+                    continue
 
+                description = statement.description  # noqa
                 self._db.log_query(statement.select, params)
 
-                r = con.execute(
-                    statement,
-                    params,
-                )
+                if not isinstance(statement, SelectInto):
+                    rows = select(func.count("*").label("rowcount")).select_from(
+                        statement.returning(text("1")).cte("rows")
+                    )
+                    with con.execute(rows, params) as result:
+                        r = result.fetchone()
+                else:
+                    r = con.execute(
+                        statement,
+                        params,
+                    )
 
                 logging.debug(
                     f"Inserted {r.rowcount} rows into {statement.into.name if type(statement)==SelectInto else statement.table.name}."
@@ -450,18 +515,19 @@ class ExecutionEngine:
         assert isinstance(run_id, int)
 
         t = RecommendationResult.__table__.alias("result")
+        t_criterion = RecommendationCriterion.__table__.alias("criteria")
         query = (
             select(
                 t.c.cohort_category,
-                t.c.recommendation_plan_name,
-                t.c.criterion_name,
+                t_criterion.c.name,
                 t.c.person_id,
             )
             .select_from(t)
+            .join(t_criterion)
             .filter(
                 and_(
                     t.c.recommendation_run_id == run_id,
-                    t.c.recommendation_plan_name.is_(None),
+                    t.c.plan_id.is_(None),
                 )
             )
         )

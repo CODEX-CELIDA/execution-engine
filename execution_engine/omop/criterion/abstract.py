@@ -12,7 +12,6 @@ from sqlalchemy import (
     Table,
     and_,
     bindparam,
-    distinct,
     func,
     literal_column,
     select,
@@ -20,7 +19,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select, TableClause
 from sqlalchemy.sql.functions import concat
-from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
@@ -35,6 +33,7 @@ from execution_engine.omop.db.cdm import (
     VisitDetail,
     VisitOccurrence,
 )
+from execution_engine.omop.serializable import Serializable
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]
@@ -49,12 +48,13 @@ Domain = TypedDict(
 )
 
 
-class AbstractCriterion(ABC):
+class AbstractCriterion(Serializable, ABC):
     """
     Abstract base class for Criterion and CriterionCombination.
     """
 
     def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
+        self._id = None
         self._name: str = re.sub(r"[ \t]", "-", name)
         self._exclude: bool = exclude
 
@@ -128,29 +128,25 @@ class AbstractCriterion(ABC):
     def unique_name(self) -> str:
         """
         Get a unique name for the criterion.
+
+        The name is based on the JSON representation of the criterion, i.e. multiple objects with the same parameters
+        will have the same name (in that sense, the uniqueness is related to the parameters, not the object itself).
         """
-        # fixme: will be difficult in the user interface to understand where this name comes from
-        # fixme: can we generate a name that is more readable? Or otherwise link it to the FHIR element it came from?
+        # exclusion is only performed during combination of criteria, and therefore criteria behave the same
+        # independent of whether they are excluded or not. this should be reflected in the name (therefore we remove
+        # the exclude flag from the name)
+        criterion_dict = self.dict()
+        criterion_dict.pop("exclude", None)
+
         s = json.dumps(self.dict(), sort_keys=True)
+
         hash_ = hashlib.md5(  # nosec (just used for naming, not security related)
             s.encode()
         ).hexdigest()
-        return f"{self.name}_{hash_}"
 
-    @abstractmethod
-    def dict(self) -> dict[str, Any]:
-        """
-        Get the JSON representation of the criterion.
-        """
-        raise NotImplementedError()
+        exclude_str = "(NOT)" if self.exclude else ""
 
-    @classmethod
-    @abstractmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AbstractCriterion":
-        """
-        Create a criterion from a JSON object.
-        """
-        raise NotImplementedError()
+        return f"{self.name}{exclude_str}_{hash_}"
 
 
 class Criterion(AbstractCriterion):
@@ -258,10 +254,6 @@ class Criterion(AbstractCriterion):
 
         c = self._table.c.person_id.label("person_id")
 
-        # todo: remove if not required
-        # if distinct_person:
-        #    c = distinct(c).label("person_id")
-
         query = select(c).select_from(self._table)
 
         if person_id is None:
@@ -315,7 +307,8 @@ class Criterion(AbstractCriterion):
         query = self._sql_generate(query)
         query = self._insert_datetime(query)
         query = self._select_per_day(query)
-        query = self._process_exclude(query)
+
+        query.description = self.description()
 
         return query
 
@@ -335,7 +328,6 @@ class Criterion(AbstractCriterion):
     def _get_datetime_column(
         self, table: TableClause, type_: str = "start"
     ) -> sqlalchemy.Column:
-
         table_name = table.original.name
 
         candidate_prefixes = [
@@ -459,58 +451,6 @@ class Criterion(AbstractCriterion):
 
         return person_dates
 
-    def _process_exclude(self, query: str | Select) -> Select:
-        """
-        Converts a query, which returns a list of dates (one per row) per person_id, to a query that return a list of
-        all days (per person_id) that are within the time range given by observation_start_datetime
-        and observation_end_datetime but that are not included in the result of the original query.
-
-        I.e. it performs the following set operation:
-        set({day | observation_start_datetime <= day <= observation_end_datetime}) - set(days_from_original_query}
-        """
-
-        assert isinstance(query, Select | CTE), "query must be instance of Select"
-
-        if self._exclude:
-            distinct_persons = select(
-                distinct(self._base_table.c.person_id).label("person_id")
-            ).cte("distinct_persons")
-            fixed_date_range = (
-                select(
-                    distinct_persons.c.person_id,
-                    func.generate_series(
-                        bindparam("observation_start_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        bindparam("observation_end_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        func.cast(concat(1, "day"), INTERVAL),
-                    )
-                    .cast(Date)
-                    .label("valid_date"),
-                )
-                .select_from(distinct_persons)
-                .cte("fixed_date_range")
-            )
-
-            query = query.cte("person_dates")
-
-            query = (
-                select(fixed_date_range.c.person_id, fixed_date_range.c.valid_date)
-                .select_from(
-                    fixed_date_range.outerjoin(
-                        query,
-                        (fixed_date_range.c.person_id == query.c.person_id)
-                        & (fixed_date_range.c.valid_date == query.c.valid_date),
-                    )
-                )
-                .where(query.c.valid_date.is_(None))
-                .order_by(fixed_date_range.c.person_id, fixed_date_range.c.valid_date)
-            )
-
-        return query
-
     def sql_select_data(self, person_id: int | None = None) -> Select:
         """
         Get patient data for this criterion
@@ -540,6 +480,7 @@ class Criterion(AbstractCriterion):
             raise ValueError("query must be a Select or CTE")
 
         query = select_into(query, table, temporary=temporary)
+        query.description = query.select.description
 
         return query
 
@@ -548,5 +489,12 @@ class Criterion(AbstractCriterion):
     def from_dict(cls, data: Dict[str, Any]) -> "Criterion":
         """
         Create a criterion from a JSON object.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def description(self) -> str:
+        """
+        Return a description of the criterion.
         """
         raise NotImplementedError()

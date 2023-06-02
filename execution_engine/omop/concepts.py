@@ -62,7 +62,7 @@ class CustomConcept(Concept):
         )
 
     @property
-    def id(self) -> int:  # type: ignore # todo: fix this (Signature of "id" incompatible with supertype "Concept")
+    def id(self) -> int:
         """
         Returns the concept id.
         """

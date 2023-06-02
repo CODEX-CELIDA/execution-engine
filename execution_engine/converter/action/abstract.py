@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Type, final
+from typing import Self, Type, final
 
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.converter import CriterionConverter
@@ -42,7 +42,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
     @classmethod
     @abstractmethod
-    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 

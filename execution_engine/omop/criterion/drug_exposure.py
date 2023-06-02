@@ -64,13 +64,11 @@ class DrugExposure(Criterion):
         return query
 
     def _sql_generate(self, query: Select) -> Select:
-
         drug_exposure = self._table
 
         query = self._sql_filter_concept(query)
 
         if self._dose is not None:
-
             if self._route is not None:
                 # route is not implemented yet because it uses HemOnc codes in the standard vocabulary
                 # (cf concept_class_id = 'Route') but these are not standard codes and HemOnc might not be
@@ -223,6 +221,18 @@ class DrugExposure(Criterion):
         )
 
         return query
+
+    def description(self) -> str:
+        """
+        Get a human-readable description of the criterion.
+        """
+        return (
+            f"{self.__class__.__name__}['{self._name}']("
+            f"ingredient={self._ingredient_concept.concept_name}, "
+            f"dose={str(self._dose)}, frequency={self._frequency}/{self._interval}, "
+            f"route={self._route.concept_name if self._route is not None else None} "
+            f")"
+        )
 
     def dict(self) -> dict[str, Any]:
         """
