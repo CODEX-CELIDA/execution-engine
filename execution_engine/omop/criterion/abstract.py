@@ -132,10 +132,9 @@ class AbstractCriterion(Serializable, ABC):
         The name is based on the JSON representation of the criterion, i.e. multiple objects with the same parameters
         will have the same name (in that sense, the uniqueness is related to the parameters, not the object itself).
         """
-        # fixme: will be difficult in the user interface to understand where this name comes from
-        # fixme: can we generate a name that is more readable? Or otherwise link it to the FHIR element it came from?
         # exclusion is only performed during combination of criteria, and therefore criteria behave the same
-        # independent of whether they are excluded or not
+        # independent of whether they are excluded or not. this should be reflected in the name (therefore we remove
+        # the exclude flag from the name)
         criterion_dict = self.dict()
         criterion_dict.pop("exclude", None)
 
@@ -254,10 +253,6 @@ class Criterion(AbstractCriterion):
         """
 
         c = self._table.c.person_id.label("person_id")
-
-        # todo: remove if not required
-        # if distinct_person:
-        #    c = distinct(c).label("person_id")
 
         query = select(c).select_from(self._table)
 

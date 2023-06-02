@@ -101,6 +101,7 @@ async def recommendation_criteria(recommendation_url: str) -> dict:
         data.append(
             {
                 "unique_name": c.unique_name(),
+                "description": c.description(),
                 "cohort_category": c.category,
                 "concept_name": c.concept.concept_name.title(),
             }
@@ -173,6 +174,6 @@ async def patient_data(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(  # nosec (binding to all interfaces is desired)
-        app, host="0.0.0.0", port=8001
+    uvicorn.run(
+        app, host="0.0.0.0", port=8001  # nosec (binding to all interfaces is desired)
     )

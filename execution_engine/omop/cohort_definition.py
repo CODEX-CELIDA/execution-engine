@@ -282,10 +282,8 @@ class CohortDefinition(Serializable):
             logging.info(f"Processing {criterion.description()}")
 
             query = criterion.sql_generate(base_table=base_table)
-            # fixme: remove (used for debugging only)
-            str(query)
-
             self._assert_base_table_in_select(query, base_table.name)
+
             query = add_result_insert(
                 query,
                 plan_id=self.id,

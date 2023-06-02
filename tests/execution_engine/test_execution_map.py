@@ -172,8 +172,7 @@ class TestExecutionMap:
         # Check if the sequential method returns the correct criteria
         assert set([str(s) for s in seq]) == {str(c) for c in comb[1:8]}
 
-    # todo: reinstanstiate
-    def DISABLED_test_combine(self, comb):
+    def DISABLED_test_combined_statement(self, comb):
         comb1_and_incl, *_ = comb
 
         em = ExecutionMap(comb1_and_incl)
@@ -188,14 +187,26 @@ class TestExecutionMap:
         query = sort_numbers_in_string(query)
         query = query.replace("&", "INTERSECT")
         query = query.replace("|", "UNION")
-        query = query.replace(
-            "~", ""
-        )  # this is handled by the actual selection SQL of the criteria
+        # query = re.sub("~(c\d+)", "", query)
+        #
+        #     query.replace(
+        #     "~", ""
+        # )  # this is handled by the actual selection SQL of the criteria
         query = query.replace(
             "c",
-            "SELECT celida.recommendation_result.person_id, celida.recommendation_result.valid_date \nFROM celida.recommendation_result \nWHERE celida.recommendation_result.recommendation_run_id = :run_id AND celida.recommendation_result.criterion_name = :criterion_name_",
+            "SELECT celida.recommendation_result.person_id, celida.recommendation_result.valid_date \n"
+            "FROM celida.recommendation_result \n"
+            "WHERE celida.recommendation_result.recommendation_run_id = :run_id AND celida.recommendation_result.criterion_id = :criterion_id_",
         )
-        assert query == str(combined_sql)
+
+        cte = (
+            "WITH fixed_date_range AS\n"
+            "(SELECT celida.recommendation_result.person_id AS person_id, celida.recommendation_result.valid_date AS valid_date\n"
+            "FROM celida.recommendation_result\n"
+            "WHERE celida.recommendation_result.recommendation_run_id = :run_id AND celida.recommendation_result.cohort_category = :cohort_category_1)"
+        )
+
+        assert query == str(cte + combined_sql)
 
     def test_invalid_operator(self):
         c1 = MockCriterion("c1")
