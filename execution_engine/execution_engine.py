@@ -8,7 +8,7 @@ from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from sqlalchemy import Index, and_, insert, select
+from sqlalchemy import Index, and_, func, insert, select, text
 
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
@@ -486,13 +486,17 @@ class ExecutionEngine:
                 description = statement.description  # noqa
                 self._db.log_query(statement.select, params)
 
-                # if not isinstance(statement, SelectInto):
-                #    rows = select(func.count('*')).select_from(statement.returning(text('1')).cte('rows'))
-
-                r = con.execute(
-                    statement,
-                    params,
-                )
+                if not isinstance(statement, SelectInto):
+                    rows = select(func.count("*").label("rowcount")).select_from(
+                        statement.returning(text("1")).cte("rows")
+                    )
+                    with con.execute(rows, params) as result:
+                        r = result.fetchone()
+                else:
+                    r = con.execute(
+                        statement,
+                        params,
+                    )
 
                 logging.debug(
                     f"Inserted {r.rowcount} rows into {statement.into.name if type(statement)==SelectInto else statement.table.name}."
