@@ -52,6 +52,8 @@ class OMOPSQLClient:
     ) -> None:
         """Initialize the OMOP SQL client."""
 
+        self._timezone = timezone
+
         self._schema = schema
         connection_string = (
             f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
@@ -63,6 +65,22 @@ class OMOPSQLClient:
             future=True,
         )
 
+        self._sessionmaker = sqlalchemy.orm.sessionmaker(bind=self._engine, future=True)
+
+        self._metadata = base.metadata
+        self._metadata.bind = self._engine
+
+        self._setup_events()
+        self._init_tables()
+
+        self._vocabulary_logger = self._setup_logger("vocabulary")
+        self._query_logger = self._setup_logger("query")
+
+    def _setup_events(self) -> None:
+        """
+        Set up events for the database connection.
+        """
+
         @event.listens_for(self._engine, "connect")
         def set_timezone(
             dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
@@ -73,20 +91,24 @@ class OMOPSQLClient:
             cursor = dbapi_connection.cursor()
             cursor.execute(
                 "SELECT set_config('TIMEZONE', %(timezone)s, false)",
-                {"timezone": timezone},
+                {"timezone": self._timezone},
             )
             cursor.close()
 
-        self._metadata = base.metadata
-        self._metadata.bind = self._engine
+        # @event.listens_for(self._engine, "before_cursor_execute")
+        # def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        #    conn.info.setdefault("query_start_time", []).append(time.time())
+        #    logging.debug("Start Query: %s", statement)
 
-        self._init_tables()
+        # @event.listens_for(self._engine, "after_cursor_execute")
+        # def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        #    total = time.time() - conn.info["query_start_time"].pop(-1)
+        #    logging.debug("Query Complete!")
+        #    logging.debug("Total Time: %f", total)
 
-        self._vocabulary_logger = self._setup_logger("vocabulary")
-        self._query_logger = self._setup_logger("query")
-
-    def _setup_logger(self, name: str) -> logging.Logger:
-        """Setup a logger for the given name.
+    @staticmethod
+    def _setup_logger(name: str) -> logging.Logger:
+        """Set up a logger for the given name.
 
         Parameters
         ----------
@@ -113,6 +135,12 @@ class OMOPSQLClient:
                 con.execute(sqlalchemy.schema.CreateSchema(schema))
 
             self._metadata.create_all(bind=con)
+
+    def session(self) -> sqlalchemy.orm.Session:
+        """
+        Get a new session.
+        """
+        return self._sessionmaker()
 
     def connect(self) -> sqlalchemy.engine.Connection:
         """

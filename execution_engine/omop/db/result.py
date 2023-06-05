@@ -145,3 +145,26 @@ class RecommendationResult(Base):  # noqa: D101
     #    "cds_cdm.person",
     #    primaryjoin="RecommendationResult.person_id == cds_cdm.person.person_id",
     # )
+
+
+class Comment(Base):  # noqa: D101
+    __tablename__ = "comment"
+
+    comment_id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    cohort_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.cohort_definition.cohort_definition_id"),
+        index=True,
+        nullable=True,
+    )
+
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
+    )
+
+    comment: Mapped[str]
+    datetime: Mapped[datetime]

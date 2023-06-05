@@ -1,11 +1,16 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.app_state import AppState
 from app.main import app
 
 
 @pytest.mark.recommendation
 class TestAppEndpoints:
+    @pytest.fixture(scope="class", autouse=True)
+    def startup_event(self):
+        AppState.initialize()
+
     @pytest.fixture
     def client(self, db_session):
         with TestClient(app) as client:
