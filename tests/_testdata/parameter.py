@@ -122,6 +122,14 @@ CERTOPARIN = CriterionDefinition(
     static=False,
     concept_id=concepts.CERTOPARIN,
 )
+TINZAPARIN = CriterionDefinition(
+    name="TINZAPARIN",
+    type="drug",
+    dosage_threshold=4500,
+    doses_per_day=1,
+    static=False,
+    concept_id=concepts.TINZAPARIN,
+)
 FONDAPARINUX_PROPHYLACTIC = CriterionDefinition(
     name="FONDAPARINUX_PROPHYLACTIC",
     type="drug",

@@ -29,7 +29,7 @@ class AppState:
             "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
             # "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
             # "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
-            # "covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-ards-peep",
+            # "covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-peep",
             # "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation",
             # "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation",
             # "covid19-inpatient-therapy/recommendation/covid19-abdominal-positioning-ards",

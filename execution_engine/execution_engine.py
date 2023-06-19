@@ -487,7 +487,9 @@ class ExecutionEngine:
                 self._db.log_query(statement.select, params)
 
                 if not isinstance(statement, SelectInto):
-                    rows = select(func.count("*").label("rowcount")).select_from(
+                    rows = select(
+                        func.count("*").label("rowcount")
+                    ).select_from(  # workaround to get actual inserted rowcount
                         statement.returning(text("1")).cte("rows")
                     )
                     with con.execute(rows, params) as result:
