@@ -75,10 +75,9 @@ def parse_value(value_parent: Element, value_prefix: str) -> Value:
     elif isinstance(value, Quantity):
         value_obj = ValueNumber(
             value=value.value,
-            unit=standard_vocabulary.get_standard_unit_concept(value.unit),
+            unit=standard_vocabulary.get_standard_unit_concept(value.code),
         )
     elif isinstance(value, Range):
-
         if value.low is not None and value.high is not None:
             assert (
                 value.low.code == value.high.code
