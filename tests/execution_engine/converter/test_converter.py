@@ -111,7 +111,7 @@ class TestParseValue:
             mock_get_standard_unit_concept,
         )
 
-        quantity = Quantity.construct(value=42, unit="kg")
+        quantity = Quantity.construct(value=42, code="kg")
         elem = Extension.construct(valueQuantity=quantity)
 
         value = parse_value(elem, "value")
