@@ -23,7 +23,9 @@ class FHIRClient:
         logging.info(f"Requesting resource: {canonical_url}")
 
         try:
-            r = requests.get(f"{self.base_url}/{element_type}?url={canonical_url}")
+            r = requests.get(
+                f"{self.base_url}/{element_type}?url={canonical_url}", timeout=10
+            )
         except ConnectionRefusedError:
             raise ConnectionRefusedError(
                 f"Could not connect to FHIR server at {self.base_url}"

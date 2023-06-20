@@ -58,6 +58,7 @@ class FHIRTerminologyClient:
             f"{self.server_url}/ValueSet/$expand",
             json=parameters,
             headers={"ACCEPT": "application/fhir+json"},
+            timeout=30,
         )
         return [c["code"] for c in r.json()["expansion"]["contains"]]
 
@@ -68,9 +69,17 @@ class FHIRTerminologyClient:
         r = requests.get(
             f"{self.server_url}/ValueSet/?url={url}",
             headers={"ACCEPT": "application/fhir+json"},
+            timeout=10,
         )
 
-        assert r.status_code == 200, f"Error getting value set {url}: {r.text}"
+        if r.status_code == 500:
+            raise FHIRTerminologyServerException(
+                f"Error getting value set {url}: Internal server error"
+            )
+        elif r.status_code != 200:
+            raise FHIRTerminologyServerException(
+                f"Error getting value set {url}: Status Code {r.status_code}\n{r.text}"
+            )
 
         json = r.json()
         if json["resourceType"] != "Bundle":
