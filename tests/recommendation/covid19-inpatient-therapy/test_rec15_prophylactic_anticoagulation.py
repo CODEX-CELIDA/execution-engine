@@ -25,16 +25,16 @@ class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
     def population_intervention(self) -> dict:
         return {
             "AntithromboticProphylaxisWithLWMH": {
-                "population": "COVID19 & ~VENOUS_THROMBOSIS & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY | THROMBOCYTOPENIA)",
-                "intervention": "DALTEPARIN< | ENOXAPARIN< | NADROPARIN_LOW_WEIGHT< | NADROPARIN_HIGH_WEIGHT< | CERTOPARIN<",
+                "population": "COVID19 & ~VENOUS_THROMBOSIS & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
+                "intervention": "DALTEPARIN= | ENOXAPARIN= | NADROPARIN_LOW_WEIGHT= | NADROPARIN_HIGH_WEIGHT= | CERTOPARIN= | TINZAPARIN= ",
             },
             "AntithromboticProphylaxisWithFondaparinux": {
-                "population": "COVID19 & ~VENOUS_THROMBOSIS & (HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY | THROMBOCYTOPENIA)",
+                "population": "COVID19 & ~VENOUS_THROMBOSIS & (HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
                 "intervention": "FONDAPARINUX_PROPHYLACTIC=",
             },
             "NoAntithromboticProphylaxis": {
                 "population": "COVID19 & VENOUS_THROMBOSIS",
-                "intervention": "~(DALTEPARIN< | ENOXAPARIN< | NADROPARIN_LOW_WEIGHT< | NADROPARIN_HIGH_WEIGHT< | CERTOPARIN< | FONDAPARINUX_PROPHYLACTIC=)",
+                "intervention": "~(DALTEPARIN= | ENOXAPARIN= | NADROPARIN_LOW_WEIGHT= | NADROPARIN_HIGH_WEIGHT= | CERTOPARIN= | TINZAPARIN= | FONDAPARINUX_PROPHYLACTIC=)",
             },
         }
 
@@ -48,7 +48,6 @@ class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
         observation_window: TimeRange,
         recommendation_url: str,
     ) -> None:
-
         self.recommendation_test_runner(
             recommendation_url=recommendation_url,
             observation_window=observation_window,

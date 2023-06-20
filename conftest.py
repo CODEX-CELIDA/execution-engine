@@ -32,6 +32,7 @@ def postgres_janitor() -> DatabaseJanitor:
         dbname=pg_name,
         password=pg_pass,
         version="16",
+        connection_timeout=5,
     )
 
     return janitor
