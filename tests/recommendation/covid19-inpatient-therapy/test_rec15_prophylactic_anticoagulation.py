@@ -25,11 +25,11 @@ class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
     def population_intervention(self) -> dict:
         return {
             "AntithromboticProphylaxisWithLWMH": {
-                "population": "COVID19 & ~VENOUS_THROMBOSIS & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY | THROMBOCYTOPENIA)",
+                "population": "COVID19 & ~VENOUS_THROMBOSIS & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
                 "intervention": "DALTEPARIN= | ENOXAPARIN= | NADROPARIN_LOW_WEIGHT= | NADROPARIN_HIGH_WEIGHT= | CERTOPARIN= | TINZAPARIN= ",
             },
             "AntithromboticProphylaxisWithFondaparinux": {
-                "population": "COVID19 & ~VENOUS_THROMBOSIS & (HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY | THROMBOCYTOPENIA)",
+                "population": "COVID19 & ~VENOUS_THROMBOSIS & (HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
                 "intervention": "FONDAPARINUX_PROPHYLACTIC=",
             },
             "NoAntithromboticProphylaxis": {
