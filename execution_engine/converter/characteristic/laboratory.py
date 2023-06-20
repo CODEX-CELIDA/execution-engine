@@ -30,10 +30,10 @@ class LaboratoryCharacteristic(AbstractValueCharacteristic):
         # todo: needs to provided to the server because it is not an official value set
         try:
             codes = tx_client.get_value_set(VS_LABORATORY_OBSERVATIONS)
-        except FHIRTerminologyServerException:
+        except FHIRTerminologyServerException as e:
             logging.warning(
                 f"Terminology server returned error for value set {VS_LABORATORY_OBSERVATIONS}, falling back to system check only."
-                "Error: {e}"
+                f"Error: {e}"
             )
             return LOINC.is_system(cc.system)
         except ValueSetEmptyException:
