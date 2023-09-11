@@ -3,4 +3,4 @@ pytest-postgresql==5.0.0
 tqdm==4.66.1
 pytest-cov==4.1.0
 pytest-env==0.8.2
-httpx==0.24.1
+httpx==0.25.0
