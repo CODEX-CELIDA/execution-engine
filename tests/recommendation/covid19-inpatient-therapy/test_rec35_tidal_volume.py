@@ -25,7 +25,7 @@ class TestRecommendation35TidalVolume(TestRecommendationBase):
         return {
             "Ventilation_Plan": {
                 "population": "COVID19 & VENTILATED & ARDS",
-                "intervention": "TIDAL_VOLUME< & PMAX<",
+                "intervention": "TIDAL_VOLUME< & PPLATEAU<",
             },
         }
 

@@ -26,9 +26,7 @@ class TestAppEndpoints:
             race_concept_id=0,
             ethnicity_concept_id=0,
         )
-        c = Comment(
-            comment_id=1, person_id=1, text="test comment", datetime=datetime.now()
-        )
+        c = Comment(person_id=1, text="test comment", datetime=datetime.now())
         db_session.add_all([p, c])
         db_session.commit()
 
@@ -54,9 +52,13 @@ class TestAppEndpoints:
 
     def test_create_comment(self, client):
         # Assuming there is a person with id 1
-        comment_data = {"text": "test comment", "person_id": 1}
-        response = client.post("/comments/", data=CommentCreate(**comment_data))
-        assert response.status_code == status.HTTP_201_CREATED
+        comment_data = {
+            "text": "test comment",
+            "person_id": 1,
+            "datetime": datetime.now(),
+        }
+        response = client.post("/comments/", data=CommentCreate(**comment_data).json())
+        assert response.status_code == status.HTTP_200_OK
         # Further assertions can be done on the response content
 
     def test_recommendation_list(self, client):

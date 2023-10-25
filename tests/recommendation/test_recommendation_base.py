@@ -552,7 +552,7 @@ class TestRecommendationBase(ABC):
         df_pivot.columns = ["person_id", "date"] + [col for col in df_pivot.columns[2:]]
 
         # Fill the new concept columns with True where the condition is met
-        df_pivot[df_pivot.columns[2:]] = df_pivot[df_pivot.columns[2:]].applymap(
+        df_pivot[df_pivot.columns[2:]] = df_pivot[df_pivot.columns[2:]].map(
             lambda x: x > 0
         )
 

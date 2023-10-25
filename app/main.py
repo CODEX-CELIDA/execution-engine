@@ -1,4 +1,6 @@
 import sys
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
 
 from app.app_state import AppState
 from app.routers import comment, patient, recommendation
@@ -7,16 +9,18 @@ sys.path.append("..")
 
 from fastapi import FastAPI
 
-app = FastAPI()
 
-
-@app.on_event("startup")
-async def startup_event() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
-    Load all recommendations
-    Returns: None
+    Initialize the app state before the server starts and clean up after the server stops.
     """
+    # Load all recommendations
     AppState.initialize()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/")

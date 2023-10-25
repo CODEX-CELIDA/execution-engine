@@ -1,11 +1,11 @@
 import pandas as pd
 import pytest
-from _fixtures.concept import concept_unit_hour
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.util import ValueNumber
+from tests._fixtures.concept import concept_unit_hour
 from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence
 from tests.functions import create_procedure
 
@@ -50,8 +50,9 @@ class TestProcedureOccurrence(Occurrence):
         _, vo = person_visit[0]
 
         time_ranges = [
-            ("2023-03-04 18:00:00", "2023-03-04 19:30:00"),
-            ("2023-03-04 20:00:00", "2023-03-04 21:30:00"),
+            ("2023-03-04 18:00:00", "2023-03-04 19:30:00", False),
+            ("2023-03-04 20:00:00", "2023-03-04 21:30:00", False),
+            ("2023-03-05 19:30:00", "2023-03-05 21:30:00", True),
         ]
 
         def criterion_execute_func_timing(

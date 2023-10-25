@@ -209,14 +209,14 @@ TIDAL_VOLUME = CriterionDefinition(
     unit_concept_id=concepts.UNIT_ML,
     concept_id=concepts.TIDAL_VOLUME,
 )
-PMAX = CriterionDefinition(
-    name="PMAX",
+PPLATEAU = CriterionDefinition(
+    name="PPLATEAU",
     type="measurement",
     threshold=30,
     occurrences_per_day=[6, 30],
     static=False,
     unit_concept_id=concepts.UNIT_CM_H2O,
-    concept_id=concepts.PRESSURE_MAX,
+    concept_id=concepts.PRESSURE_PLATEAU,
 )
 
 FiO2 = CriterionDefinition(

@@ -107,9 +107,7 @@ class RecommendationResult(Base):  # noqa: D101
     )
 
     recommendation_result_id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        index=True,
+        Integer, primary_key=True, index=True, autoincrement=True
     )
     recommendation_run_id = mapped_column(
         ForeignKey("celida.recommendation_run.recommendation_run_id"),

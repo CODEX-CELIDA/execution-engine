@@ -10,7 +10,7 @@ class CommentBase(BaseModel):
 
     cohort_definition_id: int | None = Field(None, index=True)
     person_id: int = Field(..., index=True)
-    comment: str
+    text: str
     datetime: datetime
 
 

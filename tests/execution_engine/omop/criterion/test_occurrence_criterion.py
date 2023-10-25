@@ -253,13 +253,15 @@ class Occurrence(TestCriterion, ABC):
     ):
         p, vo = person_visit[0]
 
-        time_ranges = [TimeRange.from_tuple(tr) for tr in time_ranges]
+        valid_range = [tr[2] if len(tr) > 2 else True for tr in time_ranges]
+        time_ranges = [TimeRange.from_tuple(tr[:2]) for tr in time_ranges]
+        filtered_time_ranges = [tr for tr, v in zip(time_ranges, valid_range) if v]
 
         self.insert_occurrences(concept, db_session, vo, time_ranges)
 
         # run criterion against db
         df = criterion_execute_func(concept=concept, exclude=False)
-        valid_daterange = self.date_ranges(time_ranges)
+        valid_daterange = self.date_ranges(filtered_time_ranges)
         assert (
             set(df.query(f"person_id=={p.person_id}")["valid_date"].dt.date)
             == valid_daterange
