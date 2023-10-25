@@ -15,42 +15,66 @@ Usage
 
 ### Standalone
 
-The following example shows how to generate a cohort definition from a recommendation in [CPG-on-EBM-on-FHIR format](https://ceosys.github.io/cpg-on-ebm-on-fhir/)
+
+The following example shows how to generate a cohort definition from multiple recommendations in [CPG-on-EBM-on-FHIR format](https://ceosys.github.io/cpg-on-ebm-on-fhir/)
 and execute it on a target OMOP CDM database.
 
-```python
-from datetime import datetime, timedelta
+1. Clone this git repository
+    ```bash
+    git clone https://github.com/CODEX-CELIDA/execution-engine
+    ```
 
-from execution_engine import ExecutionEngine
+2. Setup conda (or venv) environment and install requirements (Python 3.11 required):
+    ```bash
+    conda create -n execution-engine python=3.11
+    conda activate execution-engine
+    pip install -r requirements.txt
+    ```
 
-# Specify canonical URL of recommendation to process
-base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
-recommendation_url = "sepsis/recommendation/ventilation-plan-ards-tidal-volume"
+3. Create an .env file (see [Configuration](#configuration))
 
+4. Run the following code
 
-# Set the time window of patient data that should be checked against the recommendation
-# This example uses the past week
-end_datetime = datetime.today()
-start_datetime = end_datetime - timedelta(days=7)
+   ```python
+   import pendulum
+   import logging
 
-# Initialize execution engine
-e = ExecutionEngine()
+   import os
+   os.chdir("/path/to/execution-engine-git-repository")
 
-# Load recommendation
-cdd = e.load_recommendation(base_url + recommendation_url)
+   from execution_engine.execution_engine import ExecutionEngine
 
-# Execute recommendation
-run_id = e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)
+   base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
 
-# Get results
-e.fetch_patients(run_id)
-e.fetch_criteria(run_id)
-e.fetch_patient_data(person_id, criterion_name, cdd, start_datetime, end_datetime)
-```
+   urls = [
+       "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
+       "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
+       "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
+       "covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-peep",
+       "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation",
+       "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation",
+       "covid19-inpatient-therapy/recommendation/covid19-abdominal-positioning-ards",
+   ]
+
+   start_datetime = pendulum.parse("2020-01-01 00:00:00+01:00")
+   end_datetime = pendulum.parse("2023-05-31 23:59:59+01:00")
+
+   e = ExecutionEngine()
+   logging.getLogger().setLevel(logging.DEBUG)
+
+   for recommendation_url in urls:
+       print(recommendation_url)
+       cdd = e.load_recommendation(base_url + recommendation_url)
+
+       e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)
+   ```
 
 The results are written in the OMOP database (see [Configuration](#configuration)) in the schema `celida`.
 
 ### FastAPI Web Service
+
+> [!WARNING]
+> The FastAPI Web Service documentation is outdated
 
 ```bash
 
@@ -141,6 +165,9 @@ OMOP__DATABASE=ohdsi
 
 ## OMOP Database Schema
 OMOP__SCHEMA=cds_cdm
+
+# Execution Engine Configuration
+CELIDA_EE_TIMEZONE=Europe/Berlin
 ```
 
 You can copy the supplied `sample.env` file to `.env` and adjust the variables according to your local setup.
