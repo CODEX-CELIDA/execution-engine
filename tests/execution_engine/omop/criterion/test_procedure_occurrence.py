@@ -1,7 +1,11 @@
+import pandas as pd
 import pytest
+from _fixtures.concept import concept_unit_hour
 
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
+from execution_engine.util import ValueNumber
 from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence
 from tests.functions import create_procedure
 
@@ -32,4 +36,57 @@ class TestProcedureOccurrence(Occurrence):
             procedure_concept_id=concept_id,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+        )
+
+    def test_duration(
+        self,
+        person_visit,
+        db_session,
+        concept,
+        criterion_execute_func,
+        observation_window,
+        base_table,
+    ):
+        _, vo = person_visit[0]
+
+        time_ranges = [
+            ("2023-03-04 18:00:00", "2023-03-04 19:30:00"),
+            ("2023-03-04 20:00:00", "2023-03-04 21:30:00"),
+        ]
+
+        def criterion_execute_func_timing(
+            concept: Concept,
+            exclude: bool,
+            value: ValueNumber | None = None,
+        ):
+            timing = ValueNumber(value_min=2, unit=concept_unit_hour)
+
+            criterion = ProcedureOccurrence(
+                name="test",
+                exclude=exclude,
+                category=CohortCategory.POPULATION,
+                concept=concept,
+                value=value,
+                timing=timing,
+                static=None,
+            )
+
+            query = criterion.sql_generate(base_table=base_table)
+
+            df = pd.read_sql(
+                query,
+                db_session.connection(),
+                params=observation_window.dict(),
+            )
+            df["valid_date"] = pd.to_datetime(df["valid_date"])
+
+            return df
+
+        self.perform_test(
+            person_visit,
+            concept,
+            db_session,
+            criterion_execute_func_timing,
+            observation_window,
+            time_ranges,
         )

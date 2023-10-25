@@ -10,7 +10,7 @@ from execution_engine.omop.cohort_definition import add_result_insert
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.omop.db.result import RecommendationResult
+from execution_engine.omop.db.celida import RecommendationResult
 from execution_engine.util import TimeRange, ValueNumber
 from tests._fixtures.concept import (
     concept_covid19,

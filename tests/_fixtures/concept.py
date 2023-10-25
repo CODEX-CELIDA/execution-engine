@@ -49,6 +49,17 @@ concept_unit_mg = Concept(
     invalid_reason=None,
 )
 
+concept_unit_hour = Concept(
+    concept_id=8505,
+    concept_name="hour",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="h",
+    invalid_reason=None,
+)
+
 concept_heparin_ingredient = Concept(
     concept_id=1367571,
     concept_name="heparin",

@@ -11,7 +11,7 @@ from sqlalchemy.sql import Insert, Select
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
     base,
     cdm,
-    result,
+    celida,
 )
 
 from .concepts import Concept

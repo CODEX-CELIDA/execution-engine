@@ -149,6 +149,7 @@ class RecommendationResult(Base):  # noqa: D101
 
 class Comment(Base):  # noqa: D101
     __tablename__ = "comment"
+    __table_args__ = {"schema": "celida"}
 
     comment_id: Mapped[int] = mapped_column(
         Integer,
@@ -166,5 +167,5 @@ class Comment(Base):  # noqa: D101
         ForeignKey("cds_cdm.person.person_id"), index=True
     )
 
-    comment: Mapped[str]
+    text: Mapped[str]
     datetime: Mapped[datetime]

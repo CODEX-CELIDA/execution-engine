@@ -54,9 +54,9 @@ from execution_engine.omop.cohort_definition import (
 )
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
-from execution_engine.omop.db import result as result_db
-from execution_engine.omop.db.result import CohortDefinition as CohortDefinitionTable
-from execution_engine.omop.db.result import (
+from execution_engine.omop.db import celida as result_db
+from execution_engine.omop.db.celida import CohortDefinition as CohortDefinitionTable
+from execution_engine.omop.db.celida import (
     RecommendationCriterion,
     RecommendationResult,
     RecommendationRun,

@@ -21,7 +21,7 @@ from sqlalchemy.sql.functions import concat
 from .constants import CohortCategory
 from .omop.criterion.abstract import Criterion
 from .omop.criterion.combination import CriterionCombination
-from .omop.db.result import RecommendationResult
+from .omop.db.celida import RecommendationResult
 
 
 class ExecutionMap:
