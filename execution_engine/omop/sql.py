@@ -7,6 +7,7 @@ from sqlalchemy import and_, event, func
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql import Insert, Select
+from urllib.parse import quote
 
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
     base,
@@ -56,7 +57,7 @@ class OMOPSQLClient:
 
         self._schema = schema
         connection_string = (
-            f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
+            f"postgresql+psycopg://{quote(user)}:{quote(password)}@{host}:{port}/{database}"
         )
 
         self._engine = sqlalchemy.create_engine(
