@@ -355,14 +355,14 @@ class ValueCriterion(TestCriterion, ABC):
                     "expected": {"2023-03-04"},
                 },
                 {
-                    "times": [  # multiple per one day
+                    "times": [  # multiple per one day (first value smaller than threshold)
                         "2023-03-04 00:00:00",
-                        "2023-03-06 03:00:00",
-                        "2023-03-08 06:00:00",
+                        "2023-03-04 03:00:00",
+                        "2023-03-04 06:00:00",
                     ],
                     "criterion_value": f">={VALUE_NUMERIC}",
                     "value_db": [VALUE_NUMERIC - 1, VALUE_NUMERIC, VALUE_NUMERIC + 1],
-                    "expected": {"2023-03-06", "2023-03-08"},
+                    "expected": {},
                 },
                 {
                     "times": [  # multiple days
@@ -373,7 +373,7 @@ class ValueCriterion(TestCriterion, ABC):
                     "criterion_value": f">={VALUE_NUMERIC}",
                     "value_db": [VALUE_NUMERIC + 1, VALUE_NUMERIC, VALUE_NUMERIC - 1],
                     "expected": {"2023-03-04", "2023-03-15"},
-                },
+                }
             ],
         ],
     )
