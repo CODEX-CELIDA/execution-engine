@@ -7,6 +7,7 @@ from typing import Any, Dict, Type, TypedDict, cast
 
 import sqlalchemy
 from sqlalchemy import (
+    ColumnElement,
     Date,
     DateTime,
     Table,
@@ -350,8 +351,8 @@ class Criterion(AbstractCriterion):
         Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.
         """
         if self._static:
-            # If this criterion is a static criterion, i.e. one whose value does not change over time, then we don't
-            # need to filter by datetime
+            # If this criterion is a static criterion, i.e. one whose value does not change over time,
+            # then we don't need to filter by datetime,
             # but we need to add the observation range as the valid range
 
             query = query.add_columns(
@@ -378,6 +379,23 @@ class Criterion(AbstractCriterion):
 
         return query
 
+    def _filter_days_with_all_values_valid(
+        self, query: Select, sql_value: ColumnElement = None
+    ) -> Select:
+        if not hasattr(self, "_value") or self._value is None:
+            return query
+
+        if sql_value is None:
+            sql_value = self._value.to_sql(self.table_alias)
+
+        c_datetime = self._get_datetime_column(self._table, "start")
+        c_date = func.date(c_datetime)
+        query = query.group_by(self._table.c.person_id, c_date)
+        query = query.add_columns(c_date.label("valid_from"), c_date.label("valid_to"))
+        query = query.having(func.bool_and(sql_value))
+
+        return query
+
     def _select_per_day(self, query: Select) -> Select:
         """
         Returns a modified Select query that returns a single row for each day between observation start and end date
@@ -395,6 +413,9 @@ class Criterion(AbstractCriterion):
         :return: A modified Select query object that generates a list of person dates.
         """
         col_names = [c.name for c in query.selected_columns]
+
+        query = self._filter_days_with_all_values_valid(query)
+
         if "valid_from" not in col_names:
             c_start = self._get_datetime_column(self._table, "start").label(
                 "valid_from"

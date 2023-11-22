@@ -99,7 +99,7 @@ class ValueNumber(Value):
     value_min: float | None = None
     value_max: float | None = None
 
-    @root_validator
+    @root_validator  # type: ignore
     def validate_value(cls, values: dict) -> dict:
         """
         Validate that value or value_min/value_max is set.

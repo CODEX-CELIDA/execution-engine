@@ -82,9 +82,6 @@ class ConceptCriterion(Criterion):
 
         query = self._sql_filter_concept(query)
 
-        if self._value is not None:
-            query = query.filter(self._value.to_sql(self.table_alias))
-
         return query
 
     def _sql_select_data(self, query: Select) -> Select:

@@ -1,4 +1,4 @@
-from sqlalchemy import case, literal_column, select, union_all
+from sqlalchemy import ColumnElement, case, literal_column, select, union_all
 from sqlalchemy.sql import Select
 
 from execution_engine.clients import omopdb
@@ -63,19 +63,23 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
     def _sql_generate(self, query: Select) -> Select:
         sql_ibw = self._sql_select_ideal_body_weight().alias("ibw")
 
+        query = query.join(sql_ibw, sql_ibw.c.person_id == self._table.c.person_id)
+        query = self._sql_filter_concept(
+            query, override_concept_id=OMOPConcepts.TIDAL_VOLUME_ON_VENTILATOR.value
+        )
+
+        return query
+
+    def _filter_days_with_all_values_valid(
+        self, query: Select, sql_value: ColumnElement = None
+    ) -> Select:
         sql_value = self._value.to_sql(
             table_name=None,
             column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
             with_unit=False,
         )
 
-        query = query.join(sql_ibw, sql_ibw.c.person_id == self._table.c.person_id)
-        query = self._sql_filter_concept(
-            query, override_concept_id=OMOPConcepts.TIDAL_VOLUME_ON_VENTILATOR.value
-        )
-        query = query.filter(sql_value)
-
-        return query
+        return super()._filter_days_with_all_values_valid(query, sql_value)
 
     def sql_select_data(self, person_id: int | None = None) -> Select:
         """

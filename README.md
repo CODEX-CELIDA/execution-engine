@@ -186,7 +186,7 @@ git submodule update --init --recursive
 
 ### 2. Start PostgreSQL Container
 
-Ensure a PostgreSQL container is running. You can do this manually 
+Ensure a PostgreSQL container is running. You can do this manually
 
 ```bash
 docker run \
@@ -211,7 +211,10 @@ Install the necessary packages for testing from requirements-dev.txt:
 pip install -r requirements-dev.txt
 ```
 
-### 4. Run Pytest
+### 4. Start Recommendation Server
+See [CODEX-CELIDA Recommendation Server on GitHub.](https://github.com/CODEX-CELIDA/recommendation-server)
+
+### 5. Run Pytest
 
 Finally, run pytest with the necessary parameters:
 
@@ -226,4 +229,3 @@ pytest \
 ```
 
 This will execute the tests with the specified PostgreSQL configuration and additional options for the test run.
-
