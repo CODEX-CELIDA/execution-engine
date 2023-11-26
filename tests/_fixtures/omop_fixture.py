@@ -1,5 +1,6 @@
 import logging
 import os
+from urllib.parse import quote
 
 import pandas as pd
 import pytest
@@ -27,9 +28,7 @@ def db_setup():
     pg_port = os.environ["OMOP__PORT"]
     pg_db = os.environ["OMOP__DATABASE"]
 
-    connection_str = (
-        f"postgresql+psycopg://{pg_user}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
-    )
+    connection_str = f"postgresql+psycopg://{quote(pg_user)}:{quote(pg_password)}@{pg_host}:{pg_port}/{pg_db}"
     engine = create_engine(connection_str)
     with engine.connect() as con:
         if not con.dialect.has_schema(con, "celida"):

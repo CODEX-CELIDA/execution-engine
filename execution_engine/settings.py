@@ -21,7 +21,7 @@ class OMOPSettings(BaseModel):
         allow_population_by_field_name = True
 
 
-class Settings(BaseSettings):
+class Settings(BaseSettings):  # type: ignore
     """Application settings."""
 
     fhir_terminology_server_url: str = "http://tx.fhir.org/r4"
