@@ -268,6 +268,9 @@ class CohortDefinition(Serializable):
         else:
             raise NotImplementedError(f"Unknown type {type(sql)}")
 
+    def execution_plan(self) -> Iterator[Criterion]:
+        yield from self.execution_map().sequential()
+
     def process(self, base_table: Table) -> Iterator[Query]:
         """
         Process the cohort definition into SQL statements.

@@ -1,8 +1,9 @@
 from typing import Any, Dict
 
+from sqlalchemy import case, literal
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory, OMOPConcepts
+from execution_engine.constants import CohortCategory, OMOPConcepts, IntervalType
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.util import Value, value_factory
@@ -81,6 +82,18 @@ class ConceptCriterion(Criterion):
             )
 
         query = self._sql_filter_concept(query)
+
+        if self._value is not None:
+            conditional_column = case(
+                [
+                    (self._value.to_sql(self.table_alias), IntervalType.POSITIVE.value)
+                ],
+                else_=IntervalType.NEGATIVE.value
+            ).label('interval_type')
+        else:
+            conditional_column = literal(IntervalType.POSITIVE.value).label('interval_type')
+
+        query = query.add_columns(conditional_column)
 
         return query
 

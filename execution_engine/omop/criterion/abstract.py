@@ -5,6 +5,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Type, TypedDict, cast
 
+import pandas as pd
 import sqlalchemy
 from sqlalchemy import (
     ColumnElement,
@@ -35,6 +36,7 @@ from execution_engine.omop.db.cdm import (
     VisitOccurrence,
 )
 from execution_engine.omop.serializable import Serializable
+from execution_engine.util import TimeRange
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]
@@ -245,6 +247,67 @@ class Criterion(AbstractCriterion):
         Get the domain of the criterion.
         """
         return self._OMOP_DOMAIN
+
+    @abstractmethod
+    def select(self) -> Select:
+        """
+        Get the SQL Select query for data required by this criterion.
+        """
+        query = self._sql_header()
+        query = self._sql_generate(query)
+        query = self._insert_datetime(query)
+
+        query.description = self.description()
+
+        # todo: assert that the output columns are person_id, interval_start, interval_end, type
+        assert (
+            len(query.selected_columns) == 4
+        ), "Query must select 4 columns: person_id, interval_start, interval_end, type"
+
+        return query
+
+    @abstractmethod
+    def process_data(self, data: pd.DataFrame, observation_window: TimeRange) -> pd.DataFrame:
+        """
+        Process the data returned by the criterion.
+        """
+
+        def merge_intervals(group):
+            sorted_group = group.sort_values(by='interval_start')
+            merged = []
+            for _, row in sorted_group.iterrows():
+                if not merged or merged[-1]['interval_end'] < row['interval_start'] or merged[-1]['type'] != row[
+                    'type']:
+                    merged.append(row.to_dict())
+                else:
+                    merged[-1]['interval_end'] = max(merged[-1]['interval_end'], row['interval_end'])
+            return merged
+
+        def fill_no_data_intervals(merged_intervals, observation_start, observation_end):
+            filled_intervals = []
+            if not merged_intervals or merged_intervals[0]['interval_start'] > observation_start:
+                filled_intervals.append({'interval_start': observation_start, 'interval_end': merged_intervals[0][
+                    'interval_start'] if merged_intervals else observation_end, 'type': 'no-data'})
+            for i in range(1, len(merged_intervals)):
+                filled_intervals.append(merged_intervals[i])
+                if merged_intervals[i]['interval_start'] > merged_intervals[i - 1]['interval_end']:
+                    filled_intervals.append({'interval_start': merged_intervals[i - 1]['interval_end'],
+                                             'interval_end': merged_intervals[i]['interval_start'], 'type': 'no-data'})
+            if merged_intervals[-1]['interval_end'] < observation_end:
+                filled_intervals.append(
+                    {'interval_start': merged_intervals[-1]['interval_end'], 'interval_end': observation_end,
+                     'type': 'no-data'})
+            return filled_intervals
+
+        def process_intervals(df, observation_start, observation_end):
+            result = {}
+            for (person_id, concept_id), group in df.groupby(['person_id', 'concept_id']):
+                merged_intervals = merge_intervals(group)
+                filled_intervals = fill_no_data_intervals(merged_intervals, observation_start, observation_end)
+                result[(person_id, concept_id)] = filled_intervals
+            return result
+
+        return process_intervals(data, observation_window.start, observation_window.end)
 
     def _sql_header(
         self, distinct_person: bool = True, person_id: int | None = None

@@ -35,6 +35,16 @@ class CohortCategory(Enum):
     POPULATION_INTERVENTION = "population_intervention"
 
 
+class IntervalType(Enum):
+    """
+    The type of interval
+    """
+
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+    NODATA = "nodata"
+
+
 class OMOPConcepts(Enum):
     """
     Collection of standard concepts in the OMOP CDM.

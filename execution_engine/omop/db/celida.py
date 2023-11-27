@@ -3,7 +3,7 @@ from datetime import date, datetime
 from sqlalchemy import Enum, ForeignKey, Index, Integer, LargeBinary, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from execution_engine.constants import CohortCategory
+from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.db.base import Base
 
 
@@ -143,6 +143,64 @@ class RecommendationResult(Base):  # noqa: D101
     #    "cds_cdm.person",
     #    primaryjoin="RecommendationResult.person_id == cds_cdm.person.person_id",
     # )
+
+class RecommendationResultInterval(Base):  # noqa: D101
+    __tablename__ = "recommendation_result_interval"
+    __table_args__ = (
+        Index(
+            "ix_run_id_cohort_category_person_id_valid_date",
+            "recommendation_run_id",
+            "cohort_category",
+            "person_id",
+            "interval_start",
+            "interval_end",
+        ),
+        Index(
+            "ix_run_id_plan_id_criterion_id_valid_date",
+            "recommendation_run_id",
+            "plan_id",
+            "criterion_id",
+            "person_id",
+            "interval_start",
+            "interval_end",
+        ),
+        {"schema": "celida"},
+    )
+
+    recommendation_result_id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, index=True, autoincrement=True
+    )
+    recommendation_run_id = mapped_column(
+        ForeignKey("celida.recommendation_run.recommendation_run_id"),
+        index=True,
+    )
+    plan_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.recommendation_plan.plan_id"), index=True, nullable=True
+    )
+    criterion_id: Mapped[int] = mapped_column(
+        ForeignKey("celida.recommendation_criterion.criterion_id"),
+        index=True,
+        nullable=True,
+    )
+    cohort_category = mapped_column(Enum(CohortCategory, schema="celida"))
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey("cds_cdm.person.person_id"), index=True
+    )
+    interval_start: Mapped[date]
+    interval_end: Mapped[date]
+    interval_type = mapped_column(Enum(IntervalType, schema="celida"))
+
+    recommendation_run: Mapped["RecommendationRun"] = relationship(
+        primaryjoin="RecommendationResult.recommendation_run_id == RecommendationRun.recommendation_run_id",
+    )
+
+    recommendation_plan: Mapped["RecommendationPlan"] = relationship(
+        primaryjoin="RecommendationResult.plan_id == RecommendationPlan.plan_id",
+    )
+
+    recommendation_criterion: Mapped["RecommendationCriterion"] = relationship(
+        primaryjoin="RecommendationResult.criterion_id == RecommendationCriterion.criterion_id",
+    )
 
 
 class Comment(Base):  # noqa: D101
