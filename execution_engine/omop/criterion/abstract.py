@@ -3,6 +3,7 @@ import hashlib
 import json
 import re
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, Type, TypedDict, cast
 
 import pandas as pd
@@ -267,43 +268,82 @@ class Criterion(AbstractCriterion):
         return query
 
     @abstractmethod
-    def process_data(self, data: pd.DataFrame, observation_window: TimeRange) -> pd.DataFrame:
+    def process_data(
+        self, data: pd.DataFrame, observation_window: TimeRange
+    ) -> pd.DataFrame:
         """
         Process the data returned by the criterion.
         """
 
-        def merge_intervals(group):
-            sorted_group = group.sort_values(by='interval_start')
-            merged = []
+        def merge_intervals(group: pd.DataFrame) -> list[dict]:
+            sorted_group = group.sort_values(by="interval_start")
+            merged: list[dict] = []
             for _, row in sorted_group.iterrows():
-                if not merged or merged[-1]['interval_end'] < row['interval_start'] or merged[-1]['type'] != row[
-                    'type']:
+                if (
+                    not merged
+                    or merged[-1]["interval_end"] < row["interval_start"]
+                    or merged[-1]["type"] != row["type"]
+                ):
                     merged.append(row.to_dict())
                 else:
-                    merged[-1]['interval_end'] = max(merged[-1]['interval_end'], row['interval_end'])
+                    merged[-1]["interval_end"] = max(
+                        merged[-1]["interval_end"], row["interval_end"]
+                    )
             return merged
 
-        def fill_no_data_intervals(merged_intervals, observation_start, observation_end):
+        def fill_no_data_intervals(
+            merged_intervals: list[dict],
+            observation_start: datetime,
+            observation_end: datetime,
+        ) -> list[dict]:
             filled_intervals = []
-            if not merged_intervals or merged_intervals[0]['interval_start'] > observation_start:
-                filled_intervals.append({'interval_start': observation_start, 'interval_end': merged_intervals[0][
-                    'interval_start'] if merged_intervals else observation_end, 'type': 'no-data'})
+            if (
+                not merged_intervals
+                or merged_intervals[0]["interval_start"] > observation_start
+            ):
+                filled_intervals.append(
+                    {
+                        "interval_start": observation_start,
+                        "interval_end": merged_intervals[0]["interval_start"]
+                        if merged_intervals
+                        else observation_end,
+                        "type": "no-data",
+                    }
+                )
             for i in range(1, len(merged_intervals)):
                 filled_intervals.append(merged_intervals[i])
-                if merged_intervals[i]['interval_start'] > merged_intervals[i - 1]['interval_end']:
-                    filled_intervals.append({'interval_start': merged_intervals[i - 1]['interval_end'],
-                                             'interval_end': merged_intervals[i]['interval_start'], 'type': 'no-data'})
-            if merged_intervals[-1]['interval_end'] < observation_end:
+                if (
+                    merged_intervals[i]["interval_start"]
+                    > merged_intervals[i - 1]["interval_end"]
+                ):
+                    filled_intervals.append(
+                        {
+                            "interval_start": merged_intervals[i - 1]["interval_end"],
+                            "interval_end": merged_intervals[i]["interval_start"],
+                            "type": "no-data",
+                        }
+                    )
+            if merged_intervals[-1]["interval_end"] < observation_end:
                 filled_intervals.append(
-                    {'interval_start': merged_intervals[-1]['interval_end'], 'interval_end': observation_end,
-                     'type': 'no-data'})
+                    {
+                        "interval_start": merged_intervals[-1]["interval_end"],
+                        "interval_end": observation_end,
+                        "type": "no-data",
+                    }
+                )
             return filled_intervals
 
-        def process_intervals(df, observation_start, observation_end):
+        def process_intervals(
+            df: pd.DataFrame, observation_start: datetime, observation_end: datetime
+        ) -> dict[tuple[Any, Any], list[dict]]:
             result = {}
-            for (person_id, concept_id), group in df.groupby(['person_id', 'concept_id']):
+            for (person_id, concept_id), group in df.groupby(
+                ["person_id", "concept_id"]
+            ):
                 merged_intervals = merge_intervals(group)
-                filled_intervals = fill_no_data_intervals(merged_intervals, observation_start, observation_end)
+                filled_intervals = fill_no_data_intervals(
+                    merged_intervals, observation_start, observation_end
+                )
                 result[(person_id, concept_id)] = filled_intervals
             return result
 
