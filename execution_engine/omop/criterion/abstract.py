@@ -249,8 +249,7 @@ class Criterion(AbstractCriterion):
         """
         return self._OMOP_DOMAIN
 
-    @abstractmethod
-    def select(self) -> Select:
+    def create_query(self) -> Select:
         """
         Get the SQL Select query for data required by this criterion.
         """
