@@ -1,4 +1,6 @@
+import logging
 import multiprocessing
+import time
 from multiprocessing.managers import DictProxy
 from multiprocessing.synchronize import Lock as MPLock
 from types import TracebackType
@@ -77,18 +79,20 @@ def run_task(
 
     # Ensure all dependencies are processed first
     for dependency in task.dependencies:
-        assert dependency.is_finished(), f"Dependency {dependency} is not finished."
+        assert (
+            dependency.name() in shared_results
+        ), f"Dependency {dependency} is not finished."
 
-    input_data = [shared_results[dep.expr] for dep in task.dependencies]
+    input_data = [shared_results[dep.name()] for dep in task.dependencies]
 
     result = task.run(input_data)
 
     with lock:
-        shared_results[task.expr] = result
+        shared_results[task.name()] = result
 
     # Check if the task is finished and handle accordingly
     if not task.is_finished():
-        print(f"Task {task} failed to complete.")
+        logging.error(f"Task {task} failed to complete.")
 
 
 def run_tasks_sequential(tasks: list[Task]) -> None:
@@ -133,11 +137,16 @@ def task_executor(
 
     while True:
         task = task_queue.get()
+
+        logging.info(f"Got task {task}")
+
         if task is None:  # Poison pill means shutdown
             task_queue.put(None)  # Put it back for other processes
             break
 
         run_task(task, shared_results, lock)
+
+        logging.info(f"Finished task {task}")
 
 
 def run_tasks_parallel(tasks: list[Task], num_workers: int = 4) -> None:
@@ -165,13 +174,20 @@ def run_tasks_parallel(tasks: list[Task], num_workers: int = 4) -> None:
         w.start()
 
     completed_tasks: set[str] = set()
+    enqueued_tasks: set[str] = set()
 
     while len(completed_tasks) < len(tasks):
         for task in tasks:
-            if task.name() not in completed_tasks and all(
-                dep.name() in completed_tasks for dep in task.dependencies
+            if (
+                task.name() not in completed_tasks
+                and all(dep.name() in completed_tasks for dep in task.dependencies)
+                and task.name() not in enqueued_tasks
             ):
+                logging.info(f"Enqueuing task {task.name()}")
                 task_queue.put(task)
+                enqueued_tasks.add(task.name())
+
+        time.sleep(0.1)
 
         with lock:
             completed_tasks = set(
@@ -184,5 +200,5 @@ def run_tasks_parallel(tasks: list[Task], num_workers: int = 4) -> None:
         w.join()
 
     # Access results from shared_results
-    for task_name, result in shared_results.items():
-        print(f"Results for {task_name}: {result}")
+    # for task_name, result in shared_results.items():
+    #    print(f"Results for {task_name}: {result}")
