@@ -21,7 +21,6 @@ class CriterionCombination(AbstractCriterion):
         EXACTLY = "EXACTLY"
 
         def __init__(self, operator: str, threshold: int | None = None):
-
             assert operator in [
                 "AND",
                 "OR",
@@ -55,14 +54,23 @@ class CriterionCombination(AbstractCriterion):
             return self.operator == other.operator and self.threshold == other.threshold
 
     def __init__(
-        self, name: str, exclude: bool, operator: Operator, category: CohortCategory
+        self,
+        name: str,
+        exclude: bool,
+        operator: Operator,
+        category: CohortCategory,
+        criteria: list[Criterion | "CriterionCombination"] | None = None,
     ):
         """
         Initialize the criterion combination.
         """
         super().__init__(name=name, exclude=exclude, category=category)
         self._operator = operator
-        self._criteria: list[Criterion | CriterionCombination] = []
+
+        if criteria is None:
+            self._criteria: list[Criterion | CriterionCombination] = []
+        else:
+            self._criteria = criteria
 
     def add(self, criterion: Union[Criterion, "CriterionCombination"]) -> None:
         """
@@ -70,7 +78,7 @@ class CriterionCombination(AbstractCriterion):
         """
         self._criteria.append(criterion)
 
-    def add_all(self, criteria: list[Union[Criterion, "CriterionCombination"]]) -> None:
+    def add_all(self, criteria: list[Criterion | "CriterionCombination"]) -> None:
         """
         Add multiple criteria to the combination.
         """
