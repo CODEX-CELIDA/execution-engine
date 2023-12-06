@@ -20,28 +20,14 @@ def get_engine() -> OMOPSQLClient:
     )
 
 
-class TaskState(Enum):
-    """
-    An enum representing the state of a Task object.
-    """
-
-    NOT_RUN = auto()
-    RUNNING = auto()
-    FINISHED = auto()
-
-
 class Task:
     """
     A Task object represents a task that needs to be run.
     """
 
-    def __init__(
-        self, expr: sympy.Expr, criterion: Criterion, usage_count: int
-    ) -> None:
+    def __init__(self, expr: sympy.Expr, criterion: Criterion) -> None:
         self.expr = expr
         self.criterion = criterion
-        self.usage_count = usage_count
-        self.state = TaskState.NOT_RUN
         self.dependencies: list[Task] = []
 
     def run(self, data: list[pd.DataFrame]) -> pd.DataFrame:
@@ -50,51 +36,40 @@ class Task:
         """
         by = ["person_id", "concept_id"]
 
-        if self.state == TaskState.NOT_RUN:
-            self.state = TaskState.RUNNING
-            try:
-                if len(self.dependencies) == 0:
-                    # query = self.criterion.create_query()
-                    # result = get_engine().query(query)
+        try:
+            if len(self.dependencies) == 0:
+                # query = self.criterion.create_query()
+                # result = get_engine().query(query)
 
-                    result = pd.DataFrame(
-                        {
-                            "person_id": [1, 2, 3],
-                            "concept_id": [1, 1, 1],
-                            "interval_start": [
-                                pd.Timestamp("2020-01-01 00:00:00"),
-                                pd.Timestamp("2020-01-01 00:00:00"),
-                                pd.Timestamp("2020-01-01 00:00:00"),
-                            ],
-                            "interval_end": [
-                                pd.Timestamp("2020-01-01 00:00:00"),
-                                pd.Timestamp("2020-01-01 00:00:00"),
-                                pd.Timestamp("2020-01-01 00:00:00"),
-                            ],
-                        }
-                    )
-                elif len(self.dependencies) == 1:
-                    assert self.expr.is_Not, "Dependency is not a Not expression."
-                    result = process.invert(data[0])
+                result = pd.DataFrame(
+                    {
+                        "person_id": [1, 2, 3],
+                        "concept_id": [1, 1, 1],
+                        "interval_start": [
+                            pd.Timestamp("2020-01-01 00:00:00"),
+                            pd.Timestamp("2020-01-01 00:00:00"),
+                            pd.Timestamp("2020-01-01 00:00:00"),
+                        ],
+                        "interval_end": [
+                            pd.Timestamp("2020-01-01 00:00:00"),
+                            pd.Timestamp("2020-01-01 00:00:00"),
+                            pd.Timestamp("2020-01-01 00:00:00"),
+                        ],
+                    }
+                )
+            elif len(self.dependencies) == 1:
+                assert self.expr.is_Not, "Dependency is not a Not expression."
+                result = process.invert(data[0])
 
-                elif len(self.dependencies) >= 2:
-                    if isinstance(self.expr, And):
-                        result = process.merge_intervals(data, by)
-                    elif isinstance(self.expr, Or):
-                        result = process.intersect_intervals(data, by)
-                    else:
-                        raise ValueError(f"Unsupported expression type: {self.expr}")
-
-                self.state = TaskState.FINISHED
-            except Exception as e:
-                self.state = TaskState.NOT_RUN
-                print(f"Task failed with error: {e}")
-            self.usage_count -= 1
-        elif self.usage_count > 0 and self.state in [
-            TaskState.RUNNING,
-            TaskState.FINISHED,
-        ]:
-            self.usage_count -= 1
+            elif len(self.dependencies) >= 2:
+                if isinstance(self.expr, And):
+                    result = process.merge_intervals(data, by)
+                elif isinstance(self.expr, Or):
+                    result = process.intersect_intervals(data, by)
+                else:
+                    raise ValueError(f"Unsupported expression type: {self.expr}")
+        except Exception as e:
+            print(f"Task failed with error: {e}")
 
         return result
 
@@ -102,23 +77,17 @@ class Task:
         """
         Returns the name of the Task object.
         """
-        return self.criterion.name
-
-    def is_finished(self) -> bool:
-        """
-        Returns True if the task is finished, False otherwise.
-        """
-        return self.state == TaskState.FINISHED
+        return str(self)
 
     def __repr__(self) -> str:
         """
         Returns a string representation of the Task object.
         """
-        return f"Task({self.expr}, criterion={self.criterion}, usage_count={self.usage_count}): state={self.state}"
+        return f"Task({self.expr}, criterion={self.criterion})"
 
 
 def create_tasks_and_dependencies(
-    expr: sympy.Expr, task_mapping: dict, criterion_hashmap: dict, usage_counts: dict
+    expr: sympy.Expr, task_mapping: dict, criterion_hashmap: dict
 ) -> Task:
     """
     Creates a Task object for an expression and its dependencies.
@@ -131,8 +100,6 @@ def create_tasks_and_dependencies(
         A mapping of expressions to Task objects.
     criterion_hashmap : dict
         A mapping of expressions to Criterion objects.
-    usage_counts : dict
-        A mapping of expressions to usage counts.
 
     Returns
     -------
@@ -144,7 +111,7 @@ def create_tasks_and_dependencies(
 
     current_criterion = criterion_hashmap.get(expr, None)
     current_task = Task(
-        expr, current_criterion, usage_count=usage_counts[expr]
+        expr, current_criterion
     )  # Create a Task object for the current expression
 
     # Dependencies are the children in the expression tree
@@ -152,7 +119,7 @@ def create_tasks_and_dependencies(
     if isinstance(expr, (And, Or, Not)):
         for arg in expr.args:
             child_task = create_tasks_and_dependencies(
-                arg, task_mapping, criterion_hashmap, usage_counts
+                arg, task_mapping, criterion_hashmap
             )
             dependencies.append(child_task)
 

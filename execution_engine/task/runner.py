@@ -1,48 +1,42 @@
 import logging
 import multiprocessing
+import queue
 import time
-from multiprocessing.managers import DictProxy
-from multiprocessing.synchronize import Lock as MPLock
-from types import TracebackType
-from typing import Type
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from typing import (
+    ContextManager,
+    Generic,
+    Iterator,
+    List,
+    MutableMapping,
+    Protocol,
+    TypeVar,
+)
 
 import pandas as pd
 
-from execution_engine.task import Task, TaskState
+from execution_engine.task import Task
+
+T = TypeVar("T")
 
 
-class MockLock:
+class QueueLike(Protocol, Generic[T]):
     """
-    A mock lock that does nothing.
-
-    Used when processing tasks sequentially.
+    A protocol for queue-like objects.
     """
 
-    def acquire(self) -> None:
+    def put(self, item: T) -> None:
         """
-        Acquires the lock (does nothing).
+        Put an item into the queue.
         """
+        ...
 
-    def release(self) -> None:
+    def get(self) -> T:
         """
-        Releases the lock (does nothing).
+        Get an item from the queue.
         """
-
-    def __enter__(self) -> "MockLock":
-        """
-        Context manager enter (does nothing).
-        """
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        """
-        Context manager exit (does nothing).
-        """
+        ...
 
 
 def flatten_tasks(root_task: Task) -> list[Task]:
@@ -62,143 +56,202 @@ def flatten_tasks(root_task: Task) -> list[Task]:
     return tasks
 
 
-def run_task(
-    task: Task, shared_results: dict | DictProxy, lock: MPLock | MockLock
-) -> None:
+class TaskRunner(ABC):
     """
-    Runs a task.
-
-    :param task: The task to run.
-    :param shared_results: A shared dictionary of results.
-    :param lock: A lock to synchronize access to the shared results.
-    :return: None.
+    An abstract class for running a list of tasks.
     """
-    # Base case: if the task is already processed, return
-    if task.is_finished():
-        return
 
-    # Ensure all dependencies are processed first
-    for dependency in task.dependencies:
-        assert (
-            dependency.name() in shared_results
-        ), f"Dependency {dependency} is not finished."
+    def __init__(self, tasks: List[Task]):
+        self.tasks = tasks
+        self.completed_tasks: set[str] = set()
+        self.enqueued_tasks: set[str] = set()
 
-    input_data = [shared_results[dep.name()] for dep in task.dependencies]
-
-    result = task.run(input_data)
-
-    with lock:
-        shared_results[task.name()] = result
-
-    # Check if the task is finished and handle accordingly
-    if not task.is_finished():
-        logging.error(f"Task {task} failed to complete.")
-
-
-def run_tasks_sequential(tasks: list[Task]) -> None:
-    """
-    Runs a list of tasks sequentially.
-
-    :param tasks: A list of tasks to run.
-    :return: None.
-    """
-    queue = []
-    shared_results: dict[str, pd.DataFrame] = {}
-    lock = MockLock()
-
-    def enqueue_ready_tasks() -> None:
+    def enqueue_ready_tasks(self) -> None:
         """
-        Enqueues tasks that are ready to run.
+        Enqueues tasks that are ready to run based on their dependencies and completion status.
         """
-        for task in tasks:
-            if task.state == TaskState.NOT_RUN and all(
-                dep.is_finished() for dep in task.dependencies
-            ):
-                queue.append(task)
-
-    while not all(task.is_finished() for task in tasks):
-        enqueue_ready_tasks()
-        while len(queue):
-            current_task = queue.pop(0)
-            run_task(current_task, shared_results, lock)
-
-
-def task_executor(
-    task_queue: multiprocessing.Queue, shared_results: DictProxy, lock: MPLock
-) -> None:
-    """
-    A worker process that executes tasks from a queue.
-
-    :param task_queue: A queue of tasks to execute.
-    :param shared_results: A shared dictionary of results.
-    :param lock: A lock to synchronize access to the shared results.
-    :return: None.
-    """
-
-    while True:
-        task = task_queue.get()
-
-        logging.info(f"Got task {task}")
-
-        if task is None:  # Poison pill means shutdown
-            task_queue.put(None)  # Put it back for other processes
-            break
-
-        run_task(task, shared_results, lock)
-
-        logging.info(f"Finished task {task}")
-
-
-def run_tasks_parallel(tasks: list[Task], num_workers: int = 4) -> None:
-    """
-    Runs a list of tasks in parallel.
-
-    :param tasks: A list of tasks to run.
-    :param num_workers: The number of workers to use.
-    :return: None.
-    """
-    manager = multiprocessing.Manager()
-    shared_results = manager.dict()
-    lock = manager.Lock()
-
-    task_queue: multiprocessing.Queue = multiprocessing.Queue()
-
-    # Start worker processes
-    workers = [
-        multiprocessing.Process(
-            target=task_executor, args=(task_queue, shared_results, lock)
-        )
-        for _ in range(num_workers)
-    ]
-    for w in workers:
-        w.start()
-
-    completed_tasks: set[str] = set()
-    enqueued_tasks: set[str] = set()
-
-    while len(completed_tasks) < len(tasks):
-        for task in tasks:
+        for task in self.tasks:
             if (
-                task.name() not in completed_tasks
-                and all(dep.name() in completed_tasks for dep in task.dependencies)
-                and task.name() not in enqueued_tasks
+                task.name() not in self.completed_tasks
+                and all(dep.name() in self.completed_tasks for dep in task.dependencies)
+                and task.name() not in self.enqueued_tasks
             ):
                 logging.info(f"Enqueuing task {task.name()}")
-                task_queue.put(task)
-                enqueued_tasks.add(task.name())
+                self.queue.put(task)
+                self.enqueued_tasks.add(task.name())
 
-        time.sleep(0.1)
+    @abstractmethod
+    def run(self) -> None:
+        """
+        Runs the tasks. This method must be implemented by subclasses.
+        """
 
-        with lock:
-            completed_tasks = set(
-                shared_results.keys()
-            )  # Update the set of completed tasks
+    @property
+    @abstractmethod
+    def shared_results(self) -> MutableMapping:
+        """
+        An abstract property that should be implemented by subclasses to return a dict-like object.
+        """
 
-    # Tell child processes to stop
-    task_queue.put(None)
-    for w in workers:
-        w.join()
+    @property
+    @abstractmethod
+    def queue(self) -> QueueLike[Task]:
+        """
+        An abstract property that should be implemented by subclasses to return a list-like object.
+        """
 
-    # Access results from shared_results
-    # for task_name, result in shared_results.items():
-    #    print(f"Results for {task_name}: {result}")
+    @property
+    def lock(self) -> ContextManager:
+        """
+        Returns a context manager for locking.
+        By default, it's a no-op lock for single-threaded execution.
+        Subclasses can override this with a real lock for multi-threaded execution.
+        """
+
+        @contextmanager
+        def no_op_lock() -> Iterator[None]:
+            yield
+
+        return no_op_lock()
+
+    def run_task(self, task: Task) -> None:
+        """
+        Runs a task.
+
+        :param task: The task to run.
+        :return: None.
+        """
+        # Ensure all dependencies are processed first
+        for dependency in task.dependencies:
+            assert (
+                dependency.name() in self.shared_results
+            ), f"Dependency {dependency} is not finished."
+
+        input_data = [self.shared_results[dep.name()] for dep in task.dependencies]
+
+        result = task.run(input_data)
+
+        with self.lock:
+            self.shared_results[task.name()] = result
+
+
+class SequentialTaskRunner(TaskRunner):
+    """
+    Runs a list of tasks sequentially.
+    """
+
+    def __init__(self, tasks: List[Task]):
+        super().__init__(tasks)
+
+        self._shared_results: dict[str, pd.DataFrame] = {}
+        self._queue: queue.Queue = queue.Queue()
+
+    @property
+    def shared_results(self) -> MutableMapping:
+        """
+        Returns the shared results.
+        """
+        return self._shared_results
+
+    @property
+    def queue(self) -> queue.Queue:
+        """
+        Returns the queue of tasks to run.
+        """
+        return self._queue
+
+    def run(self) -> None:
+        """
+        Runs the tasks sequentially.
+        """
+        while len(self.completed_tasks) < len(self.tasks):
+            self.enqueue_ready_tasks()
+
+            while not self.queue.empty():
+                current_task = self.queue.get()
+                self.run_task(current_task)
+
+            with self.lock:
+                self.completed_tasks = set(
+                    self.shared_results.keys()
+                )  # Update the set of completed tasks
+
+
+class ParallelTaskRunner(TaskRunner):
+    """
+    Runs a list of tasks in parallel.
+    """
+
+    def __init__(self, tasks: List[Task], num_workers: int = 4):
+        super().__init__(tasks)
+        self.num_workers = num_workers
+        self.manager = multiprocessing.Manager()
+        self._shared_results = self.manager.dict()
+        self._lock = self.manager.Lock()
+        self._queue: multiprocessing.Queue = multiprocessing.Queue()
+
+    @property
+    def shared_results(self) -> MutableMapping:
+        """
+        Returns the shared results.
+        """
+        return self._shared_results
+
+    @property
+    def queue(self) -> multiprocessing.Queue:
+        """
+        Returns the queue of tasks to run.
+        """
+        return self._queue
+
+    def run(self) -> None:
+        """
+        Runs the tasks in parallel.
+        """
+
+        def task_executor() -> None:
+            """
+            A worker process that executes tasks from a queue.
+
+            :return: None.
+            """
+
+            while True:
+                task = self.queue.get()
+
+                if task is None:  # Poison pill means shutdown
+                    logging.info("Received poison pill.")
+                    self.queue.put(None)  # Put it back for other processes
+                    break
+
+                logging.info(f"Got task {task}")
+
+                self.run_task(task)
+
+                logging.info(f"Finished task {task}")
+
+        logging.info(f"Starting {self.num_workers} worker processes.")
+        workers = [
+            multiprocessing.Process(target=task_executor)
+            for _ in range(self.num_workers)
+        ]
+        for w in workers:
+            w.start()
+
+        while len(self.completed_tasks) < len(self.tasks):
+            self.enqueue_ready_tasks()
+
+            time.sleep(0.1)
+
+            with self.lock:
+                self.completed_tasks = set(
+                    self.shared_results.keys()
+                )  # Update the set of completed tasks
+
+        logging.info("Sending stop signal to worker processes")
+        # Tell child processes to stop
+        self.queue.put(None)
+        for w in workers:
+            w.join()
+
+        logging.info("All worker processes stopped.")
