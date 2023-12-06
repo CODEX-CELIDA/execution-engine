@@ -4,8 +4,10 @@ from typing import Callable
 import pandas as pd
 from interval import interval
 
+from execution_engine.util import TimeRange
 
-def invert(df: pd.DataFrame) -> pd.DataFrame:
+
+def invert(df: pd.DataFrame, observation_window: TimeRange) -> pd.DataFrame:
     """
     Inverts the intervals in the DataFrame.
     """
@@ -17,16 +19,8 @@ def timestamps_to_intervals(group: pd.DataFrame) -> list[interval]:
     """
     Converts the timestamps in the DataFrame to intervals.
 
-    Parameters
-    ----------
-    group : pd.DataFrame
-        A DataFrame with columns "interval_start" and "interval_end" containing timestamps.
-
-    Returns
-    -------
-    list[interval]
-        A list of intervals.
-
+    :param group: A DataFrame with columns "interval_start" and "interval_end" containing timestamps.
+    :return: A list of intervals.
     """
     group = group.astype("int64") / 1e9
     return [
@@ -41,19 +35,10 @@ def _process_intervals(
     """
     Processes the intervals in the DataFrames (intersect or union)
 
-    Parameters
-    ----------
-    dfs : list[pd.DataFrame]
-        A list of DataFrames.
-    by : list[str]
-        A list of column names to group by.
-    operation : Callable
-        The operation to perform on the intervals (intersect or union).
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame with the processed intervals.
+    :param dfs: A list of DataFrames.
+    :param by: A list of column names to group by.
+    :param operation: The operation to perform on the intervals (intersect or union).
+    :return: A DataFrame with the processed intervals.
     """
     result = {}
     for df in dfs:
@@ -78,18 +63,11 @@ def merge_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     """
     Merges the intervals in the DataFrames grouped by columns.
 
-    Parameters
-    ----------
-    dfs : list[pd.DataFrame]
-        A list of DataFrames.
-    by : list[str]
-        A list of column names to group by.
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame with the merged intervals.
+    :param dfs: A list of DataFrames.
+    :param by: A list of column names to group by.
+    :return: A DataFrame with the merged intervals.
     """
+
     return _process_intervals(dfs, by, lambda x, y: x | y)
 
 
@@ -97,17 +75,9 @@ def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     """
     Intersects the intervals in the DataFrames grouped by columns.
 
-    Parameters
-    ----------
-    dfs : list[pd.DataFrame]
-        A list of DataFrames.
-    by : list[str]
-        A list of column names to group by.
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame with the intersected intervals.
+    :param dfs: A list of DataFrames.
+    :param by: A list of column names to group by.
+    :return: A DataFrame with the intersected intervals.
     """
     dfs = filter_common_items(dfs, by)
 
@@ -123,21 +93,11 @@ def _result_to_df(
     """
     Converts the result of the interval operations to a DataFrame.
 
-    Parameters
-    ----------
-    result : list[dict[str, object]]
-        The result of the interval operations.
-    by : list[str]
-        A list of column names to group by.
-    tz_start : datetime.tzinfo | str | None
-        The timezone of the interval start.
-    tz_end : datetime.tzinfo | str | None
-        The timezone of the interval end.
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame with the interval results.
+    :param result: The result of the interval operations.
+    :param by: A list of column names to group by.
+    :param tz_start: The timezone of the interval start.
+    :param tz_end: The timezone of the interval end.
+    :return: A DataFrame with the interval results.
     """
     records = []
     for group_keys, intervals in result.items():
@@ -174,18 +134,9 @@ def filter_common_items(
     Returned are only those rows of each dataframe of which the values in the columns identified
     by the parameter `columns` are common to all dataframes.
 
-    Parameters
-    ----------
-    dfs : list[pd.DataFrame]
-        A list of DataFrames.
-    columns : list[str]
-        A list of column names to filter on.
-
-    Returns
-    -------
-    list[pd.DataFrame]
-        A list of DataFrames with the common items.
-
+    :param dfs: A list of DataFrames.
+    :param columns: A list of column names to filter on.
+    :return: A list of DataFrames with the common items.
     """
 
     def unique_items(df: pd.DataFrame) -> set[tuple]:
