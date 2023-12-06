@@ -5,6 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import (
+    Callable,
     ContextManager,
     Generic,
     Iterator,
@@ -16,7 +17,7 @@ from typing import (
 
 import pandas as pd
 
-from execution_engine.task import Task
+from execution_engine.task.task import Task, TaskError, TaskStatus
 
 T = TypeVar("T")
 
@@ -81,9 +82,12 @@ class TaskRunner(ABC):
                 self.enqueued_tasks.add(task.name())
 
     @abstractmethod
-    def run(self) -> None:
+    def run(self, params: dict) -> None:
         """
         Runs the tasks. This method must be implemented by subclasses.
+
+        :param params: The parameters to pass to the tasks.
+        :return: None.
         """
 
     @property
@@ -114,11 +118,12 @@ class TaskRunner(ABC):
 
         return no_op_lock()
 
-    def run_task(self, task: Task) -> None:
+    def run_task(self, task: Task, params: dict) -> None:
         """
         Runs a task.
 
         :param task: The task to run.
+        :param params: The parameters to pass to the task.
         :return: None.
         """
         # Ensure all dependencies are processed first
@@ -129,7 +134,7 @@ class TaskRunner(ABC):
 
         input_data = [self.shared_results[dep.name()] for dep in task.dependencies]
 
-        result = task.run(input_data)
+        result = task.run(input_data, params)
 
         with self.lock:
             self.shared_results[task.name()] = result
@@ -160,21 +165,33 @@ class SequentialTaskRunner(TaskRunner):
         """
         return self._queue
 
-    def run(self) -> None:
+    def run(self, params: dict) -> None:
         """
         Runs the tasks sequentially.
+
+        :param params: The parameters to pass to the tasks.
+        :return: None.
         """
-        while len(self.completed_tasks) < len(self.tasks):
-            self.enqueue_ready_tasks()
+        try:
+            while len(self.completed_tasks) < len(self.tasks):
+                self.enqueue_ready_tasks()
 
-            while not self.queue.empty():
-                current_task = self.queue.get()
-                self.run_task(current_task)
+                while not self.queue.empty():
+                    current_task = self.queue.get()
+                    self.run_task(current_task, params)
 
-            with self.lock:
-                self.completed_tasks = set(
-                    self.shared_results.keys()
-                )  # Update the set of completed tasks
+                    if current_task.status != TaskStatus.COMPLETED:
+                        raise TaskError(
+                            f"Task {current_task.name()} failed with status {current_task.status}"
+                        )
+
+                with self.lock:
+                    # Update the set of completed tasks
+                    self.completed_tasks = set(self.shared_results.keys())
+
+        except TaskError as e:
+            logging.error(f"An error occurred: {e}")
+            logging.error("Stopping task runner.")
 
 
 class ParallelTaskRunner(TaskRunner):
@@ -189,6 +206,8 @@ class ParallelTaskRunner(TaskRunner):
         self._shared_results = self.manager.dict()
         self._lock = self.manager.Lock()
         self._queue: multiprocessing.Queue = multiprocessing.Queue()
+        self.stop_event = multiprocessing.Event()
+        self.workers: list[multiprocessing.Process] = []
 
     @property
     def shared_results(self) -> MutableMapping:
@@ -204,9 +223,12 @@ class ParallelTaskRunner(TaskRunner):
         """
         return self._queue
 
-    def run(self) -> None:
+    def run(self, params: dict) -> None:
         """
         Runs the tasks in parallel.
+
+        :param params: The parameters to pass to the tasks.
+        :return: None.
         """
 
         def task_executor() -> None:
@@ -216,42 +238,87 @@ class ParallelTaskRunner(TaskRunner):
             :return: None.
             """
 
-            while True:
-                task = self.queue.get()
-
-                if task is None:  # Poison pill means shutdown
-                    logging.info("Received poison pill.")
-                    self.queue.put(None)  # Put it back for other processes
-                    break
+            while not self.stop_event.is_set():
+                try:
+                    task = self.queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue  # Go back to check stop_event
 
                 logging.info(f"Got task {task}")
 
-                self.run_task(task)
+                try:
+                    self.run_task(task, params)
 
-                logging.info(f"Finished task {task}")
+                    if task.status != TaskStatus.COMPLETED:
+                        raise TaskError(
+                            f"Task {task.name()} failed with status {task.status}"
+                        )
+
+                    logging.info(f"Finished task {task}")
+                except TaskError as ex:
+                    logging.error(ex)
+                    self.stop_event.set()
+                except Exception as ex:
+                    logging.error(f"Task {task.name()} failed: {ex}")
+                    self.stop_event.set()
+
+            logging.info("Worker process stopped.")
+
+        self.start_workers(task_executor)
+
+        try:
+            while len(self.completed_tasks) < len(self.tasks):
+                if self.stop_event.is_set():
+                    raise TaskError("Task execution failed.")
+
+                self.enqueue_ready_tasks()
+
+                time.sleep(0.1)
+
+                with self.lock:
+                    # Update the set of completed tasks
+                    self.completed_tasks = set(self.shared_results.keys())
+        except Exception as e:
+            logging.error(f"An error occurred: {e}")
+        finally:
+            self.stop_workers()
+
+    def start_workers(self, func: Callable) -> None:
+        """
+        Starts worker processes.
+
+        :param func: The function to run in each worker process.
+        :return: None.
+        """
 
         logging.info(f"Starting {self.num_workers} worker processes.")
-        workers = [
-            multiprocessing.Process(target=task_executor)
-            for _ in range(self.num_workers)
+
+        self.stop_event.clear()
+
+        self.workers = [
+            multiprocessing.Process(target=func) for _ in range(self.num_workers)
         ]
-        for w in workers:
+        for w in self.workers:
             w.start()
 
-        while len(self.completed_tasks) < len(self.tasks):
-            self.enqueue_ready_tasks()
+    def stop_workers(self, timeout: int = 10) -> None:
+        """
+        Stops worker processes.
 
-            time.sleep(0.1)
+        :param timeout: The timeout in seconds to wait for the worker processes to finish.
+        :return: None.
+        """
+        logging.info("Stopping worker processes")
 
-            with self.lock:
-                self.completed_tasks = set(
-                    self.shared_results.keys()
-                )  # Update the set of completed tasks
+        self.stop_event.set()
 
-        logging.info("Sending stop signal to worker processes")
-        # Tell child processes to stop
-        self.queue.put(None)
-        for w in workers:
-            w.join()
+        for w in self.workers:
+            w.join(timeout=timeout)
+            if w.is_alive():
+                logging.warning(
+                    f"Worker {w.name} did not finish within timeout. Terminating..."
+                )
+                w.terminate()
+                w.join()
 
         logging.info("All worker processes stopped.")
