@@ -167,19 +167,10 @@ def create_tasks_and_dependencies(
     """
     Creates a Task object for an expression and its dependencies.
 
-    Parameters
-    ----------
-    expr : sympy.Expr
-        The expression to create a Task object for.
-    task_mapping : dict
-        A mapping of expressions to Task objects.
-    criterion_hashmap : dict
-        A mapping of expressions to Criterion objects.
-
-    Returns
-    -------
-    Task
-        The (root) Task object for the expression.
+    :param expr: The expression to create a Task object for.
+    :param task_mapping: A mapping of expressions to Task objects.
+    :param criterion_hashmap: A mapping of expressions to Criterion objects.
+    :return: The (root) Task object for the expression.
     """
     if expr in task_mapping:
         return task_mapping[expr]

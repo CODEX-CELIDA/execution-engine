@@ -1,5 +1,6 @@
 import logging
 from typing import Any
+from urllib.parse import quote
 
 import pandas as pd
 import sqlalchemy
@@ -7,7 +8,6 @@ from sqlalchemy import and_, event, func
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql import Insert, Select
-from urllib.parse import quote
 
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
     base,
@@ -23,22 +23,14 @@ class OMOPSQLClient:
 
     This class provides a high-level interface to the OMOP SQL database.
 
-    Parameters
-    ----------
-    user : str
-        The user name to connect to the database.
-    password : str
-        The password to connect to the database.
-    host : str
-        The host name of the database.
-    port : int
-        The port of the database.
-    database : str
-        The name of the database.
-    schema : str
-        The name of the schema.
-    vocabulary_logger : logging.Logger, optional
-        The logger to use for logging vocabulary queries, by default None.
+
+    :param user: The user name to connect to the database.
+    :param password: The password to connect to the database.
+    :param host: The host name of the database.
+    :param port: The port of the database.
+    :param database: The name of the database.
+    :param schema: The name of the schema.
+    :param timezone: The timezone to use for the database connection.
     """
 
     def __init__(
@@ -56,9 +48,7 @@ class OMOPSQLClient:
         self._timezone = timezone
 
         self._schema = schema
-        connection_string = (
-            f"postgresql+psycopg://{quote(user)}:{quote(password)}@{host}:{port}/{database}"
-        )
+        connection_string = f"postgresql+psycopg://{quote(user)}:{quote(password)}@{host}:{port}/{database}"
 
         self._engine = sqlalchemy.create_engine(
             connection_string,
@@ -111,10 +101,8 @@ class OMOPSQLClient:
     def _setup_logger(name: str) -> logging.Logger:
         """Set up a logger for the given name.
 
-        Parameters
-        ----------
-        name : str
-            The name of the logger.
+        :param name: The name of the logger.
+        :return: The logger.
         """
         logger = logging.getLogger(name)
         logger.propagate = False

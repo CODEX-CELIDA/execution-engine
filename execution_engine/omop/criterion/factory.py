@@ -38,12 +38,8 @@ def register_criterion_class(
     """
     Register a criterion class.
 
-    Parameters
-    ----------
-    class_name : str
-        The name of the criterion class.
-    criterion_class : Type[Criterion] | Type[CriterionCombination]
-        The criterion class.
+    :param class_name: The name of the criterion class.
+    :param criterion_class: The criterion class.
     """
     class_map[class_name] = criterion_class
 
@@ -52,25 +48,12 @@ def criterion_factory(class_name: str, data: dict) -> Criterion | CriterionCombi
     """
     Create a criterion from a dictionary representation.
 
-    Parameters
-    ----------
-    class_name : str
-        The name of the criterion class.
-    data : dict
-        The dictionary representation of the criterion.
-
-    Returns
-    -------
-    Criterion | CriterionCombination
-        The criterion.
-
-    Raises
-    ------
-    ValueError
-        If the class name is not recognized.
+    :param class_name: The name of the criterion class.
+    :param data: The dictionary representation of the criterion.
+    :return: The criterion.
+    :raises ValueError: If the class name is not recognized.
     """
 
-    """Create a criterion from a dictionary."""
     if class_name not in class_map:
         raise ValueError(f"Unknown criterion class {class_name}")
 

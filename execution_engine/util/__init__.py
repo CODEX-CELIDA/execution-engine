@@ -364,23 +364,12 @@ def value_factory(class_name: str, data: dict) -> Value:
     """
     Get a value object from a class name and data.
 
-    Parameters
-    ----------
-    class_name : str
-        The name of the class to instantiate.
-    data : dict
-        The data to pass to the class constructor.
-
-    Returns
-    -------
-    Value
-        The value object.
-
-    Raises
-    ------
-    ValueError
-        If the class name is not recognized.
+    :param class_name: The name of the class to instantiate.
+    :param data: The data to pass to the class constructor.
+    :return: The value object.
+    :raises ValueError: If the class name is not recognized.
     """
+
     class_map = {
         "ValueNumber": ValueNumber,
         "ValueConcept": ValueConcept,
