@@ -18,10 +18,12 @@ from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import CompoundSelect, Select
 from sqlalchemy.sql.functions import concat
 
-from .constants import CohortCategory
-from .omop.criterion.abstract import Criterion
-from .omop.criterion.combination import CriterionCombination
-from .omop.db.celida import RecommendationResult
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.db.celida import RecommendationResult
+from execution_engine.task import task
+from execution_engine.task.task import Task
 
 
 class ExecutionMap:
@@ -41,10 +43,91 @@ class ExecutionMap:
     _hashmap: dict[str, Criterion]
 
     def __init__(self, comb: CriterionCombination) -> None:
-        self._nnf, self._hashmap = self._to_nnf(comb)
-        self._push_negation_in_criterion()
+        self._criteria = comb
+        self._nnf, self._hashmap = self._to_nnf(self._criteria)
+        self._root_task = self._get_execution_map()
+
+        # self._push_negation_in_criterion()
 
         logging.info(f"NNF: {self._nnf}")
+
+    def root_task(self) -> Task:
+        """
+        Return the root task of the execution map.
+        """
+        return self._root_task
+
+    def __and__(self, other: "ExecutionMap") -> "ExecutionMap":
+        """
+        Combine two execution maps with an AND operator.
+        """
+        assert isinstance(other, ExecutionMap), "other must be instance of ExecutionMap"
+        # todo: actually not CohortCategory.POPULATION_INTERVENTION, but the category of the current criterion combination ?
+        return ExecutionMap(
+            CriterionCombination(
+                "AND",
+                exclude=False,
+                operator=CriterionCombination.Operator(
+                    CriterionCombination.Operator.AND
+                ),
+                category=CohortCategory.POPULATION_INTERVENTION,
+                criteria=[self._criteria, other._criteria],
+            )
+        )
+
+    def __or__(self, other: "ExecutionMap") -> "ExecutionMap":
+        """
+        Combine two execution maps with an OR operator.
+        """
+        assert isinstance(other, ExecutionMap), "other must be instance of ExecutionMap"
+        # todo: actually not CohortCategory.POPULATION_INTERVENTION, but the category of the current criterion combination ?
+        return ExecutionMap(
+            CriterionCombination(
+                "OR",
+                exclude=False,
+                operator=CriterionCombination.Operator(
+                    CriterionCombination.Operator.OR
+                ),
+                category=CohortCategory.POPULATION_INTERVENTION,
+                criteria=[self._criteria, other._criteria],
+            )
+        )
+
+    @classmethod
+    def union(cls, *args: "ExecutionMap") -> "ExecutionMap":
+        """
+        Combine multiple execution maps with an OR operator.
+        """
+        assert all(
+            isinstance(arg, ExecutionMap) for arg in args
+        ), "all args must be instance of ExecutionMap"
+
+        return cls(
+            CriterionCombination(
+                "OR",
+                exclude=False,
+                operator=CriterionCombination.Operator(
+                    CriterionCombination.Operator.OR
+                ),
+                category=CohortCategory.POPULATION_INTERVENTION,
+                criteria=[arg._criteria for arg in args],
+            )
+        )
+
+    def _get_execution_map(self) -> Task:
+        def count_usage(expr: sympy.Expr, usage_count: dict[sympy.Expr, int]) -> None:
+            usage_count[expr] = usage_count.get(expr, 0) + 1
+            if not expr.is_Atom:
+                for arg in expr.args:
+                    count_usage(arg, usage_count)
+
+        usage_counts: dict[sympy.Expr, int] = {}
+        count_usage(self._nnf, usage_counts)
+
+        self._execution_map: dict[sympy.Expr, Task] = {}
+        return task.create_tasks_and_dependencies(
+            self._nnf, self._execution_map, self._hashmap
+        )
 
     @staticmethod
     def _to_nnf(comb: CriterionCombination) -> Tuple[sympy.Expr, dict]:
@@ -69,14 +152,11 @@ class ExecutionMap:
 
         def _traverse(
             comb: CriterionCombination,
-            hashmap: dict[sympy.Expr, Criterion] | None = None,
+            hashmap: dict[sympy.Expr, Criterion],
         ) -> sympy.Symbol:
             """
             Traverse the criterion combination and creates a collection of sympy conjunctions from it.
             """
-            if hashmap is None:
-                hashmap = {}
-
             conjunction = conjunction_from_operator(comb.operator)
             symbols = []
 

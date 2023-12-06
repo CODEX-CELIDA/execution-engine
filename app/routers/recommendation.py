@@ -1,7 +1,9 @@
 import sys
 
 from app.dependencies import get_recommendations
-from execution_engine.omop.cohort_definition import CohortDefinitionCombination
+from execution_engine.omop.cohort.cohort_definition_combination import (
+    CohortDefinitionCombination,
+)
 
 sys.path.append("..")
 from fastapi import APIRouter, Depends, HTTPException
@@ -42,10 +44,10 @@ async def recommendation_criteria(
     cdd: CohortDefinitionCombination = recommendations[recommendation_url][
         "cohort_definition"
     ]
-    criteria = cdd.criteria()
+
     data = []
 
-    for c in criteria:
+    for c in cdd.sequential():
         data.append(
             {
                 "unique_name": c.unique_name(),

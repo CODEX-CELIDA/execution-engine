@@ -9,7 +9,9 @@ from execution_engine.execution_engine import ExecutionEngine
 sys.path.append("..")
 from fastapi import APIRouter, Depends, HTTPException
 
-from execution_engine.omop.cohort_definition import CohortDefinitionCombination
+from execution_engine.omop.cohort.cohort_definition_combination import (
+    CohortDefinitionCombination,
+)
 
 router = APIRouter()
 

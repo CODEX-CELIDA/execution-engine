@@ -9,7 +9,6 @@ from typing import (
     ContextManager,
     Generic,
     Iterator,
-    List,
     MutableMapping,
     Protocol,
     TypeVar,
@@ -17,6 +16,7 @@ from typing import (
 
 import pandas as pd
 
+from execution_engine.execution_map import ExecutionMap
 from execution_engine.task.task import Task, TaskError, TaskStatus
 
 T = TypeVar("T")
@@ -62,8 +62,8 @@ class TaskRunner(ABC):
     An abstract class for running a list of tasks.
     """
 
-    def __init__(self, tasks: List[Task]):
-        self.tasks = tasks
+    def __init__(self, execution_map: ExecutionMap):
+        self.tasks = flatten_tasks(execution_map.root_task())
         self.completed_tasks: set[str] = set()
         self.enqueued_tasks: set[str] = set()
 
@@ -145,8 +145,8 @@ class SequentialTaskRunner(TaskRunner):
     Runs a list of tasks sequentially.
     """
 
-    def __init__(self, tasks: List[Task]):
-        super().__init__(tasks)
+    def __init__(self, execution_map: ExecutionMap):
+        super().__init__(execution_map)
 
         self._shared_results: dict[str, pd.DataFrame] = {}
         self._queue: queue.Queue = queue.Queue()
@@ -199,8 +199,8 @@ class ParallelTaskRunner(TaskRunner):
     Runs a list of tasks in parallel.
     """
 
-    def __init__(self, tasks: List[Task], num_workers: int = 4):
-        super().__init__(tasks)
+    def __init__(self, execution_map: ExecutionMap, num_workers: int = 4):
+        super().__init__(execution_map)
         self.num_workers = num_workers
         self.manager = multiprocessing.Manager()
         self._shared_results = self.manager.dict()

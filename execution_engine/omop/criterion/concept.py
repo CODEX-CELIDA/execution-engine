@@ -1,12 +1,13 @@
 from typing import Any, Dict
 
+import pandas as pd
 from sqlalchemy import case, literal
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory, OMOPConcepts, IntervalType
+from execution_engine.constants import CohortCategory, IntervalType, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.util import Value, value_factory
+from execution_engine.util import TimeRange, Value, value_factory
 
 __all__ = ["ConceptCriterion"]
 
@@ -59,6 +60,14 @@ class ConceptCriterion(Criterion):
         """Get the concept associated with this Criterion"""
         return self._concept
 
+    def process_data(
+        self, data: pd.DataFrame, observation_window: TimeRange
+    ) -> pd.DataFrame:
+        """
+        Process the data for the criterion.
+        """
+        raise NotImplementedError()
+
     def _sql_filter_concept(
         self, query: Select, override_concept_id: int | None = None
     ) -> Select:
@@ -85,13 +94,13 @@ class ConceptCriterion(Criterion):
 
         if self._value is not None:
             conditional_column = case(
-                [
-                    (self._value.to_sql(self.table_alias), IntervalType.POSITIVE.value)
-                ],
-                else_=IntervalType.NEGATIVE.value
-            ).label('interval_type')
+                [(self._value.to_sql(self.table_alias), IntervalType.POSITIVE.value)],
+                else_=IntervalType.NEGATIVE.value,
+            ).label("interval_type")
         else:
-            conditional_column = literal(IntervalType.POSITIVE.value).label('interval_type')
+            conditional_column = literal(IntervalType.POSITIVE.value).label(
+                "interval_type"
+            )
 
         query = query.add_columns(conditional_column)
 

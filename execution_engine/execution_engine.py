@@ -4,11 +4,12 @@ from datetime import datetime
 from typing import Tuple, Union, cast
 
 import pandas as pd
+import sqlalchemy
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from sqlalchemy import Index, and_, func, insert, select, text
+from sqlalchemy import and_, insert, select
 
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
@@ -48,23 +49,22 @@ from execution_engine.fhir_omop_mapping import (
     ActionSelectionBehavior,
     characteristic_to_criterion,
 )
-from execution_engine.omop.cohort_definition import (
-    CohortDefinition,
+from execution_engine.omop.cohort.cohort_definition import CohortDefinition
+from execution_engine.omop.cohort.cohort_definition_combination import (
     CohortDefinitionCombination,
 )
-from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db import celida as result_db
-from execution_engine.omop.db.celida import CohortDefinition as CohortDefinitionTable, RecommendationResultInterval
+from execution_engine.omop.db.celida import CohortDefinition as CohortDefinitionTable
 from execution_engine.omop.db.celida import (
     RecommendationCriterion,
     RecommendationResult,
+    RecommendationResultInterval,
     RecommendationRun,
 )
 from execution_engine.omop.serializable import Serializable
-from execution_engine.util import TimeRange
-from execution_engine.util.sql import SelectInto
+from execution_engine.task import runner
 
 
 class ExecutionEngine:
@@ -401,7 +401,7 @@ class ExecutionEngine:
                     result = con.execute(query)
                     cd_plan.id = result.fetchone().plan_id
 
-                for criterion in cd_plan.criteria():
+                for criterion in cd_plan.sequential():
                     _, crit_hash = _hash(criterion)
 
                     query = select(result_db.RecommendationCriterion).where(
@@ -478,54 +478,31 @@ class ExecutionEngine:
             "observation_end_datetime": end_datetime,
         }
 
-        observation_window = TimeRange(start=start_datetime, end=end_datetime)
+        # observation_window = TimeRange(start=start_datetime, end=end_datetime)
 
-        intervals = {}
-
-        # get the negation normal form and put each "entity" into a queue for multiprocessing
-        # work from bottom to top, adding the additional criteria to the queue as bottom ones
-        # are processed
-        # atoms are processed by processing the actual criteria, compound (Not (?), Or, And) are processed
-        # based on the results of the bottom criteria
-        # -> need to identify the results of compound criteria. possibly construct an own tree from the sympy
-        #    representation where the individual objects in the tree contain the results of downstream criteria
-        # warning: might run into memory problems -> then splitting by person might be necessary
+        # todo: warning: current implementation might run into memory problems ->
+        #  then splitting by person might be necessary
         #  otherwise not needed intermediate results may be deleted after processing
-        # write results from bottom criteria to database
-        #  -- then the rest of the process can actually be handled by the database and temporary tables, because
-        #     only binary operations are necessary (and we have the sql statements for that)
 
+        # runner_class = runner.ParallelTaskRunner if use_multiprocessing else runner.SequentialTaskRunner
 
+        for cohort_def in cd:
+            task_runner = runner.SequentialTaskRunner(cohort_def.execution_map())
+            task_runner.run(params)
 
-
-        with (self._db.begin() as con):
-            for cohort_def in cd:
-                # todo: parallelize
-                for criterion in cohort_def.execution_plan():
-
-                    statement = criterion.select()
-                    description = statement.description  # noqa
-                    self._db.log_query(statement, params)
-
-                    data = pd.read_sql(statement, con, params=params)
-
-                    data = criterion.process_data(data, observation_window)
-                    data = data.assign(plan_id=cohort_def.id, criterion_id=criterion.id)
-
-                    intervals[criterion.id] = data
-
-                    self.insert_intervals(data, con, cohort_def, criterion)
-
-                # combination statements
-            # combination statements
-    def insert_intervals(self, data: pd.DataFrame, con) -> None:
+    def insert_intervals(self, data: pd.DataFrame, con: sqlalchemy.Connection) -> None:
         """Inserts the intervals into the database."""
         if data.empty:
             return
 
-        (data
-            .to_sql(name=RecommendationResultInterval.__tablename__, con=con, if_exists="append", index=False)
-         )
+        (
+            data.to_sql(
+                name=RecommendationResultInterval.__tablename__,
+                con=con,
+                if_exists="append",
+                index=False,
+            )
+        )
 
     def cleanup(self, cd: CohortDefinitionCombination) -> None:
         """Cleans up the temporary tables."""
