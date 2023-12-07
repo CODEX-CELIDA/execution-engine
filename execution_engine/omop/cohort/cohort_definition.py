@@ -109,7 +109,7 @@ class CohortDefinition(Serializable):
         """
         Get the execution map for the cohort definition.
         """
-        return ExecutionMap(self._criteria)
+        return ExecutionMap(self._criteria, base_criterion=self._base_criterion)
 
     def add(self, criterion: Criterion | CriterionCombination) -> None:
         """
@@ -140,7 +140,7 @@ class CohortDefinition(Serializable):
         """
         return self._criteria
 
-    def sequential(self) -> list[Criterion]:
+    def flatten(self) -> list[Criterion]:
         """
         Retrieve all criteria in a flat list
         """
@@ -229,7 +229,7 @@ class CohortDefinition(Serializable):
         i: int
         criterion: Criterion
 
-        for i, criterion in enumerate(self._execution_map.sequential()):
+        for i, criterion in enumerate(self._execution_map.flatten()):
             logging.info(f"Processing {criterion.description()}")
 
             query = criterion.sql_generate(base_table=base_table)

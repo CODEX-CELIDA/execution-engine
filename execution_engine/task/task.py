@@ -1,3 +1,4 @@
+import logging
 from enum import Enum, auto
 
 import pandas as pd
@@ -57,6 +58,7 @@ class Task:
         """
 
         self.status = TaskStatus.RUNNING
+        logging.info(f"Running task '{self.name()}'")
 
         try:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
@@ -157,4 +159,7 @@ class Task:
         """
         Returns a string representation of the Task object.
         """
-        return f"Task({self.expr}, criterion={self.criterion})"
+        if self.expr.is_Atom:
+            return f"Task({self.expr}, criterion={self.criterion}, category={self.expr.category})"
+        else:
+            return f"Task({self.expr}), category={self.expr.category})"

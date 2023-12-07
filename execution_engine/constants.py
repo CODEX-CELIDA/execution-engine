@@ -34,6 +34,12 @@ class CohortCategory(Enum):
     INTERVENTION = "intervention"
     POPULATION_INTERVENTION = "population_intervention"
 
+    def __str__(self) -> str:
+        """
+        Get the string representation of the category.
+        """
+        return self.name
+
 
 class IntervalType(Enum):
     """

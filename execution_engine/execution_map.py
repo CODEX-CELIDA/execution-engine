@@ -65,6 +65,46 @@ class ExecutionMap:
         """
         return self._root_task
 
+    @staticmethod
+    def get_combined_category(*args: "ExecutionMap") -> CohortCategory:
+        """
+        Get the combined category of multiple execution maps.
+
+        The combined category is the category of the cohort definition that is created by combining
+        the cohort definitions represented by the execution maps.
+
+        BASE is returned only if all execution maps have the category BASE.
+        POPULATION is returned if all execution maps have the category POPULATION or BASE.
+        INTERVENTION is returned if all execution maps have the category INTERVENTION or BASE.
+        POPULATION_INTERVENTION is returned otherwise.
+
+        :param args: The execution maps.
+        :return: The combined category.
+        """
+        assert all(
+            isinstance(arg, ExecutionMap) for arg in args
+        ), "all args must be instance of ExecutionMap"
+
+        criteria = [arg._criteria for arg in args]
+
+        if all(c.category == CohortCategory.BASE for c in criteria):
+            category = CohortCategory.BASE
+        elif all(
+            c.category == CohortCategory.POPULATION or c.category == CohortCategory.BASE
+            for c in criteria
+        ):
+            category = CohortCategory.POPULATION
+        elif all(
+            c.category == CohortCategory.INTERVENTION
+            or c.category == CohortCategory.BASE
+            for c in criteria
+        ):
+            category = CohortCategory.INTERVENTION
+        else:
+            category = CohortCategory.POPULATION_INTERVENTION
+
+        return category
+
     def __and__(self, other: "ExecutionMap") -> "ExecutionMap":
         """
         Combine two execution maps with an AND operator.
@@ -74,7 +114,9 @@ class ExecutionMap:
             self._base_criterion == other._base_criterion
         ), "base criteria must be equal"
 
-        # todo: actually not CohortCategory.POPULATION_INTERVENTION, but the category of the current criterion combination ?
+        criteria = [self._criteria, other._criteria]
+        category = self.get_combined_category(self, other)
+
         return ExecutionMap(
             CriterionCombination(
                 "AND",
@@ -82,8 +124,8 @@ class ExecutionMap:
                 operator=CriterionCombination.Operator(
                     CriterionCombination.Operator.AND
                 ),
-                category=CohortCategory.POPULATION_INTERVENTION,
-                criteria=[self._criteria, other._criteria],
+                category=category,
+                criteria=criteria,
             ),
             self._base_criterion,
         )
@@ -97,7 +139,9 @@ class ExecutionMap:
             self._base_criterion == other._base_criterion
         ), "base criteria must be equal"
 
-        # todo: actually not CohortCategory.POPULATION_INTERVENTION, but the category of the current criterion combination ?
+        criteria = [self._criteria, other._criteria]
+        category = self.get_combined_category(self, other)
+
         return ExecutionMap(
             CriterionCombination(
                 "OR",
@@ -105,8 +149,8 @@ class ExecutionMap:
                 operator=CriterionCombination.Operator(
                     CriterionCombination.Operator.OR
                 ),
-                category=CohortCategory.POPULATION_INTERVENTION,
-                criteria=[self._criteria, other._criteria],
+                category=category,
+                criteria=criteria,
             ),
             self._base_criterion,
         )
@@ -125,6 +169,9 @@ class ExecutionMap:
             len(set(arg._base_criterion for arg in args)) == 1
         ), "base criteria must be equal"
 
+        criteria = [arg._criteria for arg in args]
+        category = cls.get_combined_category(*args)
+
         return cls(
             CriterionCombination(
                 "OR",
@@ -132,8 +179,8 @@ class ExecutionMap:
                 operator=CriterionCombination.Operator(
                     CriterionCombination.Operator.OR
                 ),
-                category=CohortCategory.POPULATION_INTERVENTION,
-                criteria=[arg._criteria for arg in args],
+                category=category,
+                criteria=criteria,
             ),
             args[0]._base_criterion,
         )
@@ -188,13 +235,13 @@ class ExecutionMap:
                     entry_name = entry.unique_name()
                     s = logic.Symbol(entry_name, criterion=entry)
                     if entry.exclude:
-                        s = logic.Not(s, cohort_category=entry.category)
+                        s = logic.Not(s, category=entry.category)
                     symbols.append(s)
 
-            c = conjunction(*symbols, cohort_category=entry.category)
+            c = conjunction(*symbols, category=comb.category)
 
             if comb.exclude:
-                c = logic.Not(c, cohort_category=entry.category)
+                c = logic.Not(c, category=comb.category)
 
             return c
 
@@ -202,7 +249,7 @@ class ExecutionMap:
 
         return conj
 
-    def sequential(self) -> Iterator[Criterion]:
+    def flatten(self) -> Iterator[Criterion]:
         """
         Traverse the execution map and return a list of criteria that can be executed sequentially.
         """

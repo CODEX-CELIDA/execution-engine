@@ -113,13 +113,11 @@ class CohortDefinitionCombination(Serializable):
 
         return criteria
 
-    def sequential(self) -> list[Criterion]:
+    def flatten(self) -> list[Criterion]:
         """
         Retrieve all criteria in a flat list
         """
-        return list(
-            itertools.chain(*[cd.sequential() for cd in self._cohort_definitions])
-        )
+        return list(itertools.chain(*[cd.flatten() for cd in self._cohort_definitions]))
 
     def __iter__(self) -> Iterator[CohortDefinition]:
         """

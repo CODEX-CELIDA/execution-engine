@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, Union
+from typing import Any, Dict, Iterator, Sequence, Union, cast
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import AbstractCriterion, Criterion
@@ -59,7 +59,7 @@ class CriterionCombination(AbstractCriterion):
         exclude: bool,
         operator: Operator,
         category: CohortCategory,
-        criteria: list[Union[Criterion, "CriterionCombination"]] | None = None,
+        criteria: Sequence[Union[Criterion, "CriterionCombination"]] | None = None,
     ):
         """
         Initialize the criterion combination.
@@ -67,10 +67,14 @@ class CriterionCombination(AbstractCriterion):
         super().__init__(name=name, exclude=exclude, category=category)
         self._operator = operator
 
+        self._criteria: list[Union[Criterion, CriterionCombination]]
+
         if criteria is None:
-            self._criteria: list[Criterion | CriterionCombination] = []
+            self._criteria = []
         else:
-            self._criteria = criteria
+            self._criteria = cast(
+                list[Union[Criterion, "CriterionCombination"]], criteria
+            )
 
     def add(self, criterion: Union[Criterion, "CriterionCombination"]) -> None:
         """
