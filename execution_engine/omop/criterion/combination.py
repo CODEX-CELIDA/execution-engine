@@ -59,7 +59,7 @@ class CriterionCombination(AbstractCriterion):
         exclude: bool,
         operator: Operator,
         category: CohortCategory,
-        criteria: list[Criterion | "CriterionCombination"] | None = None,
+        criteria: list[Union[Criterion, "CriterionCombination"]] | None = None,
     ):
         """
         Initialize the criterion combination.
@@ -78,7 +78,7 @@ class CriterionCombination(AbstractCriterion):
         """
         self._criteria.append(criterion)
 
-    def add_all(self, criteria: list[Criterion | "CriterionCombination"]) -> None:
+    def add_all(self, criteria: list[Union[Criterion, "CriterionCombination"]]) -> None:
         """
         Add multiple criteria to the combination.
         """

@@ -1,6 +1,5 @@
-import copy
 import logging
-from typing import Iterator, Tuple
+from typing import Iterator
 
 import sympy
 from sqlalchemy import (
@@ -18,11 +17,12 @@ from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import CompoundSelect, Select
 from sqlalchemy.sql.functions import concat
 
+import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.db.celida import RecommendationResult
-from execution_engine.task import task
+from execution_engine.task.creator import TaskCreator
 from execution_engine.task.task import Task
 
 
@@ -39,17 +39,25 @@ class ExecutionMap:
     This allows us to push the negation operator into the criteria themselves, which simplifies the execution strategy.
     """
 
-    _nnf: sympy.Expr
+    _expr: logic.Expr
     _hashmap: dict[str, Criterion]
 
-    def __init__(self, comb: CriterionCombination) -> None:
+    def __init__(self, comb: CriterionCombination, base_criterion: Criterion) -> None:
+        """
+        Initialize the execution map with a criterion combination.
+
+        :param comb: The criterion combination.
+        :param base_criterion: The base criterion which is executed first and used to limit the number of patients
+            that are considered for the execution of the other criteria.
+        """
         self._criteria = comb
-        self._nnf, self._hashmap = self._to_nnf(self._criteria)
+        self._expr = self._to_expression(self._criteria)
+        self._base_criterion = base_criterion
         self._root_task = self._get_execution_map()
 
         # self._push_negation_in_criterion()
 
-        logging.info(f"NNF: {self._nnf}")
+        logging.info(f"NNF: {self._expr}")
 
     def root_task(self) -> Task:
         """
@@ -62,6 +70,10 @@ class ExecutionMap:
         Combine two execution maps with an AND operator.
         """
         assert isinstance(other, ExecutionMap), "other must be instance of ExecutionMap"
+        assert (
+            self._base_criterion == other._base_criterion
+        ), "base criteria must be equal"
+
         # todo: actually not CohortCategory.POPULATION_INTERVENTION, but the category of the current criterion combination ?
         return ExecutionMap(
             CriterionCombination(
@@ -72,7 +84,8 @@ class ExecutionMap:
                 ),
                 category=CohortCategory.POPULATION_INTERVENTION,
                 criteria=[self._criteria, other._criteria],
-            )
+            ),
+            self._base_criterion,
         )
 
     def __or__(self, other: "ExecutionMap") -> "ExecutionMap":
@@ -80,6 +93,10 @@ class ExecutionMap:
         Combine two execution maps with an OR operator.
         """
         assert isinstance(other, ExecutionMap), "other must be instance of ExecutionMap"
+        assert (
+            self._base_criterion == other._base_criterion
+        ), "base criteria must be equal"
+
         # todo: actually not CohortCategory.POPULATION_INTERVENTION, but the category of the current criterion combination ?
         return ExecutionMap(
             CriterionCombination(
@@ -90,7 +107,8 @@ class ExecutionMap:
                 ),
                 category=CohortCategory.POPULATION_INTERVENTION,
                 criteria=[self._criteria, other._criteria],
-            )
+            ),
+            self._base_criterion,
         )
 
     @classmethod
@@ -102,6 +120,11 @@ class ExecutionMap:
             isinstance(arg, ExecutionMap) for arg in args
         ), "all args must be instance of ExecutionMap"
 
+        # assert that all arg's base criteria are equal
+        assert (
+            len(set(arg._base_criterion for arg in args)) == 1
+        ), "base criteria must be equal"
+
         return cls(
             CriterionCombination(
                 "OR",
@@ -111,49 +134,47 @@ class ExecutionMap:
                 ),
                 category=CohortCategory.POPULATION_INTERVENTION,
                 criteria=[arg._criteria for arg in args],
-            )
+            ),
+            args[0]._base_criterion,
         )
 
     def _get_execution_map(self) -> Task:
-        def count_usage(expr: sympy.Expr, usage_count: dict[sympy.Expr, int]) -> None:
+        def count_usage(expr: logic.Expr, usage_count: dict[logic.Expr, int]) -> None:
             usage_count[expr] = usage_count.get(expr, 0) + 1
             if not expr.is_Atom:
                 for arg in expr.args:
                     count_usage(arg, usage_count)
 
-        usage_counts: dict[sympy.Expr, int] = {}
-        count_usage(self._nnf, usage_counts)
+        usage_counts: dict[logic.Expr, int] = {}
+        count_usage(self._expr, usage_counts)
 
-        self._execution_map: dict[sympy.Expr, Task] = {}
-        return task.create_tasks_and_dependencies(
-            self._nnf, self._execution_map, self._hashmap
-        )
+        self._execution_map: dict[logic.Expr, Task] = {}
+        tc = TaskCreator(base_criterion=self._base_criterion)
+
+        return tc.create_tasks_and_dependencies(self._expr)
 
     @staticmethod
-    def _to_nnf(comb: CriterionCombination) -> Tuple[sympy.Expr, dict]:
+    def _to_expression(comb: CriterionCombination) -> logic.Expr:
         """
-        Convert the criterion combination into a negation normal form (NNF) and return the NNF expression and a hashmap of
+        Convert the criterion combination into a logic expression and a hashmap of
         criteria by their name used in the NNF. This is a workaround because we are using sympy for the NNF conversion
         and sympy seems not to allow adding custom attributes to the expression tree.
         """
 
         def conjunction_from_operator(
             operator: CriterionCombination.Operator,
-        ) -> sympy.Symbol:
+        ) -> sympy.Expr:
             """
             Convert the criterion's operator into a sympy conjunction (And or Or)
             """
             if operator.operator == CriterionCombination.Operator.AND:
-                return sympy.And
+                return logic.And
             elif operator.operator == CriterionCombination.Operator.OR:
-                return sympy.Or
+                return logic.Or
             else:
                 raise NotImplementedError(f'Operator "{str(operator)}" not implemented')
 
-        def _traverse(
-            comb: CriterionCombination,
-            hashmap: dict[sympy.Expr, Criterion],
-        ) -> sympy.Symbol:
+        def _traverse(comb: CriterionCombination) -> logic.Symbol:
             """
             Traverse the criterion combination and creates a collection of sympy conjunctions from it.
             """
@@ -162,62 +183,31 @@ class ExecutionMap:
 
             for entry in comb:
                 if isinstance(entry, CriterionCombination):
-                    symbols.append(_traverse(entry, hashmap))
+                    symbols.append(_traverse(entry))
                 else:
                     entry_name = entry.unique_name()
-                    s = sympy.Symbol(entry_name)
-                    hashmap[s] = entry
+                    s = logic.Symbol(entry_name, criterion=entry)
                     if entry.exclude:
-                        s = sympy.Not(s)
+                        s = logic.Not(s, cohort_category=entry.category)
                     symbols.append(s)
 
-            c = conjunction(*symbols)
+            c = conjunction(*symbols, cohort_category=entry.category)
 
             if comb.exclude:
-                c = sympy.Not(c)
+                c = logic.Not(c, cohort_category=entry.category)
 
             return c
 
-        hashmap: dict[sympy.Expr, Criterion] = {}
-        conj = _traverse(comb, hashmap)
+        conj = _traverse(comb)
 
-        return conj.to_nnf(), hashmap
-
-    def _push_negation_in_criterion(self) -> None:
-        """
-        Push the negation operator into the criteria themselves. This is done by inverting the exclude flag of the
-        criteria.
-
-        Note that the hashmap is cloned before, because we do not want to modify the original criteria objects.
-        As we are pushing negations from the criterion combination into the criteria, if we would not clone the original
-        criteria objects, multiple calls to this function would lead to (incorrect) multiple switchings of the exclude flag.
-        """
-
-        self._hashmap = copy.deepcopy(self._hashmap)
-
-        def _flat_traverse(args: tuple[sympy.Expr]) -> None:
-            for arg in args:
-                if arg.is_Not:
-                    self._hashmap[arg.args[0]].exclude = True
-                elif arg.is_Atom:
-                    self._hashmap[arg].exclude = False
-                elif not arg.is_Atom:
-                    _flat_traverse(arg.args)
-
-        _flat_traverse(self._nnf.args)
-
-    def nnf(self) -> sympy.Expr:
-        """
-        Return the negation normal form (NNF) of the criterion combination.
-        """
-        return self._nnf
+        return conj
 
     def sequential(self) -> Iterator[Criterion]:
         """
         Traverse the execution map and return a list of criteria that can be executed sequentially.
         """
 
-        def _flat_traverse(args: tuple[sympy.Expr]) -> Iterator[Criterion]:
+        def _flat_traverse(args: tuple[logic.Expr]) -> Iterator[Criterion]:
             """
             Traverse the execution map and return a list of criteria that can be executed sequentially.
             """
@@ -230,7 +220,7 @@ class ExecutionMap:
                 else:
                     yield from _flat_traverse(arg.args)
 
-        yield from _flat_traverse(self._nnf.args)
+        yield from _flat_traverse(self._expr.args)
 
     def combine(self, cohort_category: CohortCategory) -> CompoundSelect:
         """
@@ -329,15 +319,15 @@ class ExecutionMap:
 
             return query
 
-        def _traverse(combination: sympy.Symbol) -> CompoundSelect:
+        def _traverse(combination: logic.Symbol) -> CompoundSelect:
             """
             Traverse the execution map and return a combined SQL query for all criteria in the execution map.
             """
             criteria: list[Criterion | CompoundSelect] = []
 
-            if type(combination) == sympy.And:
+            if isinstance(combination, logic.And):
                 conjunction = intersect
-            elif type(combination) == sympy.Or:
+            elif isinstance(combination, logic.Or):
                 conjunction = union
             else:
                 raise ValueError(f"Unknown type {type(combination)}")
@@ -377,7 +367,7 @@ class ExecutionMap:
 
         cte_fixed_date_range = fixed_date_range()
 
-        query = _traverse(self._nnf)
+        query = _traverse(self._expr)
         query = intersect(select_base_criterion(), query)
         query.description = f"Combination of criteria({cohort_category.value})"
 

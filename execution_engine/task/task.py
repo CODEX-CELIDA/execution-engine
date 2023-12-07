@@ -1,9 +1,8 @@
 from enum import Enum, auto
 
 import pandas as pd
-import sympy
-from sympy import And, Not, Or
 
+import execution_engine.util.cohort_logic as logic
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.sql import OMOPSQLClient
 from execution_engine.settings import config
@@ -42,7 +41,7 @@ class Task:
     A Task object represents a task that needs to be run.
     """
 
-    def __init__(self, expr: sympy.Expr, criterion: Criterion) -> None:
+    def __init__(self, expr: logic.Expr, criterion: Criterion) -> None:
         self.expr = expr
         self.criterion = criterion
         self.dependencies: list[Task] = []
@@ -60,7 +59,7 @@ class Task:
         self.status = TaskStatus.RUNNING
 
         try:
-            if len(self.dependencies) == 0:
+            if len(self.dependencies) == 0 or self.expr.is_Atom:
                 # only criteria have no dependencies, everything else is a combination (or Not)
                 result = self.handle_criterion(params)
             elif len(self.dependencies) == 1:
@@ -122,9 +121,9 @@ class Task:
         """
         assert self.expr.is_Not, "Dependency is not a Not expression."
         observation_window = TimeRange(
-            params["observation_window_start"],
-            params["observation_window_end"],
-            "observation_window",
+            start=params["observation_window_start"],
+            end=params["observation_window_end"],
+            name="observation_window",
         )
         result = process.invert(data[0], observation_window)
         return result
@@ -140,9 +139,9 @@ class Task:
         :return: A DataFrame with the merged or intersected intervals.
         """
         by = ["person_id", "concept_id"]
-        if isinstance(self.expr, And):
+        if isinstance(self.expr, logic.And):
             result = process.merge_intervals(data, by)
-        elif isinstance(self.expr, Or):
+        elif isinstance(self.expr, logic.Or):
             result = process.intersect_intervals(data, by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
@@ -159,37 +158,3 @@ class Task:
         Returns a string representation of the Task object.
         """
         return f"Task({self.expr}, criterion={self.criterion})"
-
-
-def create_tasks_and_dependencies(
-    expr: sympy.Expr, task_mapping: dict, criterion_hashmap: dict
-) -> Task:
-    """
-    Creates a Task object for an expression and its dependencies.
-
-    :param expr: The expression to create a Task object for.
-    :param task_mapping: A mapping of expressions to Task objects.
-    :param criterion_hashmap: A mapping of expressions to Criterion objects.
-    :return: The (root) Task object for the expression.
-    """
-    if expr in task_mapping:
-        return task_mapping[expr]
-
-    current_criterion = criterion_hashmap.get(expr, None)
-    current_task = Task(
-        expr, current_criterion
-    )  # Create a Task object for the current expression
-
-    # Dependencies are the children in the expression tree
-    dependencies = []
-    if isinstance(expr, (And, Or, Not)):
-        for arg in expr.args:
-            child_task = create_tasks_and_dependencies(
-                arg, task_mapping, criterion_hashmap
-            )
-            dependencies.append(child_task)
-
-    current_task.dependencies = dependencies
-    task_mapping[expr] = current_task
-
-    return current_task

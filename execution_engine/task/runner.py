@@ -67,6 +67,8 @@ class TaskRunner(ABC):
         self.completed_tasks: set[str] = set()
         self.enqueued_tasks: set[str] = set()
 
+        logging.info(f"Scheduling {len(self.tasks)} tasks")
+
     def enqueue_ready_tasks(self) -> None:
         """
         Enqueues tasks that are ready to run based on their dependencies and completion status.
