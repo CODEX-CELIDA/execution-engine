@@ -90,14 +90,14 @@ class RecommendationResult(Base):  # noqa: D101
     __tablename__ = "recommendation_result"
     __table_args__ = (
         Index(
-            "ix_run_id_cohort_category_person_id_valid_date",
+            "ix_rec_result_run_id_cohort_category_person_id_valid_date",
             "recommendation_run_id",
             "cohort_category",
             "person_id",
             "valid_date",
         ),
         Index(
-            "ix_run_id_plan_id_criterion_id_valid_date",
+            "ix_rec_result__run_id_plan_id_criterion_id_valid_date",
             "recommendation_run_id",
             "plan_id",
             "criterion_id",
@@ -144,11 +144,12 @@ class RecommendationResult(Base):  # noqa: D101
     #    primaryjoin="RecommendationResult.person_id == cds_cdm.person.person_id",
     # )
 
+
 class RecommendationResultInterval(Base):  # noqa: D101
     __tablename__ = "recommendation_result_interval"
     __table_args__ = (
         Index(
-            "ix_run_id_cohort_category_person_id_valid_date",
+            "ix_rec_result_int_run_id_cohort_category_person_id_valid_date",
             "recommendation_run_id",
             "cohort_category",
             "person_id",
@@ -156,7 +157,7 @@ class RecommendationResultInterval(Base):  # noqa: D101
             "interval_end",
         ),
         Index(
-            "ix_run_id_plan_id_criterion_id_valid_date",
+            "ix_rec_result_int_run_id_plan_id_criterion_id_valid_date",
             "recommendation_run_id",
             "plan_id",
             "criterion_id",
