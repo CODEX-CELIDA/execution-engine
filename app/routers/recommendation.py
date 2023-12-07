@@ -47,7 +47,7 @@ async def recommendation_criteria(
 
     data = []
 
-    for c in cdd.sequential():
+    for c in cdd.flatten():
         data.append(
             {
                 "unique_name": c.unique_name(),

@@ -50,6 +50,12 @@ class IntervalType(Enum):
     NEGATIVE = "negative"
     NODATA = "nodata"
 
+    def __str__(self) -> str:
+        """
+        Get the string representation of the interval type.
+        """
+        return self.name
+
 
 class OMOPConcepts(Enum):
     """

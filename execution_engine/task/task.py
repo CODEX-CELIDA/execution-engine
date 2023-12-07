@@ -86,13 +86,13 @@ class Task:
         :param params: The parameters.
         :return: A DataFrame with the result of the query.
         """
-        # engine = get_engine()
-        # query = self.criterion.create_query()
-        # result = engine.query(query)
+        engine = get_engine()
+        query = self.criterion.create_query()
+        result = engine.query(query)
 
         # todo: insert result into database
 
-        result = pd.DataFrame(
+        """result = pd.DataFrame(
             {
                 "person_id": [1, 2, 3],
                 "concept_id": [1, 1, 1],
@@ -107,7 +107,7 @@ class Task:
                     pd.Timestamp("2020-01-01 00:00:00"),
                 ],
             }
-        )
+        )"""
 
         return result
 

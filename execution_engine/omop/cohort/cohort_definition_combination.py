@@ -5,7 +5,6 @@ from typing import Any, Dict, Iterator, Self
 from sqlalchemy import (
     Column,
     Date,
-    Index,
     Insert,
     Integer,
     MetaData,
@@ -16,10 +15,10 @@ from sqlalchemy import (
     select,
     union,
 )
-from sqlalchemy.orm import Query
 from sqlalchemy.sql.ddl import DropTable
 
 from execution_engine.constants import CohortCategory
+from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.cohort import add_result_insert
 from execution_engine.omop.cohort.cohort_definition import CohortDefinition
 from execution_engine.omop.criterion.abstract import Criterion
@@ -27,7 +26,6 @@ from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.db.celida import RecommendationResult
 from execution_engine.omop.serializable import Serializable
-from execution_engine.util.sql import SelectInto
 
 
 class CohortDefinitionCombination(Serializable):
@@ -97,6 +95,16 @@ class CohortDefinitionCombination(Serializable):
         """
         return self._description
 
+    def execution_map(self) -> ExecutionMap:
+        """
+        Get the execution map of the cohort definition combination.
+
+        The execution map allows to execute the cohort definition combination as a series of tasks.
+        """
+        return ExecutionMap.union(
+            *[cd.execution_map() for cd in self._cohort_definitions]
+        )
+
     def criteria(self) -> CriterionCombination:
         """
         Get the criteria of the cohort definition combination.
@@ -119,7 +127,7 @@ class CohortDefinitionCombination(Serializable):
         """
         return list(itertools.chain(*[cd.flatten() for cd in self._cohort_definitions]))
 
-    def __iter__(self) -> Iterator[CohortDefinition]:
+    def cohort_definitions(self) -> Iterator[CohortDefinition]:
         """
         Iterate over the cohort definitions.
         """
@@ -150,51 +158,6 @@ class CohortDefinitionCombination(Serializable):
             Column("person_id", Integer, primary_key=True),
             Column("valid_date", Date),
         )
-
-    def create_base_table(self) -> Table:
-        """
-        Create the base table for the cohort definition combination.
-        """
-        self.base_table = self.to_table(self._base_criterion.name)
-
-        query = self._base_criterion.sql_generate(base_table=self.base_table)
-        query = self._base_criterion.sql_insert_into_table(
-            query, self.base_table, temporary=True
-        )
-        assert isinstance(
-            query, SelectInto
-        ), f"Invalid query - expected SelectInto, got {type(query)}"
-
-        yield query
-        yield Index(
-            "ix_person_id_valid_date",
-            self.base_table.c.person_id,
-            self.base_table.c.valid_date,
-        )
-
-        # let's also insert the base criterion into the recommendation_result table (for the full list of patients)
-        query = add_result_insert(
-            self.base_table.select(),
-            plan_id=None,
-            criterion_id=None,
-            cohort_category=CohortCategory.BASE,
-        )
-        query.description = "Insert base criterion into recommendation_result table"
-        yield query
-
-    def process(self) -> Iterator[Query]:
-        """
-        Process the cohort definition combination into SQL statements.
-        """
-
-        yield from self.create_base_table()
-
-        for i, cohort_definition in enumerate(self._cohort_definitions):
-            yield from cohort_definition.process(
-                base_table=self.base_table,
-            )
-
-        yield from self.combine()
 
     def combine(self) -> Iterator[Insert]:
         """

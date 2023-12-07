@@ -24,11 +24,18 @@ class CohortCategorized(sympy.Basic, Generic[T]):
         :return: A new CohortCategorized object.
         """
         obj = super().__new__(cls, *args)
-        obj.category = kwargs.get("category")
-        assert obj.category is not None, "Category must be set"
+        if not type(obj) == cls:
+            # The sympy.And, sympy.Or classes return the original symbol if only one argument is given
+            return obj
+
+        category = kwargs.get("category")
+        assert category is not None, "Category must be set"
         assert isinstance(
-            obj.category, CohortCategory
+            category, CohortCategory
         ), "Category must be a CohortCategory object"
+
+        obj.category = category
+
         return obj
 
 

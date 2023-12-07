@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Iterator
+from typing import Any, Dict
 
 from sqlalchemy import Table
 from sqlalchemy.orm import Query
@@ -52,7 +52,7 @@ class CohortDefinition(Serializable):
     ) -> None:
         self._name = name
         self._url = url
-        self._base_criterion = base_criterion  # todo: i think base_criterion is not required here (or it is, but it is not used currently)
+        self._base_criterion = base_criterion
 
         if criteria is None:
             self._criteria = CriterionCombination(
@@ -86,24 +86,6 @@ class CohortDefinition(Serializable):
         Get the url of the cohort definition combination.
         """
         return self._url
-
-    def __iter__(self) -> Iterator[Criterion | CriterionCombination]:
-        """
-        Iterate over the criteria in the cohort definition.
-        """
-        return iter(self._criteria)
-
-    def __len__(self) -> int:
-        """
-        Get the number of criteria in the cohort definition.
-        """
-        return len(self._criteria)
-
-    def __getitem__(self, item: int) -> Criterion | CriterionCombination:
-        """
-        Get a criterion by index.
-        """
-        return self._criteria[item]
 
     def execution_map(self) -> ExecutionMap:
         """
@@ -219,32 +201,32 @@ class CohortDefinition(Serializable):
         else:
             raise NotImplementedError(f"Unknown type {type(sql)}")
 
-    def process(self, base_table: Table) -> Iterator[Query]:
+    def process(self, base_table: Table) -> None:
         """
         Process the cohort definition into SQL statements.
         """
 
-        self._execution_map = self.execution_map()
-
-        i: int
-        criterion: Criterion
-
-        for i, criterion in enumerate(self._execution_map.flatten()):
-            logging.info(f"Processing {criterion.description()}")
-
-            query = criterion.sql_generate(base_table=base_table)
-            self._assert_base_table_in_select(query, base_table.name)
-
-            query = add_result_insert(
-                query,
-                plan_id=self.id,
-                criterion_id=criterion.id,
-                cohort_category=criterion.category,
-            )
-
-            yield query
-
-        yield from self.combine()
+        # self._execution_map = self.execution_map()
+        #
+        # i: int
+        # criterion: Criterion
+        #
+        # for i, criterion in enumerate(self._execution_map.flatten()):
+        #     logging.info(f"Processing {criterion.description()}")
+        #
+        #     query = criterion.DEPsql_generate(base_table=base_table)
+        #     self._assert_base_table_in_select(query, base_table.name)
+        #
+        #     query = add_result_insert(
+        #         query,
+        #         plan_id=self.id,
+        #         criterion_id=criterion.id,
+        #         cohort_category=criterion.category,
+        #     )
+        #
+        #     yield query
+        #
+        # yield from self.combine()
 
     def get_criterion_combination_name(self, criterion: Criterion) -> str:
         """

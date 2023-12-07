@@ -1,7 +1,21 @@
-from sqlalchemy import CompoundSelect, Enum, Insert, Integer, Select, bindparam, select
+from sqlalchemy import (
+    CompoundSelect,
+    Enum,
+    Insert,
+    Integer,
+    Select,
+    TypeDecorator,
+    bindparam,
+    cast,
+    select,
+)
+from sqlalchemy.dialects.postgresql import ENUM
 
-from execution_engine.constants import CohortCategory
-from execution_engine.omop.db.celida import RecommendationResult
+from execution_engine.constants import CohortCategory, IntervalType
+from execution_engine.omop.db.celida import (
+    RecommendationResult,
+    RecommendationResultInterval,
+)
 
 
 def add_result_insert(
@@ -19,10 +33,17 @@ def add_result_insert(
     query_select: Select
 
     # Always surround the original query by a select () query, as
-    # otherwise problemes arise when using CompoundSelect, multiple columns or DISTINCT person_id
+    # otherwise problems arise when using CompoundSelect, multiple columns or DISTINCT person_id
     description = query.description
     query = query.alias("base_select")
-    query_select = select(query.c.person_id, query.c.valid_date).select_from(query)
+    query_select = select(
+        query.c.person_id,
+        query.c.interval_start,
+        query.c.interval_end,
+        cast(
+            query.c.interval_type, RecommendationResultInterval.interval_type.type
+        ).label("interval_type"),
+    ).select_from(query)
 
     query_select = query_select.add_columns(
         bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
@@ -33,7 +54,7 @@ def add_result_insert(
         bindparam("criterion_id", criterion_id).label("criterion_id"),
     )
 
-    t_result = RecommendationResult.__table__
+    t_result = RecommendationResultInterval.__table__
     query_insert = t_result.insert().from_select(
         query_select.selected_columns, query_select
     )

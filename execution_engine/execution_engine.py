@@ -303,13 +303,13 @@ class ExecutionEngine:
             run_id = self.register_run(
                 cd, start_datetime=start_datetime, end_datetime=end_datetime
             )
-            self.execute_cohort_definition(
-                cd,
-                run_id=run_id,
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-            )
-            self.cleanup(cd)
+
+        self.execute_cohort_definition(
+            cd,
+            run_id=run_id,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        )
 
         return run_id
 
@@ -376,7 +376,7 @@ class ExecutionEngine:
                 result = con.execute(query)
                 cd.id = result.fetchone().cohort_definition_id
 
-            for cd_plan in cd:
+            for cd_plan in cd.cohort_definitions():
                 _, cd_plan_hash = _hash(cd_plan)
                 query = select(result_db.RecommendationPlan).where(
                     result_db.RecommendationPlan.recommendation_plan_hash
@@ -401,7 +401,7 @@ class ExecutionEngine:
                     result = con.execute(query)
                     cd_plan.id = result.fetchone().plan_id
 
-                for criterion in cd_plan.sequential():
+                for criterion in cd_plan.flatten():
                     _, crit_hash = _hash(criterion)
 
                     query = select(result_db.RecommendationCriterion).where(
@@ -484,11 +484,12 @@ class ExecutionEngine:
         #  then splitting by person might be necessary
         #  otherwise not needed intermediate results may be deleted after processing
 
+        # todo determine runner class
         # runner_class = runner.ParallelTaskRunner if use_multiprocessing else runner.SequentialTaskRunner
 
-        for cohort_def in cd:
-            task_runner = runner.SequentialTaskRunner(cohort_def.execution_map())
-            task_runner.run(params)
+        execution_map = cd.execution_map()
+        task_runner = runner.SequentialTaskRunner(execution_map)
+        task_runner.run(params)
 
     def insert_intervals(self, data: pd.DataFrame, con: sqlalchemy.Connection) -> None:
         """Inserts the intervals into the database."""
@@ -503,14 +504,6 @@ class ExecutionEngine:
                 index=False,
             )
         )
-
-    def cleanup(self, cd: CohortDefinitionCombination) -> None:
-        """Cleans up the temporary tables."""
-        with self._db.begin() as con:
-            for statement in cd.cleanup():
-                self._db.log_query(statement)
-
-                con.execute(statement)
 
     def fetch_patients(self, run_id: int) -> dict:
         """Retrieve list of patients associated with a single run."""

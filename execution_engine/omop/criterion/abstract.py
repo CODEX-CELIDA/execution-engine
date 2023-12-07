@@ -36,6 +36,7 @@ from execution_engine.omop.db.cdm import (
     VisitDetail,
     VisitOccurrence,
 )
+from execution_engine.omop.db.celida import RecommendationResultInterval
 from execution_engine.omop.serializable import Serializable
 from execution_engine.util import TimeRange
 from execution_engine.util.sql import SelectInto, select_into
@@ -262,7 +263,12 @@ class Criterion(AbstractCriterion):
         # todo: assert that the output columns are person_id, interval_start, interval_end, type
         assert (
             len(query.selected_columns) == 4
-        ), "Query must select 4 columns: person_id, interval_start, interval_end, type"
+        ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
+
+        # assert that the output columns are person_id, interval_start, interval_end, type
+        assert set([c.name for c in query.selected_columns]) == set(
+            ["person_id", "interval_start", "interval_end", "interval_type"]
+        ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
 
         return query
 
@@ -399,7 +405,7 @@ class Criterion(AbstractCriterion):
         """
         raise NotImplementedError()
 
-    def sql_generate(self, base_table: TableClause) -> Select:
+    def DEPRECATEDsql_generate(self, base_table: TableClause) -> Select:
         """
         Get the SQL representation of the criterion.
         """
@@ -593,16 +599,16 @@ class Criterion(AbstractCriterion):
         raise NotImplementedError()
 
     @staticmethod
-    def sql_insert_into_table(
-        query: Select, table: TableClause, temporary: bool = True
-    ) -> SelectInto:
+    def sql_insert_into_result_table(query: Select) -> SelectInto:
         """
         Insert the result of the query into the result table.
         """
         if not isinstance(query, Select):
             raise ValueError("query must be a Select or CTE")
 
-        query = select_into(query, table, temporary=temporary)
+        query = select_into(
+            query, RecommendationResultInterval.__table__, temporary=False
+        )
         query.description = query.select.description
 
         return query

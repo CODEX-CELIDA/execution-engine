@@ -192,15 +192,15 @@ class RecommendationResultInterval(Base):  # noqa: D101
     interval_type = mapped_column(Enum(IntervalType, schema="celida"))
 
     recommendation_run: Mapped["RecommendationRun"] = relationship(
-        primaryjoin="RecommendationResult.recommendation_run_id == RecommendationRun.recommendation_run_id",
+        primaryjoin="RecommendationResultInterval.recommendation_run_id == RecommendationRun.recommendation_run_id",
     )
 
     recommendation_plan: Mapped["RecommendationPlan"] = relationship(
-        primaryjoin="RecommendationResult.plan_id == RecommendationPlan.plan_id",
+        primaryjoin="RecommendationResultInterval.plan_id == RecommendationPlan.plan_id",
     )
 
     recommendation_criterion: Mapped["RecommendationCriterion"] = relationship(
-        primaryjoin="RecommendationResult.criterion_id == RecommendationCriterion.criterion_id",
+        primaryjoin="RecommendationResultInterval.criterion_id == RecommendationCriterion.criterion_id",
     )
 
 
