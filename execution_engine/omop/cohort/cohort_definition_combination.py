@@ -24,7 +24,7 @@ from execution_engine.omop.cohort.cohort_definition import CohortDefinition
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
-from execution_engine.omop.db.celida import RecommendationResult
+from execution_engine.omop.db.celida.tables import RecommendationResult
 from execution_engine.omop.serializable import Serializable
 
 

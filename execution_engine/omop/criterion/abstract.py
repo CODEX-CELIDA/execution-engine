@@ -36,7 +36,7 @@ from execution_engine.omop.db.cdm import (
     VisitDetail,
     VisitOccurrence,
 )
-from execution_engine.omop.db.celida import RecommendationResultInterval
+from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 from execution_engine.omop.serializable import Serializable
 from execution_engine.util import TimeRange
 from execution_engine.util.sql import SelectInto, select_into

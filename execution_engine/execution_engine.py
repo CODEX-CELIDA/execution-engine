@@ -55,9 +55,11 @@ from execution_engine.omop.cohort.cohort_definition_combination import (
 )
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
-from execution_engine.omop.db import celida as result_db
-from execution_engine.omop.db.celida import CohortDefinition as CohortDefinitionTable
-from execution_engine.omop.db.celida import (
+from execution_engine.omop.db.celida import tables as result_db
+from execution_engine.omop.db.celida.tables import (
+    CohortDefinition as CohortDefinitionTable,
+)
+from execution_engine.omop.db.celida.tables import (
     RecommendationCriterion,
     RecommendationResult,
     RecommendationResultInterval,

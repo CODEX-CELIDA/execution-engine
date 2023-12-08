@@ -1,15 +1,32 @@
 from datetime import date, datetime
+from typing import Any
 
-from sqlalchemy import Enum, ForeignKey, Index, Integer, LargeBinary, String
+from sqlalchemy import (
+    Connection,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Table,
+    event,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.db.base import Base
+from execution_engine.omop.db.celida import SCHEMA_NAME
+from execution_engine.omop.db.celida.triggers import (
+    create_trigger_interval_overlap_check_sql,
+    trigger_interval_overlap_check_function_sql,
+)
 
 
 class CohortDefinition(Base):  # noqa: D101
     __tablename__ = "cohort_definition"
-    __table_args__ = {"schema": "celida"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     cohort_definition_id: Mapped[int] = mapped_column(
         Integer,
@@ -31,7 +48,7 @@ class CohortDefinition(Base):  # noqa: D101
 
 class RecommendationPlan(Base):  # noqa: D101
     __tablename__ = "recommendation_plan"
-    __table_args__ = {"schema": "celida"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     plan_id: Mapped[int] = mapped_column(
         Integer,
@@ -51,7 +68,7 @@ class RecommendationPlan(Base):  # noqa: D101
 
 class RecommendationCriterion(Base):  # noqa: D101
     __tablename__ = "recommendation_criterion"
-    __table_args__ = {"schema": "celida"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     criterion_id: Mapped[int] = mapped_column(
         Integer,
@@ -66,7 +83,7 @@ class RecommendationCriterion(Base):  # noqa: D101
 
 class RecommendationRun(Base):  # noqa: D101
     __tablename__ = "recommendation_run"
-    __table_args__ = {"schema": "celida"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     recommendation_run_id: Mapped[int] = mapped_column(
         Integer,
@@ -103,7 +120,7 @@ class RecommendationResult(Base):  # noqa: D101
             "criterion_id",
             "valid_date",
         ),
-        {"schema": "celida"},
+        {"schema": SCHEMA_NAME},
     )
 
     recommendation_result_id: Mapped[int] = mapped_column(
@@ -165,7 +182,7 @@ class RecommendationResultInterval(Base):  # noqa: D101
             "interval_start",
             "interval_end",
         ),
-        {"schema": "celida"},
+        {"schema": SCHEMA_NAME},
     )
 
     recommendation_result_id: Mapped[int] = mapped_column(
@@ -187,8 +204,8 @@ class RecommendationResultInterval(Base):  # noqa: D101
     person_id: Mapped[int] = mapped_column(
         ForeignKey("cds_cdm.person.person_id"), index=True
     )
-    interval_start: Mapped[date]
-    interval_end: Mapped[date]
+    interval_start: Mapped[datetime]
+    interval_end: Mapped[datetime]
     interval_type = mapped_column(Enum(IntervalType, schema="celida"))
 
     recommendation_run: Mapped["RecommendationRun"] = relationship(
@@ -204,9 +221,32 @@ class RecommendationResultInterval(Base):  # noqa: D101
     )
 
 
+@event.listens_for(RecommendationResultInterval.__table__, "after_create")
+def create_interval_overlap_check_triggers(
+    target: Table, connection: Connection, **kw: Any
+) -> None:
+    """
+    Create triggers for the recommendation_result_interval table.
+    """
+    connection.execute(
+        text(
+            trigger_interval_overlap_check_function_sql.format(
+                schema=target.schema, table=target.name
+            )
+        )
+    )
+    connection.execute(
+        text(
+            create_trigger_interval_overlap_check_sql.format(
+                schema=target.schema, table=target.name
+            )
+        )
+    )
+
+
 class Comment(Base):  # noqa: D101
     __tablename__ = "comment"
-    __table_args__ = {"schema": "celida"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     comment_id: Mapped[int] = mapped_column(
         Integer,

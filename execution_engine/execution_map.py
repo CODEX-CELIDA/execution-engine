@@ -21,7 +21,7 @@ import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.omop.db.celida import RecommendationResult
+from execution_engine.omop.db.celida.tables import RecommendationResult
 from execution_engine.task.creator import TaskCreator
 from execution_engine.task.task import Task
 

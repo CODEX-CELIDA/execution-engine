@@ -4,18 +4,13 @@ from sqlalchemy import (
     Insert,
     Integer,
     Select,
-    TypeDecorator,
     bindparam,
     cast,
     select,
 )
-from sqlalchemy.dialects.postgresql import ENUM
 
-from execution_engine.constants import CohortCategory, IntervalType
-from execution_engine.omop.db.celida import (
-    RecommendationResult,
-    RecommendationResultInterval,
-)
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 
 
 def add_result_insert(
