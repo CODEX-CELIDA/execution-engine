@@ -12,7 +12,6 @@ from sqlalchemy import (
     ColumnElement,
     Date,
     DateTime,
-    Enum,
     Table,
     and_,
     bindparam,
@@ -37,7 +36,10 @@ from execution_engine.omop.db.cdm import (
     VisitDetail,
     VisitOccurrence,
 )
-from execution_engine.omop.db.celida.tables import RecommendationResultInterval
+from execution_engine.omop.db.celida.tables import (
+    IntervalTypeEnum,
+    RecommendationResultInterval,
+)
 from execution_engine.omop.serializable import Serializable
 from execution_engine.util import TimeRange
 from execution_engine.util.sql import SelectInto, select_into
@@ -67,11 +69,7 @@ def column_interval_type(interval_type: IntervalType) -> ColumnElement:
     return bindparam(
         "interval_type",
         interval_type,
-        type_=Enum(
-            IntervalType,
-            name="interval_type",
-            schema=RecommendationResultInterval.__table__.schema,
-        ),
+        type_=IntervalTypeEnum,
     ).label("interval_type")
 
 
@@ -522,7 +520,7 @@ class Criterion(AbstractCriterion):
             return query
 
         if sql_value is None:
-            sql_value = self._value.to_sql(self.table_alias)
+            sql_value = self._value.to_sql(self._table)
 
         c_datetime = self._get_datetime_column(self._table, "start")
         c_date = func.date(c_datetime)

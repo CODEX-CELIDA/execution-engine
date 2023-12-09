@@ -7,6 +7,7 @@ from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import column_interval_type
 from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 from execution_engine.util import Interval, ValueNumber, value_factory
 
 __all__ = ["ProcedureOccurrence"]
@@ -51,15 +52,13 @@ class ProcedureOccurrence(ConceptCriterion):
         if self._value is not None:
             conditional_column = (
                 case(
-                    [
-                        (
-                            self._value.to_sql(self.table_alias),
-                            IntervalType.POSITIVE.value,
-                        )
-                    ],
-                    else_=IntervalType.NEGATIVE.value,
+                    (
+                        self._value.to_sql(self._table),
+                        IntervalType.POSITIVE,
+                    ),
+                    else_=IntervalType.NEGATIVE,
                 )
-                .cast(IntervalType)
+                .cast(IntervalTypeEnum)
                 .label("interval_type")
             )
         else:
@@ -73,9 +72,7 @@ class ProcedureOccurrence(ConceptCriterion):
                 "duration"
             )
             query = query.filter(
-                self._timing.to_sql(
-                    table_name=None, column_name=column, with_unit=False
-                )
+                self._timing.to_sql(table=None, column_name=column, with_unit=False)
             )
 
         return query

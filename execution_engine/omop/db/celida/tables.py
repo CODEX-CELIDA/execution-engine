@@ -23,6 +23,9 @@ from execution_engine.omop.db.celida.triggers import (
     trigger_interval_overlap_check_function_sql,
 )
 
+IntervalTypeEnum = Enum(IntervalType, name="interval_type", schema=SCHEMA_NAME)
+CohortCategoryEnum = Enum(CohortCategory, name="cohort_category", schema=SCHEMA_NAME)
+
 
 class CohortDefinition(Base):  # noqa: D101
     __tablename__ = "cohort_definition"
@@ -138,7 +141,7 @@ class RecommendationResult(Base):  # noqa: D101
         index=True,
         nullable=True,
     )
-    cohort_category = mapped_column(Enum(CohortCategory, schema="celida"))
+    cohort_category = mapped_column(CohortCategoryEnum)
     person_id: Mapped[int] = mapped_column(
         ForeignKey("cds_cdm.person.person_id"), index=True
     )
@@ -200,13 +203,13 @@ class RecommendationResultInterval(Base):  # noqa: D101
         index=True,
         nullable=True,
     )
-    cohort_category = mapped_column(Enum(CohortCategory, schema="celida"))
+    cohort_category = mapped_column(CohortCategoryEnum)
     person_id: Mapped[int] = mapped_column(
         ForeignKey("cds_cdm.person.person_id"), index=True
     )
     interval_start: Mapped[datetime]
     interval_end: Mapped[datetime]
-    interval_type = mapped_column(Enum(IntervalType, schema="celida"))
+    interval_type = mapped_column(IntervalTypeEnum)
 
     recommendation_run: Mapped["RecommendationRun"] = relationship(
         primaryjoin="RecommendationResultInterval.recommendation_run_id == RecommendationRun.recommendation_run_id",

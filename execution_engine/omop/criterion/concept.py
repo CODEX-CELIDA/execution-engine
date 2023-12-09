@@ -7,6 +7,7 @@ from sqlalchemy.sql import Select
 from execution_engine.constants import CohortCategory, IntervalType, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion, column_interval_type
+from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 from execution_engine.util import TimeRange, Value, value_factory
 
 __all__ = ["ConceptCriterion"]
@@ -95,15 +96,13 @@ class ConceptCriterion(Criterion):
         if self._value is not None:
             conditional_column = (
                 case(
-                    [
-                        (
-                            self._value.to_sql(self.table_alias),
-                            IntervalType.POSITIVE.value,
-                        )
-                    ],
-                    else_=IntervalType.NEGATIVE.value,
+                    (
+                        self._value.to_sql(self._table),
+                        IntervalType.POSITIVE,
+                    ),
+                    else_=IntervalType.NEGATIVE,
                 )
-                .cast(IntervalType)
+                .cast(IntervalTypeEnum)
                 .label("interval_type")
             )
         else:
