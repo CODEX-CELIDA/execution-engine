@@ -1,8 +1,9 @@
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
+from execution_engine.omop.db.cdm import VisitOccurrence
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit
@@ -29,7 +30,6 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         base_criterion,
         observation_window,
     ):
-
         person = person[0]
 
         def count_day_entries(visit_datetimes: list[tuple[str, str]]) -> int:
@@ -42,20 +42,19 @@ class TestActivePatientsDuringPeriod(TestCriterion):
 
             self.insert_visits(db_session, person, visit_datetimes)
 
-            base_table = self.create_base_table(
+            with self.execute_base_criterion(
                 base_criterion,
                 db_session,
                 observation_window,
-            )
+            ):
+                stmt = select(
+                    self.result_view.c.person_id, func.count("*").label("count")
+                ).group_by(self.result_view.c.person_id)
+                result = db_session.execute(stmt)
+                count = [dict(row._mapping) for row in result]
 
-            stmt = select(
-                base_table.c.person_id, func.count("*").label("count")
-            ).group_by(base_table.c.person_id)
-            result = db_session.execute(stmt)
-            count = [dict(row._mapping) for row in result]
-
-            base_table.drop(db_session.connection())
-            db_session.execute(text('DELETE FROM "cds_cdm"."visit_occurrence";'))
+            # cleanup
+            db_session.query(VisitOccurrence).delete()
             db_session.commit()
 
             return count[0]["count"] if len(count) > 0 else 0
@@ -193,28 +192,19 @@ class TestActivePatientsDuringPeriod(TestCriterion):
     def test_multiple_patients_active_during_period(
         self, person, db_session, base_criterion, observation_window, test_cases
     ):
-
         for p, tc in zip(person, test_cases):
             self.insert_visits(db_session, p, tc["time_range"])
 
-        base_table = self.create_base_table(
+        with self.execute_base_criterion(
             base_criterion,
             db_session,
             observation_window,
-        )
+        ):
+            stmt = select(self.result_view.c.person_id, self.result_view.c.valid_date)
+            df = pd.read_sql(stmt, db_session.connection())
+            df["valid_date"] = pd.to_datetime(df["valid_date"])
 
-        stmt = select(base_table.c.person_id, base_table.c.valid_date).select_from(
-            base_table
-        )
-        df = pd.read_sql(
-            stmt,
-            db_session.connection(),
-            params=observation_window.dict(),
-        )
-        df["valid_date"] = pd.to_datetime(df["valid_date"])
-
-        base_table.drop(db_session.connection())
-        db_session.execute(text('DELETE FROM "cds_cdm"."visit_occurrence";'))
+        db_session.query(VisitOccurrence).delete()
         db_session.commit()
 
         for tc, p in zip(test_cases, person):

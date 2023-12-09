@@ -1,16 +1,22 @@
 import datetime
+from contextlib import contextmanager
 from typing import Iterable, Sequence
 
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Table, func, select, text
+from sqlalchemy import Column, Date, Integer, MetaData, Table, func, text
 
 from execution_engine.constants import CohortCategory
-from execution_engine.omop.cohort_definition import add_result_insert
+from execution_engine.omop.cohort import add_result_insert
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.cdm import Person
+from execution_engine.omop.db.celida.tables import (
+    RecommendationResultInterval,
+    RecommendationRun,
+)
+from execution_engine.omop.db.celida.views import partial_day_coverage
 from execution_engine.util import TimeRange, ValueConcept, ValueNumber
 from tests._testdata import concepts
 from tests.functions import create_visit
@@ -37,6 +43,9 @@ def date_set(tc: Iterable):
 
 
 class TestCriterion:
+    result_table = RecommendationResultInterval.__table__
+    result_view = partial_day_coverage
+
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
         return TimeRange(
@@ -95,31 +104,49 @@ class TestCriterion:
         return list(zip(person, vos))
 
     @staticmethod
-    def create_base_table(base_criterion, db_session, observation_window):
+    @contextmanager
+    def execute_base_criterion(base_criterion, db_session, observation_window):
         db_session.execute(
             text("SET session_replication_role = 'replica';")
         )  # Disable foreign key checks
 
-        base_table = to_table("base_table")
-        query = base_criterion.sql_generate(base_table=base_table)
-        query = base_criterion.sql_insert_into_table(query, base_table, temporary=True)
+        RECOMMENDATION_RUN_ID = 1234
+
+        t = RecommendationRun.__table__
         db_session.execute(
-            query,
-            params=observation_window.dict(),
+            t.insert(),
+            [
+                {
+                    "recommendation_run_id": RECOMMENDATION_RUN_ID,
+                    "observation_start_datetime": observation_window.start,
+                    "observation_end_datetime": observation_window.end,
+                    "run_datetime": datetime.datetime.now(),
+                    "cohort_definition_id": 1,
+                }
+            ],
         )
+        query = base_criterion.create_query()
+
         # add base table patients to results table, so they can be used when combining statements (execution_map)
         query = add_result_insert(
-            select(base_table),
+            query,
             plan_id=None,
             criterion_id=None,
             cohort_category=CohortCategory.BASE,
         )
 
-        db_session.execute(query, params={"run_id": 1})
+        db_session.execute(
+            query, params={"run_id": RECOMMENDATION_RUN_ID} | observation_window.dict()
+        )
 
         db_session.commit()
 
-        return base_table
+        try:
+            yield
+        finally:
+            db_session.execute(text("SET session_replication_role = 'origin';"))
+            db_session.query(RecommendationResultInterval).delete()
+            db_session.query(RecommendationRun).delete()
 
     @pytest.fixture
     def base_table(
@@ -129,7 +156,7 @@ class TestCriterion:
         base_criterion,
         observation_window,
     ):
-        base_table = self.create_base_table(
+        base_table = self.execute_base_criterion(
             base_criterion, db_session, observation_window
         )
 
