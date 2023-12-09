@@ -5,7 +5,17 @@ from typing import Iterable, Sequence
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Table, func, text
+from sqlalchemy import (
+    Column,
+    Date,
+    Integer,
+    MetaData,
+    Table,
+    and_,
+    bindparam,
+    select,
+    text,
+)
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.cohort import add_result_insert
@@ -45,11 +55,13 @@ def date_set(tc: Iterable):
 class TestCriterion:
     result_table = RecommendationResultInterval.__table__
     result_view = partial_day_coverage
+    recommendation_run_id = 1234
+    criterion_id = 5678
 
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
         return TimeRange(
-            name="visit", start="2023-03-01 09:36:24", end="2023-03-31 14:21:11"
+            name="visit", start="2023-03-01 09:36:24Z", end="2023-03-31 14:21:11Z"
         )
 
     @pytest.fixture
@@ -103,21 +115,19 @@ class TestCriterion:
 
         return list(zip(person, vos))
 
-    @staticmethod
+    @classmethod
     @contextmanager
-    def execute_base_criterion(base_criterion, db_session, observation_window):
+    def execute_base_criterion(cls, base_criterion, db_session, observation_window):
         db_session.execute(
             text("SET session_replication_role = 'replica';")
         )  # Disable foreign key checks
-
-        RECOMMENDATION_RUN_ID = 1234
 
         t = RecommendationRun.__table__
         db_session.execute(
             t.insert(),
             [
                 {
-                    "recommendation_run_id": RECOMMENDATION_RUN_ID,
+                    "recommendation_run_id": cls.recommendation_run_id,
                     "observation_start_datetime": observation_window.start,
                     "observation_end_datetime": observation_window.end,
                     "run_datetime": datetime.datetime.now(),
@@ -136,7 +146,8 @@ class TestCriterion:
         )
 
         db_session.execute(
-            query, params={"run_id": RECOMMENDATION_RUN_ID} | observation_window.dict()
+            query,
+            params={"run_id": cls.recommendation_run_id} | observation_window.dict(),
         )
 
         db_session.commit()
@@ -147,6 +158,7 @@ class TestCriterion:
             db_session.execute(text("SET session_replication_role = 'origin';"))
             db_session.query(RecommendationResultInterval).delete()
             db_session.query(RecommendationRun).delete()
+            db_session.commit()
 
     @pytest.fixture
     def base_table(
@@ -156,18 +168,10 @@ class TestCriterion:
         base_criterion,
         observation_window,
     ):
-        base_table = self.execute_base_criterion(
+        with self.execute_base_criterion(
             base_criterion, db_session, observation_window
-        )
-
-        count = db_session.query(func.count(base_table.c.person_id)).scalar()
-        assert (
-            count > 0
-        ), "Base table (active patients in period) should have at least one row."
-
-        yield base_table
-
-        base_table.drop(db_session.connection())
+        ):
+            yield
 
     @pytest.fixture
     def base_criterion(self):
@@ -210,12 +214,37 @@ class TestCriterion:
                 static=None,
             )
 
-            query = criterion.sql_generate(base_table=base_table)
+            query = criterion.create_query()
 
+            query = query.add_columns(
+                bindparam("recommendation_run_id", self.recommendation_run_id).label(
+                    "recommendation_run_id"
+                ),
+                bindparam("plan_id", None).label("plan_id"),
+                bindparam("criterion_id", self.criterion_id).label("criterion_id"),
+                bindparam("cohort_category", CohortCategory.POPULATION).label(
+                    "cohort_category"
+                ),
+            )
+
+            t_result = RecommendationResultInterval.__table__
+            query_insert = t_result.insert().from_select(query.selected_columns, query)
+            db_session.execute(query_insert, params=observation_window.dict())
+
+            stmt = select(
+                self.result_view.c.person_id, self.result_view.c.valid_date
+            ).where(
+                and_(
+                    self.result_view.c.recommendation_run_id
+                    == self.recommendation_run_id,
+                    self.result_view.c.criterion_id == self.criterion_id,
+                )
+            )
             df = pd.read_sql(
-                query,
+                stmt,
                 db_session.connection(),
-                params=observation_window.dict(),
+                params=observation_window.dict()
+                | {"run_id": TestCriterion.recommendation_run_id},
             )
             df["valid_date"] = pd.to_datetime(df["valid_date"])
 

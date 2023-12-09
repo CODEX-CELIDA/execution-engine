@@ -47,9 +47,14 @@ class TestActivePatientsDuringPeriod(TestCriterion):
                 db_session,
                 observation_window,
             ):
-                stmt = select(
-                    self.result_view.c.person_id, func.count("*").label("count")
-                ).group_by(self.result_view.c.person_id)
+                stmt = (
+                    select(self.result_view.c.person_id, func.count("*").label("count"))
+                    .where(
+                        self.result_view.c.recommendation_run_id
+                        == self.recommendation_run_id
+                    )
+                    .group_by(self.result_view.c.person_id)
+                )
                 result = db_session.execute(stmt)
                 count = [dict(row._mapping) for row in result]
 
@@ -200,7 +205,11 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             db_session,
             observation_window,
         ):
-            stmt = select(self.result_view.c.person_id, self.result_view.c.valid_date)
+            stmt = select(
+                self.result_view.c.person_id, self.result_view.c.valid_date
+            ).where(
+                self.result_view.c.recommendation_run_id == self.recommendation_run_id
+            )
             df = pd.read_sql(stmt, db_session.connection())
             df["valid_date"] = pd.to_datetime(df["valid_date"])
 
