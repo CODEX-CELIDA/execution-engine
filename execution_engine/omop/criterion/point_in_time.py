@@ -17,16 +17,6 @@ class PointInTimeCriterion(ConceptCriterion):
         if self._OMOP_VALUE_REQUIRED:
             assert self._value is not None, "Value is required for this criterion"
 
-            conditional_column = case(
-                (
-                    self._value.to_sql(self._table),
-                    IntervalType.POSITIVE,
-                ),
-                else_=IntervalType.NEGATIVE,
-            ).cast(IntervalTypeEnum)
-        else:
-            conditional_column = column_interval_type(IntervalType.POSITIVE)
-
         interval_hours_param = bindparam("validity_threshold_hours", value=12)
         datetime_col = self._get_datetime_column(self._table, "start")
         time_threshold_param = func.cast(
@@ -44,6 +34,17 @@ class PointInTimeCriterion(ConceptCriterion):
             .label("next_datetime"),
         )
         cte = self._sql_filter_concept(cte).cte("RankedMeasurements")
+
+        if self._value is not None:
+            conditional_column = case(
+                (
+                    self._value.to_sql(cte),
+                    IntervalType.POSITIVE,
+                ),
+                else_=IntervalType.NEGATIVE,
+            ).cast(IntervalTypeEnum)
+        else:
+            conditional_column = column_interval_type(IntervalType.POSITIVE)
 
         query = select(
             cte.c.person_id,

@@ -1,11 +1,11 @@
 from typing import Any
 
-from execution_engine.omop.criterion.concept import ConceptCriterion
-
 __all__ = ["VisitDetail"]
 
+from execution_engine.omop.criterion.continuous import ContinuousCriterion
 
-class VisitDetail(ConceptCriterion):
+
+class VisitDetail(ContinuousCriterion):
     """
     A visit detail criterion  in a cohort definition.
 
