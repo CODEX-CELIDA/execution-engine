@@ -2,17 +2,46 @@ import datetime
 from typing import Callable
 
 import pandas as pd
-from interval import interval
+from portion import Interval
+from portion import closedopen as interval
+from portion import empty as empty_interval
 
 from execution_engine.util import TimeRange
 
 
-def invert(df: pd.DataFrame, observation_window: TimeRange) -> pd.DataFrame:
+def interval_union(intervals: list[interval]) -> Interval:
+    """
+    Performs a union on the given intervals.
+
+    :param intervals: A list of intervals.
+    :return: A list of intervals.
+    """
+    r = empty_interval()
+    for interv in intervals:
+        r |= interv
+    return r
+
+
+def invert_intervals(
+    df: pd.DataFrame, by: list[str], observation_window: TimeRange
+) -> pd.DataFrame:
     """
     Inverts the intervals in the DataFrame.
     """
-    # Invert logic
-    return df
+    result = {}
+    for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
+        new_intervals = timestamps_to_intervals(
+            group[["interval_start", "interval_end"]]
+        )
+        new_interval_union = interval_union(new_intervals)
+        result[group_keys] = (
+            observation_window.interval() & new_interval_union.complement()
+        )
+
+    tz_start = df["interval_start"].dt.tz if not df["interval_start"].empty else None
+    tz_end = df["interval_end"].dt.tz if not df["interval_end"].empty else None
+
+    return _result_to_df(result, by, tz_start, tz_end)
 
 
 def timestamps_to_intervals(group: pd.DataFrame) -> list[interval]:
@@ -24,7 +53,7 @@ def timestamps_to_intervals(group: pd.DataFrame) -> list[interval]:
     """
     group = group.astype("int64") / 1e9
     return [
-        interval([start, end])
+        interval(start, end)
         for start, end in zip(group["interval_start"], group["interval_end"])
     ]
 
@@ -46,7 +75,7 @@ def _process_intervals(
             new_intervals = timestamps_to_intervals(
                 group[["interval_start", "interval_end"]]
             )
-            new_interval_union = interval.union(new_intervals)
+            new_interval_union = interval_union(new_intervals)
 
             if group_keys not in result:
                 result[group_keys] = new_interval_union
@@ -108,10 +137,10 @@ def _result_to_df(
             record_keys = {by[0]: group_keys}
 
         for interv in intervals:
-            interval_start = pd.to_datetime(interv[0], unit="s", utc=True).tz_convert(
-                tz_start
-            )
-            interval_end = pd.to_datetime(interv[1], unit="s", utc=True).tz_convert(
+            interval_start = pd.to_datetime(
+                interv.lower, unit="s", utc=True
+            ).tz_convert(tz_start)
+            interval_end = pd.to_datetime(interv.upper, unit="s", utc=True).tz_convert(
                 tz_end
             )
 

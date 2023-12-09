@@ -4,7 +4,9 @@ from enum import Enum
 from typing import Any
 
 import pendulum
-from pydantic import BaseModel, PositiveInt, root_validator
+from portion import Interval as IntervalType
+from portion import closed as interval_closed
+from pydantic import BaseModel, PositiveInt, root_validator, validator
 from sqlalchemy import and_, func, literal_column
 from sqlalchemy.sql.elements import (
     BinaryExpression,
@@ -263,6 +265,15 @@ class TimeRange(BaseModel):
     end: datetime
     name: str | None
 
+    @validator("start", "end", pre=False, each_item=False)
+    def check_timezone(cls, v: datetime) -> datetime:
+        """
+        Check that the start, end parameters are timezone-aware.
+        """
+        if not v.tzinfo:
+            raise ValueError("Datetime object must be timezone-aware")
+        return v
+
     @classmethod
     def from_tuple(
         cls, dt: tuple[datetime | str, datetime | str], name: str | None = None
@@ -291,6 +302,19 @@ class TimeRange(BaseModel):
         Get the duration of the time range.
         """
         return self.end - self.start
+
+    def interval(self, as_timestamp: bool = True) -> IntervalType:
+        """
+        Get the interval of the time range.
+
+        :param as_timestamp: If True, return the interval as a timestamp (i.e. the number of seconds).
+        :return: The interval.
+        """
+
+        if as_timestamp:
+            return interval_closed(self.start.timestamp(), self.end.timestamp())
+        else:
+            return interval_closed(self.start, self.end)
 
     def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
         """

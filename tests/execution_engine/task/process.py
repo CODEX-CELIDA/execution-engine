@@ -1,14 +1,16 @@
 import pandas as pd
 import pytz
-from interval import interval
+from portion import closedopen as interval
 
 from execution_engine.task.process import (
     _result_to_df,
     filter_common_items,
     intersect_intervals,
+    invert_intervals,
     merge_intervals,
     timestamps_to_intervals,
 )
+from execution_engine.util import TimeRange
 
 
 def test_timestamps_to_intervals():
@@ -23,15 +25,67 @@ def test_timestamps_to_intervals():
     result = timestamps_to_intervals(df)
 
     # Expected intervals
-    expected = [interval([1672531200, 1672617600]), interval([1672617600, 1672704000])]
+    expected = [interval(1672531200, 1672617600), interval(1672617600, 1672704000)]
 
     # Assert the result
     assert result == expected
 
 
+def test_invert():
+    # Create sample data
+    data = {
+        "person_id": [1, 2, 1, 2],
+        "concept_id": ["A", "A", "A", "A"],
+        "interval_start": pd.to_datetime(
+            [
+                "2023-01-01T00:00:00",
+                "2023-01-01T12:00:00",
+                "2023-01-01T06:00:00",
+                "2023-01-02T12:00:00",
+            ]
+        ),
+        "interval_end": pd.to_datetime(
+            [
+                "2023-01-01T12:00:00",
+                "2023-01-02T06:00:00",
+                "2023-01-01T18:00:00",
+                "2023-01-03T12:00:00",
+            ]
+        ),
+    }
+    df = pd.DataFrame(data)
+    by = ["person_id", "concept_id"]
+    observation_window = TimeRange(
+        name="observation", start="2023-01-01 00:00:00Z", end="2023-01-02 18:00:00Z"
+    )
+
+    # Call the function
+    result = invert_intervals(df, by, observation_window)
+
+    # Expected data
+    expected_data = {
+        "person_id": [1, 2, 2],
+        "concept_id": ["A", "A", "A"],
+        "interval_start": pd.to_datetime(
+            ["2023-01-01T18:00:00", "2023-01-01T0:00:00", "2023-01-02T06:00:00"]
+        ),
+        "interval_end": pd.to_datetime(
+            [
+                "2023-01-02T18:00:00",
+                "2023-01-01T12:00:00",
+                "2023-01-02T12:00:00",
+            ]
+        ),
+    }
+    expected_df = pd.DataFrame(expected_data)
+
+    # Assert the result
+    pd.testing.assert_frame_equal(result, expected_df)
+
+
 def test_result_to_df_single_key():
     # Test with single key and specific timezones
-    result = {1: [(1609459200, 1609484400), (1609545600, 1609570800)]}
+    result = {1: [interval(1609459200, 1609484400), interval(1609545600, 1609570800)]}
     by = ["person_id"]
     tz_start = pytz.timezone("UTC")
     tz_end = pytz.timezone("America/New_York")
@@ -59,8 +113,8 @@ def test_result_to_df_single_key():
 def test_result_to_df_multiple_keys():
     # Test with multiple keys and None for timezones
     result = {
-        (1, "A"): [(1609459200, 1609484400)],
-        (2, "B"): [(1609545600, 1609570800)],
+        (1, "A"): [interval(1609459200, 1609484400)],
+        (2, "B"): [interval(1609545600, 1609570800)],
     }
     by = ["person_id", "concept_id"]
     tz_start = "UTC"
