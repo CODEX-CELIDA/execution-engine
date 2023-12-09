@@ -122,6 +122,7 @@ class TestCriterion:
             text("SET session_replication_role = 'replica';")
         )  # Disable foreign key checks
 
+        # register the recommendation run # todo: move to own function
         t = RecommendationRun.__table__
         db_session.execute(
             t.insert(),

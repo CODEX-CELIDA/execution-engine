@@ -1,9 +1,10 @@
 from typing import Any, Dict
 
-from sqlalchemy import Enum, bindparam, select
+from sqlalchemy import select
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory, IntervalType, OMOPConcepts
+from execution_engine.omop.criterion.abstract import column_interval_type
 from execution_engine.omop.criterion.concept import ConceptCriterion
 
 __all__ = ["VisitOccurrence", "ActivePatients", "PatientsActiveDuringPeriod"]
@@ -35,12 +36,7 @@ class ActivePatients(VisitOccurrence):
             self._table.c.person_id,
             self._table.c.visit_start_datetime.label("interval_start"),
             self._table.c.visit_end_datetime.label("interval_end"),
-            bindparam(
-                "interval_type",
-                IntervalType.POSITIVE,
-                type_=Enum(IntervalType, name="interval_type", schema="celida"),
-            ).label("interval_type"),
-            # literal_column(f"'{IntervalType.POSITIVE.name}'").cast(Enum(IntervalType)).label("interval_type")
+            column_interval_type(IntervalType.POSITIVE),
         ).select_from(self._table)
 
         return query

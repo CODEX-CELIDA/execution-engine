@@ -1,17 +1,10 @@
 import pendulum
 import pytest
-from sqlalchemy import func, select
 
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import VisitOccurrence
-from execution_engine.omop.db.cdm import Person
-from execution_engine.util.sql import select_into
 from tests._testdata.concepts import INPATIENT_VISIT, INTENSIVE_CARE
-from tests.execution_engine.omop.criterion.test_criterion import (
-    TestCriterion,
-    date_set,
-    to_table,
-)
+from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit
 
 
@@ -51,21 +44,21 @@ class TestVisitOccurrence(TestCriterion):
         self,
         person,
         db_session,
+        base_criterion,
+        observation_window,
     ):
-        base_table = to_table("base_table")
+        """
+        Execute the base criterion
 
-        query = select_into(select(Person.person_id), base_table, temporary=True)
-        db_session.execute(query)
-        db_session.commit()
-
-        count = db_session.query(func.count(base_table.c.person_id)).scalar()
-        assert (
-            count > 0
-        ), "Base table (active patients in period) should have at least one row."
-
-        yield base_table
-
-        base_table.drop(db_session.connection())
+        The TestCriterion.base_table uses person_visit as fixture, which inserts a visit for each person.
+        This is not suitable for testing VisitOccurrence, because we need insert specific visits for each test case,
+        and we must not have other visits in the table.
+        Therefor, the base_table fixture is overwritten here, and uses only person, not person_visit fixture.
+        """
+        with self.execute_base_criterion(
+            base_criterion, db_session, observation_window
+        ):
+            yield
 
     @pytest.mark.parametrize(
         "visit_datetimes,expected",
@@ -313,6 +306,7 @@ class TestVisitOccurrence(TestCriterion):
         concept,
         db_session,
         base_criterion,
+        base_table,
         criterion_execute_func,
         visit_datetimes,
         expected,
