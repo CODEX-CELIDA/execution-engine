@@ -1,13 +1,11 @@
 from typing import Any, Dict
 
 import pandas as pd
-from sqlalchemy import case
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory, IntervalType, OMOPConcepts
+from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion, column_interval_type
-from execution_engine.omop.db.celida.tables import IntervalTypeEnum
+from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.util import TimeRange, Value, value_factory
 
 __all__ = ["ConceptCriterion"]
@@ -81,36 +79,6 @@ class ConceptCriterion(Criterion):
         )
 
         return query.filter(self._table.c[concept_column_name] == concept_id)
-
-    def _sql_generate(self, query: Select) -> Select:
-        """
-        Get the SQL representation of the criterion.
-        """
-        if self._OMOP_VALUE_REQUIRED and self._value is None:
-            raise ValueError(
-                f'Value must be set for "{self._OMOP_TABLE.__tablename__}" criteria'
-            )
-
-        query = self._sql_filter_concept(query)
-
-        if self._value is not None:
-            conditional_column = (
-                case(
-                    (
-                        self._value.to_sql(self._table),
-                        IntervalType.POSITIVE,
-                    ),
-                    else_=IntervalType.NEGATIVE,
-                )
-                .cast(IntervalTypeEnum)
-                .label("interval_type")
-            )
-        else:
-            conditional_column = column_interval_type(IntervalType.POSITIVE)
-
-        query = query.add_columns(conditional_column)
-
-        return query
 
     def _sql_select_data(self, query: Select) -> Select:
         c_start = self._get_datetime_column(self._table, "start")

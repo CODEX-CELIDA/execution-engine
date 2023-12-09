@@ -6,14 +6,14 @@ from sqlalchemy.sql import Select, extract
 from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import column_interval_type
-from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.omop.criterion.continuous import ContinuousCriterion
 from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 from execution_engine.util import Interval, ValueNumber, value_factory
 
 __all__ = ["ProcedureOccurrence"]
 
 
-class ProcedureOccurrence(ConceptCriterion):
+class ProcedureOccurrence(ContinuousCriterion):
     """A procedure occurrence criterion in a cohort definition."""
 
     def __init__(
@@ -38,7 +38,9 @@ class ProcedureOccurrence(ConceptCriterion):
         self._set_omop_variables_from_domain("procedure")
         self._timing = timing
 
-    def _sql_generate(self, query: Select) -> Select:
+    def _create_query(
+        self,
+    ) -> Select:
         """
         Get the SQL representation of the criterion.
         """
@@ -46,9 +48,11 @@ class ProcedureOccurrence(ConceptCriterion):
         start_datetime = self._table.c["procedure_datetime"]
         end_datetime = self._table.c["procedure_end_datetime"]
 
+        query = self._sql_header()
         query = self._sql_filter_concept(query)
 
         # todo do not use duplicated code (from concept.py)
+        # is this even required in procedure?
         if self._value is not None:
             conditional_column = (
                 case(

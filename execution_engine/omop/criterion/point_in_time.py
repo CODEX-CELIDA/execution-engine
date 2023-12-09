@@ -1,6 +1,7 @@
 from sqlalchemy import Interval, Select, bindparam, case, func, select
 
 from execution_engine.constants import IntervalType
+from execution_engine.omop.criterion.abstract import column_interval_type
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 
@@ -8,12 +9,23 @@ from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 class PointInTimeCriterion(ConceptCriterion):
     """A point-in-time criterion in a cohort definition."""
 
-    def create_query(self) -> Select:
+    def _create_query(self) -> Select:
         """
         Get the SQL representation of the criterion.
         """
 
-        assert self._value is not None, "Value must be set for point-in-time criteria"
+        if self._OMOP_VALUE_REQUIRED:
+            assert self._value is not None, "Value is required for this criterion"
+
+            conditional_column = case(
+                (
+                    self._value.to_sql(self._table),
+                    IntervalType.POSITIVE,
+                ),
+                else_=IntervalType.NEGATIVE,
+            ).cast(IntervalTypeEnum)
+        else:
+            conditional_column = column_interval_type(IntervalType.POSITIVE)
 
         interval_hours_param = bindparam("validity_threshold_hours", value=12)
         datetime_col = self._get_datetime_column(self._table, "start")
@@ -35,12 +47,7 @@ class PointInTimeCriterion(ConceptCriterion):
 
         query = select(
             cte.c.person_id,
-            case(
-                (self._value.to_sql(cte), IntervalType.POSITIVE),
-                else_=IntervalType.NEGATIVE,
-            )
-            .cast(IntervalTypeEnum)
-            .label("interval_type"),
+            conditional_column.label("interval_type"),
             cte.c.datetime.label("interval_start"),
             func.least(
                 cte.c.datetime + time_threshold_param,

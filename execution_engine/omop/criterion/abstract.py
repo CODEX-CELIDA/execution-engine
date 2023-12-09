@@ -270,17 +270,29 @@ class Criterion(AbstractCriterion):
         """
         return self._OMOP_DOMAIN
 
+    @abstractmethod
+    def _create_query(self) -> Select:
+        """
+        Get the SQL Select query for data required by this criterion.
+        """
+        raise NotImplementedError()
+
     def create_query(self) -> Select:
         """
         Get the SQL Select query for data required by this criterion.
         """
-        query = self._sql_header()
-        query = self._sql_generate(query)
-        query = self._insert_datetime(query)
+
+        if self._OMOP_VALUE_REQUIRED and (
+            not hasattr(self, "_value") or self._value is None
+        ):
+            raise ValueError(
+                f'Value must be set for "{self._OMOP_TABLE.__tablename__}" criteria'
+            )
+
+        query = self._create_query()
 
         query.description = self.description()
 
-        # todo: assert that the output columns are person_id, interval_start, interval_end, type
         assert (
             len(query.selected_columns) == 4
         ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
@@ -409,13 +421,6 @@ class Criterion(AbstractCriterion):
         raise NotImplementedError()
 
     @abstractmethod
-    def _sql_generate(self, query: Select) -> Select:
-        """
-        Get the SQL representation of the criterion.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
     def _sql_filter_concept(self, query: Select) -> Select:
         """
         Add the where clause to the SQL query.
@@ -433,7 +438,7 @@ class Criterion(AbstractCriterion):
         self.set_base_table(base_table)
 
         query = self._sql_header()
-        query = self._sql_generate(query)
+        # query = self._sql_generate(query)
         query = self._insert_datetime(query)
         query = self._select_per_day(query)
 
