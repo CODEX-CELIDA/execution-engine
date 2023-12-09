@@ -48,7 +48,8 @@ class IntervalType(Enum):
 
     POSITIVE = "positive"
     NEGATIVE = "negative"
-    NODATA = "nodata"
+    NO_DATA = "no_data"
+    NOT_APPLICABLE = "not_applicable"
 
     def __str__(self) -> str:
         """
