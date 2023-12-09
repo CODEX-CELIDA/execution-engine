@@ -12,6 +12,7 @@ from sqlalchemy import (
     ColumnElement,
     Date,
     DateTime,
+    Enum,
     Table,
     and_,
     bindparam,
@@ -23,7 +24,7 @@ from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select, TableClause
 from sqlalchemy.sql.functions import concat
 
-from execution_engine.constants import CohortCategory
+from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.db.cdm import (
     Base,
@@ -51,6 +52,27 @@ Domain = TypedDict(
         "static": bool,
     },
 )
+
+
+def column_interval_type(interval_type: IntervalType) -> ColumnElement:
+    """
+    Get a column element for the interval type.
+
+    This is used to insert the interval type into the result table.
+
+
+    :param interval_type: The interval type.
+    :return: A column element for the interval type.
+    """
+    return bindparam(
+        "interval_type",
+        interval_type,
+        type_=Enum(
+            IntervalType,
+            name="interval_type",
+            schema=RecommendationResultInterval.__table__.schema,
+        ),
+    ).label("interval_type")
 
 
 class AbstractCriterion(Serializable, ABC):
@@ -366,14 +388,14 @@ class Criterion(AbstractCriterion):
         query = select(c).select_from(self._table)
 
         if person_id is None:
-            # subset patients by filtering on the base table
-            query = query.where(
-                self._table.c.person_id.in_(
-                    select(self._base_table.c.person_id)
-                    .distinct()
-                    .select_from(self._base_table)
-                )
-            )
+            c_start = self._get_datetime_column(self._table, "start")
+            c_end = self._get_datetime_column(self._table, "end")
+            query = select(
+                self._table.c.person_id,
+                c_start.label("interval_start"),
+                c_end.label("interval_end"),
+            ).select_from(self._table)
+
         else:
             # filter by person_id directly
             query = query.filter(self._table.c.person_id == person_id)
@@ -429,10 +451,11 @@ class Criterion(AbstractCriterion):
         not to always select all patients in the different criteria.
         This could be the currently active patients.
         """
-        assert isinstance(
+        """assert isinstance(
             base_table, Table
         ), f"base_table must be a Table, not {type(base_table)}"
-        self._base_table = base_table
+        self._base_table = base_table"""
+        raise NotImplementedError("implement me - we are not using base table anymore")
 
     def _get_datetime_column(
         self, table: TableClause, type_: str = "start"
@@ -474,6 +497,11 @@ class Criterion(AbstractCriterion):
 
         c_start = self._get_datetime_column(self._table)
         c_end = self._get_datetime_column(self._table, "end")
+
+        if "interval_start" not in query.selected_columns:
+            query = query.add_columns(c_start.label("interval_start"))
+        if "interval_end" not in query.selected_columns:
+            query = query.add_columns(c_end.label("interval_end"))
 
         if isinstance(query, Select):
             query = query.filter(

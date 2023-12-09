@@ -1,9 +1,11 @@
 from typing import Any, Dict
 
+from sqlalchemy import case
 from sqlalchemy.sql import Select, extract
 
-from execution_engine.constants import CohortCategory
+from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import column_interval_type
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.util import Interval, ValueNumber, value_factory
 
@@ -45,18 +47,30 @@ class ProcedureOccurrence(ConceptCriterion):
 
         query = self._sql_filter_concept(query)
 
+        # todo do not use duplicated code (from concept.py)
         if self._value is not None:
-            query = query.filter(self._value.to_sql(self.table_alias))
+            conditional_column = (
+                case(
+                    [
+                        (
+                            self._value.to_sql(self.table_alias),
+                            IntervalType.POSITIVE.value,
+                        )
+                    ],
+                    else_=IntervalType.NEGATIVE.value,
+                )
+                .cast(IntervalType)
+                .label("interval_type")
+            )
+        else:
+            conditional_column = column_interval_type(IntervalType.POSITIVE)
+        query = query.add_columns(conditional_column)
 
+        # todo: this should not filter but also set the interval_type
         if self._timing is not None:
             interval = Interval(self._timing.unit.concept_code)
             column = extract(interval.name, end_datetime - start_datetime).label(
                 "duration"
-            )
-            query = query.add_columns(column)
-            query = query.add_columns(
-                start_datetime.label("start_datetime"),
-                end_datetime.label("end_datetime"),
             )
             query = query.filter(
                 self._timing.to_sql(
