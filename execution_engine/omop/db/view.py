@@ -50,25 +50,6 @@ def _drop_view(element: DDLElement, compiler: SQLCompiler, **kw: Any) -> str:
     return "DROP VIEW %s" % (compiler.preparer.format_table(element))
 
 
-def view_exists(
-    ddl: DDLElement, target: MetaData, connection: Connection, **kw: Any
-) -> bool:
-    """
-    Check if a view exists.
-    """
-    return ddl.name in sa.inspect(connection).get_view_names()
-
-
-def view_doesnt_exist(
-    ddl: DDLElement, target: MetaData, connection: Connection, **kw: Any
-) -> bool:
-    """
-    Check if a view does not exist.
-
-    """
-    return not view_exists(ddl, target, connection, **kw)
-
-
 def view(
     name: str, metadata: MetaData, selectable: Selectable, schema: str | None = None
 ) -> Table:
@@ -86,6 +67,23 @@ def view(
     t._columns._populate_separate_keys(
         col._make_proxy(t) for col in selectable.selected_columns
     )
+
+    def view_exists(
+        ddl: DDLElement, target: MetaData, connection: Connection, **kw: Any
+    ) -> bool:
+        """
+        Check if a view exists.
+        """
+        return ddl.name in sa.inspect(connection).get_view_names(schema=schema)
+
+    def view_doesnt_exist(
+        ddl: DDLElement, target: MetaData, connection: Connection, **kw: Any
+    ) -> bool:
+        """
+        Check if a view does not exist.
+
+        """
+        return not view_exists(ddl, target, connection, **kw)
 
     sa.event.listen(
         metadata,
