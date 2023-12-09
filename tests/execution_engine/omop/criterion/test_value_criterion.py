@@ -99,7 +99,7 @@ class ValueCriterion(TestCriterion, ABC):
     @pytest.mark.parametrize(
         "times",
         [
-            ["2023-03-04 18:00:00"],
+            ["2023-03-04 06:00:00"],
             [  # multiple per one day
                 "2023-03-04 00:00:00",
                 "2023-03-04 03:00:00",
@@ -112,7 +112,7 @@ class ValueCriterion(TestCriterion, ABC):
             ],
         ],
     )  # time ranges used in the database entry
-    @pytest.mark.parametrize("exclude", [True, False])  # exclude used in the criterion
+    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
     @pytest.mark.parametrize(
         "criterion_value",
         [
@@ -150,9 +150,9 @@ class ValueCriterion(TestCriterion, ABC):
         )
 
     @pytest.mark.parametrize(
-        "times", [["2023-03-04 18:00:00"]]
+        "times", [["2023-03-04 06:00:00"]]
     )  # time ranges used in the database entry
-    @pytest.mark.parametrize("exclude", [True, False])  # exclude used in the criterion
+    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
     @pytest.mark.parametrize("criterion_concept_name", ["concept", "concept_no_match"])
     @pytest.mark.parametrize(
         "criterion_unit_concept_name", ["unit_concept", "unit_concept_no_match"]
@@ -230,7 +230,7 @@ class ValueCriterion(TestCriterion, ABC):
     @pytest.mark.parametrize(
         "times",
         [
-            ["2023-03-04 18:00:00"],
+            ["2023-03-04 06:00:00"],
             [  # multiple per one day
                 "2023-03-04 00:00:00",
                 "2023-03-04 03:00:00",
@@ -243,7 +243,7 @@ class ValueCriterion(TestCriterion, ABC):
             ],
         ],
     )  # time ranges used in the database entry
-    @pytest.mark.parametrize("exclude", [True, False])  # exclude used in the criterion
+    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
     @pytest.mark.parametrize(
         "criterion_value",
         [  # value used in the criterion
@@ -349,7 +349,7 @@ class ValueCriterion(TestCriterion, ABC):
         [
             [
                 {
-                    "times": ["2023-03-04 18:00:00"],
+                    "times": ["2023-03-04 06:00:00"],
                     "criterion_value": f">={VALUE_NUMERIC}",
                     "value_db": [VALUE_NUMERIC],
                     "expected": {"2023-03-04"},
@@ -362,7 +362,9 @@ class ValueCriterion(TestCriterion, ABC):
                     ],
                     "criterion_value": f">={VALUE_NUMERIC}",
                     "value_db": [VALUE_NUMERIC - 1, VALUE_NUMERIC, VALUE_NUMERIC + 1],
-                    "expected": {},
+                    "expected": {
+                        "2023-03-04"
+                    },  # because the first and second ones are valid and the current rule (for a single criterion) is : if any of the values is valid, the criterion is valid for that day ("partial coverage")
                 },
                 {
                     "times": [  # multiple days
@@ -373,11 +375,11 @@ class ValueCriterion(TestCriterion, ABC):
                     "criterion_value": f">={VALUE_NUMERIC}",
                     "value_db": [VALUE_NUMERIC + 1, VALUE_NUMERIC, VALUE_NUMERIC - 1],
                     "expected": {"2023-03-04", "2023-03-15"},
-                }
+                },
             ],
         ],
     )
-    @pytest.mark.parametrize("exclude", [True, False])  # exclude used in the criterion
+    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
     def test_value_multiple_persons(
         self,
         person_visit,
@@ -415,6 +417,7 @@ class ValueCriterion(TestCriterion, ABC):
             df_person = df.query(f"{vo.person_id} == person_id")
             valid_dates = self.date_points(tc["expected"])
 
+            # todo remove
             # exclusion is now performed only when combining the criteria into population/intervention
             # if exclude:
             #    valid_dates = self.invert_date_points(
