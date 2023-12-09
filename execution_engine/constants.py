@@ -63,7 +63,7 @@ class OMOPConcepts(Enum):
     Collection of standard concepts in the OMOP CDM.
     """
 
-    VISIT_TYPE_STILL_PATIENT = "32220"
+    VISIT_TYPE_STILL_PATIENT = 32220
     BODY_HEIGHT = 3036277  # Body height (observation)
     BODY_WEIGHT = 3025315  # Body weight (observation)
     GENDER_FEMALE = 8532

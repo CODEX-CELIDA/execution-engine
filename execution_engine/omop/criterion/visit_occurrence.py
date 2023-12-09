@@ -5,12 +5,13 @@ from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory, IntervalType, OMOPConcepts
 from execution_engine.omop.criterion.abstract import column_interval_type
-from execution_engine.omop.criterion.concept import ConceptCriterion
 
 __all__ = ["VisitOccurrence", "ActivePatients", "PatientsActiveDuringPeriod"]
 
+from execution_engine.omop.criterion.continuous import ContinuousCriterion
 
-class VisitOccurrence(ConceptCriterion):
+
+class VisitOccurrence(ContinuousCriterion):
     """A visit criterion in a cohort definition."""
 
 
@@ -41,10 +42,12 @@ class ActivePatients(VisitOccurrence):
 
         return query
 
-    def _sql_generate(self, query: Select) -> Select:
+    def _create_query(self) -> Select:
         """
         Get the SQL representation of the criterion.
         """
+        query = self._sql_header()
+
         query = query.filter(
             self._table.c.visit_type_concept_id
             == OMOPConcepts.VISIT_TYPE_STILL_PATIENT.value
@@ -76,9 +79,3 @@ class PatientsActiveDuringPeriod(ActivePatients):
     """
     Select Patients who were hospitalized during a given period
     """
-
-    def _sql_generate(self, query: Select) -> Select:
-        """
-        Get the SQL representation of the criterion.
-        """
-        return query

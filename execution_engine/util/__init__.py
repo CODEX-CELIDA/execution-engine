@@ -53,9 +53,9 @@ class Value(BaseModel, ABC):
 
     @staticmethod
     def _get_column(
-        table: TableClause | None, column_name: str | ColumnClause
+        table: TableClause | None, column_name: str | ColumnElement
     ) -> ColumnClause:
-        if table is not None and isinstance(column_name, ColumnClause):
+        if table is not None and isinstance(column_name, ColumnElement):
             raise ValueError(
                 "If table is set, column_name must be a string, not a ColumnClause."
             )
@@ -63,7 +63,7 @@ class Value(BaseModel, ABC):
         if table is not None:
             return table.c[column_name]
 
-        if isinstance(column_name, ColumnClause):
+        if isinstance(column_name, ColumnElement):
             return column_name
 
         raise ValueError(
