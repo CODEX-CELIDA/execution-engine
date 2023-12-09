@@ -7,7 +7,7 @@ import pendulum
 from portion import Interval as IntervalType
 from portion import closed as interval_closed
 from pydantic import BaseModel, PositiveInt, root_validator, validator
-from sqlalchemy import and_, func, literal_column
+from sqlalchemy import TableClause, and_, func, literal_column
 from sqlalchemy.sql.elements import (
     BinaryExpression,
     ClauseList,
@@ -53,27 +53,27 @@ class Value(BaseModel, ABC):
 
     @staticmethod
     def _get_column(
-        table_name: str | None, column_name: str | ColumnClause
+        table: TableClause | None, column_name: str | ColumnClause
     ) -> ColumnClause:
-        if table_name is not None and isinstance(column_name, ColumnClause):
+        if table is not None and isinstance(column_name, ColumnClause):
             raise ValueError(
-                "If table_name is set, column_name must be a string, not a ColumnClause."
+                "If table is set, column_name must be a string, not a ColumnClause."
             )
 
-        if table_name is not None:
-            table_name = f"{table_name}."
-        else:
-            table_name = ""
+        if table is not None:
+            return table.c[column_name]
 
         if isinstance(column_name, ColumnClause):
             return column_name
 
-        return literal_column(f"{table_name}{column_name}")
+        raise ValueError(
+            "column_name must be a string and table set, or a ColumnClause."
+        )
 
     @abstractmethod
     def to_sql(
         self,
-        table_name: str | None,
+        table: TableClause | None,
         column_name: str = "value_as_number",
         with_unit: bool = True,
     ) -> ColumnElement:
@@ -188,7 +188,7 @@ class ValueNumber(Value):
 
     def to_sql(
         self,
-        table_name: str | None = None,
+        table: TableClause | None = None,
         column_name: str | ColumnClause = "value_as_number",
         with_unit: bool = True,
     ) -> ColumnElement:
@@ -198,10 +198,10 @@ class ValueNumber(Value):
 
         clauses = []
 
-        c = self._get_column(table_name, column_name)
+        c = self._get_column(table, column_name)
 
         if with_unit:
-            c_unit = self._get_column(table_name, "unit_concept_id")
+            c_unit = self._get_column(table, "unit_concept_id")
             clauses.append(c_unit == self.unit.concept_id)
 
         def eps(number: float) -> float:
@@ -227,7 +227,7 @@ class ValueConcept(Value):
 
     def to_sql(
         self,
-        table_name: str | None,
+        table: TableClause | None,
         column_name: str | ColumnClause = "value_as_concept_id",
         with_unit: bool = False,
     ) -> ColumnElement:
@@ -237,7 +237,7 @@ class ValueConcept(Value):
         if with_unit:
             raise ValueError("ValueConcept does not support units.")
 
-        c = self._get_column(table_name, column_name)
+        c = self._get_column(table, column_name)
 
         clause = c == self.value.concept_id
 

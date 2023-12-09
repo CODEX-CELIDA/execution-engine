@@ -74,7 +74,7 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
         self, query: Select, sql_value: ColumnElement = None
     ) -> Select:
         sql_value = self._value.to_sql(
-            table_name=None,
+            table=None,
             column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
             with_unit=False,
         )

@@ -77,5 +77,7 @@ def db_session(db_setup):
 
     yield session
 
-    session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
+    session.execute(
+        text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;')
+    )  # todo remove me if above works
     session.commit()
