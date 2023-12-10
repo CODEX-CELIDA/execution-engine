@@ -2,14 +2,15 @@ from sqlalchemy import ColumnElement, case, literal_column, select, union_all
 from sqlalchemy.sql import Select
 
 from execution_engine.clients import omopdb
-from execution_engine.constants import OMOPConcepts
-from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.constants import IntervalType, OMOPConcepts
+from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
+from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 from execution_engine.util import ValueNumber
 
 __all__ = ["TidalVolumePerIdealBodyWeight"]
 
 
-class TidalVolumePerIdealBodyWeight(ConceptCriterion):
+class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
     """
     Tidal volume per ideal body weight
 
@@ -60,6 +61,17 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
 
         return query
 
+    def _create_query(self) -> Select:
+        """
+        Create the SQL query to calculate the tidal volume per ideal body weight.
+        """
+        query = self._sql_header()
+        # todo: need to use the point in time query structure here, but combine
+        #       with the ideal body weight query
+        query = self._sql_generate(query)
+
+        return query
+
     def _sql_generate(self, query: Select) -> Select:
         sql_ibw = self._sql_select_ideal_body_weight().alias("ibw")
 
@@ -68,17 +80,31 @@ class TidalVolumePerIdealBodyWeight(ConceptCriterion):
             query, override_concept_id=OMOPConcepts.TIDAL_VOLUME_ON_VENTILATOR.value
         )
 
-        return query
-
-    def _filter_days_with_all_values_valid(
-        self, query: Select, sql_value: ColumnElement = None
-    ) -> Select:
         sql_value = self._value.to_sql(
             table=None,
             column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
             with_unit=False,
         )
+        # todo move this to a function with true/false conditions
+        conditional_column = (
+            case(
+                (
+                    sql_value,
+                    IntervalType.POSITIVE,
+                ),
+                else_=IntervalType.NEGATIVE,
+            )
+            .cast(IntervalTypeEnum)
+            .label("interval_type")
+        )
 
+        query = query.add_columns(conditional_column)
+
+        return query
+
+    def _filter_days_with_all_values_valid(
+        self, query: Select, sql_value: ColumnElement = None
+    ) -> Select:
         return super()._filter_days_with_all_values_valid(query, sql_value)
 
     def sql_select_data(self, person_id: int | None = None) -> Select:
