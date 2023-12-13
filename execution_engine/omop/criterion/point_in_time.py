@@ -1,9 +1,11 @@
-from sqlalchemy import Interval, Select, bindparam, case, func, select
+from sqlalchemy import Interval, Select, bindparam, func, select
 
 from execution_engine.constants import IntervalType
-from execution_engine.omop.criterion.abstract import column_interval_type
+from execution_engine.omop.criterion.abstract import (
+    column_interval_type,
+    create_conditional_interval_column,
+)
 from execution_engine.omop.criterion.concept import ConceptCriterion
-from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 
 
 class PointInTimeCriterion(ConceptCriterion):
@@ -36,13 +38,9 @@ class PointInTimeCriterion(ConceptCriterion):
         cte = self._sql_filter_concept(cte).cte("RankedMeasurements")
 
         if self._value is not None:
-            conditional_column = case(
-                (
-                    self._value.to_sql(cte),
-                    IntervalType.POSITIVE,
-                ),
-                else_=IntervalType.NEGATIVE,
-            ).cast(IntervalTypeEnum)
+            conditional_column = create_conditional_interval_column(
+                self._value.to_sql(cte)
+            )
         else:
             conditional_column = column_interval_type(IntervalType.POSITIVE)
 

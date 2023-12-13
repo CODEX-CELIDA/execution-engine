@@ -2,9 +2,9 @@ from sqlalchemy import ColumnElement, case, literal_column, select, union_all
 from sqlalchemy.sql import Select
 
 from execution_engine.clients import omopdb
-from execution_engine.constants import IntervalType, OMOPConcepts
+from execution_engine.constants import OMOPConcepts
+from execution_engine.omop.criterion.abstract import create_conditional_interval_column
 from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
-from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 from execution_engine.util import ValueNumber
 
 __all__ = ["TidalVolumePerIdealBodyWeight"]
@@ -85,18 +85,8 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
             column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
             with_unit=False,
         )
-        # todo move this to a function with true/false conditions
-        conditional_column = (
-            case(
-                (
-                    sql_value,
-                    IntervalType.POSITIVE,
-                ),
-                else_=IntervalType.NEGATIVE,
-            )
-            .cast(IntervalTypeEnum)
-            .label("interval_type")
-        )
+
+        conditional_column = create_conditional_interval_column(sql_value)
 
         query = query.add_columns(conditional_column)
 

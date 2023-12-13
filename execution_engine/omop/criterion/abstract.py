@@ -15,6 +15,7 @@ from sqlalchemy import (
     Table,
     and_,
     bindparam,
+    case,
     func,
     literal_column,
     select,
@@ -71,6 +72,24 @@ def column_interval_type(interval_type: IntervalType) -> ColumnElement:
         interval_type,
         type_=IntervalTypeEnum,
     ).label("interval_type")
+
+
+def create_conditional_interval_column(condition: ColumnElement) -> ColumnElement:
+    """
+    Create a conditional column based on a provided condition.
+
+    :param condition: The condition to evaluate for the case statement.
+    :return: A SQLAlchemy Column object.
+    """
+
+    return (
+        case(
+            (condition, IntervalType.POSITIVE),
+            else_=IntervalType.NEGATIVE,
+        )
+        .cast(IntervalTypeEnum)
+        .label("interval_type")
+    )
 
 
 class AbstractCriterion(Serializable, ABC):

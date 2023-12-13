@@ -1,13 +1,14 @@
 from typing import Any, Dict
 
-from sqlalchemy import case
 from sqlalchemy.sql import Select, extract
 
 from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import column_interval_type
+from execution_engine.omop.criterion.abstract import (
+    column_interval_type,
+    create_conditional_interval_column,
+)
 from execution_engine.omop.criterion.continuous import ContinuousCriterion
-from execution_engine.omop.db.celida.tables import IntervalTypeEnum
 from execution_engine.util import Interval, ValueNumber, value_factory
 
 __all__ = ["ProcedureOccurrence"]
@@ -51,22 +52,14 @@ class ProcedureOccurrence(ContinuousCriterion):
         query = self._sql_header()
         query = self._sql_filter_concept(query)
 
-        # todo do not use duplicated code (from concept.py)
-        # is this even required in procedure?
+        # todo: is this even required in procedure?
         if self._value is not None:
-            conditional_column = (
-                case(
-                    (
-                        self._value.to_sql(self._table),
-                        IntervalType.POSITIVE,
-                    ),
-                    else_=IntervalType.NEGATIVE,
-                )
-                .cast(IntervalTypeEnum)
-                .label("interval_type")
+            conditional_column = create_conditional_interval_column(
+                self._value.to_sql(self._table)
             )
         else:
             conditional_column = column_interval_type(IntervalType.POSITIVE)
+
         query = query.add_columns(conditional_column)
 
         # todo: this should not filter but also set the interval_type
