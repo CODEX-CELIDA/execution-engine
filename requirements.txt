@@ -11,3 +11,4 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0.post1
 pendulum==2.1.2
 pyinterval==1.2.0
+portion==2.4.2
