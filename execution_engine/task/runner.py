@@ -194,6 +194,7 @@ class SequentialTaskRunner(TaskRunner):
         except TaskError as e:
             logging.error(f"An error occurred: {e}")
             logging.error("Stopping task runner.")
+            raise TaskError(str(e))
 
 
 class ParallelTaskRunner(TaskRunner):

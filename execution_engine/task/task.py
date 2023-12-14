@@ -42,6 +42,9 @@ class Task:
     A Task object represents a task that needs to be run.
     """
 
+    """The columns to group by when merging or intersecting intervals."""
+    by = ["person_id"]
+
     def __init__(self, expr: logic.Expr, criterion: Criterion) -> None:
         self.expr = expr
         self.criterion = criterion
@@ -73,7 +76,10 @@ class Task:
 
         except Exception as e:
             self.status = TaskStatus.FAILED
-            raise TaskError(f"Task '{self.name()}' failed with error: {e}")
+            exception_type = type(e).__name__  # Get the type of the exception
+            raise TaskError(
+                f"Task '{self.name()}' failed with error: {exception_type}('{e}')"
+            )
 
         self.status = TaskStatus.COMPLETED
 
@@ -88,10 +94,10 @@ class Task:
         """
         engine = get_engine()
         query = self.criterion.create_query()
-        result = engine.query(query)
+        result = engine.query(query, **params)
 
         # todo: insert result into database
-
+        # todo: remove me
         """result = pd.DataFrame(
             {
                 "person_id": [1, 2, 3],
@@ -121,8 +127,6 @@ class Task:
         :param params: The parameters.
         :return: A DataFrame with the inverted intervals.
         """
-        by = ["person_id", "concept_id"]
-
         assert self.expr.is_Not, "Dependency is not a Not expression."
 
         observation_window = TimeRange(
@@ -130,7 +134,7 @@ class Task:
             end=params["observation_window_end"],
             name="observation_window",
         )
-        result = process.invert_intervals(data[0], by, observation_window)
+        result = process.invert_intervals(data[0], self.by, observation_window)
         return result
 
     def handle_binary_logical_operator(
@@ -143,12 +147,10 @@ class Task:
         :param params: The parameters.
         :return: A DataFrame with the merged or intersected intervals.
         """
-        by = ["person_id", "concept_id"]
-
         if isinstance(self.expr, logic.And):
-            result = process.merge_intervals(data, by)
+            result = process.merge_intervals(data, self.by)
         elif isinstance(self.expr, logic.Or):
-            result = process.intersect_intervals(data, by)
+            result = process.intersect_intervals(data, self.by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
         return result

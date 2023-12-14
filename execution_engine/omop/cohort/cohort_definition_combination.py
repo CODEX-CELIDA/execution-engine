@@ -99,8 +99,10 @@ class CohortDefinitionCombination(Serializable):
         """
         Get the execution map of the cohort definition combination.
 
-        The execution map allows to execute the cohort definition combination as a series of tasks.
+        The execution map allows to execute the cohort definition combination
+        as a series of tasks.
         """
+
         return ExecutionMap.union(
             *[cd.execution_map() for cd in self._cohort_definitions]
         )

@@ -5,19 +5,10 @@ from typing import Iterable, Sequence
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import (
-    Column,
-    Date,
-    Integer,
-    MetaData,
-    Table,
-    and_,
-    bindparam,
-    select,
-    text,
-)
+from sqlalchemy import Column, Date, Integer, MetaData, Table, bindparam, select, text
 
 from execution_engine.constants import CohortCategory
+from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.cohort import add_result_insert
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
@@ -27,6 +18,7 @@ from execution_engine.omop.db.celida.tables import (
 )
 from execution_engine.omop.db.celida.views import partial_day_coverage
 from execution_engine.omop.db.omop.tables import Person
+from execution_engine.task import runner
 from execution_engine.util import TimeRange, ValueConcept, ValueNumber
 from tests._testdata import concepts
 from tests.functions import create_visit
@@ -197,6 +189,56 @@ class TestCriterion:
             "Subclasses should override this method to provide their own fixture"
         )
 
+    def insert_criterion(self, db_session, criterion, observation_window: TimeRange):
+        query = criterion.create_query()
+
+        query = query.add_columns(
+            bindparam("recommendation_run_id", self.recommendation_run_id).label(
+                "recommendation_run_id"
+            ),
+            bindparam("plan_id", None).label("plan_id"),
+            bindparam("criterion_id", self.criterion_id).label("criterion_id"),
+            bindparam("cohort_category", CohortCategory.POPULATION).label(
+                "cohort_category"
+            ),
+        )
+
+        t_result = RecommendationResultInterval.__table__
+        query_insert = t_result.insert().from_select(query.selected_columns, query)
+        db_session.execute(query_insert, params=observation_window.dict())
+
+    def insert_criterion_combination(
+        self, db_session, combination, base_criterion, observation_window: TimeRange
+    ):
+        execution_map = ExecutionMap(combination, base_criterion)
+        params = observation_window.dict() | {"run_id": self.recommendation_run_id}
+
+        db_session.execute(
+            text("SET session_replication_role = 'replica';")
+        )  # disable fkey checks (because of recommendation_result.run_id)
+
+        task_runner = runner.SequentialTaskRunner(execution_map)
+        task_runner.run(params)
+
+    def fetch_filtered_results(self, db_session, criterion_id: int | None):
+        stmt = select(
+            self.result_view.c.person_id, self.result_view.c.valid_date
+        ).where(self.result_view.c.recommendation_run_id == self.recommendation_run_id)
+
+        if criterion_id is not None:
+            stmt = stmt.where(self.result_view.c.criterion_id == criterion_id)
+        else:
+            stmt = stmt.where(self.result_view.c.criterion_id.is_(None))
+
+        df = pd.read_sql(
+            stmt,
+            db_session.connection(),
+            params={"run_id": self.recommendation_run_id},
+        )
+        df["valid_date"] = pd.to_datetime(df["valid_date"])
+
+        return df
+
     @pytest.fixture
     def criterion_execute_func(
         self, base_table, db_session, criterion_class, observation_window
@@ -215,39 +257,8 @@ class TestCriterion:
                 static=None,
             )
 
-            query = criterion.create_query()
-
-            query = query.add_columns(
-                bindparam("recommendation_run_id", self.recommendation_run_id).label(
-                    "recommendation_run_id"
-                ),
-                bindparam("plan_id", None).label("plan_id"),
-                bindparam("criterion_id", self.criterion_id).label("criterion_id"),
-                bindparam("cohort_category", CohortCategory.POPULATION).label(
-                    "cohort_category"
-                ),
-            )
-
-            t_result = RecommendationResultInterval.__table__
-            query_insert = t_result.insert().from_select(query.selected_columns, query)
-            db_session.execute(query_insert, params=observation_window.dict())
-
-            stmt = select(
-                self.result_view.c.person_id, self.result_view.c.valid_date
-            ).where(
-                and_(
-                    self.result_view.c.recommendation_run_id
-                    == self.recommendation_run_id,
-                    self.result_view.c.criterion_id == self.criterion_id,
-                )
-            )
-            df = pd.read_sql(
-                stmt,
-                db_session.connection(),
-                params=observation_window.dict()
-                | {"run_id": TestCriterion.recommendation_run_id},
-            )
-            df["valid_date"] = pd.to_datetime(df["valid_date"])
+            self.insert_criterion(db_session, criterion, observation_window)
+            df = self.fetch_filtered_results(db_session, self.criterion_id)
 
             return df
 

@@ -2,15 +2,13 @@ import pandas as pd
 import pendulum
 import pytest
 import sympy
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
 from execution_engine.constants import CohortCategory
-from execution_engine.execution_map import ExecutionMap
-from execution_engine.omop.cohort_definition import add_result_insert
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.omop.db.celida import RecommendationResult
+from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 from execution_engine.util import TimeRange, ValueNumber
 from tests._fixtures.concept import (
     concept_covid19,
@@ -30,7 +28,7 @@ class TestCriterionCombination(TestCriterion):
     @pytest.fixture
     def observation_window(self) -> TimeRange:
         return TimeRange(
-            start="2023-03-01 04:00:00", end="2023-03-04 18:00:00", name="observation"
+            start="2023-03-01 04:00:00Z", end="2023-03-04 18:00:00Z", name="observation"
         )
 
     @pytest.fixture
@@ -95,6 +93,7 @@ class TestCriterionCombination(TestCriterion):
         person_visit,
         db_session,
         base_table,
+        base_criterion,
         criteria_db,
         combination,
         expected,
@@ -103,8 +102,8 @@ class TestCriterionCombination(TestCriterion):
         # BASE cohort in results table is required for combination to work
         query = (
             select(func.count("*"))
-            .select_from(RecommendationResult)
-            .where(RecommendationResult.cohort_category == CohortCategory.BASE)
+            .select_from(RecommendationResultInterval)
+            .where(RecommendationResultInterval.cohort_category == CohortCategory.BASE)
         )
         assert db_session.execute(query).scalar() > 1, "No base cohort in database"
 
@@ -142,30 +141,12 @@ class TestCriterionCombination(TestCriterion):
         )
         comb.add_all([c1, c2])
 
-        execution_map = ExecutionMap(comb)
-        query_params = observation_window.dict() | {"run_id": 1}
+        self.insert_criterion_combination(
+            db_session, comb, base_criterion, observation_window
+        )
 
-        db_session.execute(
-            text("SET session_replication_role = 'replica';")
-        )  # disable fkey checks (because of recommendation_result.run_id)
+        df = self.fetch_filtered_results(db_session, criterion_id=None)
 
-        for criterion in execution_map.sequential():
-            query = criterion.sql_generate(base_table=base_table)
-            query = add_result_insert(
-                query,
-                plan_id=None,
-                criterion_id=criterion.id,
-                cohort_category=criterion.category,
-            )
-
-            query.description = query.select.description
-
-            db_session.execute(query, params=query_params)
-
-        db_session.commit()
-        query = execution_map.combine(CohortCategory.POPULATION_INTERVENTION)
-
-        df = pd.read_sql(query, db_session.connection(), params=query_params)
         df = df.query(f"person_id=={person_visit[0][0].person_id}")
 
         assert set(pd.to_datetime(df["valid_date"]).dt.date) == date_set(expected)

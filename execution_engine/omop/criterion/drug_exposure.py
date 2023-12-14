@@ -2,14 +2,17 @@ import logging
 from typing import Any, Dict
 
 import pandas as pd
-from sqlalchemy import NUMERIC, DateTime, bindparam, case, func, select
+from sqlalchemy import NUMERIC, DateTime, and_, bindparam, case, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.abstract import (
+    Criterion,
+    create_conditional_interval_column,
+)
 from execution_engine.util import Interval, TimeRange, ValueNumber, value_factory
 from execution_engine.util.sql import SelectInto
 
@@ -18,10 +21,6 @@ __all__ = ["DrugExposure"]
 
 class DrugExposure(Criterion):
     """A drug exposure criterion in a cohort definition."""
-
-    def _create_query(self) -> Select:
-        # todo implement me
-        raise NotImplementedError()
 
     def process_data(
         self, data: pd.DataFrame, observation_window: TimeRange
@@ -77,6 +76,14 @@ class DrugExposure(Criterion):
 
         return query
 
+    def _create_query(self) -> Select:
+        query = select(
+            self._table.c.person_id,
+        ).select_from(self._table)
+
+        query = self._sql_generate(query)
+        return query
+
     def _sql_generate(self, query: Select) -> Select:
         drug_exposure = self._table
 
@@ -97,7 +104,15 @@ class DrugExposure(Criterion):
             one_second = func.cast(concat(1, "second"), INTERVAL)
 
             # Filter only drug_exposures that are inbetween the start and end date of the cohort
-            query = super()._insert_datetime(query)
+            # todo: move this into another function (duplicate code with super()._insert_datetime()
+            c_start = self._get_datetime_column(self._table)
+            c_end = self._get_datetime_column(self._table, "end")
+            query = query.filter(
+                and_(
+                    c_start <= bindparam("observation_end_datetime"),
+                    c_end >= bindparam("observation_start_datetime"),
+                )
+            )
 
             interval_starts = query.add_columns(
                 (
@@ -189,24 +204,27 @@ class DrugExposure(Criterion):
             ).label("interval_quantity")
             c_interval_count = func.count().label("interval_count")
 
+            conditional_interval_column = create_conditional_interval_column(
+                condition=and_(
+                    self._dose.to_sql(column_name=c_interval_quantity, with_unit=False),
+                    c_interval_count >= self._frequency,
+                )
+            )
+
             query = (
                 select(
                     interval_ratios.c.person_id,
-                    interval_ratios.c.interval_start.label("valid_from"),
+                    interval_ratios.c.interval_start.label("interval_start"),
                     (interval_ratios.c.interval_start + interval - one_second).label(
-                        "valid_to"
+                        "interval_end"
                     ),
-                    c_interval_quantity,
-                    c_interval_count,
+                    conditional_interval_column.label("interval_type"),
+                    # c_interval_quantity,
+                    # c_interval_count,
                 )
                 .select_from(interval_ratios)
                 .where(interval_ratios.c.ratio > 0)
                 .group_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
-                .having(
-                    self._dose.to_sql(column_name=c_interval_quantity, with_unit=False)
-                )
-                .having(c_interval_count >= self._frequency)
-                .order_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
             )
 
         return query

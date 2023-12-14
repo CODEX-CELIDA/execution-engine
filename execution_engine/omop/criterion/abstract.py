@@ -498,6 +498,9 @@ class Criterion(AbstractCriterion):
         """
         Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.
         """
+
+        # todo: are we still using this function? do we add the observation window to the query as columns?
+
         if self._static:
             # If this criterion is a static criterion, i.e. one whose value does not change over time,
             # then we don't need to filter by datetime,
