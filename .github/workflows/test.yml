@@ -54,17 +54,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Clone Submodule
-        run: |
-            mkdir -p $HOME/.ssh
-            echo '${{ secrets.SUBMODULE_REPO_DEPLOY_KEY }}' > $HOME/.ssh/ssh.key
-            chmod 600 $HOME/.ssh/ssh.key
-            export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/ssh.key"
-            git submodule set-url tests/omop_cdm git@github.com:CODEX-CELIDA/omop-test-vocabulary.git
-            git submodule update --init --recursive
-            git submodule set-url tests/omop_cdm https://github.com/CODEX-CELIDA/omop-test-vocabulary.git
-            unset GIT_SSH_COMMAND
+        with:
+          submodules: true
+          token: ${{ secrets.SUBMODULE_PERSONAL_ACCESS_TOKEN }}
 
       - name: Test Recommendation Server
         run: |
