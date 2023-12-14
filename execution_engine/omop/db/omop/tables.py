@@ -14,7 +14,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .base import Base, metadata
+from execution_engine.omop.db.base import Base, metadata
+from execution_engine.omop.db.omop import SCHEMA_NAME
 
 t_cohort = Table(
     "cohort",
@@ -23,24 +24,24 @@ t_cohort = Table(
     Column("subject_id", Integer, nullable=False),
     Column("cohort_start_date", Date, nullable=False),
     Column("cohort_end_date", Date, nullable=False),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
 class Concept(Base):  # noqa: D101 # noqa: D101
     __tablename__ = "concept"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     concept_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     concept_name: Mapped[str] = mapped_column(String(255))
     domain_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.domain.domain_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.domain.domain_id"), index=True
     )
     vocabulary_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.vocabulary.vocabulary_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.vocabulary.vocabulary_id"), index=True
     )
     concept_class_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept_class.concept_class_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept_class.concept_class_id"), index=True
     )
     standard_concept: Mapped[Optional[str]] = mapped_column(String(1))
     concept_code: Mapped[str] = mapped_column(String(50), index=True)
@@ -61,14 +62,14 @@ class Concept(Base):  # noqa: D101 # noqa: D101
 
 class ConceptClas(Base):  # noqa: D101 # noqa: D101
     __tablename__ = "concept_class"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     concept_class_id: Mapped[str] = mapped_column(
         String(20), primary_key=True, index=True
     )
     concept_class_name: Mapped[str] = mapped_column(String(255))
     concept_class_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     concept_class_concept: Mapped["Concept"] = relationship(
@@ -78,12 +79,12 @@ class ConceptClas(Base):  # noqa: D101 # noqa: D101
 
 class Domain(Base):  # noqa: D101
     __tablename__ = "domain"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     domain_id: Mapped[str] = mapped_column(String(20), primary_key=True, index=True)
     domain_name: Mapped[str] = mapped_column(String(255))
     domain_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     domain_concept: Mapped["Concept"] = relationship(
@@ -93,14 +94,14 @@ class Domain(Base):  # noqa: D101
 
 class Vocabulary(Base):  # noqa: D101
     __tablename__ = "vocabulary"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     vocabulary_id: Mapped[str] = mapped_column(String(20), primary_key=True, index=True)
     vocabulary_name: Mapped[str] = mapped_column(String(255))
     vocabulary_reference: Mapped[Optional[str]] = mapped_column(String(255))
     vocabulary_version: Mapped[Optional[str]] = mapped_column(String(255))
     vocabulary_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     vocabulary_concept: Mapped["Concept"] = relationship(
@@ -122,11 +123,11 @@ t_cdm_source = Table(
     Column("cdm_version", String(10)),
     Column(
         "cdm_version_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
     ),
     Column("vocabulary_version", String(20), nullable=False),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
@@ -138,15 +139,17 @@ t_cohort_definition = Table(
     Column("cohort_definition_description", Text),
     Column(
         "definition_type_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
     ),
     Column("cohort_definition_syntax", Text),
     Column(
-        "subject_concept_id", ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+        "subject_concept_id",
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
+        nullable=False,
     ),
     Column("cohort_initiation_date", Date),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
@@ -155,19 +158,19 @@ t_concept_ancestor = Table(
     metadata,
     Column(
         "ancestor_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column(
         "descendant_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column("min_levels_of_separation", Integer, nullable=False),
     Column("max_levels_of_separation", Integer, nullable=False),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
@@ -176,32 +179,36 @@ t_concept_synonym = Table(
     metadata,
     Column(
         "concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column("concept_synonym_name", String(1000), nullable=False),
     Column(
-        "language_concept_id", ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+        "language_concept_id",
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
+        nullable=False,
     ),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
 class Cost(Base):  # noqa: D101
     __tablename__ = "cost"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     cost_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     cost_event_id: Mapped[int] = mapped_column(Integer, index=True)
-    cost_domain_id: Mapped[int] = mapped_column(ForeignKey("cds_cdm.domain.domain_id"))
+    cost_domain_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.domain.domain_id")
+    )
     cost_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     currency_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     total_charge = mapped_column(Numeric, nullable=True)
     total_cost = mapped_column(Numeric, nullable=True)
@@ -217,11 +224,11 @@ class Cost(Base):  # noqa: D101
     payer_plan_period_id: Mapped[Optional[int]]
     amount_allowed = mapped_column(Numeric, nullable=True)
     revenue_code_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     revenue_code_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     drg_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     drg_source_value: Mapped[Optional[str]] = mapped_column(String(3))
 
@@ -245,27 +252,31 @@ t_drug_strength = Table(
     metadata,
     Column(
         "drug_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column(
         "ingredient_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column("amount_value", Numeric),
-    Column("amount_unit_concept_id", ForeignKey("cds_cdm.concept.concept_id")),
+    Column("amount_unit_concept_id", ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")),
     Column("numerator_value", Numeric),
-    Column("numerator_unit_concept_id", ForeignKey("cds_cdm.concept.concept_id")),
+    Column(
+        "numerator_unit_concept_id", ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
+    ),
     Column("denominator_value", Numeric),
-    Column("denominator_unit_concept_id", ForeignKey("cds_cdm.concept.concept_id")),
+    Column(
+        "denominator_unit_concept_id", ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
+    ),
     Column("box_size", Integer),
     Column("valid_start_date", Date, nullable=False),
     Column("valid_end_date", Date, nullable=False),
     Column("invalid_reason", String(1)),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
@@ -274,31 +285,31 @@ t_fact_relationship = Table(
     metadata,
     Column(
         "domain_concept_id_1",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column("fact_id_1", Integer, nullable=False),
     Column(
         "domain_concept_id_2",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column("fact_id_2", Integer, nullable=False),
     Column(
         "relationship_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
 class Location(Base):  # noqa: D101
     __tablename__ = "location"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     location_id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -312,7 +323,7 @@ class Location(Base):  # noqa: D101
     county: Mapped[Optional[str]] = mapped_column(String(20))
     location_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     country_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     country_source_value: Mapped[Optional[str]] = mapped_column(String(80))
     latitude = mapped_column(Numeric, nullable=True)
@@ -323,21 +334,21 @@ class Location(Base):  # noqa: D101
 
 class Metadatum(Base):  # noqa: D101
     __tablename__ = "metadata"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     metadata_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     metadata_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     metadata_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     name: Mapped[str] = mapped_column(String(250))
     value_as_string: Mapped[Optional[str]] = mapped_column(String(250))
     value_as_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     value_as_number = mapped_column(Numeric, nullable=True)
     metadata_date: Mapped[Optional[date]]
@@ -356,23 +367,23 @@ class Metadatum(Base):  # noqa: D101
 
 class NoteNlp(Base):  # noqa: D101
     __tablename__ = "note_nlp"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     note_nlp_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     note_id: Mapped[int] = mapped_column(Integer, index=True)
     section_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     snippet: Mapped[Optional[str]] = mapped_column(String(250))
     offset: Mapped[Optional[str]] = mapped_column(String(50))
     lexical_variant: Mapped[str] = mapped_column(String(250))
     note_nlp_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     note_nlp_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     nlp_system: Mapped[Optional[str]] = mapped_column(String(250))
     nlp_date: Mapped[date]
@@ -394,7 +405,7 @@ class NoteNlp(Base):  # noqa: D101
 
 class Relationship(Base):  # noqa: D101
     __tablename__ = "relationship"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     relationship_id: Mapped[str] = mapped_column(
         String(20), primary_key=True, index=True
@@ -404,7 +415,7 @@ class Relationship(Base):  # noqa: D101
     defines_ancestry: Mapped[str] = mapped_column(String(1))
     reverse_relationship_id: Mapped[str] = mapped_column(String(20))
     relationship_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     relationship_concept: Mapped["Concept"] = relationship()
@@ -415,32 +426,34 @@ t_source_to_concept_map = Table(
     metadata,
     Column("source_code", String(50), nullable=False, index=True),
     Column(
-        "source_concept_id", ForeignKey("cds_cdm.concept.concept_id"), nullable=False
+        "source_concept_id",
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
+        nullable=False,
     ),
     Column("source_vocabulary_id", String(20), nullable=False, index=True),
     Column("source_code_description", String(255)),
     Column(
         "target_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column(
         "target_vocabulary_id",
-        ForeignKey("cds_cdm.vocabulary.vocabulary_id"),
+        ForeignKey(f"{SCHEMA_NAME}.vocabulary.vocabulary_id"),
         nullable=False,
         index=True,
     ),
     Column("valid_start_date", Date, nullable=False),
     Column("valid_end_date", Date, nullable=False),
     Column("invalid_reason", String(1)),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
 class CareSite(Base):  # noqa: D101
     __tablename__ = "care_site"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     care_site_id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -448,10 +461,10 @@ class CareSite(Base):  # noqa: D101
     )
     care_site_name: Mapped[Optional[str]] = mapped_column(String(255))
     place_of_service_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     location_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.location.location_id")
+        ForeignKey(f"{SCHEMA_NAME}.location.location_id")
     )
     care_site_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     place_of_service_source_value: Mapped[Optional[str]] = mapped_column(String(50))
@@ -465,32 +478,32 @@ t_concept_relationship = Table(
     metadata,
     Column(
         "concept_id_1",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column(
         "concept_id_2",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
         index=True,
     ),
     Column(
         "relationship_id",
-        ForeignKey("cds_cdm.relationship.relationship_id"),
+        ForeignKey(f"{SCHEMA_NAME}.relationship.relationship_id"),
         nullable=False,
         index=True,
     ),
     Column("valid_start_date", Date, nullable=False),
     Column("valid_end_date", Date, nullable=False),
     Column("invalid_reason", String(1)),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
 class Provider(Base):  # noqa: D101
     __tablename__ = "provider"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     provider_id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -500,23 +513,23 @@ class Provider(Base):  # noqa: D101
     npi: Mapped[Optional[str]] = mapped_column(String(20))
     dea: Mapped[Optional[str]] = mapped_column(String(20))
     specialty_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     care_site_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.care_site.care_site_id")
+        ForeignKey(f"{SCHEMA_NAME}.care_site.care_site_id")
     )
     year_of_birth: Mapped[Optional[int]]
     gender_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     provider_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     specialty_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     specialty_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     gender_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     gender_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     care_site: Mapped["CareSite"] = relationship()
@@ -536,46 +549,46 @@ class Provider(Base):  # noqa: D101
 
 class Person(Base):  # noqa: D101
     __tablename__ = "person"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     person_id: Mapped[int] = mapped_column(
         primary_key=True,
         index=True,
     )
     gender_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     year_of_birth: Mapped[int]
     month_of_birth: Mapped[Optional[int]]
     day_of_birth: Mapped[Optional[int]]
     birth_datetime: Mapped[Optional[datetime]]
     race_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     ethnicity_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     location_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.location.location_id")
+        ForeignKey(f"{SCHEMA_NAME}.location.location_id")
     )
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     care_site_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.care_site.care_site_id")
+        ForeignKey(f"{SCHEMA_NAME}.care_site.care_site_id")
     )
     person_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     gender_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     gender_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     race_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     race_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     ethnicity_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     ethnicity_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     care_site: Mapped["CareSite"] = relationship()
@@ -603,16 +616,16 @@ class Person(Base):  # noqa: D101
 
 class ConditionEra(Base):  # noqa: D101
     __tablename__ = "condition_era"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     condition_era_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     condition_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     condition_era_start_date: Mapped[date]
     condition_era_end_date: Mapped[date]
@@ -626,33 +639,36 @@ t_death = Table(
     "death",
     metadata,
     Column(
-        "person_id", ForeignKey("cds_cdm.person.person_id"), nullable=False, index=True
+        "person_id",
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"),
+        nullable=False,
+        index=True,
     ),
     Column("death_date", Date, nullable=False),
     Column("death_datetime", DateTime),
-    Column("death_type_concept_id", ForeignKey("cds_cdm.concept.concept_id")),
-    Column("cause_concept_id", ForeignKey("cds_cdm.concept.concept_id")),
+    Column("death_type_concept_id", ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")),
+    Column("cause_concept_id", ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")),
     Column("cause_source_value", String(50)),
-    Column("cause_source_concept_id", ForeignKey("cds_cdm.concept.concept_id")),
-    schema="cds_cdm",
+    Column("cause_source_concept_id", ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")),
+    schema=SCHEMA_NAME,
 )
 
 
 class DoseEra(Base):  # noqa: D101
     __tablename__ = "dose_era"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     dose_era_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     drug_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     unit_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     dose_value = Column(Numeric, nullable=False)
     dose_era_start_date: Mapped[date]
@@ -669,16 +685,16 @@ class DoseEra(Base):  # noqa: D101
 
 class DrugEra(Base):  # noqa: D101
     __tablename__ = "drug_era"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     drug_era_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     drug_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     drug_era_start_date: Mapped[date]
     drug_era_end_date: Mapped[date]
@@ -691,14 +707,16 @@ class DrugEra(Base):  # noqa: D101
 
 class Episode(Base):  # noqa: D101
     __tablename__ = "episode"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     episode_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
-    person_id: Mapped[int] = mapped_column(ForeignKey("cds_cdm.person.person_id"))
+    person_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id")
+    )
     episode_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     episode_start_date: Mapped[date]
     episode_start_datetime: Mapped[Optional[datetime]]
@@ -707,14 +725,14 @@ class Episode(Base):  # noqa: D101
     episode_parent_id: Mapped[Optional[int]]
     episode_number: Mapped[Optional[int]]
     episode_object_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     episode_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     episode_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     episode_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     episode_concept: Mapped["Concept"] = relationship(
@@ -734,18 +752,18 @@ class Episode(Base):  # noqa: D101
 
 class ObservationPeriod(Base):  # noqa: D101
     __tablename__ = "observation_period"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     observation_period_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     observation_period_start_date: Mapped[date]
     observation_period_end_date: Mapped[date]
     period_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     period_type_concept: Mapped["Concept"] = relationship()
@@ -754,44 +772,44 @@ class ObservationPeriod(Base):  # noqa: D101
 
 class PayerPlanPeriod(Base):  # noqa: D101
     __tablename__ = "payer_plan_period"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     payer_plan_period_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     payer_plan_period_start_date: Mapped[date]
     payer_plan_period_end_date: Mapped[date]
     payer_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     payer_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     payer_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     plan_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     plan_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     plan_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     sponsor_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     sponsor_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     sponsor_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     family_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     stop_reason_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     stop_reason_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     stop_reason_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     payer_concept: Mapped["Concept"] = relationship(
@@ -823,31 +841,31 @@ class PayerPlanPeriod(Base):  # noqa: D101
 
 class Speciman(Base):  # noqa: D101
     __tablename__ = "specimen"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     specimen_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     specimen_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     specimen_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     specimen_date: Mapped[date]
     specimen_datetime: Mapped[Optional[datetime]]
     quantity = mapped_column(Numeric, nullable=True)
     unit_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     anatomic_site_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     disease_status_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     specimen_source_id: Mapped[Optional[str]] = mapped_column(String(50))
     specimen_source_value: Mapped[Optional[str]] = mapped_column(String(50))
@@ -875,44 +893,44 @@ class Speciman(Base):  # noqa: D101
 
 class VisitOccurrence(Base):  # noqa: D101
     __tablename__ = "visit_occurrence"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     visit_occurrence_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     visit_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     visit_start_date: Mapped[date]
     visit_start_datetime: Mapped[Optional[datetime]]
     visit_end_date: Mapped[date]
     visit_end_datetime: Mapped[Optional[datetime]]
     visit_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     care_site_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.care_site.care_site_id")
+        ForeignKey(f"{SCHEMA_NAME}.care_site.care_site_id")
     )
     visit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     visit_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     admitted_from_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     admitted_from_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     discharged_to_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     discharged_to_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     preceding_visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id")
     )
 
     admitted_from_concept: Mapped["Concept"] = relationship(
@@ -941,63 +959,65 @@ class VisitOccurrence(Base):  # noqa: D101
 t_episode_event = Table(
     "episode_event",
     metadata,
-    Column("episode_id", ForeignKey("cds_cdm.episode.episode_id"), nullable=False),
+    Column(
+        "episode_id", ForeignKey(f"{SCHEMA_NAME}.episode.episode_id"), nullable=False
+    ),
     Column("event_id", Integer, nullable=False),
     Column(
         "episode_event_field_concept_id",
-        ForeignKey("cds_cdm.concept.concept_id"),
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"),
         nullable=False,
     ),
-    schema="cds_cdm",
+    schema=SCHEMA_NAME,
 )
 
 
 class VisitDetail(Base):  # noqa: D101
     __tablename__ = "visit_detail"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     visit_detail_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     visit_detail_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     visit_detail_start_date: Mapped[date]
     visit_detail_start_datetime: Mapped[Optional[datetime]]
     visit_detail_end_date: Mapped[date]
     visit_detail_end_datetime: Mapped[Optional[datetime]]
     visit_detail_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     care_site_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.care_site.care_site_id")
+        ForeignKey(f"{SCHEMA_NAME}.care_site.care_site_id")
     )
     visit_detail_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     visit_detail_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     admitted_from_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     admitted_from_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     discharged_to_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     discharged_to_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     preceding_visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     parent_visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     visit_occurrence_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"),
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"),
         index=True,
     )
 
@@ -1032,40 +1052,40 @@ class VisitDetail(Base):  # noqa: D101
 
 class ConditionOccurrence(Base):  # noqa: D101
     __tablename__ = "condition_occurrence"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     condition_occurrence_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     condition_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     condition_start_date: Mapped[date]
     condition_start_datetime: Mapped[Optional[datetime]]
     condition_end_date: Mapped[Optional[date]]
     condition_end_datetime: Mapped[Optional[datetime]]
     condition_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     condition_status_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     stop_reason: Mapped[Optional[str]] = mapped_column(String(20))
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"), index=True
     )
     visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     condition_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     condition_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     condition_status_source_value: Mapped[Optional[str]] = mapped_column(String(50))
 
@@ -1089,46 +1109,46 @@ class ConditionOccurrence(Base):  # noqa: D101
 
 class DeviceExposure(Base):  # noqa: D101
     __tablename__ = "device_exposure"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     device_exposure_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     device_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     device_exposure_start_date: Mapped[date]
     device_exposure_start_datetime: Mapped[Optional[datetime]]
     device_exposure_end_date: Mapped[Optional[date]]
     device_exposure_end_datetime: Mapped[Optional[datetime]]
     device_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     unique_device_id: Mapped[Optional[str]] = mapped_column(String(255))
     production_id: Mapped[Optional[str]] = mapped_column(String(255))
     quantity: Mapped[int]
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"), index=True
     )
     visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     device_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     device_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     unit_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     unit_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     device_concept: Mapped["Concept"] = relationship(
@@ -1154,16 +1174,16 @@ class DeviceExposure(Base):  # noqa: D101
 
 class DrugExposure(Base):  # noqa: D101
     __tablename__ = "drug_exposure"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     drug_exposure_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     drug_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     drug_exposure_start_date: Mapped[date]
     drug_exposure_start_datetime: Mapped[Optional[datetime]]
@@ -1171,7 +1191,7 @@ class DrugExposure(Base):  # noqa: D101
     drug_exposure_end_datetime: Mapped[Optional[datetime]]
     verbatim_end_date: Mapped[Optional[date]]
     drug_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     stop_reason: Mapped[Optional[str]] = mapped_column(String(20))
     refills: Mapped[Optional[int]]
@@ -1179,21 +1199,21 @@ class DrugExposure(Base):  # noqa: D101
     days_supply: Mapped[Optional[int]]
     sig = Column(Text)  # ToDo: map to mapped_column
     route_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     lot_number: Mapped[Optional[str]] = mapped_column(String(50))
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"), index=True
     )
     visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     drug_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     drug_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     route_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     dose_unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
@@ -1218,56 +1238,56 @@ class DrugExposure(Base):  # noqa: D101
 
 class Measurement(Base):  # noqa: D101
     __tablename__ = "measurement"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     measurement_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     measurement_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     measurement_date: Mapped[date]
     measurement_datetime: Mapped[Optional[datetime]]
     measurement_time: Mapped[Optional[str]] = mapped_column(String(10))
     measurement_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     operator_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     value_as_number = mapped_column(Numeric, nullable=True)
     value_as_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     unit_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     range_low = mapped_column(Numeric, nullable=True)
     range_high = mapped_column(Numeric, nullable=True)
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"), index=True
     )
     visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     measurement_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     measurement_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     unit_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     value_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     measurement_event_id: Mapped[Optional[int]]
     meas_event_field_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     meas_event_field_concept: Mapped["Concept"] = relationship(
@@ -1302,43 +1322,43 @@ class Measurement(Base):  # noqa: D101
 
 class Note(Base):  # noqa: D101
     __tablename__ = "note"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     note_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     note_date: Mapped[date]
     note_datetime: Mapped[Optional[datetime]]
     note_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     note_class_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     note_title: Mapped[Optional[str]] = mapped_column(String(250))
     note_text = Column(Text)  # todo: map to mapped_column
     encoding_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     language_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"), index=True
     )
     visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     note_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     note_event_id: Mapped[Optional[int]]
     note_event_field_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     encoding_concept: Mapped["Concept"] = relationship(
@@ -1364,52 +1384,52 @@ class Note(Base):  # noqa: D101
 
 class Observation(Base):  # noqa: D101
     __tablename__ = "observation"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     observation_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     observation_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     observation_date: Mapped[date]
     observation_datetime: Mapped[Optional[datetime]]
     observation_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     value_as_number = mapped_column(Numeric, nullable=True)
     value_as_string: Mapped[Optional[str]] = mapped_column(String(60))
     value_as_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     qualifier_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     unit_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"), index=True
     )
     visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     observation_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     observation_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     unit_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     qualifier_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     value_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     observation_event_id: Mapped[Optional[int]]
     obs_event_field_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
 
     obs_event_field_concept: Mapped["Concept"] = relationship(
@@ -1441,40 +1461,40 @@ class Observation(Base):  # noqa: D101
 
 class ProcedureOccurrence(Base):  # noqa: D101
     __tablename__ = "procedure_occurrence"
-    __table_args__ = {"schema": "cds_cdm"}
+    __table_args__ = {"schema": SCHEMA_NAME}
 
     procedure_occurrence_id: Mapped[int] = mapped_column(
         primary_key=True,
     )
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.person.person_id"), index=True
     )
     procedure_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id"), index=True
     )
     procedure_date: Mapped[date]
     procedure_datetime: Mapped[Optional[datetime]]
     procedure_end_date: Mapped[Optional[date]]
     procedure_end_datetime: Mapped[Optional[datetime]]
     procedure_type_concept_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     modifier_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     quantity: Mapped[Optional[int]]
     provider_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.provider.provider_id")
+        ForeignKey(f"{SCHEMA_NAME}.provider.provider_id")
     )
     visit_occurrence_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_occurrence.visit_occurrence_id"), index=True
+        ForeignKey(f"{SCHEMA_NAME}.visit_occurrence.visit_occurrence_id"), index=True
     )
     visit_detail_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.visit_detail.visit_detail_id")
+        ForeignKey(f"{SCHEMA_NAME}.visit_detail.visit_detail_id")
     )
     procedure_source_value: Mapped[Optional[str]] = mapped_column(String(50))
     procedure_source_concept_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("cds_cdm.concept.concept_id")
+        ForeignKey(f"{SCHEMA_NAME}.concept.concept_id")
     )
     modifier_source_value: Mapped[Optional[str]] = mapped_column(String(50))
 

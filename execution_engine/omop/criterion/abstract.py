@@ -26,7 +26,11 @@ from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.db.cdm import (
+from execution_engine.omop.db.celida.tables import (
+    IntervalTypeEnum,
+    RecommendationResultInterval,
+)
+from execution_engine.omop.db.omop.tables import (
     Base,
     ConditionOccurrence,
     DeviceExposure,
@@ -36,10 +40,6 @@ from execution_engine.omop.db.cdm import (
     ProcedureOccurrence,
     VisitDetail,
     VisitOccurrence,
-)
-from execution_engine.omop.db.celida.tables import (
-    IntervalTypeEnum,
-    RecommendationResultInterval,
 )
 from execution_engine.omop.serializable import Serializable
 from execution_engine.util import TimeRange
@@ -412,21 +412,16 @@ class Criterion(AbstractCriterion):
         Generate the header of the SQL query.
         """
 
-        c = self._table.c.person_id.label("person_id")
+        c_start = self._get_datetime_column(self._table, "start")
+        c_end = self._get_datetime_column(self._table, "end")
 
-        query = select(c).select_from(self._table)
+        query = select(
+            self._table.c.person_id,
+            c_start.label("interval_start"),
+            c_end.label("interval_end"),
+        ).select_from(self._table)
 
-        if person_id is None:
-            c_start = self._get_datetime_column(self._table, "start")
-            c_end = self._get_datetime_column(self._table, "end")
-            query = select(
-                self._table.c.person_id,
-                c_start.label("interval_start"),
-                c_end.label("interval_end"),
-            ).select_from(self._table)
-
-        else:
-            # filter by person_id directly
+        if person_id is not None:
             query = query.filter(self._table.c.person_id == person_id)
 
         return query

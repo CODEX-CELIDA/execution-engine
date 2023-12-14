@@ -21,12 +21,12 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.cohort import add_result_insert
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
-from execution_engine.omop.db.cdm import Person
 from execution_engine.omop.db.celida.tables import (
     RecommendationResultInterval,
     RecommendationRun,
 )
 from execution_engine.omop.db.celida.views import partial_day_coverage
+from execution_engine.omop.db.omop.tables import Person
 from execution_engine.util import TimeRange, ValueConcept, ValueNumber
 from tests._testdata import concepts
 from tests.functions import create_visit

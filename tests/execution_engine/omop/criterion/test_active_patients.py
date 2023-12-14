@@ -3,7 +3,7 @@ import pendulum
 import pytest
 from sqlalchemy import func, select
 
-from execution_engine.omop.db.cdm import VisitOccurrence
+from execution_engine.omop.db.omop.tables import VisitOccurrence
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit

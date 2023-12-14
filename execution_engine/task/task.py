@@ -121,13 +121,16 @@ class Task:
         :param params: The parameters.
         :return: A DataFrame with the inverted intervals.
         """
+        by = ["person_id", "concept_id"]
+
         assert self.expr.is_Not, "Dependency is not a Not expression."
+
         observation_window = TimeRange(
             start=params["observation_window_start"],
             end=params["observation_window_end"],
             name="observation_window",
         )
-        result = process.invert(data[0], observation_window)
+        result = process.invert_intervals(data[0], by, observation_window)
         return result
 
     def handle_binary_logical_operator(
@@ -141,6 +144,7 @@ class Task:
         :return: A DataFrame with the merged or intersected intervals.
         """
         by = ["person_id", "concept_id"]
+
         if isinstance(self.expr, logic.And):
             result = process.merge_intervals(data, by)
         elif isinstance(self.expr, logic.Or):

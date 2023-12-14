@@ -19,12 +19,17 @@ __all__ = ["DrugExposure"]
 class DrugExposure(Criterion):
     """A drug exposure criterion in a cohort definition."""
 
+    def _create_query(self) -> Select:
+        # todo implement me
+        raise NotImplementedError()
+
     def process_data(
         self, data: pd.DataFrame, observation_window: TimeRange
     ) -> pd.DataFrame:
         """
         Process the data for the criterion.
         """
+        # todo implement me
         raise NotImplementedError()
 
     def __init__(

@@ -14,11 +14,11 @@ from tqdm import tqdm
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
-from execution_engine.omop.db.cdm import Person
 from execution_engine.omop.db.celida.tables import (
     RecommendationPlan,
     RecommendationResult,
 )
+from execution_engine.omop.db.omop.tables import Person
 from execution_engine.util import TimeRange
 from tests._testdata import concepts, parameter
 from tests.functions import (

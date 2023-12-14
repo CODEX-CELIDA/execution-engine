@@ -4,7 +4,7 @@ import re
 
 import pandas as pd
 
-from execution_engine.omop.db.cdm import (
+from execution_engine.omop.db.omop.tables import (
     ConditionOccurrence,
     DrugExposure,
     Measurement,

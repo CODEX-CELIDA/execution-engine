@@ -30,6 +30,10 @@ class ConceptCriterion(Criterion):
 
     """
 
+    def _create_query(self) -> Select:
+        # todo implement me
+        raise NotImplementedError()
+
     def __init__(
         self,
         name: str,
