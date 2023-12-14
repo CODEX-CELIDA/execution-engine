@@ -49,6 +49,7 @@ class TestCriterion:
     result_view = partial_day_coverage
     recommendation_run_id = 1234
     criterion_id = 5678
+    plan_id = 9012
 
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
@@ -210,7 +211,7 @@ class TestCriterion:
     def insert_criterion_combination(
         self, db_session, combination, base_criterion, observation_window: TimeRange
     ):
-        execution_map = ExecutionMap(combination, base_criterion)
+        execution_map = ExecutionMap(combination, base_criterion, params=None)
         params = observation_window.dict() | {"run_id": self.recommendation_run_id}
 
         db_session.execute(
@@ -220,7 +221,9 @@ class TestCriterion:
         task_runner = runner.SequentialTaskRunner(execution_map)
         task_runner.run(params)
 
-    def fetch_filtered_results(self, db_session, criterion_id: int | None):
+    def fetch_filtered_results(
+        self, db_session, plan_id: int | None, criterion_id: int | None
+    ):
         stmt = select(
             self.result_view.c.person_id, self.result_view.c.valid_date
         ).where(self.result_view.c.recommendation_run_id == self.recommendation_run_id)
@@ -229,6 +232,11 @@ class TestCriterion:
             stmt = stmt.where(self.result_view.c.criterion_id == criterion_id)
         else:
             stmt = stmt.where(self.result_view.c.criterion_id.is_(None))
+
+        if plan_id is not None:
+            stmt = stmt.where(self.result_view.c.plan_id == plan_id)
+        else:
+            stmt = stmt.where(self.result_view.c.plan_id.is_(None))
 
         df = pd.read_sql(
             stmt,
@@ -258,7 +266,9 @@ class TestCriterion:
             )
 
             self.insert_criterion(db_session, criterion, observation_window)
-            df = self.fetch_filtered_results(db_session, self.criterion_id)
+            df = self.fetch_filtered_results(
+                db_session, plan_id=self.plan_id, criterion_id=self.criterion_id
+            )
 
             return df
 

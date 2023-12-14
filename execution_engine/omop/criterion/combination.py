@@ -143,6 +143,24 @@ class CriterionCombination(AbstractCriterion):
             ],
         }
 
+    def __invert__(self) -> "CriterionCombination":
+        """
+        Invert the criterion combination.
+        """
+        return CriterionCombination(
+            name=self._name,
+            exclude=not self._exclude,
+            operator=self._operator,
+            category=self._category,
+            criteria=self._criteria,
+        )
+
+    def invert(self) -> "CriterionCombination":
+        """
+        Invert the criterion combination.
+        """
+        return ~self
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CriterionCombination":
         """

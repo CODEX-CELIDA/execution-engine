@@ -42,7 +42,9 @@ class ExecutionMap:
     _expr: logic.Expr
     _hashmap: dict[str, Criterion]
 
-    def __init__(self, comb: CriterionCombination, base_criterion: Criterion) -> None:
+    def __init__(
+        self, comb: CriterionCombination, base_criterion: Criterion, params: dict | None
+    ) -> None:
         """
         Initialize the execution map with a criterion combination.
 
@@ -53,6 +55,7 @@ class ExecutionMap:
         self._criteria = comb
         self._expr = self._to_expression(self._criteria)
         self._base_criterion = base_criterion
+        self._params = params
         self._root_task = self._get_execution_map()
 
         # self._push_negation_in_criterion()
@@ -114,12 +117,16 @@ class ExecutionMap:
             self._base_criterion == other._base_criterion
         ), "base criteria must be equal"
 
+        assert (
+            self._params is None and other._params is None
+        ) or self._params == other._params, "params must be equal"
+
         criteria = [self._criteria, other._criteria]
         category = self.get_combined_category(self, other)
 
         return ExecutionMap(
             CriterionCombination(
-                "AND",
+                "AND",  # todo: proper name
                 exclude=False,
                 operator=CriterionCombination.Operator(
                     CriterionCombination.Operator.AND
@@ -128,6 +135,7 @@ class ExecutionMap:
                 criteria=criteria,
             ),
             self._base_criterion,
+            self._params,
         )
 
     def __or__(self, other: "ExecutionMap") -> "ExecutionMap":
@@ -139,12 +147,16 @@ class ExecutionMap:
             self._base_criterion == other._base_criterion
         ), "base criteria must be equal"
 
+        assert (
+            self._params is None and other._params is None
+        ) or self._params == other._params, "params must be equal"
+
         criteria = [self._criteria, other._criteria]
         category = self.get_combined_category(self, other)
 
         return ExecutionMap(
             CriterionCombination(
-                "OR",
+                "OR",  # todo: proper name
                 exclude=False,
                 operator=CriterionCombination.Operator(
                     CriterionCombination.Operator.OR
@@ -153,7 +165,14 @@ class ExecutionMap:
                 criteria=criteria,
             ),
             self._base_criterion,
+            self._params,
         )
+
+    def __invert__(self) -> "ExecutionMap":
+        """
+        Invert the execution map.
+        """
+        return ExecutionMap(self._criteria.invert(), self._base_criterion, self._params)
 
     @classmethod
     def union(cls, *args: "ExecutionMap") -> "ExecutionMap":
@@ -169,6 +188,10 @@ class ExecutionMap:
             len(set(arg._base_criterion for arg in args)) == 1
         ), "base criteria must be equal"
 
+        assert all(arg._params is None for arg in args) or (
+            len(set(arg._params for arg in args)) == 1
+        ), "params must be equal"
+
         criteria = [arg._criteria for arg in args]
         category = cls.get_combined_category(*args)
 
@@ -183,6 +206,7 @@ class ExecutionMap:
                 criteria=criteria,
             ),
             args[0]._base_criterion,
+            args[0]._params,
         )
 
     def _get_execution_map(self) -> Task:
@@ -195,8 +219,7 @@ class ExecutionMap:
         usage_counts: dict[logic.Expr, int] = {}
         count_usage(self._expr, usage_counts)
 
-        self._execution_map: dict[logic.Expr, Task] = {}
-        tc = TaskCreator(base_criterion=self._base_criterion)
+        tc = TaskCreator(base_criterion=self._base_criterion, params=self._params)
 
         return tc.create_tasks_and_dependencies(self._expr)
 
@@ -207,6 +230,7 @@ class ExecutionMap:
         criteria by their name used in the NNF. This is a workaround because we are using sympy for the NNF conversion
         and sympy seems not to allow adding custom attributes to the expression tree.
         """
+        # todo: update docstring
 
         def conjunction_from_operator(
             operator: CriterionCombination.Operator,

@@ -40,7 +40,8 @@ class CohortDefinition(Serializable):
 
     _id: int | None = None
     _name: str
-    _criteria: CriterionCombination
+    _population: CriterionCombination
+    _intervention: CriterionCombination
     _execution_map: ExecutionMap | None = None
 
     def __init__(
@@ -48,17 +49,31 @@ class CohortDefinition(Serializable):
         name: str,
         url: str,
         base_criterion: Criterion,
-        criteria: CriterionCombination | None = None,
+        population: CriterionCombination | None = None,
+        intervention: CriterionCombination | None = None,
     ) -> None:
         self._name = name
         self._url = url
         self._base_criterion = base_criterion
+        self._execution_map: ExecutionMap | None = None
 
+        self.set_criteria(CohortCategory.POPULATION, population)
+        self.set_criteria(CohortCategory.INTERVENTION, intervention)
+
+    def set_criteria(
+        self, category: CohortCategory, criteria: CriterionCombination | None
+    ) -> None:
+        """
+        Set the criteria (either population or intervention) of the cohort definition.
+
+        :param category: The category of the criteria.
+        :param criteria: The criteria.
+        """
         if criteria is None:
-            self._criteria = CriterionCombination(
+            criteria = CriterionCombination(
                 name="root",
                 exclude=False,
-                category=CohortCategory.BASE,
+                category=category,
                 operator=CriterionCombination.Operator("AND"),
             )
         else:
@@ -69,9 +84,12 @@ class CohortDefinition(Serializable):
                 criteria.category == CohortCategory.BASE
             ), f"Invalid criteria - expected category {CohortCategory.BASE}, got {criteria.category}"
 
-            self._criteria = criteria
-
-        self._execution_map: ExecutionMap | None = None
+        if category == CohortCategory.POPULATION:
+            self._population = criteria
+        elif category == CohortCategory.INTERVENTION:
+            self._intervention = criteria
+        else:
+            raise ValueError(f"Invalid category {category}")
 
     @property
     def name(self) -> str:
@@ -87,23 +105,44 @@ class CohortDefinition(Serializable):
         """
         return self._url
 
-    def execution_map(self) -> ExecutionMap:
+    def execution_map(self) -> dict[CohortCategory, ExecutionMap]:
         """
         Get the execution map for the cohort definition.
         """
-        return ExecutionMap(self._criteria, base_criterion=self._base_criterion)
+        # todo can we find a better place to insert this id?
+        #     it seems like a mixture of two paradigms, initialliy
+        #     the criteria / tasks etc didn't know about "plans" and so on
+        params = {"plan_id": self.id}
 
-    def add(self, criterion: Criterion | CriterionCombination) -> None:
+        population = ExecutionMap(
+            self._population, base_criterion=self._base_criterion, params=params
+        )
+        intervention = ExecutionMap(
+            self._intervention, base_criterion=self._base_criterion, params=params
+        )
+        return {
+            CohortCategory.POPULATION: population,
+            CohortCategory.POPULATION: intervention,
+        }
+
+    def add_population(self, criterion: Criterion | CriterionCombination) -> None:
         """
-        Add a criterion to the cohort definition.
+        Add a criterion to the population of the cohort definition.
         """
-        self._criteria.add(criterion)
+        self._population.add(criterion)
+
+    def add_intervention(self, criterion: Criterion | CriterionCombination) -> None:
+        """
+        Add a criterion to the intervention of the cohort definition.
+        """
+        self._intervention.add(criterion)
 
     def get_criterion(self, criterion_unique_name: str) -> Criterion | None:
         """
         Retrieve a criterion by its unique name.
         """
 
+        """
         def _traverse(comb: CriterionCombination) -> Criterion | None:
             for element in comb:
                 if isinstance(element, CriterionCombination):
@@ -114,20 +153,22 @@ class CohortDefinition(Serializable):
                     return element
             return None
 
-        return _traverse(self._criteria)
+        return _traverse(self._criteria)"""
+        raise NotImplementedError()
 
     def criteria(self) -> CriterionCombination:
         """
         Get the criteria of the cohort definition.
         """
-        return self._criteria
+        """return self._criteria"""
+        raise NotImplementedError()
 
     def flatten(self) -> list[Criterion]:
         """
         Retrieve all criteria in a flat list
         """
 
-        def _traverse(comb: CriterionCombination) -> list[Criterion]:
+        """def _traverse(comb: CriterionCombination) -> list[Criterion]:
             criteria = []
             for element in comb:
                 if isinstance(element, CriterionCombination):
@@ -136,7 +177,8 @@ class CohortDefinition(Serializable):
                     criteria.append(element)
             return criteria
 
-        return _traverse(self._criteria)
+        return _traverse(self._criteria)"""
+        raise NotImplementedError()
 
     @staticmethod
     def _assert_base_table_in_select(
@@ -205,7 +247,7 @@ class CohortDefinition(Serializable):
         """
         Process the cohort definition into SQL statements.
         """
-
+        raise NotImplementedError()
         # self._execution_map = self.execution_map()
         #
         # i: int
@@ -233,7 +275,7 @@ class CohortDefinition(Serializable):
         Get the name of the criterion combination for the given criterion.
         """
 
-        def _traverse(comb: CriterionCombination) -> str:
+        """def _traverse(comb: CriterionCombination) -> str:
             for element in comb:
                 if isinstance(element, CriterionCombination):
                     yield from _traverse(element)
@@ -247,7 +289,8 @@ class CohortDefinition(Serializable):
             if element.dict() == criterion.dict():
                 return comb.unique_name()
 
-        raise ValueError(f"Criterion {criterion.name} not found in cohort definition")
+        raise ValueError(f"Criterion {criterion.name} not found in cohort definition")"""
+        raise NotImplementedError()
 
     def combine(self) -> Query:
         """
@@ -280,7 +323,8 @@ class CohortDefinition(Serializable):
             "name": self.name,
             "url": self.url,
             "base_criterion": self._base_criterion.dict(),
-            "criteria": self._criteria.dict(),
+            "population": self._population.dict(),
+            "intervention": self._intervention.dict(),
         }
 
     @classmethod
@@ -298,5 +342,6 @@ class CohortDefinition(Serializable):
             name=data["name"],
             url=data["url"],
             base_criterion=base_criterion,
-            criteria=CriterionCombination.from_dict(data["criteria"]),
+            population=CriterionCombination.from_dict(data["population"]),
+            intervention=CriterionCombination.from_dict(data["intervention"]),
         )

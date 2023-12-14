@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Dict
 
-import pandas as pd
 from sqlalchemy import NUMERIC, DateTime, and_, bindparam, case, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
@@ -13,7 +12,7 @@ from execution_engine.omop.criterion.abstract import (
     Criterion,
     create_conditional_interval_column,
 )
-from execution_engine.util import Interval, TimeRange, ValueNumber, value_factory
+from execution_engine.util import Interval, ValueNumber, value_factory
 from execution_engine.util.sql import SelectInto
 
 __all__ = ["DrugExposure"]
@@ -21,15 +20,6 @@ __all__ = ["DrugExposure"]
 
 class DrugExposure(Criterion):
     """A drug exposure criterion in a cohort definition."""
-
-    def process_data(
-        self, data: pd.DataFrame, observation_window: TimeRange
-    ) -> pd.DataFrame:
-        """
-        Process the data for the criterion.
-        """
-        # todo implement me
-        raise NotImplementedError()
 
     def __init__(
         self,

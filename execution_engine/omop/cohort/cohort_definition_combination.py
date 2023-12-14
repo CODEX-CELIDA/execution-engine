@@ -103,9 +103,15 @@ class CohortDefinitionCombination(Serializable):
         as a series of tasks.
         """
 
-        return ExecutionMap.union(
-            *[cd.execution_map() for cd in self._cohort_definitions]
-        )
+        recommendation_plans = []
+        # todo: missing individual population (of full recommendation)
+
+        for cd in self._cohort_definitions:
+            emap = cd.execution_map()
+            p, i = emap[CohortCategory.POPULATION], emap[CohortCategory.INTERVENTION]
+            recommendation_plans.append((~p) | (p & i))
+
+        return ExecutionMap.union(*recommendation_plans)
 
     def criteria(self) -> CriterionCombination:
         """

@@ -45,11 +45,14 @@ class Task:
     """The columns to group by when merging or intersecting intervals."""
     by = ["person_id"]
 
-    def __init__(self, expr: logic.Expr, criterion: Criterion) -> None:
+    def __init__(
+        self, expr: logic.Expr, criterion: Criterion, params: dict | None
+    ) -> None:
         self.expr = expr
         self.criterion = criterion
         self.dependencies: list[Task] = []
         self.status = TaskStatus.PENDING
+        self.params = params if params is not None else {}
 
     def run(self, data: list[pd.DataFrame], params: dict) -> pd.DataFrame:
         """
@@ -59,6 +62,9 @@ class Task:
         :param params: The parameters.
         :return: The result of the task.
         """
+
+        # todo: should we only use the params from the task instead of the parameter?
+        params = params | self.params
 
         self.status = TaskStatus.RUNNING
         logging.info(f"Running task '{self.name()}'")

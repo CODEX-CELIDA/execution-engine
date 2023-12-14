@@ -234,7 +234,28 @@ class ExecutionEngine:
     def load_recommendation(
         self, recommendation_url: str, force_reload: bool = False
     ) -> CohortDefinitionCombination:
-        """Processes a single recommendation and creates an OMOP Cohort Definition from it."""
+        """
+        Processes a single recommendation and creates an OMOP Cohort Definition from it.
+
+        Given the canonical url, the recommendation is retrieved from the FHIR server and parsed.
+        A collection of CohortDefinition objects, each consisting of a set of criteria and criteria combinations,
+        is created from the recommendation. The CohortDefinition objects are combined into a single
+        CohortDefinitionCombination object. A JSON representation of the complete Cohort Definition is stored in the
+        result database (standard schema "celida"), if it is not already stored.
+
+        The mapping between FHIR resources / profiles and objects is as follows:
+
+        * Recommendation -> CohortDefinitionCombination
+          * RecommendationPlan 1..* -> CohortDefinition
+            * EligibilityCriteria 1..* -> CriterionCombination / Criterion
+            * InterventionActivity 1..* -> CriterionCombination / Criterion
+            * Goal 1..* -> CriterionCombination / Criterion
+
+        :param recommendation_url: The canonical URL of the recommendation.
+        :param force_reload: If True, the recommendation is recreated from the FHIR source even if it is already
+                             stored in the database.
+        :return: The Cohort Definition.
+        """
 
         if not force_reload:
             cdd = self.load_recommendation_from_database(recommendation_url)
@@ -257,10 +278,15 @@ class ExecutionEngine:
                 base_criterion=base_criterion,
             )
 
+            # parse population and create criteria
             characteristics = self._parse_characteristics(rec_plan.population)
+            # todo: charateristics is the population combination and needs to be marked
+            #  as such in the cohort definition
+            #       BUT : these are the characteristics, not the criteria !
             for characteristic in characteristics:
-                cd.add(characteristic_to_criterion(characteristic))
+                cd.add_population(characteristic_to_criterion(characteristic))
 
+            # parse intervention and create criteria
             actions, selection_behavior = self._parse_actions(rec_plan.actions)
             comb_actions = self._action_combination(selection_behavior)
 
@@ -269,7 +295,7 @@ class ExecutionEngine:
                     raise ValueError("Action is None.")
                 comb_actions.add(action.to_criterion())
 
-            cd.add(comb_actions)
+            cd.add_intervention(comb_actions)
 
             rec_plan_cohorts.append(cd)
 
@@ -289,7 +315,7 @@ class ExecutionEngine:
 
     def execute(
         self,
-        cd: CohortDefinitionCombination,
+        cdd: CohortDefinitionCombination,
         start_datetime: datetime,
         end_datetime: datetime | None,
     ) -> int:
@@ -301,13 +327,13 @@ class ExecutionEngine:
         # fixme: potentially also register run_id as class variable
 
         with self._db.begin():
-            self.register_cohort_definition(cd)
+            self.register_cohort_definition(cdd)
             run_id = self.register_run(
-                cd, start_datetime=start_datetime, end_datetime=end_datetime
+                cdd, start_datetime=start_datetime, end_datetime=end_datetime
             )
 
         self.execute_cohort_definition(
-            cd,
+            cdd,
             run_id=run_id,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
@@ -468,7 +494,10 @@ class ExecutionEngine:
             end_datetime, datetime
         ), "end_datetime must be of type datetime"
 
-        date_format = "%Y-%m-%d %H:%M:%S"
+        assert start_datetime.tzinfo, "start_datetime must be timezone-aware"
+        assert end_datetime.tzinfo, "end_datetime must be timezone-aware"
+
+        date_format = "%Y-%m-%d %H:%M:%S %z"
 
         logging.info(
             f"Observation window from {start_datetime.strftime(date_format)} to {end_datetime.strftime(date_format)}"

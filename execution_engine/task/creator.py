@@ -11,12 +11,14 @@ class TaskCreator:
     The Task tree is used to run the tasks in the correct order, obeying the dependencies.
     """
 
-    def __init__(self, base_criterion: Criterion):
+    def __init__(self, base_criterion: Criterion, params: dict | None = None) -> None:
         self.task_mapping: dict[logic.Expr | str, Task] = {}
         self.base_task = Task(
-            logic.Symbol(base_criterion.unique_name(), criterion=base_criterion),
-            base_criterion,
+            expr=logic.Symbol(base_criterion.unique_name(), criterion=base_criterion),
+            criterion=base_criterion,
+            params=params,
         )
+        self.params = params
 
     def create_tasks_and_dependencies(self, expr: logic.Expr) -> Task:
         """
@@ -30,7 +32,7 @@ class TaskCreator:
 
         current_criterion = expr.criterion if expr.is_Atom else None
 
-        current_task = Task(expr, current_criterion)
+        current_task = Task(expr=expr, criterion=current_criterion, params=self.params)
 
         dependencies = []
         if isinstance(expr, (logic.And, logic.Or, logic.Not)):
