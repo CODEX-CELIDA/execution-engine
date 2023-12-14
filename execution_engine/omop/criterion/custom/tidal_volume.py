@@ -1,4 +1,4 @@
-from sqlalchemy import ColumnElement, case, literal_column, select, union_all
+from sqlalchemy import ColumnElement, Interval, bindparam, case, func, select, union_all
 from sqlalchemy.sql import Select
 
 from execution_engine.clients import omopdb
@@ -57,6 +57,7 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
             .where(
                 measurement.c.measurement_concept_id == OMOPConcepts.BODY_HEIGHT.value
             )
+            # .group_by(measurement.c.person_id)
         )
 
         return query
@@ -65,30 +66,60 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
         """
         Create the SQL query to calculate the tidal volume per ideal body weight.
         """
-        query = self._sql_header()
-        # todo: need to use the point in time query structure here, but combine
-        #       with the ideal body weight query
-        query = self._sql_generate(query)
+        # todo: refactor to not duplicate code from PointInTimeCriterion._create_query()
+        if self._OMOP_VALUE_REQUIRED:
+            assert self._value is not None, "Value is required for this criterion"
 
-        return query
-
-    def _sql_generate(self, query: Select) -> Select:
-        sql_ibw = self._sql_select_ideal_body_weight().alias("ibw")
-
-        query = query.join(sql_ibw, sql_ibw.c.person_id == self._table.c.person_id)
-        query = self._sql_filter_concept(
-            query, override_concept_id=OMOPConcepts.TIDAL_VOLUME_ON_VENTILATOR.value
+        interval_hours_param = bindparam(
+            "validity_threshold_hours", value=12
+        )  # todo make dynamic
+        datetime_col = self._get_datetime_column(self._table, "start")
+        time_threshold_param = func.cast(
+            func.concat(interval_hours_param, "hours"), Interval
         )
 
+        sql_ibw = self._sql_select_ideal_body_weight().alias("ibw")
+        c_value = (self._table.c.value_as_number / sql_ibw.c.ideal_body_weight).label(
+            "value_as_number"
+        )
+
+        cte = select(
+            self._table.c.person_id,
+            datetime_col.label("datetime"),
+            self._table.c.value_as_concept_id,
+            c_value,
+            self._table.c.unit_concept_id,
+            func.lead(datetime_col)
+            .over(partition_by=self._table.c.person_id, order_by=datetime_col)
+            .label("next_datetime"),
+        )
+
+        # todo: this creates multiple rows if multiple "height" values exist -- need to use
+        #       the latest height value instead (but we have the datetime information, should be easy)
+        cte = cte.join(sql_ibw, sql_ibw.c.person_id == self._table.c.person_id)
+        cte = self._sql_filter_concept(
+            cte, override_concept_id=OMOPConcepts.TIDAL_VOLUME_ON_VENTILATOR.value
+        ).cte("RankedMeasurements")
+
         sql_value = self._value.to_sql(
-            table=None,
-            column_name=literal_column("m.value_as_number / ibw.ideal_body_weight"),
+            table=cte,
+            column_name=c_value.name,
             with_unit=False,
         )
 
         conditional_column = create_conditional_interval_column(sql_value)
 
-        query = query.add_columns(conditional_column)
+        query = select(
+            cte.c.person_id,
+            conditional_column.label("interval_type"),
+            cte.c.datetime.label("interval_start"),
+            func.least(
+                cte.c.datetime + time_threshold_param,
+                func.coalesce(
+                    cte.c.next_datetime, cte.c.datetime + time_threshold_param
+                ),
+            ).label("interval_end"),
+        )
 
         return query
 

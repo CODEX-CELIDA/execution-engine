@@ -43,8 +43,8 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
     @pytest.mark.parametrize(
         "times",
         [  # datetime for body height / tidal volume (in that order)
-            {"height": "2023-03-04 18:00:00+01:00", "tv": "2023-03-04 19:00:00+01:00"},
-            {"height": "2023-03-04 18:00:00+01:00", "tv": "2023-03-04 17:00:00+01:00"},
+            {"height": "2023-03-04 06:00:00+01:00", "tv": "2023-03-04 07:00:00+01:00"},
+            {"height": "2023-03-04 06:00:00+01:00", "tv": "2023-03-04 05:00:00+01:00"},
         ],
         ids=["height before tv", "tv before height"],
     )

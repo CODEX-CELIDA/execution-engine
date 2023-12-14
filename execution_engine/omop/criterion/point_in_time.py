@@ -19,7 +19,9 @@ class PointInTimeCriterion(ConceptCriterion):
         if self._OMOP_VALUE_REQUIRED:
             assert self._value is not None, "Value is required for this criterion"
 
-        interval_hours_param = bindparam("validity_threshold_hours", value=12)
+        interval_hours_param = bindparam(
+            "validity_threshold_hours", value=12
+        )  # todo make dynamic
         datetime_col = self._get_datetime_column(self._table, "start")
         time_threshold_param = func.cast(
             func.concat(interval_hours_param, "hours"), Interval
@@ -39,7 +41,7 @@ class PointInTimeCriterion(ConceptCriterion):
 
         if self._value is not None:
             conditional_column = create_conditional_interval_column(
-                self._value.to_sql(cte)
+                self._value.to_sql(table=cte)
             )
         else:
             conditional_column = column_interval_type(IntervalType.POSITIVE)
