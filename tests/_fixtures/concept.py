@@ -27,6 +27,17 @@ def unit_concept():
     )
 
 
+concept_artificial_respiration = Concept(
+    concept_id=4230167,
+    concept_name="Artificial respiration",
+    domain_id="Procedure",
+    vocabulary_id="SNOMED",
+    concept_class_id="Procedure",
+    standard_concept="S",
+    concept_code="40617009",
+    invalid_reason=None,
+)
+
 concept_covid19 = Concept(
     concept_id=37311061,
     concept_name="COVID-19",

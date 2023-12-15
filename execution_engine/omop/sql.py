@@ -17,13 +17,44 @@ from execution_engine.omop.db.omop import tables as omop
 from .concepts import Concept
 
 
+def disable_foreign_key_checks(
+    dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
+) -> None:
+    """
+    Disable foreign key checks (event listener).
+
+    This function is used to disable foreign key checks when connecting to the OMOP CDM database.
+
+    :param dbapi_connection: The database connection.
+    :param connection_record: The connection record.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("SET session_replication_role = 'replica';")
+    cursor.close()
+
+
+def enable_foreign_key_checks(
+    dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
+) -> None:
+    """
+    Enable foreign key checks (event listener).
+
+    This function is used to enable foreign key checks when connecting to the OMOP CDM database.
+
+    :param dbapi_connection: The database connection.
+    :param connection_record: The connection record.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute("SET session_replication_role = 'origin';")
+    cursor.close()
+
+
 class OMOPSQLClient:
     """A client for the OMOP SQL database.
 
     This class provides a high-level interface to the OMOP SQL database.
 
-
-    :param user: The user name to connect to the database.
+    :param user: The username to connect to the database.
     :param password: The password to connect to the database.
     :param host: The host name of the database.
     :param port: The port of the database.
@@ -41,6 +72,7 @@ class OMOPSQLClient:
         database: str,
         schema: str,
         timezone: str = "Europe/Berlin",
+        disable_foreign_key_checks: bool = False,
     ) -> None:
         """Initialize the OMOP SQL client."""
 
@@ -54,6 +86,9 @@ class OMOPSQLClient:
             connect_args={"options": "-csearch_path={}".format(schema)},
             future=True,
         )
+
+        if disable_foreign_key_checks:
+            self.disable_foreign_key_checks()
 
         self._sessionmaker = sqlalchemy.orm.sessionmaker(bind=self._engine, future=True)
 
@@ -95,6 +130,18 @@ class OMOPSQLClient:
         #    total = time.time() - conn.info["query_start_time"].pop(-1)
         #    logging.debug("Query Complete!")
         #    logging.debug("Total Time: %f", total)
+
+    def disable_foreign_key_checks(self) -> None:
+        """
+        Disable foreign key checks.
+        """
+        event.listen(self._engine, "connect", disable_foreign_key_checks)
+
+    def enable_foreign_key_checks(self) -> None:
+        """
+        Enable foreign key checks.
+        """
+        event.remove(self._engine, "connect", disable_foreign_key_checks)
 
     @staticmethod
     def _setup_logger(name: str) -> logging.Logger:

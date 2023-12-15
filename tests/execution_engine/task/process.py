@@ -1,6 +1,5 @@
 import pandas as pd
 import pytz
-from portion import closedopen as interval
 
 from execution_engine.task.process import (
     _result_to_df,
@@ -11,6 +10,7 @@ from execution_engine.task.process import (
     timestamps_to_intervals,
 )
 from execution_engine.util import TimeRange
+from execution_engine.util.interval import interval
 
 
 def test_timestamps_to_intervals():

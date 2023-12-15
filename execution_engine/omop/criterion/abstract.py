@@ -65,9 +65,7 @@ def column_interval_type(interval_type: IntervalType) -> ColumnElement:
     :return: A column element for the interval type.
     """
     return bindparam(
-        "interval_type",
-        interval_type,
-        type_=IntervalTypeEnum,
+        "interval_type", interval_type, type_=IntervalTypeEnum, unique=True
     ).label("interval_type")
 
 
@@ -81,8 +79,8 @@ def create_conditional_interval_column(condition: ColumnElement) -> ColumnElemen
 
     return (
         case(
-            (condition, IntervalType.POSITIVE),
-            else_=IntervalType.NEGATIVE,
+            (condition, column_interval_type(IntervalType.POSITIVE)),
+            else_=column_interval_type(IntervalType.NEGATIVE),
         )
         .cast(IntervalTypeEnum)
         .label("interval_type")

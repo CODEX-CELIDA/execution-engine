@@ -1,6 +1,7 @@
 import datetime
 from contextlib import contextmanager
 from typing import Iterable, Sequence
+from unittest import mock
 
 import pandas as pd
 import pendulum
@@ -16,9 +17,17 @@ from execution_engine.omop.db.celida.tables import (
     RecommendationResultInterval,
     RecommendationRun,
 )
-from execution_engine.omop.db.celida.views import partial_day_coverage
+from execution_engine.omop.db.celida.views import (
+    full_day_coverage,
+    partial_day_coverage,
+)
 from execution_engine.omop.db.omop.tables import Person
-from execution_engine.task import runner
+from execution_engine.omop.sql import OMOPSQLClient
+from execution_engine.settings import config
+from execution_engine.task import (  # noqa: F401     -- required for the mock.patch below
+    runner,
+    task,
+)
 from execution_engine.util import TimeRange, ValueConcept, ValueNumber
 from tests._testdata import concepts
 from tests.functions import create_visit
@@ -46,10 +55,52 @@ def date_set(tc: Iterable):
 
 class TestCriterion:
     result_table = RecommendationResultInterval.__table__
-    result_view = partial_day_coverage
+    result_view_partial_day = partial_day_coverage
+    result_view_full_day = full_day_coverage
     recommendation_run_id = 1234
     criterion_id = 5678
     plan_id = 9012
+
+    @pytest.fixture(autouse=True)
+    def disable_foreign_key_checks(self):
+        def get_engine_foreign_key_disabled():
+            return OMOPSQLClient(
+                **config.omop.dict(by_alias=True),
+                timezone=config.celida_ee_timezone,
+                disable_foreign_key_checks=True
+            )
+
+        with mock.patch(
+            "execution_engine.task.task.get_engine", new=get_engine_foreign_key_disabled
+        ):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def create_recommendation_run(
+        self, db_session, observation_window: TimeRange
+    ) -> None:
+        db_session.execute(
+            text("SET session_replication_role = 'replica';")
+        )  # Disable foreign key checks
+
+        insert_query = RecommendationRun.__table__.insert().values(
+            recommendation_run_id=self.recommendation_run_id,
+            observation_start_datetime=observation_window.start,
+            observation_end_datetime=observation_window.end,
+            run_datetime=datetime.datetime.now(),
+            cohort_definition_id=1,
+        )
+
+        db_session.execute(insert_query)
+
+        yield
+
+        # remove recommendation run
+        db_session.execute(
+            RecommendationRun.__table__.delete().where(
+                RecommendationRun.recommendation_run_id == self.recommendation_run_id
+            )
+        )
 
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
@@ -169,7 +220,9 @@ class TestCriterion:
 
     @pytest.fixture
     def base_criterion(self):
-        return PatientsActiveDuringPeriod("TestActivePatients")
+        c = PatientsActiveDuringPeriod("TestActivePatients")
+        c.id = -1
+        return c
 
     @pytest.fixture
     def concept(self):
@@ -211,7 +264,9 @@ class TestCriterion:
     def insert_criterion_combination(
         self, db_session, combination, base_criterion, observation_window: TimeRange
     ):
-        execution_map = ExecutionMap(combination, base_criterion, params=None)
+        execution_map = ExecutionMap(
+            combination, base_criterion, params={"plan_id": self.plan_id}
+        )
         params = observation_window.dict() | {"run_id": self.recommendation_run_id}
 
         db_session.execute(
@@ -222,21 +277,33 @@ class TestCriterion:
         task_runner.run(params)
 
     def fetch_filtered_results(
-        self, db_session, plan_id: int | None, criterion_id: int | None
+        self,
+        db_session,
+        plan_id: int | None,
+        criterion_id: int | None,
+        category: CohortCategory | None,
     ):
-        stmt = select(
-            self.result_view.c.person_id, self.result_view.c.valid_date
-        ).where(self.result_view.c.recommendation_run_id == self.recommendation_run_id)
+        view = (
+            self.result_view_full_day
+            if criterion_id is None
+            else self.result_view_partial_day
+        )
+        stmt = select(view.c.person_id, view.c.valid_date).where(
+            view.c.recommendation_run_id == self.recommendation_run_id
+        )
 
         if criterion_id is not None:
-            stmt = stmt.where(self.result_view.c.criterion_id == criterion_id)
+            stmt = stmt.where(view.c.criterion_id == criterion_id)
         else:
-            stmt = stmt.where(self.result_view.c.criterion_id.is_(None))
+            stmt = stmt.where(view.c.criterion_id.is_(None))
 
         if plan_id is not None:
-            stmt = stmt.where(self.result_view.c.plan_id == plan_id)
+            stmt = stmt.where(view.c.plan_id == plan_id)
         else:
-            stmt = stmt.where(self.result_view.c.plan_id.is_(None))
+            stmt = stmt.where(view.c.plan_id.is_(None))
+
+        if category is not None:
+            stmt = stmt.where(view.c.cohort_category == category)
 
         df = pd.read_sql(
             stmt,
@@ -267,7 +334,10 @@ class TestCriterion:
 
             self.insert_criterion(db_session, criterion, observation_window)
             df = self.fetch_filtered_results(
-                db_session, plan_id=self.plan_id, criterion_id=self.criterion_id
+                db_session,
+                plan_id=self.plan_id,
+                criterion_id=self.criterion_id,
+                category=criterion.category,
             )
 
             return df

@@ -17,6 +17,7 @@ class TaskCreator:
             expr=logic.Symbol(base_criterion.unique_name(), criterion=base_criterion),
             criterion=base_criterion,
             params=params,
+            store_result=True,
         )
         self.params = params
 
@@ -27,23 +28,34 @@ class TaskCreator:
         :param expr: The expression to create a Task tree object for.
         :return: The (root) Task object for the expression.
         """
-        if expr in self.task_mapping:
-            return self.task_mapping[expr]
 
-        current_criterion = expr.criterion if expr.is_Atom else None
+        def _create_subtasks(expr: logic.Expr) -> Task:
+            if expr in self.task_mapping:
+                return self.task_mapping[expr]
 
-        current_task = Task(expr=expr, criterion=current_criterion, params=self.params)
+            current_criterion = expr.criterion if expr.is_Atom else None
 
-        dependencies = []
-        if isinstance(expr, (logic.And, logic.Or, logic.Not)):
-            for arg in expr.args:
-                child_task = self.create_tasks_and_dependencies(arg)
-                dependencies.append(child_task)
-        elif expr.is_Atom:
-            dependencies.append(self.base_task)
+            current_task = Task(
+                expr=expr, criterion=current_criterion, params=self.params
+            )
 
-        current_task.dependencies = dependencies
+            dependencies = []
+            if isinstance(expr, (logic.And, logic.Or, logic.Not)):
+                for arg in expr.args:
+                    child_task = self.create_tasks_and_dependencies(arg)
+                    dependencies.append(child_task)
+            elif expr.is_Atom:
+                # this task is a criterion and should store its result
+                current_task.store_result = True
+                dependencies.append(self.base_task)
 
-        self.task_mapping[expr] = current_task
+            current_task.dependencies = dependencies
 
-        return current_task
+            self.task_mapping[expr] = current_task
+
+            return current_task
+
+        root_task = _create_subtasks(expr)
+        root_task.store_result = True
+
+        return root_task

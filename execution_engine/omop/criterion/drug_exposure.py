@@ -87,6 +87,7 @@ class DrugExposure(Criterion):
                 logging.warning("Route specified, but not implemented yet")
 
             # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
+            # todo: change INTERVAL (postgres dialect) to Interval (sqlalchemy.types.Interval)
             interval = func.cast(concat(1, self._interval.name), INTERVAL)  # type: ignore
             interval_length_seconds = func.cast(
                 func.extract("EPOCH", interval), NUMERIC

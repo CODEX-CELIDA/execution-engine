@@ -4,8 +4,6 @@ from enum import Enum
 from typing import Any
 
 import pendulum
-from portion import Interval as IntervalType
-from portion import closed as interval_closed
 from pydantic import BaseModel, PositiveInt, root_validator, validator
 from sqlalchemy import TableClause, and_, func, literal_column
 from sqlalchemy.sql.elements import (
@@ -16,6 +14,7 @@ from sqlalchemy.sql.elements import (
 )
 
 from execution_engine.omop.concepts import Concept
+from execution_engine.util.interval import IntInterval, interval
 
 ucum_to_postgres = {
     "s": "second",
@@ -303,7 +302,7 @@ class TimeRange(BaseModel):
         """
         return self.end - self.start
 
-    def interval(self, as_timestamp: bool = True) -> IntervalType:
+    def interval(self, as_timestamp: bool = True) -> IntInterval:
         """
         Get the interval of the time range.
 
@@ -312,9 +311,9 @@ class TimeRange(BaseModel):
         """
 
         if as_timestamp:
-            return interval_closed(self.start.timestamp(), self.end.timestamp())
+            return interval(int(self.start.timestamp()), int(self.end.timestamp()))
         else:
-            return interval_closed(self.start, self.end)
+            raise NotImplementedError("Only as_timestamp=True is supported.")
 
     def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
         """

@@ -110,7 +110,7 @@ class CohortDefinition(Serializable):
         Get the execution map for the cohort definition.
         """
         # todo can we find a better place to insert this id?
-        #     it seems like a mixture of two paradigms, initialliy
+        #     it seems like a mixture of two paradigms, initially
         #     the criteria / tasks etc didn't know about "plans" and so on
         params = {"plan_id": self.id}
 
@@ -165,10 +165,14 @@ class CohortDefinition(Serializable):
 
     def flatten(self) -> list[Criterion]:
         """
-        Retrieve all criteria in a flat list
+        Retrieve all criteria in a flat list (i.e. no nested criterion combinations).
+
+        Includes the base criterion, population and intervention.
+
+        :return: A list of individual criteria.
         """
 
-        """def _traverse(comb: CriterionCombination) -> list[Criterion]:
+        def _traverse(comb: CriterionCombination) -> list[Criterion]:
             criteria = []
             for element in comb:
                 if isinstance(element, CriterionCombination):
@@ -177,8 +181,11 @@ class CohortDefinition(Serializable):
                     criteria.append(element)
             return criteria
 
-        return _traverse(self._criteria)"""
-        raise NotImplementedError()
+        return (
+            [self._base_criterion]
+            + _traverse(self._population)
+            + _traverse(self._intervention)
+        )
 
     @staticmethod
     def _assert_base_table_in_select(

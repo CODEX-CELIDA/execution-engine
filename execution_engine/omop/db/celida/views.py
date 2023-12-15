@@ -1,4 +1,4 @@
-from sqlalchemy import Date, Select, func, select, text
+from sqlalchemy import Date, Select, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 
@@ -15,84 +15,131 @@ def view_full_day_coverage() -> Select:
     """
     Return Select statement for view to calculate the full day coverage of recommendation results.
     """
-    initial_cte = select(
-        RecommendationResultInterval.recommendation_run_id,
-        RecommendationResultInterval.plan_id,
-        RecommendationResultInterval.criterion_id,
-        RecommendationResultInterval.cohort_category,
-        RecommendationResultInterval.person_id,
-        RecommendationResultInterval.interval_type,
-        RecommendationResultInterval.interval_start,
-        RecommendationResultInterval.interval_end,
-        func.least(
-            RecommendationResultInterval.interval_end,
-            func.date_trunc("day", RecommendationResultInterval.interval_start)
-            + text("interval '1 day'"),
-        ).label("adjusted_interval_end"),
-    ).where(
-        RecommendationResultInterval.interval_type.in_(
-            [IntervalType.POSITIVE, IntervalType.NO_DATA]
+
+    one_day = func.cast(concat(1, "day"), INTERVAL)
+    one_second = func.cast(concat(1, "second"), INTERVAL)
+    rr = RecommendationRun.__table__.alias("rr")
+    rri = RecommendationResultInterval.__table__.alias("rri")
+
+    date_series = select(
+        RecommendationRun.recommendation_run_id,
+        func.generate_series(
+            func.date_trunc("day", RecommendationRun.observation_start_datetime),
+            func.date_trunc("day", RecommendationRun.observation_end_datetime),
+            one_day,
+        )
+        .cast(Date)
+        .label("day"),
+        RecommendationRun.observation_start_datetime,
+        RecommendationRun.observation_end_datetime,
+    ).cte("date_series")
+
+    interval_coverage = (
+        select(
+            date_series.c.recommendation_run_id,
+            rri.c.person_id,
+            rri.c.cohort_category,
+            rri.c.plan_id,
+            rri.c.criterion_id,
+            date_series.c.day,
+            func.sum(
+                func.least(
+                    date_series.c.day + one_day,
+                    rri.c.interval_end,
+                    date_series.c.observation_end_datetime,
+                )
+                - func.greatest(
+                    date_series.c.day,
+                    rri.c.interval_start,
+                    date_series.c.observation_start_datetime,
+                )
+            ).label("covered_time"),
+        )
+        .select_from(date_series)
+        .outerjoin(
+            rri,
+            (date_series.c.recommendation_run_id == rri.c.recommendation_run_id)
+            & (rri.c.interval_type.in_(["POSITIVE", "NO_DATA"])),
+        )
+        .filter(
+            rri.c.interval_start < date_series.c.day + one_day,
+            rri.c.interval_end > date_series.c.day,
+        )
+        .group_by(
+            date_series.c.recommendation_run_id,
+            date_series.c.day,
+            rri.c.person_id,
+            rri.c.cohort_category,
+            rri.c.plan_id,
+            rri.c.criterion_id,
+        )
+        .cte("interval_coverage")
+    )
+
+    observation_start_date = func.date_trunc(
+        "day", rr.c.observation_start_datetime
+    ).cast(Date)
+    observation_end_date = func.date_trunc("day", rr.c.observation_end_datetime).cast(
+        Date
+    )
+    covered_time = interval_coverage.c.covered_time
+    day = interval_coverage.c.day.label("valid_date")
+
+    # subtract one second from the covered time because 00:00:00 - 23:59:59 is considered to be a full day
+    covered_dates = (
+        select(
+            interval_coverage.c.recommendation_run_id,
+            interval_coverage.c.person_id,
+            interval_coverage.c.cohort_category,
+            interval_coverage.c.plan_id,
+            interval_coverage.c.criterion_id,
+            day,
+        )
+        .join(
+            rr, rr.c.recommendation_run_id == interval_coverage.c.recommendation_run_id
+        )
+        .filter(
+            (
+                (day == observation_start_date)
+                & (day == observation_end_date)
+                & (
+                    covered_time
+                    >= rr.c.observation_end_datetime
+                    - rr.c.observation_start_datetime
+                    - one_second
+                )
+            )
+            | (
+                (day == observation_start_date)
+                & (
+                    covered_time
+                    >= rr.c.observation_start_datetime
+                    - observation_start_date
+                    - one_second
+                )
+            )
+            | (
+                (day == observation_end_date)
+                & (
+                    covered_time
+                    >= rr.c.observation_end_datetime
+                    - func.date_trunc("day", rr.c.observation_end_datetime)
+                    - one_second
+                )
+            )
+            | (
+                (day != observation_start_date)
+                & (day != observation_end_date)
+                & (covered_time >= one_day - one_second)
+            )
         )
     )
 
-    initial_subquery = initial_cte.subquery()
-
-    recursive_cte = select(
-        initial_subquery.c.recommendation_run_id,
-        initial_subquery.c.plan_id,
-        initial_subquery.c.criterion_id,
-        initial_subquery.c.cohort_category,
-        initial_subquery.c.person_id,
-        initial_subquery.c.interval_type,
-        func.date_trunc("day", initial_subquery.c.adjusted_interval_end).label(
-            "interval_start"
-        ),
-        initial_subquery.c.interval_end,
-        func.least(
-            initial_subquery.c.interval_end,
-            func.date_trunc("day", initial_subquery.c.adjusted_interval_end)
-            + text("interval '1 day'"),
-        ).label("adjusted_interval_end"),
-    ).where(initial_subquery.c.adjusted_interval_end < initial_subquery.c.interval_end)
-
-    # Combine initial and recursive parts using text
-    full_cte = initial_cte.union_all(recursive_cte).cte(
-        recursive=True, name="date_intervals"
-    )
     # todo: make sure that day grenzen are based on the timezone that is set ! - implement a test
     # todo: implement test for view (in general)
     # todo: implement test for trigger (non-overlapping intervals)
-    # Final select statement
-    final_query = (
-        select(
-            full_cte.c.recommendation_run_id,
-            full_cte.c.plan_id,
-            full_cte.c.criterion_id,
-            full_cte.c.cohort_category,
-            full_cte.c.person_id,
-            func.cast(func.date_trunc("day", full_cte.c.interval_start), Date).label(
-                "valid_date"
-            ),
-            func.date_trunc("day", full_cte.c.interval_start).label("valid_datetime"),
-        )
-        .group_by(
-            full_cte.c.recommendation_run_id,
-            full_cte.c.plan_id,
-            full_cte.c.criterion_id,
-            full_cte.c.cohort_category,
-            full_cte.c.person_id,
-            func.date_trunc("day", full_cte.c.interval_start),
-        )
-        .having(
-            func.sum(
-                func.extract("epoch", full_cte.c.adjusted_interval_end)
-                - func.extract("epoch", full_cte.c.interval_start)
-            )
-            == 24 * 60 * 60
-        )
-    )
 
-    return final_query
+    return covered_dates
 
 
 def view_partial_day_coverage() -> Select:

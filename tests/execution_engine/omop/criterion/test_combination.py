@@ -2,22 +2,22 @@ import pandas as pd
 import pendulum
 import pytest
 import sympy
-from sqlalchemy import func, select
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.omop.db.celida.tables import RecommendationResultInterval
+from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.util import TimeRange, ValueNumber
 from tests._fixtures.concept import (
+    concept_artificial_respiration,
     concept_covid19,
     concept_heparin_ingredient,
     concept_unit_mg,
 )
 from tests._fixtures.mock import MockCriterion
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
-from tests.functions import create_condition, create_drug_exposure
+from tests.functions import create_condition, create_drug_exposure, create_procedure
 
 
 class TestCriterionCombination(TestCriterion):
@@ -37,18 +37,25 @@ class TestCriterionCombination(TestCriterion):
         e1 = create_drug_exposure(
             vo=visit_occurrence,
             drug_concept_id=concept_heparin_ingredient.concept_id,
-            start_datetime=pendulum.parse("2023-03-01 18:00:00"),
-            end_datetime=pendulum.parse("2023-03-02 06:00:00"),
+            start_datetime=pendulum.parse("2023-03-01 18:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 06:00:00+01:00"),
             quantity=100,
         )
 
         e2 = create_condition(
             vo=visit_occurrence,
             condition_concept_id=concept_covid19.concept_id,
-            condition_start_datetime=pendulum.parse("2023-03-02 18:00:00"),
-            condition_end_datetime=pendulum.parse("2023-03-03 18:00:00"),
+            condition_start_datetime=pendulum.parse("2023-03-02 18:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2023-03-03 18:00:00+01:00"),
         )
-        db_session.add_all([e1, e2])
+
+        e3 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 17:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 18:00:01+01:00"),
+        )
+        db_session.add_all([e1, e2, e3])
         db_session.commit()
 
         c1 = DrugExposure(
@@ -70,43 +77,50 @@ class TestCriterionCombination(TestCriterion):
             concept=concept_covid19,
         )
 
+        c3 = ProcedureOccurrence(
+            name="test",
+            exclude=False,
+            category=CohortCategory.POPULATION,
+            concept=concept_artificial_respiration,
+        )
+
         c1.id = 1
         c2.id = 2
+        c3.id = 3
 
-        return [c1, c2]
+        return [c1, c2, c3]
 
     @pytest.mark.parametrize(
         "combination,expected",
         [
-            ("c1 & c2", {"2023-03-02"}),
-            ("c1 | c2", {"2023-03-01", "2023-03-02", "2023-03-03"}),
+            ("c1 & c2", {}),
+            ("c2 & c3", {}),
+            ("c1 | c2", {"2023-03-01", "2023-03-02"}),
+            ("c1 & c2 & c3", {}),
+            ("c1 | c2 | c3", {"2023-03-01", "2023-03-02"}),
+            ("c1 | c2 & c3", {"2023-03-01", "2023-03-02"}),
             ("~(c1 & c2)", {"2023-03-01", "2023-03-03", "2023-03-04"}),
+            ("~(c2 & c3)", {"2023-03-01", "2023-03-03", "2023-03-04"}),
             ("~(c1 | c2)", {"2023-03-04"}),
-            ("~c1 & c2", {"2023-03-03"}),
-            ("~c1 | c2", {"2023-03-02", "2023-03-03", "2023-03-04"}),
+            ("~(c2 | c3)", {"2023-03-01", "2023-03-04"}),
+            ("~(c1 | c2 | c3)", {"2023-03-04"}),
+            ("~c1 & c2", {}),
+            ("~c1 | c2", {"2023-03-03", "2023-03-04"}),
             ("c1 & ~c2", {"2023-03-01"}),
             ("c1 | ~c2", {"2023-03-01", "2023-03-02", "2023-03-04"}),
+            ("~c2 & c3", {}),
         ],
     )
     def test_combination_on_database(
         self,
         person_visit,
         db_session,
-        base_table,
         base_criterion,
         criteria_db,
         combination,
         expected,
         observation_window,
     ):
-        # BASE cohort in results table is required for combination to work
-        query = (
-            select(func.count("*"))
-            .select_from(RecommendationResultInterval)
-            .where(RecommendationResultInterval.cohort_category == CohortCategory.BASE)
-        )
-        assert db_session.execute(query).scalar() > 1, "No base cohort in database"
-
         c = sympy.parse_expr(combination)
 
         if c.is_Not:
@@ -122,7 +136,7 @@ class TestCriterionCombination(TestCriterion):
         else:
             raise ValueError(f"Unknown operator {c.func}")
 
-        c1, c2 = [c.copy() for c in criteria_db]
+        c1, c2, c3 = [c.copy() for c in criteria_db]
 
         for arg in c.args:
             if arg.is_Not:
@@ -130,22 +144,38 @@ class TestCriterionCombination(TestCriterion):
                     c1.exclude = True
                 elif arg.args[0].name == "c2":
                     c2.exclude = True
+                elif arg.args[0].name == "c3":
+                    c3.exclude = True
                 else:
                     raise ValueError(f"Unknown criterion {arg.args[0].name}")
 
         comb = CriterionCombination(
             "combination",
             exclude=exclude,
-            category=CohortCategory.POPULATION_INTERVENTION,
+            category=CohortCategory.POPULATION,
             operator=CriterionCombination.Operator(operator),
         )
-        comb.add_all([c1, c2])
+
+        for symbol in c.atoms():
+            if symbol.name == "c1":
+                comb.add(c1)
+            elif symbol.name == "c2":
+                comb.add(c2)
+            elif symbol.name == "c3":
+                comb.add(c3)
+            else:
+                raise ValueError(f"Unknown criterion {symbol.name}")
 
         self.insert_criterion_combination(
             db_session, comb, base_criterion, observation_window
         )
 
-        df = self.fetch_filtered_results(db_session, criterion_id=None)
+        df = self.fetch_filtered_results(
+            db_session,
+            plan_id=self.plan_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION,
+        )
 
         df = df.query(f"person_id=={person_visit[0][0].person_id}")
 
@@ -162,7 +192,7 @@ class TestCriterionCombination(TestCriterion):
 
         assert (
             combination.name
-            == "CriterionCombination(AND).population_intervention.combination(exclude=False)"
+            == "CriterionCombination(AND).POPULATION_INTERVENTION.combination(exclude=False)"
         )
         assert combination.operator == operator
         assert len(combination) == 0
@@ -202,7 +232,7 @@ class TestCriterionCombination(TestCriterion):
             "exclude": False,
             "operator": "AND",
             "threshold": None,
-            "category": "population_intervention",
+            "category": "POPULATION_INTERVENTION",
             "criteria": [
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
@@ -216,7 +246,7 @@ class TestCriterionCombination(TestCriterion):
             "exclude": False,
             "operator": "AND",
             "threshold": None,
-            "category": "population_intervention",
+            "category": "POPULATION_INTERVENTION",
             "criteria": [
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
@@ -232,7 +262,7 @@ class TestCriterionCombination(TestCriterion):
 
         assert (
             combination.name
-            == "CriterionCombination(AND).population_intervention.combination(exclude=False)"
+            == "CriterionCombination(AND).POPULATION_INTERVENTION.combination(exclude=False)"
         )
         assert combination.operator == operator
         assert len(combination) == len(mock_criteria)
@@ -274,7 +304,7 @@ class TestCriterionCombination(TestCriterion):
 
         assert (
             repr(combination)
-            == "CriterionCombination(AND).population_intervention.combination(exclude=False)"
+            == "CriterionCombination(AND).POPULATION_INTERVENTION.combination(exclude=False)"
         )
 
     def test_add_all(self):

@@ -4,7 +4,9 @@ from enum import Enum, auto
 import pandas as pd
 
 import execution_engine.util.cohort_logic as logic
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 from execution_engine.omop.sql import OMOPSQLClient
 from execution_engine.settings import config
 from execution_engine.task import process
@@ -43,16 +45,28 @@ class Task:
     """
 
     """The columns to group by when merging or intersecting intervals."""
-    by = ["person_id"]
+    by = ["person_id", "interval_type"]
 
     def __init__(
-        self, expr: logic.Expr, criterion: Criterion, params: dict | None
+        self,
+        expr: logic.Expr,
+        criterion: Criterion,
+        params: dict | None,
+        store_result: bool = False,
     ) -> None:
         self.expr = expr
         self.criterion = criterion
         self.dependencies: list[Task] = []
         self.status = TaskStatus.PENDING
         self.params = params if params is not None else {}
+        self.store_result = store_result
+
+    @property
+    def category(self) -> CohortCategory:
+        """
+        Returns the category of the task.
+        """
+        return self.expr.category
 
     def run(self, data: list[pd.DataFrame], params: dict) -> pd.DataFrame:
         """
@@ -80,6 +94,9 @@ class Task:
                 # And and Or have two or more dependencies
                 result = self.handle_binary_logical_operator(data, params)
 
+            if self.store_result:
+                self.store_result_in_db(result, params)
+
         except Exception as e:
             self.status = TaskStatus.FAILED
             exception_type = type(e).__name__  # Get the type of the exception
@@ -102,24 +119,8 @@ class Task:
         query = self.criterion.create_query()
         result = engine.query(query, **params)
 
-        # todo: insert result into database
-        # todo: remove me
-        """result = pd.DataFrame(
-            {
-                "person_id": [1, 2, 3],
-                "concept_id": [1, 1, 1],
-                "interval_start": [
-                    pd.Timestamp("2020-01-01 00:00:00"),
-                    pd.Timestamp("2020-01-01 00:00:00"),
-                    pd.Timestamp("2020-01-01 00:00:00"),
-                ],
-                "interval_end": [
-                    pd.Timestamp("2020-01-01 00:00:00"),
-                    pd.Timestamp("2020-01-01 00:00:00"),
-                    pd.Timestamp("2020-01-01 00:00:00"),
-                ],
-            }
-        )"""
+        # merge overlapping/adjacent intervals to reduce the number of intervals
+        result = process.merge_intervals([result], self.by)
 
         return result
 
@@ -136,8 +137,8 @@ class Task:
         assert self.expr.is_Not, "Dependency is not a Not expression."
 
         observation_window = TimeRange(
-            start=params["observation_window_start"],
-            end=params["observation_window_end"],
+            start=params["observation_start_datetime"],
+            end=params["observation_end_datetime"],
             name="observation_window",
         )
         result = process.invert_intervals(data[0], self.by, observation_window)
@@ -154,12 +155,40 @@ class Task:
         :return: A DataFrame with the merged or intersected intervals.
         """
         if isinstance(self.expr, logic.And):
-            result = process.merge_intervals(data, self.by)
-        elif isinstance(self.expr, logic.Or):
             result = process.intersect_intervals(data, self.by)
+        elif isinstance(self.expr, logic.Or):
+            result = process.merge_intervals(data, self.by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
         return result
+
+    def store_result_in_db(self, result: pd.DataFrame, params: dict) -> None:
+        """
+        Stores the result in the database.
+
+        :param result: The result to store.
+        :param params: The parameters.
+        :return: None.
+        """
+        # todo do we want to assign here (i.e. instead of outside the task somehow or at least as params to the statement)
+
+        if len(result) == 0:
+            return
+
+        criterion_id = self.criterion.id if self.criterion is not None else None
+
+        result = result.assign(
+            criterion_id=criterion_id,
+            plan_id=params["plan_id"],
+            recommendation_run_id=params["run_id"],
+            cohort_category=self.category,
+        )  # todo: can we get category directly instead of storing it in the task?
+
+        with get_engine().begin() as conn:
+            conn.execute(
+                RecommendationResultInterval.__table__.insert(),
+                result.to_dict(orient="records"),
+            )
 
     def name(self) -> str:
         """

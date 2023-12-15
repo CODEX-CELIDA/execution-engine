@@ -56,7 +56,7 @@ class ExecutionMap:
         self._expr = self._to_expression(self._criteria)
         self._base_criterion = base_criterion
         self._params = params
-        self._root_task = self._get_execution_map()
+        self._root_task = self._create_execution_map()
 
         # self._push_negation_in_criterion()
 
@@ -67,6 +67,13 @@ class ExecutionMap:
         Return the root task of the execution map.
         """
         return self._root_task
+
+    @property
+    def category(self) -> CohortCategory:
+        """
+        Get the category of the cohort definition.
+        """
+        return self.get_combined_category(self)
 
     @staticmethod
     def get_combined_category(*args: "ExecutionMap") -> CohortCategory:
@@ -112,6 +119,7 @@ class ExecutionMap:
         """
         Combine two execution maps with an AND operator.
         """
+        # todo: de-duplicate code
         assert isinstance(other, ExecutionMap), "other must be instance of ExecutionMap"
         assert (
             self._base_criterion == other._base_criterion
@@ -209,7 +217,7 @@ class ExecutionMap:
             args[0]._params,
         )
 
-    def _get_execution_map(self) -> Task:
+    def _create_execution_map(self) -> Task:
         def count_usage(expr: logic.Expr, usage_count: dict[logic.Expr, int]) -> None:
             usage_count[expr] = usage_count.get(expr, 0) + 1
             if not expr.is_Atom:

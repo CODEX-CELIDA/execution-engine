@@ -8,6 +8,9 @@ from execution_engine.omop.criterion.abstract import Criterion
 
 
 class MockCriterion(Criterion):
+    def _create_query(self) -> Select:
+        pass
+
     def __init__(
         self,
         name: str,

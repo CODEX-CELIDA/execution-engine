@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, StrEnum
 
 SCT_CLINICAL_FINDING = "404684003"  # Clinical finding (finding)
 SCT_ALLERGIC_DISPOSITION = "609328004"  # Allergic disposition (finding)
@@ -24,15 +24,21 @@ EXT_CPG_PARTOF = "http://hl7.org/fhir/uv/cpg/StructureDefinition/cpg-partOf"
 LOINC_TIDAL_VOLUME = "76222-9"  # Tidal volume ^on ventilator
 
 
-class CohortCategory(Enum):
+class CohortCategory(StrEnum):
     """
     The category of a cohort.
     """
 
-    BASE = "base"
-    POPULATION = "population"
-    INTERVENTION = "intervention"
-    POPULATION_INTERVENTION = "population_intervention"
+    BASE = "BASE"
+    POPULATION = "POPULATION"
+    INTERVENTION = "INTERVENTION"
+    POPULATION_INTERVENTION = "POPULATION_INTERVENTION"
+
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the category.
+        """
+        return str(self)
 
     def __str__(self) -> str:
         """
@@ -41,15 +47,21 @@ class CohortCategory(Enum):
         return self.name
 
 
-class IntervalType(Enum):
+class IntervalType(StrEnum):
     """
     The type of interval
     """
 
-    POSITIVE = "positive"
-    NEGATIVE = "negative"
-    NO_DATA = "no_data"
-    NOT_APPLICABLE = "not_applicable"
+    POSITIVE = "POSITIVE"
+    NEGATIVE = "NEGATIVE"
+    NO_DATA = "NO_DATA"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the category.
+        """
+        return str(self)
 
     def __str__(self) -> str:
         """

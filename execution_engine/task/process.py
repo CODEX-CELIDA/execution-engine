@@ -2,14 +2,12 @@ import datetime
 from typing import Callable
 
 import pandas as pd
-from portion import Interval
-from portion import closedopen as interval
-from portion import empty as empty_interval
 
 from execution_engine.util import TimeRange
+from execution_engine.util.interval import IntInterval, empty_interval, interval
 
 
-def interval_union(intervals: list[interval]) -> Interval:
+def interval_union(intervals: list[IntInterval]) -> IntInterval:
     """
     Performs a union on the given intervals.
 
@@ -44,14 +42,15 @@ def invert_intervals(
     return _result_to_df(result, by, tz_start, tz_end)
 
 
-def timestamps_to_intervals(group: pd.DataFrame) -> list[interval]:
+def timestamps_to_intervals(group: pd.DataFrame) -> list[IntInterval]:
     """
     Converts the timestamps in the DataFrame to intervals.
 
     :param group: A DataFrame with columns "interval_start" and "interval_end" containing timestamps.
     :return: A list of intervals.
     """
-    group = group.astype("int64") / 1e9
+    divisor = 1000000000
+    group = group.astype("int64") // divisor
     return [
         interval(start, end)
         for start, end in zip(group["interval_start"], group["interval_end"])
@@ -69,6 +68,11 @@ def _process_intervals(
     :param operation: The operation to perform on the intervals (intersect or union).
     :return: A DataFrame with the processed intervals.
     """
+    # assert dfs is a list of dataframes
+    assert isinstance(dfs, list) and all(
+        isinstance(df, pd.DataFrame) for df in dfs
+    ), "dfs must be a list of DataFrames"
+
     result = {}
     for df in dfs:
         for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
@@ -114,7 +118,7 @@ def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
 
 
 def _result_to_df(
-    result: dict[tuple[str] | str, interval],
+    result: dict[tuple[str] | str, IntInterval],
     by: list[str],
     tz_start: datetime.tzinfo | str | None,
     tz_end: datetime.tzinfo | str | None,

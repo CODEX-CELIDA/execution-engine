@@ -8,12 +8,12 @@ class Serializable(ABC):
     Base class for serializable objects.
     """
 
-    _id: int | None
+    _id: int | None = None
 
     @property
     def id(self) -> int:
         """
-        Get the id of the object (used in the datbase).
+        Get the id of the object (used in the database).
         """
         if self._id is None:
             raise ValueError("Id not set")
