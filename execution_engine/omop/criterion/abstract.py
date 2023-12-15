@@ -5,6 +5,7 @@ import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Type, TypedDict, cast
 
+import pandas as pd
 import sqlalchemy
 from sqlalchemy import (
     ColumnElement,
@@ -40,6 +41,7 @@ from execution_engine.omop.db.omop.tables import (
     VisitOccurrence,
 )
 from execution_engine.omop.serializable import Serializable
+from execution_engine.util import TimeRange
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]
@@ -317,6 +319,20 @@ class Criterion(AbstractCriterion):
         ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
 
         return query
+
+    def process_result(
+        self, df: pd.DataFrame, observation_window: TimeRange
+    ) -> pd.DataFrame:
+        """
+        Process the result of the SQL query.
+
+        Can be overridden by subclasses to perform additional processing of data returned by the SQL query from
+        `create_query`.
+
+        :param df: The result of the SQL query.
+        :return: A processed DataFrame.
+        """
+        return df
 
     def _sql_header(
         self, distinct_person: bool = True, person_id: int | None = None

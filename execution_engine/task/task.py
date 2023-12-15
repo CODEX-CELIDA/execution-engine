@@ -4,7 +4,7 @@ from enum import Enum, auto
 import pandas as pd
 
 import execution_engine.util.cohort_logic as logic
-from execution_engine.constants import CohortCategory
+from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 from execution_engine.omop.sql import OMOPSQLClient
@@ -80,22 +80,38 @@ class Task:
         # todo: should we only use the params from the task instead of the parameter?
         params = params | self.params
 
+        observation_window = TimeRange(
+            start=params["observation_start_datetime"],
+            end=params["observation_end_datetime"],
+            name="observation_window",
+        )
+
         self.status = TaskStatus.RUNNING
         logging.info(f"Running task '{self.name()}'")
 
         try:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
-                # only criteria have no dependencies, everything else is a combination (or Not)
-                result = self.handle_criterion(params)
-            elif len(self.dependencies) == 1:
-                # only Not has one dependency
-                result = self.handle_unary_logical_operator(data, params)
-            elif len(self.dependencies) >= 2:
-                # And and Or have two or more dependencies
-                result = self.handle_binary_logical_operator(data, params)
+                # atomic expressions (i.e. criterion)
+                result = self.handle_criterion(params, observation_window)
 
-            if self.store_result:
                 self.store_result_in_db(result, params)
+
+                # here, already combine intervals with type NO_DATA and POSITIVE and drop NEGATIVE
+                result = self.consolidate_intervals(result)
+
+            else:
+                # non-atomic expressions (i.e. logical operations on criteria)
+                if len(self.dependencies) == 1:
+                    # only Not has one dependency
+                    result = self.handle_unary_logical_operator(
+                        data, observation_window
+                    )
+                elif len(self.dependencies) >= 2:
+                    # And and Or have two or more dependencies
+                    result = self.handle_binary_logical_operator(data)
+
+                if self.store_result:
+                    self.store_result_in_db(result, params)
 
         except Exception as e:
             self.status = TaskStatus.FAILED
@@ -108,7 +124,9 @@ class Task:
 
         return result
 
-    def handle_criterion(self, params: dict) -> pd.DataFrame:
+    def handle_criterion(
+        self, params: dict, observation_window: TimeRange
+    ) -> pd.DataFrame:
         """
         Handles a criterion by querying the database.
 
@@ -119,13 +137,26 @@ class Task:
         query = self.criterion.create_query()
         result = engine.query(query, **params)
 
-        # merge overlapping/adjacent intervals to reduce the number of intervals
-        result = process.merge_intervals([result], self.by)
+        result = self.criterion.process_result(result, observation_window)
 
         return result
 
+    def consolidate_intervals(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Consolidates the intervals of the DataFrame by dropping NEGATIVE intervals and considering
+        all remaining intervals (i.e. NO_DATA) as POSITIVE.
+
+        :param df: The DataFrame with the intervals.
+        :return: A DataFrame with the consolidated intervals.
+        """
+        df = df[df["interval_type"] != IntervalType.NEGATIVE]
+        df["interval_type"] = IntervalType.POSITIVE
+
+        # merge overlapping/adjacent intervals to reduce the number of intervals
+        return process.merge_intervals([df], self.by)
+
     def handle_unary_logical_operator(
-        self, data: list[pd.DataFrame], params: dict
+        self, data: list[pd.DataFrame], observation_window: TimeRange
     ) -> pd.DataFrame:
         """
         Handles a unary logical operator (Not) by inverting the intervals of the dependency.
@@ -136,17 +167,10 @@ class Task:
         """
         assert self.expr.is_Not, "Dependency is not a Not expression."
 
-        observation_window = TimeRange(
-            start=params["observation_start_datetime"],
-            end=params["observation_end_datetime"],
-            name="observation_window",
-        )
         result = process.invert_intervals(data[0], self.by, observation_window)
         return result
 
-    def handle_binary_logical_operator(
-        self, data: list[pd.DataFrame], params: dict
-    ) -> pd.DataFrame:
+    def handle_binary_logical_operator(self, data: list[pd.DataFrame]) -> pd.DataFrame:
         """
         Handles a binary logical operator (And or Or) by merging or intersecting the intervals of the
 

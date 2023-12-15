@@ -42,7 +42,7 @@ class TaskCreator:
             dependencies = []
             if isinstance(expr, (logic.And, logic.Or, logic.Not)):
                 for arg in expr.args:
-                    child_task = self.create_tasks_and_dependencies(arg)
+                    child_task = _create_subtasks(arg)
                     dependencies.append(child_task)
             elif expr.is_Atom:
                 # this task is a criterion and should store its result

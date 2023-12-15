@@ -135,10 +135,6 @@ def view_full_day_coverage() -> Select:
         )
     )
 
-    # todo: make sure that day grenzen are based on the timezone that is set ! - implement a test
-    # todo: implement test for view (in general)
-    # todo: implement test for trigger (non-overlapping intervals)
-
     return covered_dates
 
 

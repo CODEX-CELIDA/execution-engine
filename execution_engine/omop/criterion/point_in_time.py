@@ -1,3 +1,4 @@
+import pandas as pd
 from sqlalchemy import Interval, Select, bindparam, func, select
 
 from execution_engine.constants import IntervalType
@@ -6,6 +7,8 @@ from execution_engine.omop.criterion.abstract import (
     create_conditional_interval_column,
 )
 from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.task import process
+from execution_engine.util import TimeRange
 
 
 class PointInTimeCriterion(ConceptCriterion):
@@ -59,3 +62,23 @@ class PointInTimeCriterion(ConceptCriterion):
         )
 
         return query
+
+    def process_result(
+        self, df: pd.DataFrame, observation_window: TimeRange
+    ) -> pd.DataFrame:
+        """
+        Process the result of the SQL query.
+
+        Inserts NO_DATA intervals for all intervals that are not POSITIVE or NEGATIVE.
+
+        :param df: The result of the SQL query.
+        :return: A processed DataFrame.
+        """
+        no_data_intervals = process.invert_intervals(
+            df, ["person_id"], observation_window
+        )
+        no_data_intervals["interval_type"] = IntervalType.NO_DATA
+        df = pd.concat([df, no_data_intervals])
+        df.sort_values(by=["person_id", "interval_start"], inplace=True)
+
+        return df
