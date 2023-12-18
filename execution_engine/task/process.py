@@ -8,7 +8,7 @@ from execution_engine.util.interval import empty_interval_datetime as empty_inte
 from execution_engine.util.interval import interval_datetime as interval
 
 
-def interval_union(intervals: list[Interval]) -> Interval:
+def _interval_union(intervals: list[Interval]) -> Interval:
     """
     Performs a union on the given intervals.
 
@@ -58,13 +58,18 @@ def invert_intervals(
     Inverts the intervals in the DataFrame.
     """
 
-    # todo: do we need to list all persons here, because inverting an empty set should yield
-    #  the full set but we do not know about empty sets here (as they are not in the df)?
+    if df.empty:
+        return df
+
+    if not len(by):
+        raise ValueError("by must not be empty")
 
     result = {}
+
     for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
         new_intervals = to_intervals(group[["interval_start", "interval_end"]])
-        new_interval_union = interval_union(new_intervals)
+        new_interval_union = _interval_union(new_intervals)
+
         result[group_keys] = (
             observation_window.interval() & new_interval_union.complement()
         )
@@ -86,7 +91,7 @@ def to_intervals(df: pd.DataFrame) -> list[Interval]:
     ]
 
 
-def timestamps_to_intervalsX(group: pd.DataFrame) -> list[Interval]:
+def timestamps_to_intervals(group: pd.DataFrame) -> list[Interval]:
     """
     Converts the timestamps in the DataFrame to intervals.
 
@@ -121,7 +126,7 @@ def _process_intervals(
     for df in dfs:
         for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
             new_intervals = to_intervals(group[["interval_start", "interval_end"]])
-            new_interval_union = interval_union(new_intervals)
+            new_interval_union = _interval_union(new_intervals)
 
             if group_keys not in result:
                 result[group_keys] = new_interval_union
@@ -182,7 +187,7 @@ def _result_to_df(
             }
             records.append(record)
 
-    return pd.DataFrame(records)
+    return pd.DataFrame(records, columns=by + ["interval_start", "interval_end"])
 
 
 def filter_common_items(
@@ -201,6 +206,16 @@ def filter_common_items(
 
     def unique_items(df: pd.DataFrame) -> set[tuple]:
         return set(tuple(row) for row in df.itertuples(index=False))
+
+    if not len(dfs):
+        return dfs
+
+    # make sure the columns exist in all dataframes, otherwise we get a KeyError - name the missing columns
+    # in the error message
+    for i, df in enumerate(dfs):
+        for column in columns:
+            if column not in df.columns:
+                raise KeyError(f"Column '{column}' not found in DataFrame {i}")
 
     common_items = unique_items(dfs[0][columns])
 
