@@ -14,7 +14,11 @@ from sqlalchemy.sql.elements import (
 )
 
 from execution_engine.omop.concepts import Concept
-from execution_engine.util.interval import IntInterval, interval
+from execution_engine.util.interval import (
+    DateTimeInterval,
+    interval_datetime,
+    interval_int,
+)
 
 ucum_to_postgres = {
     "s": "second",
@@ -302,18 +306,22 @@ class TimeRange(BaseModel):
         """
         return self.end - self.start
 
-    def interval(self, as_timestamp: bool = True) -> IntInterval:
+    def interval(self, as_timestamp: bool = False) -> DateTimeInterval:
         """
         Get the interval of the time range.
 
         :param as_timestamp: If True, return the interval as a timestamp (i.e. the number of seconds).
         :return: The interval.
         """
-
         if as_timestamp:
-            return interval(int(self.start.timestamp()), int(self.end.timestamp()))
+            # todo enable me once it is clear this function is not called incorrectly anymore
+            """return interval_int(
+                int(self.start.timestamp()), int(self.end.timestamp())
+            )"""
+            raise NotImplementedError("Only as_timestamp=False is supported.")
+
         else:
-            raise NotImplementedError("Only as_timestamp=True is supported.")
+            return interval_datetime(self.start, self.end)
 
     def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
         """

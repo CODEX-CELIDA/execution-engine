@@ -280,9 +280,7 @@ class ExecutionEngine:
 
             # parse population and create criteria
             characteristics = self._parse_characteristics(rec_plan.population)
-            # todo: characteristics is the population combination and needs to be marked
-            #  as such in the cohort definition
-            #       BUT : these are the characteristics, not the criteria !
+
             for characteristic in characteristics:
                 cd.add_population(characteristic_to_criterion(characteristic))
 

@@ -135,8 +135,9 @@ class TaskRunner(ABC):
             ), f"Dependency {dependency} is not finished."
 
         input_data = [self.shared_results[dep.name()] for dep in task.dependencies]
+        base_data = self.shared_results.get(task.get_base_task().name(), None)
 
-        result = task.run(input_data, params)
+        result = task.run(input_data, base_data, params)
 
         with self.lock:
             self.shared_results[task.name()] = result

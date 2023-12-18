@@ -1,13 +1,14 @@
-import datetime
 from typing import Callable
 
 import pandas as pd
 
 from execution_engine.util import TimeRange
-from execution_engine.util.interval import IntInterval, empty_interval, interval
+from execution_engine.util.interval import DateTimeInterval as Interval
+from execution_engine.util.interval import empty_interval_datetime as empty_interval
+from execution_engine.util.interval import interval_datetime as interval
 
 
-def interval_union(intervals: list[IntInterval]) -> IntInterval:
+def interval_union(intervals: list[Interval]) -> Interval:
     """
     Performs a union on the given intervals.
 
@@ -15,9 +16,39 @@ def interval_union(intervals: list[IntInterval]) -> IntInterval:
     :return: A list of intervals.
     """
     r = empty_interval()
+
     for interv in intervals:
         r |= interv
+
     return r
+
+
+def insert_missing_intervals(
+    df: pd.DataFrame, base: pd.DataFrame, by: list[str], observation_window: TimeRange
+) -> pd.DataFrame:
+    """
+    Inserts the missing intervals in the DataFrame.
+
+    :param df: The DataFrame with the intervals.
+    :param base: The DataFrame with the base criterion.
+    :param by: A list of column names to group by.
+    :param observation_window: The observation window.
+    :return: A DataFrame with the inserted intervals.
+    """
+
+    rows_df = df[by].drop_duplicates()
+    rows_base = base[by].drop_duplicates()
+
+    merged_df = pd.merge(rows_base, rows_df, on=by, how="outer", indicator=True)
+
+    unique_to_base = merged_df[merged_df["_merge"] == "left_only"].drop(
+        columns=["_merge"]
+    )
+    unique_to_base = unique_to_base.assign(
+        interval_start=observation_window.start, interval_end=observation_window.end
+    )
+
+    return pd.concat([df, unique_to_base])
 
 
 def invert_intervals(
@@ -26,23 +57,36 @@ def invert_intervals(
     """
     Inverts the intervals in the DataFrame.
     """
+
+    # todo: do we need to list all persons here, because inverting an empty set should yield
+    #  the full set but we do not know about empty sets here (as they are not in the df)?
+
     result = {}
     for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
-        new_intervals = timestamps_to_intervals(
-            group[["interval_start", "interval_end"]]
-        )
+        new_intervals = to_intervals(group[["interval_start", "interval_end"]])
         new_interval_union = interval_union(new_intervals)
         result[group_keys] = (
             observation_window.interval() & new_interval_union.complement()
         )
 
-    tz_start = df["interval_start"].dt.tz if not df["interval_start"].empty else None
-    tz_end = df["interval_end"].dt.tz if not df["interval_end"].empty else None
-
-    return _result_to_df(result, by, tz_start, tz_end)
+    return _result_to_df(result, by)
 
 
-def timestamps_to_intervals(group: pd.DataFrame) -> list[IntInterval]:
+def to_intervals(df: pd.DataFrame) -> list[Interval]:
+    """
+    Converts the DataFrame to intervals.
+
+    :param df: A DataFrame with columns "interval_start" and "interval_end".
+    :return: A list of intervals.
+    """
+
+    return [
+        interval(start, end)
+        for start, end in zip(df["interval_start"], df["interval_end"])
+    ]
+
+
+def timestamps_to_intervalsX(group: pd.DataFrame) -> list[Interval]:
     """
     Converts the timestamps in the DataFrame to intervals.
 
@@ -76,9 +120,7 @@ def _process_intervals(
     result = {}
     for df in dfs:
         for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
-            new_intervals = timestamps_to_intervals(
-                group[["interval_start", "interval_end"]]
-            )
+            new_intervals = to_intervals(group[["interval_start", "interval_end"]])
             new_interval_union = interval_union(new_intervals)
 
             if group_keys not in result:
@@ -86,10 +128,7 @@ def _process_intervals(
             else:
                 result[group_keys] = operation(result[group_keys], new_interval_union)
 
-    tz_start = df["interval_start"].dt.tz if not df["interval_start"].empty else None
-    tz_end = df["interval_end"].dt.tz if not df["interval_end"].empty else None
-
-    return _result_to_df(result, by, tz_start, tz_end)
+    return _result_to_df(result, by)
 
 
 def merge_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
@@ -118,18 +157,13 @@ def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
 
 
 def _result_to_df(
-    result: dict[tuple[str] | str, IntInterval],
-    by: list[str],
-    tz_start: datetime.tzinfo | str | None,
-    tz_end: datetime.tzinfo | str | None,
+    result: dict[tuple[str] | str, Interval], by: list[str]
 ) -> pd.DataFrame:
     """
     Converts the result of the interval operations to a DataFrame.
 
     :param result: The result of the interval operations.
     :param by: A list of column names to group by.
-    :param tz_start: The timezone of the interval start.
-    :param tz_end: The timezone of the interval end.
     :return: A DataFrame with the interval results.
     """
     records = []
@@ -141,17 +175,10 @@ def _result_to_df(
             record_keys = {by[0]: group_keys}
 
         for interv in intervals:
-            interval_start = pd.to_datetime(
-                interv.lower, unit="s", utc=True
-            ).tz_convert(tz_start)
-            interval_end = pd.to_datetime(interv.upper, unit="s", utc=True).tz_convert(
-                tz_end
-            )
-
             record = {
                 **record_keys,
-                "interval_start": interval_start,
-                "interval_end": interval_end,
+                "interval_start": interv.lower,
+                "interval_end": interv.upper,
             }
             records.append(record)
 

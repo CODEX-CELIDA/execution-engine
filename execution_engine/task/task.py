@@ -68,11 +68,35 @@ class Task:
         """
         return self.expr.category
 
-    def run(self, data: list[pd.DataFrame], params: dict) -> pd.DataFrame:
+    def get_base_task(self) -> "Task":
+        """
+        Returns the base task of the task.
+        """
+
+        def find_base_task(task: Task) -> Task:
+            """
+            Recursively find the base task for a given task.
+
+            :param task: The Task object to find the base task for.
+            :return: The base Task object with no dependencies.
+            """
+            if not task.dependencies:  # No dependencies means this is the base task
+                return task
+            else:
+                # Recursively find the base task for the first dependency.
+                # This assumes that all dependencies eventually lead to the same base task.
+                return find_base_task(task.dependencies[0])
+
+        return find_base_task(self)
+
+    def run(
+        self, data: list[pd.DataFrame], base_data: pd.DataFrame | None, params: dict
+    ) -> pd.DataFrame:
         """
         Runs the task.
 
         :param data: The input data.
+        :param base_data: The result of the base criterion or None, if this is the base criterion.
         :param params: The parameters.
         :return: The result of the task.
         """
@@ -104,7 +128,7 @@ class Task:
                 if len(self.dependencies) == 1:
                     # only Not has one dependency
                     result = self.handle_unary_logical_operator(
-                        data, observation_window
+                        data, base_data, observation_window
                     )
                 elif len(self.dependencies) >= 2:
                     # And and Or have two or more dependencies
@@ -130,7 +154,7 @@ class Task:
         """
         Handles a criterion by querying the database.
 
-        :param params: The parameters.
+        :observation_window: The observation window.
         :return: A DataFrame with the result of the query.
         """
         engine = get_engine()
@@ -156,18 +180,32 @@ class Task:
         return process.merge_intervals([df], self.by)
 
     def handle_unary_logical_operator(
-        self, data: list[pd.DataFrame], observation_window: TimeRange
+        self,
+        data: list[pd.DataFrame],
+        base_data: pd.DataFrame,
+        observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
         Handles a unary logical operator (Not) by inverting the intervals of the dependency.
 
+        Patients for which no data is available in the data are identified from the result of the base criterion
+        and the full observation window is added for these patients. Otherwise, these patients would be missing
+        from the result.
+
         :param data: The input data.
-        :param params: The parameters.
+        :param base_data: The result of the base criterion (required to add full observation window for patients with no data).
+        :param observation_window: The observation window.
         :return: A DataFrame with the inverted intervals.
         """
         assert self.expr.is_Not, "Dependency is not a Not expression."
 
         result = process.invert_intervals(data[0], self.by, observation_window)
+
+        # need to add all persons that are not in the result
+        result = process.insert_missing_intervals(
+            result, base_data, self.by, observation_window
+        )
+
         return result
 
     def handle_binary_logical_operator(self, data: list[pd.DataFrame]) -> pd.DataFrame:
