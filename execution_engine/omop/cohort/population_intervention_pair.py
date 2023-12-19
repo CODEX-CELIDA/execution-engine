@@ -112,7 +112,7 @@ class PopulationInterventionPair(Serializable):
         # todo can we find a better place to insert this id?
         #     it seems like a mixture of two paradigms, initially
         #     the criteria / tasks etc didn't know about "plans" and so on
-        params = {"plan_id": self.id}
+        params = {"pi_pair_id": self.id}
 
         population = ExecutionMap(
             self._population, base_criterion=self._base_criterion, params=params
@@ -268,7 +268,7 @@ class PopulationInterventionPair(Serializable):
         #
         #     query = add_result_insert(
         #         query,
-        #         plan_id=self.id,
+        #         pi_pair_id=self.id,
         #         criterion_id=criterion.id,
         #         cohort_category=criterion.category,
         #     )
@@ -316,7 +316,7 @@ class PopulationInterventionPair(Serializable):
             query = self._execution_map.combine(cohort_category=category)
             query = add_result_insert(
                 query,
-                plan_id=self.id,
+                pi_pair_id=self.id,
                 criterion_id=None,
                 cohort_category=category,
             )

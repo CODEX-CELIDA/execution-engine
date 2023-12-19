@@ -15,7 +15,7 @@ from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 
 def add_result_insert(
     query: Select | CompoundSelect,
-    plan_id: int | None,
+    pi_pair_id: int | None,
     criterion_id: int | None,
     cohort_category: CohortCategory,
 ) -> Insert:
@@ -42,7 +42,7 @@ def add_result_insert(
 
     query_select = query_select.add_columns(
         bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
-        bindparam("plan_id", plan_id).label("plan_id"),
+        bindparam("pi_pair_id", pi_pair_id).label("pi_pair_id"),
         bindparam("cohort_category", cohort_category, type_=Enum(CohortCategory)).label(
             "cohort_category"
         ),

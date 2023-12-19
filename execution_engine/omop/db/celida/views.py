@@ -39,7 +39,7 @@ def view_full_day_coverage() -> Select:
             date_series.c.recommendation_run_id,
             rri.c.person_id,
             rri.c.cohort_category,
-            rri.c.plan_id,
+            rri.c.pi_pair_id,
             rri.c.criterion_id,
             date_series.c.day,
             func.sum(
@@ -70,7 +70,7 @@ def view_full_day_coverage() -> Select:
             date_series.c.day,
             rri.c.person_id,
             rri.c.cohort_category,
-            rri.c.plan_id,
+            rri.c.pi_pair_id,
             rri.c.criterion_id,
         )
         .cte("interval_coverage")
@@ -91,7 +91,7 @@ def view_full_day_coverage() -> Select:
             interval_coverage.c.recommendation_run_id,
             interval_coverage.c.person_id,
             interval_coverage.c.cohort_category,
-            interval_coverage.c.plan_id,
+            interval_coverage.c.pi_pair_id,
             interval_coverage.c.criterion_id,
             day,
         )
@@ -166,7 +166,7 @@ def view_partial_day_coverage() -> Select:
     stmt = (
         select(
             RecommendationResultInterval.recommendation_run_id,
-            RecommendationResultInterval.plan_id,
+            RecommendationResultInterval.pi_pair_id,
             RecommendationResultInterval.criterion_id,
             RecommendationResultInterval.cohort_category,
             RecommendationResultInterval.person_id,

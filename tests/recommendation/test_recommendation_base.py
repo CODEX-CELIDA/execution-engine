@@ -15,7 +15,7 @@ from tqdm import tqdm
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
 from execution_engine.omop.db.celida.tables import (
-    RecommendationPlan,
+    PopulationInterventionPair,
     RecommendationResult,
 )
 from execution_engine.omop.db.omop.tables import Person
@@ -601,17 +601,17 @@ class TestRecommendationBase(ABC):
             end_datetime=observation_window.end,
         )
         t = RecommendationResult
-        t_plan = RecommendationPlan
+        t_plan = PopulationInterventionPair
 
         query = (
             select(
                 t.recommendation_result_id,
                 t.person_id,
-                t_plan.recommendation_plan_name,
+                t_plan.pi_pair_name,
                 t.cohort_category,
                 t.valid_date,
             )
-            .outerjoin(RecommendationPlan)
+            .outerjoin(PopulationInterventionPair)
             .where(t.criterion_id.is_(None))
         )
         df_result = omopdb.query(query)
@@ -625,8 +625,8 @@ class TestRecommendationBase(ABC):
         )
         df_result["name"] = df_result.apply(
             lambda row: row["name"]
-            if row["recommendation_plan_name"] is None
-            else f"{row['name']}_{row['recommendation_plan_name']}",
+            if row["pi_pair_name"] is None
+            else f"{row['name']}_{row['pi_pair_name']}",
             axis=1,
         )
 

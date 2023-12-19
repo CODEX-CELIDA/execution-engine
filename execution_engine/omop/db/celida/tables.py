@@ -49,11 +49,11 @@ class Recommendation(Base):  # noqa: D101
     create_datetime: Mapped[datetime]
 
 
-class RecommendationPlan(Base):  # noqa: D101
-    __tablename__ = "recommendation_plan"
+class PopulationInterventionPair(Base):  # noqa: D101
+    __tablename__ = "population_intervention_pair"
     __table_args__ = {"schema": SCHEMA_NAME}
 
-    plan_id: Mapped[int] = mapped_column(
+    pi_pair_id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
         index=True,
@@ -62,11 +62,9 @@ class RecommendationPlan(Base):  # noqa: D101
         ForeignKey(f"{SCHEMA_NAME}.recommendation.recommendation_id"),
         index=True,
     )
-    recommendation_plan_url: Mapped[str]
-    recommendation_plan_name: Mapped[str]
-    recommendation_plan_hash: Mapped[str] = mapped_column(
-        String(64), index=True, unique=True
-    )
+    pi_pair_url: Mapped[str]
+    pi_pair_name: Mapped[str]
+    pi_pair_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
 
 
 class RecommendationCriterion(Base):  # noqa: D101
@@ -117,9 +115,9 @@ class RecommendationResult(Base):  # noqa: D101
             "valid_date",
         ),
         Index(
-            "ix_rec_result__run_id_plan_id_criterion_id_valid_date",
+            "ix_rec_result__run_id_pi_pair_id_criterion_id_valid_date",
             "recommendation_run_id",
-            "plan_id",
+            "pi_pair_id",
             "criterion_id",
             "valid_date",
         ),
@@ -133,8 +131,8 @@ class RecommendationResult(Base):  # noqa: D101
         ForeignKey(f"{SCHEMA_NAME}.recommendation_run.recommendation_run_id"),
         index=True,
     )
-    plan_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{SCHEMA_NAME}.recommendation_plan.plan_id"),
+    pi_pair_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.population_intervention_pair.pi_pair_id"),
         index=True,
         nullable=True,
     )
@@ -153,8 +151,8 @@ class RecommendationResult(Base):  # noqa: D101
         primaryjoin="RecommendationResult.recommendation_run_id == RecommendationRun.recommendation_run_id",
     )
 
-    recommendation_plan: Mapped["RecommendationPlan"] = relationship(
-        primaryjoin="RecommendationResult.plan_id == RecommendationPlan.plan_id",
+    population_intervention_pair: Mapped["PopulationInterventionPair"] = relationship(
+        primaryjoin="RecommendationResult.pi_pair_id == PopulationInterventionPair.pi_pair_id",
     )
 
     recommendation_criterion: Mapped["RecommendationCriterion"] = relationship(
@@ -179,9 +177,9 @@ class RecommendationResultInterval(Base):  # noqa: D101
             "interval_end",
         ),
         Index(
-            "ix_rec_result_int_run_id_plan_id_criterion_id_valid_date",
+            "ix_rec_result_int_run_id_pi_pair_id_criterion_id_valid_date",
             "recommendation_run_id",
-            "plan_id",
+            "pi_pair_id",
             "criterion_id",
             "person_id",
             "interval_start",
@@ -197,8 +195,8 @@ class RecommendationResultInterval(Base):  # noqa: D101
         ForeignKey(f"{SCHEMA_NAME}.recommendation_run.recommendation_run_id"),
         index=True,
     )
-    plan_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{SCHEMA_NAME}.recommendation_plan.plan_id"),
+    pi_pair_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.population_intervention_pair.pi_pair_id"),
         index=True,
         nullable=True,
     )
@@ -219,8 +217,8 @@ class RecommendationResultInterval(Base):  # noqa: D101
         primaryjoin="RecommendationResultInterval.recommendation_run_id == RecommendationRun.recommendation_run_id",
     )
 
-    recommendation_plan: Mapped["RecommendationPlan"] = relationship(
-        primaryjoin="RecommendationResultInterval.plan_id == RecommendationPlan.plan_id",
+    population_intervention_pair: Mapped["PopulationInterventionPair"] = relationship(
+        primaryjoin="RecommendationResultInterval.pi_pair_id == PopulationInterventionPair.pi_pair_id",
     )
 
     recommendation_criterion: Mapped["RecommendationCriterion"] = relationship(

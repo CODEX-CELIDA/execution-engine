@@ -418,28 +418,28 @@ class ExecutionEngine:
         :param recommendation_id: The ID of the Population/Intervention Pair.
         """
         _, pi_pair_hash = self._hash(pi_pair)
-        query = select(result_db.RecommendationPlan).where(
-            result_db.RecommendationPlan.recommendation_plan_hash == pi_pair_hash
+        query = select(result_db.PopulationInterventionPair).where(
+            result_db.PopulationInterventionPair.pi_pair_hash == pi_pair_hash
         )
         with self._db.begin() as con:
             pi_pair_db = con.execute(query).fetchone()
 
             if pi_pair_db is not None:
-                pi_pair.id = pi_pair_db.plan_id
+                pi_pair.id = pi_pair_db.pi_pair_id
             else:
                 query = (
-                    insert(result_db.RecommendationPlan)
+                    insert(result_db.PopulationInterventionPair)
                     .values(
                         recommendation_id=recommendation_id,
-                        recommendation_plan_url=pi_pair.url,
-                        recommendation_plan_name=pi_pair.name,
-                        recommendation_plan_hash=pi_pair_hash,
+                        pi_pair_url=pi_pair.url,
+                        pi_pair_name=pi_pair.name,
+                        pi_pair_hash=pi_pair_hash,
                     )
-                    .returning(result_db.RecommendationPlan.plan_id)
+                    .returning(result_db.PopulationInterventionPair.pi_pair_id)
                 )
 
                 result = con.execute(query)
-                pi_pair.id = result.fetchone().plan_id
+                pi_pair.id = result.fetchone().pi_pair_id
 
     def register_criterion(self, criterion: Criterion) -> None:
         """
@@ -570,7 +570,7 @@ class ExecutionEngine:
             .filter(
                 and_(
                     t.c.recommendation_run_id == run_id,
-                    t.c.plan_id.is_(None),
+                    t.c.pi_pair_id.is_(None),
                 )
             )
         )

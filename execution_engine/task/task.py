@@ -241,7 +241,7 @@ class Task:
 
         result = result.assign(
             criterion_id=criterion_id,
-            plan_id=params["plan_id"],
+            pi_pair_id=params["pi_pair_id"],
             recommendation_run_id=params["run_id"],
             cohort_category=self.category,
         )  # todo: can we get category directly instead of storing it in the task?

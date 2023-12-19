@@ -221,7 +221,7 @@ class TestCriterionCombination(TestCriterion):
 
         df = self.fetch_filtered_results(
             db_session,
-            plan_id=self.plan_id,
+            pi_pair_id=self.pi_pair_id,
             criterion_id=None,
             category=CohortCategory.POPULATION,
         )

@@ -6,7 +6,7 @@ BEGIN
         SELECT 1 FROM {schema}.{table}
         WHERE NEW.person_id = person_id
         AND NEW.recommendation_run_id = recommendation_run_id
-        AND NEW.plan_id IS NOT DISTINCT FROM plan_id
+        AND NEW.pi_pair_id IS NOT DISTINCT FROM pi_pair_id
         AND NEW.criterion_id IS NOT DISTINCT FROM criterion_id
         AND NEW.cohort_category IS NOT DISTINCT FROM cohort_category
         AND (NEW.interval_start, NEW.interval_end) OVERLAPS (interval_start, interval_end)

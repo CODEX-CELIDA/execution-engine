@@ -14,6 +14,8 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.celida.tables import (
+    PopulationInterventionPair,
+    RecommendationCriterion,
     RecommendationResultInterval,
     RecommendationRun,
 )
@@ -60,7 +62,7 @@ class TestCriterion:
     result_view_full_day = full_day_coverage
     recommendation_run_id = 1234
     criterion_id = 5678
-    plan_id = 9012
+    pi_pair_id = 9012
 
     @pytest.fixture(autouse=True)
     def disable_foreign_key_checks(self):
@@ -92,17 +94,19 @@ class TestCriterion:
             recommendation_id=1,
         )
 
+        self.register_population_intervention_pair(
+            self.pi_pair_id, "TestPopulationInterventionPair", db_session
+        )
+
         db_session.execute(insert_query)
         db_session.commit()
 
         yield
 
-        # remove recommendation run
-        db_session.execute(
-            RecommendationRun.__table__.delete().where(
-                RecommendationRun.recommendation_run_id == self.recommendation_run_id
-            )
-        )
+        db_session.query(RecommendationRun).delete()
+        db_session.query(PopulationInterventionPair).delete()
+
+        db_session.commit()
 
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
@@ -169,12 +173,13 @@ class TestCriterion:
         )  # Disable foreign key checks
 
         query = base_criterion.create_query()
+        cls.register_criterion(base_criterion, db_session)
 
         # add base table patients to results table, so they can be used when combining statements (execution_map)
         query = add_result_insert(
             query,
-            plan_id=None,
-            criterion_id=None,
+            pi_pair_id=cls.pi_pair_id,
+            criterion_id=base_criterion.id,
             cohort_category=CohortCategory.BASE,
         )
 
@@ -205,13 +210,50 @@ class TestCriterion:
         ):
             yield
 
-    def register_criterion(self, criterion: Criterion, db_session):
+    @classmethod
+    def register_criterion(cls, criterion: Criterion, db_session):
         """
         Register a criterion in the database.
         """
-        raise NotImplementedError(
-            "Subclasses should override this method to provide their own fixture"
-        )
+
+        exists = db_session.query(
+            db_session.query(RecommendationCriterion)
+            .filter_by(criterion_id=criterion.id)
+            .exists()
+        ).scalar()
+
+        if not exists:
+            new_criterion = RecommendationCriterion(
+                criterion_id=criterion.id,
+                criterion_name=criterion.description(),
+                criterion_description=criterion.description(),
+                criterion_hash=hash(criterion),
+            )
+            db_session.add(new_criterion)
+            db_session.commit()
+
+    @classmethod
+    def register_population_intervention_pair(cls, id_, name, db_session):
+        """
+        Register a criterion in the database.
+        """
+
+        exists = db_session.query(
+            db_session.query(PopulationInterventionPair)
+            .filter_by(pi_pair_id=id_)
+            .exists()
+        ).scalar()
+
+        if not exists:
+            new_criterion = PopulationInterventionPair(
+                pi_pair_id=id_,
+                recommendation_id=-1,
+                pi_pair_url="https://example.com",
+                pi_pair_name=name,
+                pi_pair_hash=hash(name),
+            )
+            db_session.add(new_criterion)
+            db_session.commit()
 
     @pytest.fixture
     def base_criterion(self):
@@ -239,13 +281,16 @@ class TestCriterion:
         )
 
     def insert_criterion(self, db_session, criterion, observation_window: TimeRange):
+        criterion.id = self.criterion_id
+        self.register_criterion(criterion, db_session)
+
         query = criterion.create_query()
 
         query = query.add_columns(
             bindparam("recommendation_run_id", self.recommendation_run_id).label(
                 "recommendation_run_id"
             ),
-            bindparam("plan_id", None).label("plan_id"),
+            bindparam("pi_pair_id", self.pi_pair_id).label("pi_pair_id"),
             bindparam("criterion_id", self.criterion_id).label("criterion_id"),
             bindparam("cohort_category", CohortCategory.POPULATION).label(
                 "cohort_category"
@@ -255,12 +300,13 @@ class TestCriterion:
         t_result = RecommendationResultInterval.__table__
         query_insert = t_result.insert().from_select(query.selected_columns, query)
         db_session.execute(query_insert, params=observation_window.dict())
+        db_session.commit()
 
     def insert_criterion_combination(
         self, db_session, combination, base_criterion, observation_window: TimeRange
     ):
         execution_map = ExecutionMap(
-            combination, base_criterion, params={"plan_id": self.plan_id}
+            combination, base_criterion, params={"pi_pair_id": self.pi_pair_id}
         )
         params = observation_window.dict() | {"run_id": self.recommendation_run_id}
 
@@ -274,7 +320,7 @@ class TestCriterion:
     def fetch_filtered_results(
         self,
         db_session,
-        plan_id: int | None,
+        pi_pair_id: int | None,
         criterion_id: int | None,
         category: CohortCategory | None,
     ):
@@ -292,10 +338,10 @@ class TestCriterion:
         else:
             stmt = stmt.where(view.c.criterion_id.is_(None))
 
-        if plan_id is not None:
-            stmt = stmt.where(view.c.plan_id == plan_id)
+        if pi_pair_id is not None:
+            stmt = stmt.where(view.c.pi_pair_id == pi_pair_id)
         else:
-            stmt = stmt.where(view.c.plan_id.is_(None))
+            stmt = stmt.where(view.c.pi_pair_id.is_(None))
 
         if category is not None:
             stmt = stmt.where(view.c.cohort_category == category)
@@ -330,7 +376,7 @@ class TestCriterion:
             self.insert_criterion(db_session, criterion, observation_window)
             df = self.fetch_filtered_results(
                 db_session,
-                plan_id=self.plan_id,
+                pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,
                 category=criterion.category,
             )

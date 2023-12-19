@@ -105,15 +105,15 @@ class Recommendation(Serializable):
         as a series of tasks.
         """
 
-        recommendation_plans = []
+        pi_pairs = []
         # todo: missing individual population (of full recommendation)
 
         for pi_pair in self._pi_pairs:
             emap = pi_pair.execution_map()
             p, i = emap[CohortCategory.POPULATION], emap[CohortCategory.INTERVENTION]
-            recommendation_plans.append((~p) | (p & i))
+            pi_pairs.append((~p) | (p & i))
 
-        return ExecutionMap.union(*recommendation_plans)
+        return ExecutionMap.union(*pi_pairs)
 
     def criteria(self) -> CriterionCombination:
         """
@@ -186,7 +186,7 @@ class Recommendation(Serializable):
                 .distinct(table.c.person_id, table.c.valid_date)
                 .where(
                     and_(
-                        table.c.plan_id == pi_pair.id,
+                        table.c.pi_pair_id == pi_pair.id,
                         table.c.cohort_category == category.name,
                         table.c.criterion_id.is_(None),
                         table.c.recommendation_run_id == bindparam("run_id"),
@@ -206,7 +206,7 @@ class Recommendation(Serializable):
             query = union(*statements)
             query = add_result_insert(
                 query,
-                plan_id=None,
+                pi_pair_id=None,
                 criterion_id=None,
                 cohort_category=category,
             )
@@ -231,7 +231,7 @@ class Recommendation(Serializable):
         return select(table.c.person_id).where(
             and_(
                 table.c.recommendation_run_id == bindparam("run_id"),
-                table.c.plan_id.is_(None),
+                table.c.pi_pair_id.is_(None),
                 table.c.criterion_id.is_(None),
                 table.c.cohort_category == category.name,
             )
