@@ -191,7 +191,7 @@ class AbstractCriterion(Serializable, ABC):
 
 
 class Criterion(AbstractCriterion):
-    """A criterion in a cohort definition."""
+    """A criterion in a recommendation."""
 
     _OMOP_TABLE: Type[Base]
     _OMOP_COLUMN_PREFIX: str
@@ -212,7 +212,7 @@ class Criterion(AbstractCriterion):
     _base_table: Table
     """
     The table that is used to pre-filter person_ids (usually a table that includes all person_ids that were active
-    during the cohort definition period).
+    during the recommendation period).
     """
 
     DOMAINS: dict[str, Domain] = {

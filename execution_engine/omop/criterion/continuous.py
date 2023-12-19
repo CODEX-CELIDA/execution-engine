@@ -6,7 +6,7 @@ from execution_engine.omop.criterion.concept import ConceptCriterion
 
 
 class ContinuousCriterion(ConceptCriterion):
-    """A continuous criterion (having a start and end datetime) in a cohort definition."""
+    """A continuous criterion (having a start and end datetime) in a recommendation."""
 
     def _create_query(self) -> Select:
         """

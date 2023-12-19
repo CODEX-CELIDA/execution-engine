@@ -27,11 +27,11 @@ IntervalTypeEnum = Enum(IntervalType, name="interval_type", schema=SCHEMA_NAME)
 CohortCategoryEnum = Enum(CohortCategory, name="cohort_category", schema=SCHEMA_NAME)
 
 
-class CohortDefinition(Base):  # noqa: D101
-    __tablename__ = "cohort_definition"
+class Recommendation(Base):  # noqa: D101
+    __tablename__ = "recommendation"
     __table_args__ = {"schema": SCHEMA_NAME}
 
-    cohort_definition_id: Mapped[int] = mapped_column(
+    recommendation_id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
         index=True,
@@ -42,10 +42,10 @@ class CohortDefinition(Base):  # noqa: D101
         String(255), nullable=False, index=True
     )
     recommendation_version: Mapped[str]
-    cohort_definition_hash: Mapped[str] = mapped_column(
+    recommendation_hash: Mapped[str] = mapped_column(
         String(64), index=True, unique=True
     )
-    cohort_definition_json = mapped_column(LargeBinary)
+    recommendation_json = mapped_column(LargeBinary)
     create_datetime: Mapped[datetime]
 
 
@@ -58,8 +58,8 @@ class RecommendationPlan(Base):  # noqa: D101
         primary_key=True,
         index=True,
     )
-    cohort_definition_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.cohort_definition.cohort_definition_id"),
+    recommendation_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.recommendation.recommendation_id"),
         index=True,
     )
     recommendation_plan_url: Mapped[str]
@@ -78,7 +78,7 @@ class RecommendationCriterion(Base):  # noqa: D101
         primary_key=True,
         index=True,
     )
-    # todo: add link to cohort definition or 1:n to recommendation plan?
+    # todo: add link to recommendation or 1:n to population/intervention pair?
     criterion_name: Mapped[str]
     criterion_description: Mapped[str]
     criterion_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
@@ -93,16 +93,16 @@ class RecommendationRun(Base):  # noqa: D101
         primary_key=True,
         index=True,
     )
-    cohort_definition_id = mapped_column(
-        ForeignKey("celida.cohort_definition.cohort_definition_id"),
+    recommendation_id = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.recommendation.recommendation_id"),
         index=True,
     )
     observation_start_datetime: Mapped[datetime]
     observation_end_datetime: Mapped[datetime]
     run_datetime: Mapped[datetime]
 
-    cohort_definition: Mapped["CohortDefinition"] = relationship(
-        primaryjoin="RecommendationRun.cohort_definition_id == CohortDefinition.cohort_definition_id",
+    recommendation: Mapped["Recommendation"] = relationship(
+        primaryjoin="RecommendationRun.recommendation_id == Recommendation.recommendation_id",
     )
 
 
@@ -130,14 +130,16 @@ class RecommendationResult(Base):  # noqa: D101
         Integer, primary_key=True, index=True, autoincrement=True
     )
     recommendation_run_id = mapped_column(
-        ForeignKey("celida.recommendation_run.recommendation_run_id"),
+        ForeignKey(f"{SCHEMA_NAME}.recommendation_run.recommendation_run_id"),
         index=True,
     )
     plan_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.recommendation_plan.plan_id"), index=True, nullable=True
+        ForeignKey(f"{SCHEMA_NAME}.recommendation_plan.plan_id"),
+        index=True,
+        nullable=True,
     )
     criterion_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.recommendation_criterion.criterion_id"),
+        ForeignKey(f"{SCHEMA_NAME}.recommendation_criterion.criterion_id"),
         index=True,
         nullable=True,
     )
@@ -192,14 +194,16 @@ class RecommendationResultInterval(Base):  # noqa: D101
         Integer, primary_key=True, index=True, autoincrement=True
     )
     recommendation_run_id = mapped_column(
-        ForeignKey("celida.recommendation_run.recommendation_run_id"),
+        ForeignKey(f"{SCHEMA_NAME}.recommendation_run.recommendation_run_id"),
         index=True,
     )
     plan_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.recommendation_plan.plan_id"), index=True, nullable=True
+        ForeignKey(f"{SCHEMA_NAME}.recommendation_plan.plan_id"),
+        index=True,
+        nullable=True,
     )
     criterion_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.recommendation_criterion.criterion_id"),
+        ForeignKey(f"{SCHEMA_NAME}.recommendation_criterion.criterion_id"),
         index=True,
         nullable=True,
     )
@@ -257,8 +261,8 @@ class Comment(Base):  # noqa: D101
         index=True,
     )
 
-    cohort_definition_id: Mapped[int] = mapped_column(
-        ForeignKey("celida.cohort_definition.cohort_definition_id"),
+    recommendation_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.recommendation.recommendation_id"),
         index=True,
         nullable=True,
     )

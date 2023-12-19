@@ -45,7 +45,7 @@ class AppState:
                 "name": rec.name,
                 "title": rec.title,
                 "description": rec.description,
-                "cohort_definition": rec,
+                "recommendation": rec,
             }
 
         cls._initialized = True

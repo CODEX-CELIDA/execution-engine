@@ -8,7 +8,7 @@ class CommentBase(BaseModel):
     CommentBase is used to define the data in the database
     """
 
-    cohort_definition_id: int | None = Field(None, index=True)
+    recommendation_id: int | None = Field(None, index=True)
     person_id: int = Field(..., index=True)
     text: str
     datetime: datetime

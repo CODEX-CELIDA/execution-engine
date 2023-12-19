@@ -7,7 +7,7 @@ from execution_engine.omop.criterion.continuous import ContinuousCriterion
 
 class VisitDetail(ContinuousCriterion):
     """
-    A visit detail criterion  in a cohort definition.
+    A visit detail criterion in a recommendation.
 
     This criterion is used to filter the visit_detail table.
     visit details may be transfers between units of a hospital or a change of bed. We d

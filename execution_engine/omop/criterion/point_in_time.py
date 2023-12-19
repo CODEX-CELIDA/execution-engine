@@ -12,7 +12,7 @@ from execution_engine.util import TimeRange
 
 
 class PointInTimeCriterion(ConceptCriterion):
-    """A point-in-time criterion in a cohort definition."""
+    """A point-in-time criterion in a recommendation."""
 
     def _create_query(self) -> Select:
         """

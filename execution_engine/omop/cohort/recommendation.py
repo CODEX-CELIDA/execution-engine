@@ -19,46 +19,48 @@ from sqlalchemy.sql.ddl import DropTable
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
-from execution_engine.omop.cohort import add_result_insert
-from execution_engine.omop.cohort.cohort_definition import CohortDefinition
+from execution_engine.omop import cohort
+
+# )
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.db.celida.tables import RecommendationResult
 from execution_engine.omop.serializable import Serializable
+from execution_engine.util.db import add_result_insert
 
 
-class CohortDefinitionCombination(Serializable):
+class Recommendation(Serializable):
     """
-    A cohort definition combination in OMOP as a collection of separate cohort definitions.
+    A recommendation OMOP as a collection of separate population/intervention pairs.
 
-    A cohort definition represents an individual recommendation plan (i.e. one part of a single recommendation),
-    whereas a cohort definition combination represents the whole recommendation, consisting of one or multiple
-    recommendation plans = cohort definitions.
+    A population/intervention pair represents an individual recommendation plan (i.e. one part of a single
+    recommendation), whereas a Recommendation represents the whole recommendation, consisting of one or multiple
+    recommendation plans = population/intervention pairs.
     """
 
     base_table: Table | None = None
 
     def __init__(
         self,
-        cohort_definitions: list[CohortDefinition],
+        pi_pairs: list[cohort.PopulationInterventionPair],
         base_criterion: Criterion,
         name: str,
         title: str,
         url: str,
         version: str,
         description: str,
-        cohort_definition_id: int | None = None,
+        recommendation_id: int | None = None,
     ) -> None:
-        self._cohort_definitions: list[CohortDefinition] = cohort_definitions
+        self._pi_pairs: list[cohort.PopulationInterventionPair] = pi_pairs
         self._base_criterion: Criterion = base_criterion
         self._name: str = name
         self._title: str = title
         self._url: str = url
         self._version: str = version
         self._description: str = description
-        # The id is used in the cohort_definition_id field in the result tables.
-        self._id = cohort_definition_id
+        # The id is used in the recommendation_id field in the result tables.
+        self._id = recommendation_id
 
     @property
     def name(self) -> str:
@@ -77,14 +79,14 @@ class CohortDefinitionCombination(Serializable):
     @property
     def url(self) -> str:
         """
-        Get the url of the cohort definition combination.
+        Get the url of the recommendation.
         """
         return self._url
 
     @property
     def version(self) -> str:
         """
-        Get the version of the cohort definition combination.
+        Get the version of the recommendation.
         """
         return self._version
 
@@ -97,17 +99,17 @@ class CohortDefinitionCombination(Serializable):
 
     def execution_map(self) -> ExecutionMap:
         """
-        Get the execution map of the cohort definition combination.
+        Get the execution map of the recommendation.
 
-        The execution map allows to execute the cohort definition combination
+        The execution map allows to execute the recommendation
         as a series of tasks.
         """
 
         recommendation_plans = []
         # todo: missing individual population (of full recommendation)
 
-        for cd in self._cohort_definitions:
-            emap = cd.execution_map()
+        for pi_pair in self._pi_pairs:
+            emap = pi_pair.execution_map()
             p, i = emap[CohortCategory.POPULATION], emap[CohortCategory.INTERVENTION]
             recommendation_plans.append((~p) | (p & i))
 
@@ -115,7 +117,7 @@ class CohortDefinitionCombination(Serializable):
 
     def criteria(self) -> CriterionCombination:
         """
-        Get the criteria of the cohort definition combination.
+        Get the criteria of the recommendation.
         """
         criteria = CriterionCombination(
             name="root",
@@ -124,8 +126,8 @@ class CohortDefinitionCombination(Serializable):
             operator=CriterionCombination.Operator("OR"),
         )
 
-        for cd in self._cohort_definitions:
-            criteria.add(cd.criteria())
+        for pi_pair in self._pi_pairs:
+            criteria.add(pi_pair.criteria())
 
         return criteria
 
@@ -133,25 +135,27 @@ class CohortDefinitionCombination(Serializable):
         """
         Retrieve all criteria in a flat list
         """
-        return list(itertools.chain(*[cd.flatten() for cd in self._cohort_definitions]))
+        return list(itertools.chain(*[pi_pair.flatten() for pi_pair in self._pi_pairs]))
 
-    def cohort_definitions(self) -> Iterator[CohortDefinition]:
+    def population_intervention_pairs(
+        self,
+    ) -> Iterator[cohort.PopulationInterventionPair]:
         """
-        Iterate over the cohort definitions.
+        Iterate over the population/intervention pairs.
         """
-        yield from self._cohort_definitions
+        yield from self._pi_pairs
 
     def __len__(self) -> int:
         """
-        Get the number of cohort definitions.
+        Get the number of population/intervention pairs.
         """
-        return len(self._cohort_definitions)
+        return len(self._pi_pairs)
 
-    def __getitem__(self, index: int) -> CohortDefinition:
+    def __getitem__(self, index: int) -> cohort.PopulationInterventionPair:
         """
-        Get the cohort definition at the given index.
+        Get the population/intervention pair at the given index.
         """
-        return self._cohort_definitions[index]
+        return self._pi_pairs[index]
 
     @staticmethod
     def to_table(name: str) -> Table:
@@ -169,20 +173,20 @@ class CohortDefinitionCombination(Serializable):
 
     def combine(self) -> Iterator[Insert]:
         """
-        Combine the results of the individual cohort definitions.
+        Combine the results of the individual population/intervention pairs.
         """
 
         table = RecommendationResult.__table__
 
         def _get_query(
-            cohort_definition: CohortDefinition, category: CohortCategory
+            pi_pair: cohort.PopulationInterventionPair, category: CohortCategory
         ) -> Select:
             return (
                 select(table.c.person_id, table.c.valid_date)
                 .distinct(table.c.person_id, table.c.valid_date)
                 .where(
                     and_(
-                        table.c.plan_id == cohort_definition.id,
+                        table.c.plan_id == pi_pair.id,
                         table.c.cohort_category == category.name,
                         table.c.criterion_id.is_(None),
                         table.c.recommendation_run_id == bindparam("run_id"),
@@ -191,7 +195,7 @@ class CohortDefinitionCombination(Serializable):
             )
 
         def get_statements(cohort_category: CohortCategory) -> list[Select]:
-            return [_get_query(cd, cohort_category) for cd in self._cohort_definitions]
+            return [_get_query(pi_pair, cohort_category) for pi_pair in self._pi_pairs]
 
         for category in [
             CohortCategory.POPULATION,
@@ -211,8 +215,9 @@ class CohortDefinitionCombination(Serializable):
 
     def cleanup(self) -> Iterator[DropTable]:
         """
-        Cleanup the cohort definition combination by removing the temporary base table.
+        Cleanup the recommendation by removing the temporary base table.
         """
+        # todo: do we still need this?
         yield DropTable(self.base_table)
 
     @staticmethod
@@ -237,8 +242,8 @@ class CohortDefinitionCombination(Serializable):
         Retrieve a criterion object by its unique name.
         """
 
-        for cd in self._cohort_definitions:
-            criterion = cd.get_criterion(criterion_unique_name)
+        for pi_pair in self._pi_pairs:
+            criterion = pi_pair.get_criterion(criterion_unique_name)
             if criterion is not None:
                 return criterion
 
@@ -250,7 +255,7 @@ class CohortDefinitionCombination(Serializable):
         """
         return {
             "id": self._id,
-            "cohort_definitions": [c.dict() for c in self._cohort_definitions],
+            "population_intervention_pairs": [c.dict() for c in self._pi_pairs],
             "base_criterion": self._base_criterion.dict(),
             "recommendation_name": self._name,
             "recommendation_title": self._title,
@@ -270,8 +275,9 @@ class CohortDefinitionCombination(Serializable):
         ), "Base criterion must be a Criterion"
 
         return cls(
-            cohort_definitions=[
-                CohortDefinition.from_dict(c) for c in data["cohort_definitions"]
+            pi_pairs=[
+                cohort.PopulationInterventionPair.from_dict(c)
+                for c in data["population_intervention_pairs"]
             ],
             base_criterion=base_criterion,
             name=data["recommendation_name"],
@@ -279,5 +285,5 @@ class CohortDefinitionCombination(Serializable):
             url=data["recommendation_url"],
             version=data["recommendation_version"],
             description=data["recommendation_description"],
-            cohort_definition_id=data["id"] if "id" in data else None,
+            recommendation_id=data["id"] if "id" in data else None,
         )

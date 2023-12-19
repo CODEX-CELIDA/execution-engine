@@ -1,9 +1,7 @@
 import sys
 
 from app.dependencies import get_recommendations
-from execution_engine.omop.cohort.cohort_definition_combination import (
-    CohortDefinitionCombination,
-)
+from execution_engine.omop.cohort import Recommendation
 
 sys.path.append("..")
 from fastapi import APIRouter, Depends, HTTPException
@@ -41,13 +39,13 @@ async def recommendation_criteria(
     if recommendation_url not in recommendations:
         raise HTTPException(status_code=404, detail="recommendation not found")
 
-    cdd: CohortDefinitionCombination = recommendations[recommendation_url][
-        "cohort_definition"
+    recommendation: Recommendation = recommendations[recommendation_url][
+        "recommendation"
     ]
 
     data = []
 
-    for c in cdd.flatten():
+    for c in recommendation.flatten():
         data.append(
             {
                 "unique_name": c.unique_name(),

@@ -17,22 +17,22 @@ from sqlalchemy.sql.selectable import CTE
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
-from execution_engine.omop.cohort import add_result_insert
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.serializable import Serializable
+from execution_engine.util.db import add_result_insert
 from execution_engine.util.sql import SelectInto
 
 
-class CohortDefinition(Serializable):
+class PopulationInterventionPair(Serializable):
     """
-    A cohort definition in OMOP as a collection of separate criteria.
+    A population/intervention pair in OMOP as a collection of separate criteria.
 
-    A cohort definition represents an individual recommendation plan (i.e. one part of a single recommendation),
-    whereas a cohort definition combination represents the whole recommendation, consisting of one or multiple
-    recommendation plans = cohort definitions.
-    In turn, a cohort definition is a collection of criteria, which can be either a single criterion or a combination
+    A population/intervention pair represents an individual recommendation plan (i.e. one part of a single recommendation),
+    whereas a population/intervention pair combination represents the whole recommendation, consisting of one or multiple
+    recommendation plans = population/intervention pairs.
+    In turn, a population/intervention pair is a collection of criteria, which can be either a single criterion or a combination
     of criteria (i.e. a criterion combination).
     These single criteria can be either a single criterion (e.g. "has condition X") or a combination of criteria
     (e.g. "has condition X and lab value Y >= Z").
@@ -64,7 +64,7 @@ class CohortDefinition(Serializable):
         self, category: CohortCategory, criteria: CriterionCombination | None
     ) -> None:
         """
-        Set the criteria (either population or intervention) of the cohort definition.
+        Set the criteria (either population or intervention) of the population/intervention pair.
 
         :param category: The category of the criteria.
         :param criteria: The criteria.
@@ -94,20 +94,20 @@ class CohortDefinition(Serializable):
     @property
     def name(self) -> str:
         """
-        Get the name of the cohort definition.
+        Get the name of the population/intervention pair.
         """
         return self._name
 
     @property
     def url(self) -> str:
         """
-        Get the url of the cohort definition combination.
+        Get the url of the population/intervention pair.
         """
         return self._url
 
     def execution_map(self) -> dict[CohortCategory, ExecutionMap]:
         """
-        Get the execution map for the cohort definition.
+        Get the execution map for the population/intervention pair.
         """
         # todo can we find a better place to insert this id?
         #     it seems like a mixture of two paradigms, initially
@@ -127,13 +127,13 @@ class CohortDefinition(Serializable):
 
     def add_population(self, criterion: Criterion | CriterionCombination) -> None:
         """
-        Add a criterion to the population of the cohort definition.
+        Add a criterion to the population of the population/intervention pair.
         """
         self._population.add(criterion)
 
     def add_intervention(self, criterion: Criterion | CriterionCombination) -> None:
         """
-        Add a criterion to the intervention of the cohort definition.
+        Add a criterion to the intervention of the population/intervention pair.
         """
         self._intervention.add(criterion)
 
@@ -158,7 +158,7 @@ class CohortDefinition(Serializable):
 
     def criteria(self) -> CriterionCombination:
         """
-        Get the criteria of the cohort definition.
+        Get the criteria of the population/intervention pair.
         """
         """return self._criteria"""
         raise NotImplementedError()
@@ -252,7 +252,7 @@ class CohortDefinition(Serializable):
 
     def process(self, base_table: Table) -> None:
         """
-        Process the cohort definition into SQL statements.
+        Process the population/intervention pair into SQL statements.
         """
         raise NotImplementedError()
         # self._execution_map = self.execution_map()
@@ -296,7 +296,7 @@ class CohortDefinition(Serializable):
             if element.dict() == criterion.dict():
                 return comb.unique_name()
 
-        raise ValueError(f"Criterion {criterion.name} not found in cohort definition")"""
+        raise ValueError(f"Criterion {criterion.name} not found in population/intervention pair")"""
         raise NotImplementedError()
 
     def combine(self) -> Query:
@@ -324,7 +324,7 @@ class CohortDefinition(Serializable):
 
     def dict(self) -> dict[str, Any]:
         """
-        Get a dictionary representation of the cohort definition.
+        Get a dictionary representation of the population/intervention pair.
         """
         return {
             "name": self.name,
@@ -335,9 +335,9 @@ class CohortDefinition(Serializable):
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CohortDefinition":
+    def from_dict(cls, data: Dict[str, Any]) -> "PopulationInterventionPair":
         """
-        Create a cohort definition from a dictionary.
+        Create a population/intervention pair from a dictionary.
         """
 
         base_criterion = criterion_factory(**data["base_criterion"])

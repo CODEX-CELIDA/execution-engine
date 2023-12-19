@@ -15,7 +15,7 @@ __all__ = ["ProcedureOccurrence"]
 
 
 class ProcedureOccurrence(ContinuousCriterion):
-    """A procedure occurrence criterion in a cohort definition."""
+    """A procedure occurrence criterion in a recommendation."""
 
     def __init__(
         self,

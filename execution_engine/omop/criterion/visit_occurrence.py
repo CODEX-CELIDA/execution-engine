@@ -12,7 +12,7 @@ from execution_engine.omop.criterion.continuous import ContinuousCriterion
 
 
 class VisitOccurrence(ContinuousCriterion):
-    """A visit criterion in a cohort definition."""
+    """A visit criterion in a Recommendation."""
 
 
 class ActivePatients(VisitOccurrence):

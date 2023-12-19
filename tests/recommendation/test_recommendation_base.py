@@ -593,10 +593,10 @@ class TestRecommendationBase(ABC):
         e = ExecutionEngine(verbose=False)
 
         print(recommendation_url)
-        cdd = e.load_recommendation(recommendation_url, force_reload=False)
+        recommendation = e.load_recommendation(recommendation_url, force_reload=False)
 
         e.execute(
-            cdd,
+            recommendation,
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
         )

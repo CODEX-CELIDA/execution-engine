@@ -1,8 +1,6 @@
 from typing import TypedDict
 
-from execution_engine.omop.cohort.cohort_definition_combination import (
-    CohortDefinitionCombination,
-)
+from execution_engine.omop.cohort import Recommendation as RecommendationTable
 
 
 class Recommendation(TypedDict):
@@ -13,4 +11,4 @@ class Recommendation(TypedDict):
     name: str
     title: str
     description: str
-    cohort_definition: CohortDefinitionCombination
+    recommendation: RecommendationTable

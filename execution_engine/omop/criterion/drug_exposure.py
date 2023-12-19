@@ -19,7 +19,7 @@ __all__ = ["DrugExposure"]
 
 
 class DrugExposure(Criterion):
-    """A drug exposure criterion in a cohort definition."""
+    """A drug exposure criterion in a recommendation."""
 
     def __init__(
         self,

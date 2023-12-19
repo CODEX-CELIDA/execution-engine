@@ -10,8 +10,8 @@ from sqlalchemy import Column, Date, Integer, MetaData, Table, bindparam, select
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
-from execution_engine.omop.cohort import add_result_insert
 from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.celida.tables import (
     RecommendationResultInterval,
@@ -29,6 +29,7 @@ from execution_engine.task import (  # noqa: F401     -- required for the mock.p
     task,
 )
 from execution_engine.util import TimeRange, ValueConcept, ValueNumber
+from execution_engine.util.db import add_result_insert
 from tests._testdata import concepts
 from tests.functions import create_visit
 
@@ -88,10 +89,11 @@ class TestCriterion:
             observation_start_datetime=observation_window.start,
             observation_end_datetime=observation_window.end,
             run_datetime=datetime.datetime.now(),
-            cohort_definition_id=1,
+            recommendation_id=1,
         )
 
         db_session.execute(insert_query)
+        db_session.commit()
 
         yield
 
@@ -166,20 +168,6 @@ class TestCriterion:
             text("SET session_replication_role = 'replica';")
         )  # Disable foreign key checks
 
-        # register the recommendation run # todo: move to own function
-        t = RecommendationRun.__table__
-        db_session.execute(
-            t.insert(),
-            [
-                {
-                    "recommendation_run_id": cls.recommendation_run_id,
-                    "observation_start_datetime": observation_window.start,
-                    "observation_end_datetime": observation_window.end,
-                    "run_datetime": datetime.datetime.now(),
-                    "cohort_definition_id": 1,
-                }
-            ],
-        )
         query = base_criterion.create_query()
 
         # add base table patients to results table, so they can be used when combining statements (execution_map)
@@ -202,7 +190,6 @@ class TestCriterion:
         finally:
             db_session.execute(text("SET session_replication_role = 'origin';"))
             db_session.query(RecommendationResultInterval).delete()
-            db_session.query(RecommendationRun).delete()
             db_session.commit()
 
     @pytest.fixture
@@ -217,6 +204,14 @@ class TestCriterion:
             base_criterion, db_session, observation_window
         ):
             yield
+
+    def register_criterion(self, criterion: Criterion, db_session):
+        """
+        Register a criterion in the database.
+        """
+        raise NotImplementedError(
+            "Subclasses should override this method to provide their own fixture"
+        )
 
     @pytest.fixture
     def base_criterion(self):

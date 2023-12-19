@@ -9,9 +9,7 @@ from execution_engine.execution_engine import ExecutionEngine
 sys.path.append("..")
 from fastapi import APIRouter, Depends, HTTPException
 
-from execution_engine.omop.cohort.cohort_definition_combination import (
-    CohortDefinitionCombination,
-)
+from execution_engine.omop.cohort import Recommendation
 
 router = APIRouter()
 
@@ -30,10 +28,10 @@ async def patient_list(
     if recommendation_url not in recommendations:
         raise HTTPException(status_code=404, detail="recommendation not found")
 
-    cdd = recommendations[recommendation_url]["cohort_definition"]
+    recommendation = recommendations[recommendation_url]["recommendation"]
 
     run_id = e.execute(
-        cdd,
+        recommendation,
         start_datetime=pendulum.parse(start_datetime),
         end_datetime=pendulum.parse(end_datetime),
     )
@@ -65,15 +63,15 @@ async def patient_data(
     if recommendation_url not in recommendations:
         raise HTTPException(status_code=404, detail="recommendation not found")
 
-    cdd: CohortDefinitionCombination = recommendations[recommendation_url][
-        "cohort_definition"
+    recommendation: Recommendation = recommendations[recommendation_url][
+        "recommendation"
     ]
 
     try:
         data = e.fetch_patient_data(
             person_id=person_id,
             criterion_name=criterion_name,
-            cdd=cdd,
+            recommendation=recommendation,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
         )
