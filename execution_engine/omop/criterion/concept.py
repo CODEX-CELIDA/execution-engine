@@ -100,7 +100,13 @@ class ConceptCriterion(Criterion):
         """
         Get a human-readable description of the criterion.
         """
-        return f"{self.__class__.__name__}['{self._name}'](concept={self._concept.concept_name}, value={str(self._value)})"
+        desc = f"{self.__class__.__name__}['{self._name}'](concept={self._concept.concept_name}"
+
+        if self._value is not None:
+            desc += f", value={str(self._value)}"
+        desc += ")"
+
+        return desc
 
     def dict(self) -> dict[str, Any]:
         """
