@@ -7,8 +7,8 @@ from fastapi.testclient import TestClient
 from app.app_state import AppState
 from app.main import app
 from app.schemas.comment import CommentCreate
-from execution_engine.omop.db.cdm import Person
 from execution_engine.omop.db.celida.tables import Comment
+from execution_engine.omop.db.omop.tables import Person
 
 
 @pytest.mark.recommendation
