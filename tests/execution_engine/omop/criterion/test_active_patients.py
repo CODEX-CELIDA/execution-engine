@@ -48,12 +48,15 @@ class TestActivePatientsDuringPeriod(TestCriterion):
                 observation_window,
             ):
                 stmt = (
-                    select(self.result_view.c.person_id, func.count("*").label("count"))
+                    select(
+                        self.result_view_partial_day.c.person_id,
+                        func.count("*").label("count"),
+                    )
                     .where(
-                        self.result_view.c.recommendation_run_id
+                        self.result_view_partial_day.c.recommendation_run_id
                         == self.recommendation_run_id
                     )
-                    .group_by(self.result_view.c.person_id)
+                    .group_by(self.result_view_partial_day.c.person_id)
                 )
                 result = db_session.execute(stmt)
                 count = [dict(row._mapping) for row in result]
@@ -120,21 +123,36 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         ]
         assert count_day_entries(contained_overlap) == 9
 
-        before_observation_window = [
+        # in the next two cases, the visit either ends on the day the observation window starts or the day before.
+        # in the first case, one day is counted, because partial_day_coverage is calculated per day between
+        # observation_start_datetime and observation_end_datetime and no intersection with the observation_datetime is
+        # performed on the single criterion level. likewise, for the latter case, no row is returned.
+        # likewise for the following two test cases after the observation_window_end
+        # calculated
+
+        before_observation_window_same_day = [
             ("2023-02-01 00:00:00", "2023-03-01 02:00:00"),
         ]
-        assert (
-            count_day_entries(before_observation_window) == 1
-        )  # because of the visit on 2023-03-01 -- interval intersection is not performed at single criterion level
-        # todo: should this really be 1? or should it be 0?
+        assert count_day_entries(before_observation_window_same_day) == 1
 
-        after_observation_window = [
-            ("2023-03-31 23:59:00", "2023-04-01 02:00:00"),
+        before_observation_window_previous_day = [
+            ("2023-02-01 00:00:00", "2023-02-27 02:00:00"),
         ]
-        assert (
-            count_day_entries(after_observation_window) == 1
-        )  # because of the visit on 2023-03-31 -- interval intersection is not performed at single criterion level
-        # todo: should this really be 1? or should it be 0?
+        assert count_day_entries(before_observation_window_previous_day) == 0
+
+        # note that proper time zone is required, otherwise (if given in utc), it will be the next day (see next example)
+        after_observation_window_same_day = [
+            ("2023-03-31 23:59:00+02:00", "2023-04-01 02:00:00"),
+        ]
+        assert count_day_entries(after_observation_window_same_day) == 1
+
+        after_observation_window_next_day = [
+            (
+                "2023-03-31 23:59:00+00:00",  # note: this is 2023-04-01 01:59:00+02:00 i.e. next day in Europe/Berlin
+                "2023-04-01 02:00:00",
+            ),
+        ]
+        assert count_day_entries(after_observation_window_next_day) == 0
 
         during_begin_observation_window = [
             ("2023-02-01 00:00:00", "2023-03-04 02:00:00"),
@@ -142,7 +160,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         assert count_day_entries(during_begin_observation_window) == 4
 
         during_end_observation_window = [
-            ("2023-03-29 23:59:00", "2023-04-01 02:00:00"),
+            ("2023-03-29 23:59:00+02:00", "2023-04-01 02:00:00"),
         ]
         assert count_day_entries(during_end_observation_window) == 3
 
@@ -212,9 +230,11 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             observation_window,
         ):
             stmt = select(
-                self.result_view.c.person_id, self.result_view.c.valid_date
+                self.result_view_partial_day.c.person_id,
+                self.result_view_partial_day.c.valid_date,
             ).where(
-                self.result_view.c.recommendation_run_id == self.recommendation_run_id
+                self.result_view_partial_day.c.recommendation_run_id
+                == self.recommendation_run_id
             )
             df = pd.read_sql(stmt, db_session.connection())
             df["valid_date"] = pd.to_datetime(df["valid_date"])
