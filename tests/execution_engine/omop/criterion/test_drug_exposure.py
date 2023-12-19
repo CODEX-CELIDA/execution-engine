@@ -18,7 +18,6 @@ from tests.functions import create_drug_exposure
 
 
 class TestDrugExposure(TestCriterion):
-
     related_concepts: dict[int, list[str]] = {}
 
     @pytest.fixture(scope="class", autouse=True)
@@ -71,14 +70,13 @@ class TestDrugExposure(TestCriterion):
                 route=route,
             )
 
-            query = criterion.sql_generate(base_table=base_table)
-
-            df = pd.read_sql(
-                query,
-                db_session.connection(),
-                params=observation_window.dict(),
+            self.insert_criterion(db_session, criterion, observation_window)
+            df = self.fetch_filtered_results(
+                db_session,
+                pi_pair_id=self.pi_pair_id,
+                criterion_id=self.criterion_id,
+                category=criterion.category,
             )
-            df["valid_date"] = pd.to_datetime(df["valid_date"])
 
             return df
 

@@ -309,39 +309,39 @@ class OMOPSQLClient:
             AND NOW() BETWEEN ci.valid_start_date AND ci.valid_end_date
         """
 
-        c = omop.Concept.label("c")
-        ci = omop.Concept.label("ci")
-        ca = omop.t_concept_ancestor.label("ca")
+        c = omop.Concept.__table__.alias("c")
+        ci = omop.Concept.__table__.alias("ci")
+        ca = omop.t_concept_ancestor.alias("ca")
 
         query = (
             select(
-                c.concept_id.label("drug_concept_id"),
-                c.concept_name.label("drug_concept_name"),
-                c.concept_class_id.label("drug_concept_class"),
-                c.concept_code.label("drug_concept_code"),
-                ci.concept_id.label("ingredient_concept_id"),
-                ci.concept_name.label("ingredient_concept_name"),
-                ci.concept_class_id.label("ingredient_concept_class"),
+                c.c.concept_id.label("drug_concept_id"),
+                c.c.concept_name.label("drug_concept_name"),
+                c.c.concept_class_id.label("drug_concept_class"),
+                c.c.concept_code.label("drug_concept_code"),
+                ci.c.concept_id.label("ingredient_concept_id"),
+                ci.c.concept_name.label("ingredient_concept_name"),
+                ci.c.concept_class_id.label("ingredient_concept_class"),
             )
             .join(
                 ca,
-                c.concept_id == ca.ancestor_concept_id,
+                c.c.concept_id == ca.c.ancestor_concept_id,
             )
             .join(
                 ci,
-                ci.concept_id == ca.descendant_concept_id,
+                ci.c.concept_id == ca.c.descendant_concept_id,
             )
             .where(
                 and_(
-                    c.concept_code == bindparam("code"),
-                    c.domain_id == "Drug",
-                    ci.concept_class_id == "Ingredient",
-                    ci.standard_concept == "S",
-                    c.vocabulary_id == bindparam("vocabulary_id"),
-                    c.valid_start_date <= func.now(),
-                    c.valid_end_date >= func.now(),
-                    ci.valid_start_date <= func.now(),
-                    ci.valid_end_date >= func.now(),
+                    c.c.concept_code == bindparam("code"),
+                    c.c.domain_id == "Drug",
+                    ci.c.concept_class_id == "Ingredient",
+                    ci.c.standard_concept == "S",
+                    c.c.vocabulary_id == bindparam("vocabulary_id"),
+                    c.c.valid_start_date <= func.now(),
+                    c.c.valid_end_date >= func.now(),
+                    ci.c.valid_start_date <= func.now(),
+                    ci.c.valid_end_date >= func.now(),
                 )
             )
         )
@@ -385,40 +385,40 @@ class OMOPSQLClient:
             AND NOW() BETWEEN ci.valid_start_date AND ci.valid_end_date
         """
 
-        c = omop.Concept.label("c")
-        cr = omop.t_concept_relationship.label("cr")
-        ci = omop.Concept.label("ci")
+        c = omop.Concept.__table__.alias("c")
+        cr = omop.t_concept_relationship.alias("cr")
+        ci = omop.Concept.__table__.alias("ci")
 
         query = (
             select(
-                c.concept_id.label("drug_concept_id"),
-                c.concept_name.label("drug_concept_name"),
-                c.concept_class_id.label("drug_concept_class"),
-                c.concept_code.label("drug_concept_code"),
-                ci.concept_id.label("ingredient_concept_id"),
-                ci.concept_name.label("ingredient_concept_name"),
-                ci.concept_class_id.label("ingredient_concept_class"),
+                c.c.concept_id.label("drug_concept_id"),
+                c.c.concept_name.label("drug_concept_name"),
+                c.c.concept_class_id.label("drug_concept_class"),
+                c.c.concept_code.label("drug_concept_code"),
+                ci.c.concept_id.label("ingredient_concept_id"),
+                ci.c.concept_name.label("ingredient_concept_name"),
+                ci.c.concept_class_id.label("ingredient_concept_class"),
             )
             .join(
                 cr,
-                cr.concept_id_1 == c.concept_id,
+                cr.c.concept_id_1 == c.c.concept_id,
             )
             .join(
                 ci,
-                ci.concept_id == cr.concept_id_2,
+                ci.c.concept_id == cr.c.concept_id_2,
             )
             .where(
                 and_(
-                    c.concept_code == bindparam("code"),
-                    cr.relationship_id == "Maps to",
-                    ci.concept_class_id == "Ingredient",
-                    c.domain_id == "Drug",
-                    ci.standard_concept == "S",
-                    c.vocabulary_id == bindparam("vocabulary_id"),
-                    c.valid_start_date <= func.now(),
-                    c.valid_end_date >= func.now(),
-                    ci.valid_start_date <= func.now(),
-                    ci.valid_end_date >= func.now(),
+                    c.c.concept_code == bindparam("code"),
+                    cr.c.relationship_id == "Maps to",
+                    ci.c.concept_class_id == "Ingredient",
+                    c.c.domain_id == "Drug",
+                    ci.c.standard_concept == "S",
+                    c.c.vocabulary_id == bindparam("vocabulary_id"),
+                    c.c.valid_start_date <= func.now(),
+                    c.c.valid_end_date >= func.now(),
+                    ci.c.valid_start_date <= func.now(),
+                    ci.c.valid_end_date >= func.now(),
                 )
             )
         )
@@ -498,52 +498,52 @@ class OMOPSQLClient:
                 AND ca.ancestor_concept_id = %(drug_concept_id)s
             """
 
-        a = omop.Concept.label("a")
-        d = omop.Concept.label("d")
-        ca = omop.t_concept_ancestor.label("ca")
+        a = omop.Concept.__table__.alias("a")
+        d = omop.Concept.__table__.alias("d")
+        ca = omop.t_concept_ancestor.alias("ca")
 
         query = (
             select(
-                d.concept_id.label("drug_concept_id"),
-                d.concept_name.label("drug_name"),
-                d.concept_code.label("drug_concept_code"),
-                d.concept_class_id.label("drug_concept_class"),
+                d.c.concept_id.label("drug_concept_id"),
+                d.c.concept_name.label("drug_name"),
+                d.c.concept_code.label("drug_concept_code"),
+                d.c.concept_class_id.label("drug_concept_class"),
             )
             .select_from(ca)
-            .join(a, ca.ancestor_concept_id == a.concept_id)
-            .join(d, ca.descendant_concept_id == d.concept_id)
+            .join(a, ca.c.ancestor_concept_id == a.c.concept_id)
+            .join(d, ca.c.descendant_concept_id == d.c.concept_id)
             .where(
                 and_(
-                    func.now() >= a.valid_start_date,
-                    func.now() <= a.valid_end_date,
-                    func.now() >= d.valid_start_date,
-                    func.now() <= d.valid_end_date,
-                    ca.ancestor_concept_id == bindparam("drug_concept_id"),
+                    func.now() >= a.c.valid_start_date,
+                    func.now() <= a.c.valid_end_date,
+                    func.now() >= d.c.valid_start_date,
+                    func.now() <= d.c.valid_end_date,
+                    ca.c.ancestor_concept_id == bindparam("drug_concept_id"),
                 )
             )
         )
         if with_unit:
-            ds = omop.t_drug_strength.label("ds")
+            ds = omop.t_drug_strength.alias("ds")
             query = query.outerjoin(
                 ds,
                 and_(
-                    d.concept_id == ds.drug_concept_id,
-                    a.concept_id == ds.ingredient_concept_id,
-                    func.now() >= ds.valid_start_date,
-                    func.now() <= ds.valid_end_date,
+                    d.c.concept_id == ds.c.drug_concept_id,
+                    a.c.concept_id == ds.c.ingredient_concept_id,
+                    func.now() >= ds.c.valid_start_date,
+                    func.now() <= ds.c.valid_end_date,
                 ),
             )
 
             query = query.add_columns(
-                a.concept_id.label("ingredient_concept_id"),
-                a.concept_name.label("ingredient_name"),
-                a.concept_code.label("ingredient_concept_code"),
-                ds.amount_value,
-                ds.amount_unit_concept_id,
-                ds.numerator_value,
-                ds.numerator_unit_concept_id,
-                ds.denominator_value,
-                ds.denominator_unit_concept_id,
+                a.c.concept_id.label("ingredient_concept_id"),
+                a.c.concept_name.label("ingredient_name"),
+                a.c.concept_code.label("ingredient_concept_code"),
+                ds.c.amount_value,
+                ds.c.amount_unit_concept_id,
+                ds.c.numerator_value,
+                ds.c.numerator_unit_concept_id,
+                ds.c.denominator_value,
+                ds.c.denominator_unit_concept_id,
             )
 
         df = self.query(query, drug_concept_id=str(drug_concept_id))
@@ -582,30 +582,30 @@ class OMOPSQLClient:
               relationship_id = %(relationship_id)s
         """
 
-        a = omop.Concept.label("a")
-        d = omop.Concept.label("d")
-        cr = omop.t_concept_relationship.label("ca")
+        a = omop.Concept.__table__.alias("a")
+        d = omop.Concept.__table__.alias("d")
+        cr = omop.t_concept_relationship.alias("ca")
 
         query = (
             select(
                 [
-                    cr.relationship_id.label("relationship_id"),
-                    d.concept_id.label("concept_id"),
-                    d.concept_name.label("concept_name"),
-                    d.concept_code.label("concept_code"),
-                    d.concept_class_id.label("concept_class_id"),
-                    d.vocabulary_id.label("concept_vocab_id"),
+                    cr.c.relationship_id.label("relationship_id"),
+                    d.c.concept_id.label("concept_id"),
+                    d.c.concept_name.label("concept_name"),
+                    d.c.concept_code.label("concept_code"),
+                    d.c.concept_class_id.label("concept_class_id"),
+                    d.c.vocabulary_id.label("concept_vocab_id"),
                 ]
             )
             .select_from(cr)
-            .join(a, cr.concept_id_1 == a.concept_id)
-            .join(d, cr.concept_id_2 == d.concept_id)
+            .join(a, cr.c.concept_id_1 == a.c.concept_id)
+            .join(d, cr.c.concept_id_2 == d.c.concept_id)
             .where(
                 and_(
-                    a.concept_id == bindparam("ancestor"),
-                    d.concept_id == bindparam("descendant"),
-                    cr.invalid_reason.is_(None),
-                    cr.relationship_id == bindparam("relationship_id"),
+                    a.c.concept_id == bindparam("ancestor"),
+                    d.c.concept_id == bindparam("descendant"),
+                    cr.c.invalid_reason.is_(None),
+                    cr.c.relationship_id == bindparam("relationship_id"),
                 )
             )
         )
