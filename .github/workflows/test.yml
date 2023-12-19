@@ -10,7 +10,7 @@ on:
   pull_request:
 
 jobs:
-  pytest:
+  pytest-staging:
 
     runs-on: ubuntu-latest
 
