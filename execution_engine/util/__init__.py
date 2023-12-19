@@ -287,11 +287,11 @@ class TimeRange(BaseModel):
         return cls(start=dt[0], end=dt[1], name=name)
 
     @property
-    def period(self) -> pendulum.Period:
+    def period(self) -> pendulum.Interval:
         """
         Get the period of the time range.
         """
-        return pendulum.period(start=self.start.date(), end=self.end.date())
+        return pendulum.interval(start=self.start.date(), end=self.end.date())
 
     def date_range(self) -> set[date]:
         """
