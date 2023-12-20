@@ -277,8 +277,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-08 23:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-08 23:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -458,8 +458,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-02 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty total
@@ -467,8 +467,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02  42.4 128.8
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-03 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 10:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -555,16 +555,16 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-01 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-01 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
                 # 2023-03-01 100.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-02 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 10:36:24+01:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -626,16 +626,16 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-11 09:36:24",
-                    "end_datetime": "2023-03-11 10:36:24",
+                    "start_datetime": "2023-03-11 09:36:24+01:00",
+                    "end_datetime": "2023-03-11 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
                 # 2023-03-11 100.0
                 {
                     "drug_concept_id": concept_enoxparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-02 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 10:36:24+01:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -681,8 +681,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-03 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty total
@@ -691,8 +691,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-03  21.6  95.1
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-04 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 10:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -788,8 +788,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-02 09:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 09:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -797,8 +797,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02  40.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-03 09:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 09:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -855,8 +855,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-04-01 09:36:24",
-                    "end_datetime": "2023-04-02 09:36:24",
+                    "start_datetime": "2023-04-01 09:36:24+01:00",
+                    "end_datetime": "2023-04-02 09:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -864,8 +864,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-04-02  40.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-04-02 09:36:24",
-                    "end_datetime": "2023-04-03 09:36:24",
+                    "start_datetime": "2023-04-02 09:36:24+01:00",
+                    "end_datetime": "2023-04-03 09:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -907,17 +907,18 @@ class TestDrugExposure(TestCriterion):
 
     # Test case 10: Drug exposure entries starting before or ending after observation window
     # question:
-    # - the drug entry part that is within the DAY of the observation window should count, or really only the part that is within the observation window?
-    # currently the former is implemented
-    # what if the interval is not day but week: should the drug entry part that is within the WEEK of the observation window count? what is the reference for the first week day?
+    # - the drug entry part that is within the DAY of the observation window should count, or really only
+    #   the part that is within the observation window? currently the former is implemented
+    #   what if the interval is not day but week: should the drug entry part that is within the WEEK of the
+    #   observation window count? what is the reference for the first week day?
     @pytest.mark.parametrize(
         "drug_exposures",
         [
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-02-28 12:00:00",
-                    "end_datetime": "2023-03-02 12:00:00",
+                    "start_datetime": "2023-02-28 12:00:00+01:00",
+                    "end_datetime": "2023-03-02 12:00:00+01:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -927,8 +928,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02  50.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-30 12:00:00",
-                    "end_datetime": "2023-04-01 12:00:00",
+                    "start_datetime": "2023-03-30 12:00:00+02:00",
+                    "end_datetime": "2023-04-01 12:00:00+02:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -993,20 +994,20 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-03 18:51:00",
-                    "end_datetime": "2023-03-12 23:59:00",
+                    "start_datetime": "2023-03-03 18:51:00+01:00",
+                    "end_datetime": "2023-03-12 23:59:00+01:00",
                     "quantity": 796.08,
                 },
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-05 00:00:00",
-                    "end_datetime": "2023-03-09 09:36:24",
+                    "start_datetime": "2023-03-05 00:00:00+01:00",
+                    "end_datetime": "2023-03-09 09:36:24+01:00",
                     "quantity": 38018.4,
                 },
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-06 12:34:56",
-                    "end_datetime": "2023-03-08 09:36:25",
+                    "start_datetime": "2023-03-06 12:34:56+01:00",
+                    "end_datetime": "2023-03-08 09:36:25+01:00",
                     "quantity": 1620.89,
                 },
             )
@@ -1178,14 +1179,14 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept1.concept_id,
-                    "start_datetime": "2023-03-01 00:00:00",
-                    "end_datetime": "2023-03-03 12:00:00",
+                    "start_datetime": "2023-03-01 00:00:00+01:00",
+                    "end_datetime": "2023-03-03 12:00:00+01:00",
                     "quantity": 200,
                 },
                 {
                     "drug_concept_id": concept2.concept_id,
-                    "start_datetime": "2023-03-02 00:00:00",
-                    "end_datetime": "2023-03-05 00:00:00",
+                    "start_datetime": "2023-03-02 00:00:00+01:00",
+                    "end_datetime": "2023-03-05 00:00:00+01:00",
                     "quantity": 201,
                 },
             )
@@ -1253,8 +1254,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-04 09:36:24",
-                    "end_datetime": "2023-03-04 09:36:24",
+                    "start_datetime": "2023-03-04 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 09:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -1299,8 +1300,8 @@ class TestDrugExposure(TestCriterion):
             [
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-03 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 10:36:24+01:00",
                     "quantity": 1000,
                     "expected": {"2023-03-01", "2023-03-02", "2023-03-03"},
                 },
@@ -1308,8 +1309,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-01 100.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-04 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 10:36:24+01:00",
                     "quantity": 2000,
                     "expected": {"2023-03-02", "2023-03-03", "2023-03-04"},
                 },
@@ -1317,8 +1318,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02 200.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-04 09:36:24",
-                    "end_datetime": "2023-03-06 10:36:24",
+                    "start_datetime": "2023-03-04 09:36:24+01:00",
+                    "end_datetime": "2023-03-06 10:36:24+01:00",
                     "quantity": 1000,
                     "expected": {"2023-03-04", "2023-03-05", "2023-03-06"},
                 },
