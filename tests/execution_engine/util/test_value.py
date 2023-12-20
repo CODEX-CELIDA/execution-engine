@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from sqlalchemy import ColumnClause
+from sqlalchemy import Column, ColumnClause, MetaData, Table
 
 from execution_engine.omop.concepts import Concept
 from execution_engine.util import (
@@ -29,6 +29,18 @@ def test_get_precision():
     # Test the function for empty input
     with pytest.raises(TypeError):
         get_precision("")
+
+
+@pytest.fixture
+def test_table():
+    metadata = MetaData()
+    return Table(
+        "test_table",
+        metadata,
+        Column("value_as_number"),
+        Column("unit_concept_id"),
+        Column("value_as_concept_id"),
+    )
 
 
 class TestValueNumber:
@@ -108,7 +120,7 @@ class TestValueNumber:
         vn = ValueNumber(unit=unit_concept, value=5)
         assert repr(vn) == "Value == 5.0 Test Unit"
 
-    def test_to_sql(self, unit_concept):
+    def test_to_sql(self, unit_concept, test_table):
         vn = ValueNumber(unit=unit_concept, value=5)
 
         clauses = vn.to_sql()
@@ -144,42 +156,40 @@ class TestValueNumber:
 
         with pytest.raises(
             ValueError,
-            match="If table_name is set, column_name must be a string, not a ColumnClause.",
+            match="If table is set, column_name must be a string, not a ColumnClause.",
         ):
-            vn.to_sql(
-                table_name="test_table", column_name=ColumnClause("value_as_number")
-            )
+            vn.to_sql(table=test_table, column_name=ColumnClause("value_as_number"))
 
         vn = ValueNumber(unit=unit_concept, value=5)
-        clauses = vn.to_sql(table_name="test_table")
+        clauses = vn.to_sql(table=test_table)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND abs(test_table.value_as_number - :test_table_value_as_number_1) < :abs_1"
+            == "test_table.unit_concept_id = :unit_concept_id_1 AND abs(test_table.value_as_number - :value_as_number_1) < :abs_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
-        clauses = vn.to_sql(table_name="test_table")
+        clauses = vn.to_sql(table=test_table)
         assert len(clauses.clauses) == 3
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number - :test_table_value_as_number_1 >= :param_1 AND test_table.value_as_number - :test_table_value_as_number_2 <= :param_2"
+            == "test_table.unit_concept_id = :unit_concept_id_1 AND test_table.value_as_number - :value_as_number_1 >= :param_1 AND test_table.value_as_number - :value_as_number_2 <= :param_2"
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1)
-        clauses = vn.to_sql(table_name="test_table")
+        clauses = vn.to_sql(table=test_table)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number - :test_table_value_as_number_1 >= :param_1"
+            == "test_table.unit_concept_id = :unit_concept_id_1 AND test_table.value_as_number - :value_as_number_1 >= :param_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value_max=10)
-        clauses = vn.to_sql(table_name="test_table")
+        clauses = vn.to_sql(table=test_table)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
-            == "test_table.unit_concept_id = :test_table_unit_concept_id_1 AND test_table.value_as_number - :test_table_value_as_number_1 <= :param_1"
+            == "test_table.unit_concept_id = :unit_concept_id_1 AND test_table.value_as_number - :value_as_number_1 <= :param_1"
         )
 
         vn = ValueNumber(unit=unit_concept, value=5)
@@ -260,20 +270,17 @@ class TestValueNumber:
 
 
 class TestValueConcept:
-    def test_to_sql(self, test_concept):
+    def test_to_sql(self, test_concept, test_table):
         value_concept = ValueConcept(value=test_concept)
 
-        sql = value_concept.to_sql(table_name="test_table")
-        assert (
-            str(sql)
-            == "test_table.value_as_concept_id = :test_table_value_as_concept_id_1"
-        )
+        sql = value_concept.to_sql(table=test_table)
+        assert str(sql) == "test_table.value_as_concept_id = :value_as_concept_id_1"
 
-        sql = value_concept.to_sql(table_name=None)
+        sql = value_concept.to_sql(table=None)
         assert str(sql) == "value_as_concept_id = :value_as_concept_id_1"
 
         with pytest.raises(ValueError, match="ValueConcept does not support units."):
-            value_concept.to_sql(table_name="test_table", with_unit=True)
+            value_concept.to_sql(table=test_table, with_unit=True)
 
     def test_str(self, test_concept):
         value_concept = ValueConcept(value=test_concept)

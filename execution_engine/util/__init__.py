@@ -60,7 +60,7 @@ class Value(BaseModel, ABC):
     ) -> ColumnClause:
         if table is not None and isinstance(column_name, ColumnElement):
             raise ValueError(
-                "If table is set, column_name must be a string, not a ColumnClause."
+                "If table is set, column_name must be a string, not a ColumnElement."
             )
 
         if table is not None:
@@ -69,9 +69,7 @@ class Value(BaseModel, ABC):
         if isinstance(column_name, ColumnElement):
             return column_name
 
-        raise ValueError(
-            "column_name must be a string and table set, or a ColumnClause."
-        )
+        return literal_column(column_name)
 
     @abstractmethod
     def to_sql(
