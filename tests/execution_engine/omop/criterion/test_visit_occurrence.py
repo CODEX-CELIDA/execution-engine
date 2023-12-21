@@ -274,23 +274,39 @@ class TestVisitOccurrence(TestCriterion):
                 ],
                 {"2023-03-06", "2023-03-07", "2023-03-08"},
             ),
-            (  # before observation window
+            (  # before observation window (same day)
                 [
                     (("2023-02-01 00:00:00", "2023-03-01 02:00:00"), INTENSIVE_CARE),
                 ],
-                {
-                    "2023-03-01"
-                },  # because of the visit on 2023-03-01 -- interval intersection is not performed at single criterion level
-                # todo: should this really be 1? or should it be 0?
+                {"2023-03-01"},
             ),
-            (  # after observation window
+            (  # before observation window (previous day)
                 [
-                    (("2023-03-31 23:59:00", "2023-04-01 02:00:00"), INTENSIVE_CARE),
+                    (("2023-02-01 00:00:00", "2023-02-27 02:00:00"), INTENSIVE_CARE),
                 ],
-                {
-                    "2023-03-31"
-                },  # because of the visit on 2023-03-31 -- interval intersection is not performed at single criterion level
-                # todo: should this really be 1? or should it be 0?
+                {},
+            ),
+            (  # after observation window (same day)
+                # note that proper time zone is required, otherwise (if given in utc), it will be the next day (see next example)
+                [
+                    (
+                        ("2023-03-31 23:59:00+02:00", "2023-04-01 02:00:00"),
+                        INTENSIVE_CARE,
+                    ),
+                ],
+                {"2023-03-31"},
+            ),
+            (  # after observation window (next day)
+                [
+                    (
+                        (
+                            "2023-03-31 23:59:00+00:00",  # note: this is 2023-04-01 01:59:00+02:00 i.e. next day in Europe/Berlin
+                            "2023-04-01 02:00:00",
+                        ),
+                        INTENSIVE_CARE,
+                    ),
+                ],
+                {},
             ),
             (  # during begin observation window
                 [
@@ -300,7 +316,10 @@ class TestVisitOccurrence(TestCriterion):
             ),
             (  # during end observation window
                 [
-                    (("2023-03-29 23:59:00", "2023-04-01 02:00:00"), INTENSIVE_CARE),
+                    (
+                        ("2023-03-29 23:59:00+02:00", "2023-04-01 02:00:00"),
+                        INTENSIVE_CARE,
+                    ),
                 ],
                 {"2023-03-29", "2023-03-30", "2023-03-31"},
             ),
