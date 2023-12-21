@@ -1,27 +1,13 @@
 import logging
+from itertools import chain
 from typing import Iterator
 
 import sympy
-from sqlalchemy import (
-    CTE,
-    Date,
-    DateTime,
-    bindparam,
-    distinct,
-    func,
-    intersect,
-    select,
-    union,
-)
-from sqlalchemy.dialects.postgresql import INTERVAL
-from sqlalchemy.sql import CompoundSelect, Select
-from sqlalchemy.sql.functions import concat
 
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.omop.db.celida.tables import RecommendationResult
 from execution_engine.task.creator import TaskCreator
 from execution_engine.task.task import Task
 
@@ -40,7 +26,6 @@ class ExecutionMap:
     """
 
     _expr: logic.Expr
-    _hashmap: dict[str, Criterion]
 
     def __init__(
         self, comb: CriterionCombination, base_criterion: Criterion, params: dict | None
@@ -58,9 +43,7 @@ class ExecutionMap:
         self._params = params
         self._root_task = self._create_execution_map()
 
-        # self._push_negation_in_criterion()
-
-        logging.info(f"NNF: {self._expr}")
+        logging.info(f"Expression: {self._expr}")
 
     def root_task(self) -> Task:
         """
@@ -76,7 +59,7 @@ class ExecutionMap:
         return self.get_combined_category(self)
 
     @staticmethod
-    def get_combined_category(*args: "ExecutionMap") -> CohortCategory:
+    def get_combined_category(*emaps: "ExecutionMap") -> CohortCategory:
         """
         Get the combined category of multiple execution maps.
 
@@ -88,14 +71,14 @@ class ExecutionMap:
         INTERVENTION is returned if all execution maps have the category INTERVENTION or BASE.
         POPULATION_INTERVENTION is returned otherwise.
 
-        :param args: The execution maps.
+        :param emaps: The execution maps.
         :return: The combined category.
         """
         assert all(
-            isinstance(arg, ExecutionMap) for arg in args
+            isinstance(arg, ExecutionMap) for arg in emaps
         ), "all args must be instance of ExecutionMap"
 
-        criteria = [arg._criteria for arg in args]
+        criteria = list(chain.from_iterable(arg.flatten() for arg in emaps))
 
         if all(c.category == CohortCategory.BASE for c in criteria):
             category = CohortCategory.BASE
@@ -115,11 +98,10 @@ class ExecutionMap:
 
         return category
 
-    def __and__(self, other: "ExecutionMap") -> "ExecutionMap":
+    def __combine__(self, other: "ExecutionMap", operator: str) -> "ExecutionMap":
         """
-        Combine two execution maps with an AND operator.
+        Combine two execution maps with an operator.
         """
-        # todo: de-duplicate code
         assert isinstance(other, ExecutionMap), "other must be instance of ExecutionMap"
         assert (
             self._base_criterion == other._base_criterion
@@ -134,47 +116,27 @@ class ExecutionMap:
 
         return ExecutionMap(
             CriterionCombination(
-                "AND",  # todo: proper name
+                "CriterionCombination",  # todo: proper name
                 exclude=False,
-                operator=CriterionCombination.Operator(
-                    CriterionCombination.Operator.AND
-                ),
+                operator=CriterionCombination.Operator(operator),
                 category=category,
                 criteria=criteria,
             ),
             self._base_criterion,
             self._params,
         )
+
+    def __and__(self, other: "ExecutionMap") -> "ExecutionMap":
+        """
+        Combine two execution maps with an AND operator.
+        """
+        return self.__combine__(other, CriterionCombination.Operator.AND)
 
     def __or__(self, other: "ExecutionMap") -> "ExecutionMap":
         """
         Combine two execution maps with an OR operator.
         """
-        assert isinstance(other, ExecutionMap), "other must be instance of ExecutionMap"
-        assert (
-            self._base_criterion == other._base_criterion
-        ), "base criteria must be equal"
-
-        assert (
-            self._params is None and other._params is None
-        ) or self._params == other._params, "params must be equal"
-
-        criteria = [self._criteria, other._criteria]
-        category = self.get_combined_category(self, other)
-
-        return ExecutionMap(
-            CriterionCombination(
-                "OR",  # todo: proper name
-                exclude=False,
-                operator=CriterionCombination.Operator(
-                    CriterionCombination.Operator.OR
-                ),
-                category=category,
-                criteria=criteria,
-            ),
-            self._base_criterion,
-            self._params,
-        )
+        return self.__combine__(other, CriterionCombination.Operator.OR)
 
     def __invert__(self) -> "ExecutionMap":
         """
@@ -197,7 +159,7 @@ class ExecutionMap:
         ), "base criteria must be equal"
 
         assert all(arg._params is None for arg in args) or (
-            len(set(arg._params for arg in args)) == 1
+            all(arg._params == args[0]._params for arg in args)
         ), "params must be equal"
 
         criteria = [arg._criteria for arg in args]
@@ -283,171 +245,16 @@ class ExecutionMap:
 
     def flatten(self) -> Iterator[Criterion]:
         """
-        Traverse the execution map and return a list of criteria that can be executed sequentially.
+        Flatten the execution map into a list of criteria.
         """
 
-        def _flat_traverse(args: tuple[logic.Expr]) -> Iterator[Criterion]:
-            """
-            Traverse the execution map and return a list of criteria that can be executed sequentially.
-            """
-            for arg in args:
-                if arg.is_Atom:
-                    yield self._hashmap[arg]
-                elif arg.is_Not:
-                    # exclude flag is already pushed into the criterion (i.e. inverted) in _push_negation_in_criterion()
-                    yield self._hashmap[arg.args[0]]
+        def _traverse(comb: CriterionCombination) -> list[Criterion]:
+            criteria = []
+            for element in comb:
+                if isinstance(element, CriterionCombination):
+                    criteria += _traverse(element)
                 else:
-                    yield from _flat_traverse(arg.args)
+                    criteria.append(element)
+            return criteria
 
-        yield from _flat_traverse(self._expr.args)
-
-    def combine(self, cohort_category: CohortCategory) -> CompoundSelect:
-        """
-        Generate the combined SQL query for all criteria in the execution map.
-        """
-
-        def select_base_criterion() -> CTE:
-            table = RecommendationResult.__table__
-
-            query = (
-                select(table.c.person_id, table.c.valid_date)
-                .select_from(table)
-                .filter(table.c.recommendation_run_id == bindparam("run_id"))
-                .filter(table.c.cohort_category == CohortCategory.BASE)
-            )
-
-            return query
-
-        def fixed_date_range() -> CTE:
-            table = RecommendationResult.__table__
-
-            distinct_persons = (
-                select(distinct(table.c.person_id).label("person_id"))
-                .select_from(table)
-                .filter(table.c.recommendation_run_id == bindparam("run_id"))
-                .filter(table.c.cohort_category == CohortCategory.BASE)
-            ).cte("distinct_persons")
-
-            fixed_date_range = (
-                select(
-                    distinct_persons.c.person_id,
-                    func.generate_series(
-                        bindparam("observation_start_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        bindparam("observation_end_datetime", type_=DateTime).cast(
-                            Date
-                        ),
-                        func.cast(concat(1, "day"), INTERVAL),
-                    )
-                    .cast(Date)
-                    .label("valid_date"),
-                )
-                .select_from(distinct_persons)
-                .cte("fixed_date_range")
-            )
-
-            return fixed_date_range
-
-        def sql_select(criterion: Criterion | CompoundSelect, exclude: bool) -> Select:
-            """
-            Generate the SQL query for a single criterion.
-            """
-            if isinstance(criterion, CompoundSelect):
-                return criterion
-            table = RecommendationResult.__table__
-
-            query = (
-                select(table.c.person_id, table.c.valid_date)
-                .select_from(table)
-                .filter(table.c.recommendation_run_id == bindparam("run_id"))
-                .filter(table.c.criterion_id == criterion.id)
-            )
-
-            if exclude:
-                query = add_exclude(query)
-
-            return query
-
-        def add_exclude(query: str | Select) -> Select:
-            """
-            Converts a query, which returns a list of dates (one per row) per person_id, to a query that return a list of
-            all days (per person_id) that are within the time range given by observation_start_datetime
-            and observation_end_datetime but that are not included in the result of the original query.
-
-            I.e. it performs the following set operation:
-            set({day | observation_start_datetime <= day <= observation_end_datetime}) - set(days_from_original_query}
-            """
-            assert isinstance(query, Select | CTE), "query must be instance of Select"
-
-            query = query.alias("person_dates")
-
-            query = (
-                select(
-                    cte_fixed_date_range.c.person_id, cte_fixed_date_range.c.valid_date
-                )
-                .select_from(
-                    cte_fixed_date_range.outerjoin(
-                        query,
-                        (cte_fixed_date_range.c.person_id == query.c.person_id)
-                        & (cte_fixed_date_range.c.valid_date == query.c.valid_date),
-                    )
-                )
-                .where(query.c.valid_date.is_(None))
-            )
-
-            return query
-
-        def _traverse(combination: logic.Symbol) -> CompoundSelect:
-            """
-            Traverse the execution map and return a combined SQL query for all criteria in the execution map.
-            """
-            criteria: list[Criterion | CompoundSelect] = []
-
-            if isinstance(combination, logic.And):
-                conjunction = intersect
-            elif isinstance(combination, logic.Or):
-                conjunction = union
-            else:
-                raise ValueError(f"Unknown type {type(combination)}")
-
-            criterion: Criterion | CompoundSelect
-
-            for arg in combination.args:
-                if arg.is_Atom:
-                    criterion, exclude = self._hashmap[arg], False
-                elif arg.is_Not:
-                    # exclude flag is already pushed into the criterion (i.e. inverted) in _push_negation_in_criterion()
-                    criterion, exclude = self._hashmap[arg.args[0]], True
-                else:
-                    criterion, exclude = _traverse(arg), False
-
-                if isinstance(criterion, Criterion):
-                    if (
-                        cohort_category is not CohortCategory.POPULATION_INTERVENTION
-                        and criterion.category != cohort_category
-                    ):
-                        # this criterion does not belong to the cohort category we are currently processing,
-                        # so we skip it
-                        continue
-                elif isinstance(criterion, CompoundSelect):
-                    if len(criterion.selects) == 0:
-                        # this depth-first traversal returns a compound select (union or intersect) of the already
-                        # processed (deeper) criteria. If all the deeper criteria do not belong to the cohort category
-                        # being processed, none of them is added to the compound select and an empty compound select is
-                        # returned. In this case, we skip the compound select and continue with the next criterion.
-                        continue
-
-                criteria.append([criterion, exclude])
-
-            return conjunction(
-                *[sql_select(criterion, exclude) for [criterion, exclude] in criteria]
-            )
-
-        cte_fixed_date_range = fixed_date_range()
-
-        query = _traverse(self._expr)
-        query = intersect(select_base_criterion(), query)
-        query.description = f"Combination of criteria({cohort_category.value})"
-
-        return query
+        yield from _traverse(self._criteria)

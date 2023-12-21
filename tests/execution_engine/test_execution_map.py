@@ -1,6 +1,5 @@
-import re
-
 import pytest
+import sympy
 
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
@@ -25,212 +24,334 @@ def sort_numbers_in_string(query: str) -> str:
 
 
 class TestExecutionMap:
-    # Test the `_to_nnf` method
+    @pytest.fixture
+    def base_criterion(self):
+        return MockCriterion("base_criterion", category=CohortCategory.BASE)
 
     @pytest.fixture
-    def comb(self):
-        c1 = MockCriterion("c1")
-        c2 = MockCriterion("c2")
-        c3 = MockCriterion("c3", exclude=True)
-        c4 = MockCriterion("c4")
-        c5 = MockCriterion("c5")
-        c6 = MockCriterion("c6")
-        c7 = MockCriterion("c7")
-        c1.id, c2.id, c3.id, c4.id, c5.id, c6.id, c7.id = range(1, 8)
+    def expressions(self):
+        combinations_str = [
+            "~((c1 | (~c2 & ~c3 & (c4 | c5 | (c5 & c6)))) & c3)",
+            " b1 | b2 & (c1 | c2) & ~c3 & ~(a1 | a2)",
+            "a1 & b1 & c1",
+        ]
 
+        return combinations_str
+
+    @pytest.fixture
+    def execution_maps(self, base_criterion, expressions):
+        emaps = [
+            ExecutionMap(self.build_combination(expr), base_criterion, params={})
+            for expr in expressions
+        ]
+        return emaps
+
+    @staticmethod
+    def build_combination(expr_str: str):
         op_and = CriterionCombination.Operator(CriterionCombination.Operator.AND)
         op_or = CriterionCombination.Operator(CriterionCombination.Operator.OR)
-        comb1_and_incl = CriterionCombination(
-            "comb1_and_incl",
+
+        # Parse the expression
+        expr = sympy.sympify(expr_str)
+
+        # Recursively build the combination
+        def build(expr):
+            if isinstance(expr, sympy.Symbol):
+                category = {
+                    "p": CohortCategory.POPULATION,
+                    "i": CohortCategory.INTERVENTION,
+                    "pi": CohortCategory.POPULATION_INTERVENTION,
+                }.get(expr.name[:-1], CohortCategory.BASE)
+                return MockCriterion(str(expr), category=category)
+            elif isinstance(expr, sympy.Not):
+                inner = build(expr.args[0])
+                inner.exclude = True
+                return inner
+            elif isinstance(expr, sympy.And) or isinstance(expr, sympy.Or):
+                criteria = [build(arg) for arg in expr.args]
+
+                if all(c.category == CohortCategory.BASE for c in criteria):
+                    category = CohortCategory.BASE
+                elif all(c.category == CohortCategory.POPULATION for c in criteria):
+                    category = CohortCategory.POPULATION
+                elif all(c.category == CohortCategory.INTERVENTION for c in criteria):
+                    category = CohortCategory.INTERVENTION
+                else:
+                    category = CohortCategory.POPULATION_INTERVENTION
+
+                comb = CriterionCombination(
+                    name=str(expr),
+                    operator=op_and if isinstance(expr, sympy.And) else op_or,
+                    exclude=False,
+                    category=category,
+                    criteria=criteria,
+                )
+                print(f"Created combination {str(expr)} {category}")
+                return comb
+            else:
+                raise ValueError("Unsupported expression type")
+
+        c = build(expr)
+
+        if isinstance(c, CriterionCombination):
+            return c
+        else:
+            return CriterionCombination(
+                name=str(expr),
+                operator=op_and,
+                exclude=False,
+                category=c.category,
+                criteria=[c],
+            )
+
+    def test_execution_map_parse(self, base_criterion):
+        params = {
+            "observation_start_datetime": "2020-01-01 00:00:00Z",
+            "observation_end_datetime": "2020-01-03 23:59:59Z",
+        }
+
+        combinations_str = [
+            "~((c1 | (~c2 & ~c3 & (c4 | c5 | (c5 & c6)))) & c3)",
+            " b1 | b2 & (c1 | c2) & ~c3 & ~(a1 | a2)",
+            "a1 & b1 & c1",
+        ]
+
+        criteria = CriterionCombination(
+            name="root",
             exclude=False,
-            operator=op_and,
             category=CohortCategory.POPULATION_INTERVENTION,
-        )
-        comb2_or_incl = CriterionCombination(
-            "comb2_or_incl",
-            exclude=False,
-            operator=op_or,
-            category=CohortCategory.POPULATION_INTERVENTION,
-        )
-        comb3_and_excl = CriterionCombination(
-            "comb3_and_excl",
-            exclude=True,
-            operator=op_and,
-            category=CohortCategory.POPULATION_INTERVENTION,
-        )
-        comb4_or_excl = CriterionCombination(
-            "comb4_or_excl",
-            exclude=True,
-            operator=op_or,
-            category=CohortCategory.POPULATION_INTERVENTION,
-        )
-        # ~(c6 & c7)
-        comb3_and_excl.add(c6)
-        comb3_and_excl.add(c7)
-
-        # ~(c4 | c5 | ~(c6 & c7))
-        comb4_or_excl.add(c4)
-        comb4_or_excl.add(c5)
-        comb4_or_excl.add(comb3_and_excl)
-
-        # (c2 | ~c3)
-        comb2_or_incl.add(c2)
-        comb2_or_incl.add(c3)
-
-        # (c1 & (c2 | ~c3) & ~(c4 | c5 | ~(c6 & c7)))
-        comb1_and_incl.add(c1)
-        comb1_and_incl.add(comb2_or_incl)
-        comb1_and_incl.add(comb4_or_excl)
-
-        return (
-            comb1_and_incl,
-            c1,
-            c2,
-            c3,
-            c4,
-            c5,
-            c6,
-            c7,
-            comb2_or_incl,
-            comb3_and_excl,
-            comb4_or_excl,
+            operator=CriterionCombination.Operator("OR"),
         )
 
-    def test_to_nnf(self, comb):
-        comb1_and_incl, c1, c2, c3, c4, c5, c6, c7, *_ = comb
+        for s in combinations_str:
+            comb = self.build_combination(s)
 
-        em = ExecutionMap(comb1_and_incl)
-        _, hashmap = em._to_nnf(comb1_and_incl)
+            emap = ExecutionMap(comb, base_criterion, params=params)
 
-        # Check if the hashmap contains the correct criteria
-        assert set(hashmap.values()) == {c1, c2, c3, c4, c5, c6, c7}
+            assert str(emap.root_task().expr) == str(sympy.sympify(s))
 
-        # Check if the NNF expression is correct
-        nnf_expr = em.nnf()
-        assert str(nnf_expr) == "c1 & c6 & c7 & ~c4 & ~c5 & (c2 | ~c3)"
+            criteria.add(comb)
 
-    def test_invalid_nnf(self, comb):
-        comb1_and_incl, *_ = comb
+        emap = ExecutionMap(criteria, base_criterion, params=params)
 
-        em = ExecutionMap(comb1_and_incl)
-
-        # Test with an invalid NNF expression
-        with pytest.raises(ValueError, match="Unknown type"):
-            em._nnf = comb
-            em.combine(CohortCategory.POPULATION_INTERVENTION)
-
-    def test_cohort_category_matching(self):
-        c1 = MockCriterion("c1", category=CohortCategory.POPULATION)
-        c2 = MockCriterion("c2", category=CohortCategory.INTERVENTION)
-        c3 = MockCriterion("c3", category=CohortCategory.POPULATION_INTERVENTION)
-        c1.id, c2.id, c3.id = 1, 2, 3
-
-        op_and = CriterionCombination.Operator(CriterionCombination.Operator.AND)
-        comb_p = CriterionCombination(
-            "comb_p", exclude=False, operator=op_and, category=CohortCategory.POPULATION
-        )
-        comb_i = CriterionCombination(
-            "comb_i",
-            exclude=False,
-            operator=op_and,
-            category=CohortCategory.INTERVENTION,
-        )
-        comb_pi = CriterionCombination(
-            "comb_pi",
-            exclude=False,
-            operator=op_and,
-            category=CohortCategory.POPULATION_INTERVENTION,
-        )
-        comb_p.add_all([c1, c2, c3])
-        comb_i.add_all([c1, c2, c3])
-        comb_pi.add_all([c1, c2, c3])
-
-        def n_selects_in_combination(nnf):
-            return len(nnf.selects[1].element.selects)
-
-        nnf_p = ExecutionMap(comb_p).combine(CohortCategory.POPULATION)
-        assert n_selects_in_combination(nnf_p) == 1
-        assert nnf_p.compile().params["criterion_id_1"] == 1
-
-        nnf_i = ExecutionMap(comb_i).combine(CohortCategory.INTERVENTION)
-        assert n_selects_in_combination(nnf_i) == 1
-        assert nnf_i.compile().params["criterion_id_1"] == 2
-
-        nnf_pi = ExecutionMap(comb_pi).combine(CohortCategory.POPULATION_INTERVENTION)
-        assert n_selects_in_combination(nnf_pi) == 3
-        assert nnf_pi.compile().params["criterion_id_1"] == 1
-        assert nnf_pi.compile().params["criterion_id_2"] == 2
-        assert nnf_pi.compile().params["criterion_id_3"] == 3
-
-    def test_sequential(self, comb):
-        comb1_and_incl, c1, c2, c3, c4, c5, c6, c7, *_ = comb
-
-        em = ExecutionMap(comb1_and_incl)
-        seq = list(em.sequential())
-
-        # nnf pushes negations into the criteria
-        c4.exclude = True
-        c5.exclude = True
-
-        # Check if the sequential method returns the correct criteria
-        assert set([str(s) for s in seq]) == {str(c) for c in comb[1:8]}
-
-    def DISABLED_test_combined_statement(self, comb):
-        comb1_and_incl, *_ = comb
-
-        em = ExecutionMap(comb1_and_incl)
-
-        # Test with a specific cohort_category
-        cohort_category = CohortCategory.POPULATION_INTERVENTION
-        combined_sql = em.combine(cohort_category)
-
-        # Check if the combined SQL query contains the correct criteria
-
-        query = "c1 & c6 & c7 & ~c4 & ~c5 & (c2 | ~c3)"
-        query = sort_numbers_in_string(query)
-        query = query.replace("&", "INTERSECT")
-        query = query.replace("|", "UNION")
-        # query = re.sub("~(c\d+)", "", query)
-        #
-        #     query.replace(
-        #     "~", ""
-        # )  # this is handled by the actual selection SQL of the criteria
-        query = query.replace(
-            "c",
-            "SELECT celida.recommendation_result.person_id, celida.recommendation_result.valid_date \n"
-            "FROM celida.recommendation_result \n"
-            "WHERE celida.recommendation_result.recommendation_run_id = :run_id AND celida.recommendation_result.criterion_id = :criterion_id_",
+        assert (
+            str(emap.root_task().expr)
+            == "(a1 & b1 & c1) | (b1 | (b2 & ~c3 & (c1 | c2) & ~(a1 | a2))) | ~(c3 & (c1 | (~c2 & ~c3 & (c4 | c5 | (c5 & c6)))))"
         )
 
-        cte = (
-            "WITH fixed_date_range AS\n"
-            "(SELECT celida.recommendation_result.person_id AS person_id, celida.recommendation_result.valid_date AS valid_date\n"
-            "FROM celida.recommendation_result\n"
-            "WHERE celida.recommendation_result.recommendation_run_id = :run_id AND celida.recommendation_result.cohort_category = :cohort_category_1)"
+    def test_get_combined_category(self, base_criterion):
+        with pytest.raises(
+            AssertionError, match="all args must be instance of ExecutionMap"
+        ):
+            ExecutionMap.get_combined_category(
+                ExecutionMap(self.build_combination("c1"), base_criterion, params={}),
+                self.build_combination("c2"),
+            )
+
+        def combined_category(exprs):
+            emaps = [
+                ExecutionMap(self.build_combination(expr), base_criterion, params={})
+                for expr in exprs
+            ]
+            return ExecutionMap.get_combined_category(*emaps)
+
+        assert combined_category(["b1"]) == CohortCategory.BASE
+        assert combined_category(["b1", "b2"]) == CohortCategory.BASE
+        assert combined_category(["b1 & b3", "b2 | ~b4"]) == CohortCategory.BASE
+
+        assert combined_category(["p1"]) == CohortCategory.POPULATION
+        assert combined_category(["p1", "p2"]) == CohortCategory.POPULATION
+        assert (
+            combined_category(["p1 & p4 | p5", "p2 & b1", "p3 | b2"])
+            == CohortCategory.POPULATION
         )
 
-        assert query == str(cte + combined_sql)
-
-    def test_invalid_operator(self):
-        c1 = MockCriterion("c1")
-        c2 = MockCriterion("c2")
-
-        op_atleast = CriterionCombination.Operator(
-            CriterionCombination.Operator.AT_LEAST, threshold=1
+        assert combined_category(["i1"]) == CohortCategory.INTERVENTION
+        assert combined_category(["i1", "i2"]) == CohortCategory.INTERVENTION
+        assert (
+            combined_category(["b1", "b2", "i1", "b3"]) == CohortCategory.INTERVENTION
         )
-        comb = CriterionCombination(
-            "comb1_and_incl",
-            exclude=False,
-            operator=op_atleast,
-            category=CohortCategory.POPULATION_INTERVENTION,
+        assert (
+            combined_category(["i1 & i4 | i5", "i2 & b1", "i3 | b2"])
+            == CohortCategory.INTERVENTION
         )
-        comb.add(c1)
-        comb.add(c2)
+
+        assert combined_category(["pi1"]) == CohortCategory.POPULATION_INTERVENTION
+        assert (
+            combined_category(["pi1 & i1 & p1"])
+            == CohortCategory.POPULATION_INTERVENTION
+        )
+        assert combined_category(["p1", "i1"]) == CohortCategory.POPULATION_INTERVENTION
+        assert (
+            combined_category(["pi1", "i1", "b1"])
+            == CohortCategory.POPULATION_INTERVENTION
+        )
+        assert (
+            combined_category(["p1", "b2", "i1"])
+            == CohortCategory.POPULATION_INTERVENTION
+        )
+        assert (
+            combined_category(["p1 | p2", "i1 & i2"])
+            == CohortCategory.POPULATION_INTERVENTION
+        )
+        assert (
+            combined_category(["p1", "p2", "i1", "p1"])
+            == CohortCategory.POPULATION_INTERVENTION
+        )
+
+    def test_category(self, base_criterion):
+        def category(expr):
+            emap = ExecutionMap(self.build_combination(expr), base_criterion, params={})
+            return emap.category
+
+        assert category("b1") == CohortCategory.BASE
+        assert category("b1 & b2") == CohortCategory.BASE
+        assert category("b1 & b3 & b2 | ~b4") == CohortCategory.BASE
+        assert category("p1") == CohortCategory.POPULATION
+        assert category("p1 & p2") == CohortCategory.POPULATION
+        assert category("p1 & p4 | p5 & p2 & b1 & p3 | b2") == CohortCategory.POPULATION
+        assert category("i1") == CohortCategory.INTERVENTION
+        assert category("i1 & i2") == CohortCategory.INTERVENTION
+        assert category("b1 & b2 & i1 & b3") == CohortCategory.INTERVENTION
+        assert (
+            category("i1 & i4 | i5 & i2 & b1 & i3 | b2") == CohortCategory.INTERVENTION
+        )
+        assert category("pi1") == CohortCategory.POPULATION_INTERVENTION
+        assert category("pi1 & i1 & p1") == CohortCategory.POPULATION_INTERVENTION
+        assert category("p1 & i1") == CohortCategory.POPULATION_INTERVENTION
+        assert category("pi1 & i1 & b1") == CohortCategory.POPULATION_INTERVENTION
+        assert category("p1 & b2 & i1") == CohortCategory.POPULATION_INTERVENTION
+        assert category("p1 | p2 & i1 & i2") == CohortCategory.POPULATION_INTERVENTION
+        assert category("p1 & p2 & i1 & p1") == CohortCategory.POPULATION_INTERVENTION
+
+    def test_and_combination(self, base_criterion, execution_maps, expressions):
+        def emap(expr):
+            return ExecutionMap(self.build_combination(expr), base_criterion, params={})
+
+        combined_map = emap("c1") & emap("c2") & emap("c3")
+        assert isinstance(combined_map, ExecutionMap)
+        assert str(combined_map.root_task().expr) == "c3 & (c1 & c2)"
+
+        combined_map = emap("c1 & c2 & ~c3") & emap("c4 & c5") & emap("c6 & (c7 | c8)")
+        assert isinstance(combined_map, ExecutionMap)
+        assert (
+            str(combined_map.root_task().expr)
+            == "(c6 & (c7 | c8)) & ((c4 & c5) & (c1 & c2 & ~c3))"
+        )
+
+        combined_map = execution_maps[0] & execution_maps[1] & execution_maps[2]
+        assert isinstance(combined_map, ExecutionMap)
+        expected_expression = (
+            f"({expressions[2]}) & (({expressions[1]}) & ({expressions[0]}))"
+        )
+
+        assert sympy.sympify(str(combined_map.root_task().expr)) == sympy.sympify(
+            expected_expression
+        )
+
+    def test_or_combination(self, base_criterion, execution_maps, expressions):
+        def emap(expr):
+            return ExecutionMap(self.build_combination(expr), base_criterion, params={})
+
+        combined_map = emap("c1") | emap("c2") | emap("c3")
+        assert isinstance(combined_map, ExecutionMap)
+        assert str(combined_map.root_task().expr) == "c3 | (c1 | c2)"
+
+        combined_map = emap("c1 & c2 & ~c3") | emap("c4 & c5") | emap("c6 & (c7 | c8)")
+        assert isinstance(combined_map, ExecutionMap)
+        assert (
+            str(combined_map.root_task().expr)
+            == "(c6 & (c7 | c8)) | ((c4 & c5) | (c1 & c2 & ~c3))"
+        )
+
+        combined_map = execution_maps[0] | execution_maps[1] | execution_maps[2]
+        assert isinstance(combined_map, ExecutionMap)
+        expected_expression = (
+            f"({expressions[2]}) | (({expressions[1]}) | ({expressions[0]}))"
+        )
+
+        assert sympy.sympify(str(combined_map.root_task().expr)) == sympy.sympify(
+            expected_expression
+        )
+
+    def test_invert_operation(self, base_criterion, execution_maps, expressions):
+        def build_emap(expr):
+            return ExecutionMap(self.build_combination(expr), base_criterion, params={})
+
+        emap = build_emap("c1")
+        inverted_map = ~emap
+        assert isinstance(inverted_map, ExecutionMap)
+        assert emap._criteria.exclude is False
+        assert inverted_map._criteria.exclude is True
+        for criterion in inverted_map.flatten():
+            assert criterion.exclude is False
+        assert str(inverted_map.root_task().expr) == "~c1"
+
+        emap = build_emap("a1 & b1 | c2")
+        inverted_map = ~emap
+        assert isinstance(inverted_map, ExecutionMap)
+        assert emap._criteria.exclude is False
+        assert inverted_map._criteria.exclude is True
+        for criterion in inverted_map.flatten():
+            assert criterion.exclude is False
+        assert str(inverted_map.root_task().expr) == "~(c2 | (a1 & b1))"
+
+        for emap, expr in zip(execution_maps, expressions):
+            inverted_map = ~emap
+            assert isinstance(inverted_map, ExecutionMap)
+            assert sympy.sympify(str(inverted_map.root_task().expr)) == sympy.sympify(
+                f"~({expr})"
+            )
+
+    def test_union_operation(self, base_criterion, execution_maps, expressions):
+        def emap(expr):
+            return ExecutionMap(self.build_combination(expr), base_criterion, params={})
 
         with pytest.raises(
-            NotImplementedError,
-            match=re.escape(
-                'Operator "Operator(operator=AT_LEAST, threshold=1)" not implemented'
-            ),
+            AssertionError, match="all args must be instance of ExecutionMap"
         ):
-            ExecutionMap(comb)
+            ExecutionMap.union(
+                execution_maps[0],
+                self.build_combination("c2"),
+            )
+
+        with pytest.raises(AssertionError, match="base criteria must be equal"):
+            ExecutionMap.union(
+                execution_maps[0],
+                ExecutionMap(
+                    self.build_combination("c2"),
+                    MockCriterion("base_criterion2", category=CohortCategory.BASE),
+                    params={},
+                ),
+            )
+
+        with pytest.raises(AssertionError, match="params must be equal"):
+            ExecutionMap.union(
+                execution_maps[0],
+                ExecutionMap(
+                    self.build_combination("c2"), base_criterion, params={"a": 1}
+                ),
+            )
+
+        combined_map = ExecutionMap.union(emap("c1"), emap("c2"), emap("c3"))
+        assert isinstance(combined_map, ExecutionMap)
+        assert str(combined_map.root_task().expr) == "c1 | c2 | c3"
+
+        combined_map = ExecutionMap.union(
+            emap("c1 & c2 & ~c3"), emap("c4 & c5"), emap("c6 & (c7 | c8)")
+        )
+        assert isinstance(combined_map, ExecutionMap)
+        assert (
+            str(combined_map.root_task().expr)
+            == "(c4 & c5) | (c6 & (c7 | c8)) | (c1 & c2 & ~c3)"
+        )
+
+        combined_map = ExecutionMap.union(*execution_maps)
+        assert isinstance(combined_map, ExecutionMap)
+        expected_expression = (
+            f"({expressions[2]}) | (({expressions[1]}) | ({expressions[0]}))"
+        )
+
+        assert sympy.sympify(str(combined_map.root_task().expr)) == sympy.sympify(
+            expected_expression
+        )
