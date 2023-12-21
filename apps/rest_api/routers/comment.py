@@ -1,8 +1,8 @@
+from app.dependencies import get_db
+from app.schemas.comment import CommentCreate, CommentRead
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
-from app.schemas.comment import CommentCreate, CommentRead
 from execution_engine.omop.db.celida.tables import Comment
 
 router = APIRouter()

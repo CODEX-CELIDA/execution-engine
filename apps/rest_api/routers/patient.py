@@ -2,8 +2,8 @@ import sys
 from typing import Any
 
 import pendulum
-
 from app.dependencies import get_execution_engine, get_recommendations
+
 from execution_engine.execution_engine import ExecutionEngine
 
 sys.path.append("..")

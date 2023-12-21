@@ -1,7 +1,7 @@
 import sqlalchemy.orm
+from app.app_state import AppState
 from fastapi import HTTPException
 
-from app.app_state import AppState
 from execution_engine.clients import omopdb
 from execution_engine.execution_engine import ExecutionEngine
 

@@ -1,6 +1,7 @@
 import sys
 
 from app.dependencies import get_recommendations
+
 from execution_engine.omop.cohort import Recommendation
 
 sys.path.append("..")
