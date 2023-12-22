@@ -2,6 +2,7 @@ from typing import Callable
 
 import pandas as pd
 
+from execution_engine.constants import IntervalType
 from execution_engine.util import TimeRange
 from execution_engine.util.interval import DateTimeInterval as Interval
 from execution_engine.util.interval import empty_interval_datetime as empty_interval
@@ -117,6 +118,10 @@ def _process_intervals(
     :param operation: The operation to perform on the intervals (intersect or union).
     :return: A DataFrame with the processed intervals.
     """
+
+    if not len(dfs):
+        return dfs
+
     # assert dfs is a list of dataframes
     assert isinstance(dfs, list) and all(
         isinstance(df, pd.DataFrame) for df in dfs
@@ -124,6 +129,9 @@ def _process_intervals(
 
     result = {}
     for df in dfs:
+        if df.empty:
+            continue
+
         for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
             new_intervals = to_intervals(group[["interval_start", "interval_end"]])
             new_interval_union = _interval_union(new_intervals)
@@ -159,6 +167,30 @@ def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     dfs = filter_common_items(dfs, by)
 
     return _process_intervals(dfs, by, lambda x, y: x & y)
+
+
+def fill_missing_intervals(
+    df: pd.DataFrame,
+    by: list[str],
+    observation_window: TimeRange,
+    interval_type: IntervalType,
+) -> pd.DataFrame:
+    """
+    Fills the missing intervals in the DataFrame.
+
+    This is done by inverting the given intervals (w.r.t. the observation window) and assigning the given interval type.
+
+    :param df: The DataFrame with the intervals.
+    :param by: A list of column names to group by.
+    :param observation_window: The observation window.
+    :param interval_type: The type of the intervals that are added.
+    :return: A DataFrame with the filled intervals.
+    """
+
+    result = invert_intervals(df, by=by, observation_window=observation_window)
+    result["interval_type"] = interval_type
+
+    return result
 
 
 def _result_to_df(

@@ -5,7 +5,6 @@ from typing import Any, Dict, Iterator, Self
 from sqlalchemy import (
     Column,
     Date,
-    Insert,
     Integer,
     MetaData,
     Select,
@@ -13,10 +12,9 @@ from sqlalchemy import (
     and_,
     bindparam,
     select,
-    union,
 )
-from sqlalchemy.sql.ddl import DropTable
 
+import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop import cohort
@@ -25,9 +23,8 @@ from execution_engine.omop import cohort
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
-from execution_engine.omop.db.celida.tables import RecommendationResult
+from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 from execution_engine.omop.serializable import Serializable
-from execution_engine.util.db import add_result_insert
 
 
 class Recommendation(Serializable):
@@ -99,21 +96,21 @@ class Recommendation(Serializable):
 
     def execution_map(self) -> ExecutionMap:
         """
-        Get the execution map of the recommendation.
+        Get the execution map of the full recommendation.
 
-        The execution map allows to execute the recommendation
-        as a series of tasks.
+        The execution map of the full recommendation is constructed from combining the population and intervention
+        execution maps of the individual population/intervention pairs of the recommendation.
         """
 
         pi_pairs = []
-        # todo: missing individual population (of full recommendation)
+        # todo: missing individual population / intervention (of full recommendation)
 
         for pi_pair in self._pi_pairs:
             emap = pi_pair.execution_map()
             p, i = emap[CohortCategory.POPULATION], emap[CohortCategory.INTERVENTION]
-            pi_pairs.append((~p) | (p & i))
+            pi_pairs.append(p >> i)
 
-        return ExecutionMap.union(*pi_pairs)
+        return ExecutionMap.combine_from(*pi_pairs, operator=logic.NoDataPreservingAnd)
 
     def criteria(self) -> CriterionCombination:
         """
@@ -171,62 +168,13 @@ class Recommendation(Serializable):
             Column("valid_date", Date),
         )
 
-    def combine(self) -> Iterator[Insert]:
-        """
-        Combine the results of the individual population/intervention pairs.
-        """
-
-        table = RecommendationResult.__table__
-
-        def _get_query(
-            pi_pair: cohort.PopulationInterventionPair, category: CohortCategory
-        ) -> Select:
-            return (
-                select(table.c.person_id, table.c.valid_date)
-                .distinct(table.c.person_id, table.c.valid_date)
-                .where(
-                    and_(
-                        table.c.pi_pair_id == pi_pair.id,
-                        table.c.cohort_category == category.name,
-                        table.c.criterion_id.is_(None),
-                        table.c.recommendation_run_id == bindparam("run_id"),
-                    )
-                )
-            )
-
-        def get_statements(cohort_category: CohortCategory) -> list[Select]:
-            return [_get_query(pi_pair, cohort_category) for pi_pair in self._pi_pairs]
-
-        for category in [
-            CohortCategory.POPULATION,
-            CohortCategory.INTERVENTION,
-            CohortCategory.POPULATION_INTERVENTION,
-        ]:
-            statements = get_statements(category)
-            query = union(*statements)
-            query = add_result_insert(
-                query,
-                pi_pair_id=None,
-                criterion_id=None,
-                cohort_category=category,
-            )
-
-            yield query
-
-    def cleanup(self) -> Iterator[DropTable]:
-        """
-        Cleanup the recommendation by removing the temporary base table.
-        """
-        # todo: do we still need this?
-        yield DropTable(self.base_table)
-
     @staticmethod
     def select_patients(category: CohortCategory) -> Select:
         """
         Select the patients in the given cohort category.
         """
-
-        table = RecommendationResult.__table__
+        # todo: update me
+        table = RecommendationResultInterval.__table__
 
         return select(table.c.person_id).where(
             and_(

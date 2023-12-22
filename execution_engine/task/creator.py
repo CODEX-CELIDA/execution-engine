@@ -40,14 +40,14 @@ class TaskCreator:
             )
 
             dependencies = []
-            if isinstance(expr, (logic.And, logic.Or, logic.Not)):
-                for arg in expr.args:
-                    child_task = _create_subtasks(arg)
-                    dependencies.append(child_task)
-            elif expr.is_Atom:
+            if expr.is_Atom:
                 # this task is a criterion and should store its result
                 current_task.store_result = True
                 dependencies.append(self.base_task)
+            elif isinstance(expr, logic.BooleanFunction):
+                for arg in expr.args:
+                    child_task = _create_subtasks(arg)
+                    dependencies.append(child_task)
 
             current_task.dependencies = dependencies
 

@@ -125,14 +125,20 @@ class Task:
 
             else:
                 # non-atomic expressions (i.e. logical operations on criteria)
-                if len(self.dependencies) == 1:
-                    # only Not has one dependency
+                if isinstance(self.expr, logic.Not):
                     result = self.handle_unary_logical_operator(
                         data, base_data, observation_window
                     )
-                elif len(self.dependencies) >= 2:
-                    # And and Or have two or more dependencies
+                elif isinstance(self.expr, (logic.And, logic.Or)):
                     result = self.handle_binary_logical_operator(data)
+                elif isinstance(self.expr, logic.LeftDependentToggle):
+                    result = self.handle_left_dependent_toggle(data, observation_window)
+                elif isinstance(self.expr, logic.NoDataPreservingAnd):
+                    result = self.handle_no_data_preserving_and(
+                        data, observation_window
+                    )
+                else:
+                    raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
                 if self.store_result:
                     self.store_result_in_db(result, params)
@@ -222,6 +228,83 @@ class Task:
             result = process.merge_intervals(data, self.by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
+        return result
+
+    def handle_no_data_preserving_and(
+        self, data: list[pd.DataFrame], observation_window: TimeRange
+    ) -> pd.DataFrame:
+        """
+        Handles a NoDataPreservingAnd by merging the intervals of the left dependency with the intervals of the
+        right dependency.
+
+        :param data: The input data.
+        :param observation_window: The observation window.
+        :return: A DataFrame with the merged intervals.
+        """
+        assert isinstance(
+            self.expr, logic.NoDataPreservingAnd
+        ), "Dependency is not a NoDataPreservingAnd expression."
+
+        data_negative = [
+            df[df["interval_type"] == IntervalType.NEGATIVE] for df in data
+        ]
+        data_nodata = [df[df["interval_type"] == IntervalType.NO_DATA] for df in data]
+
+        # NEGATIVE has the highest priority, if any NEGATIVE is present, the result is NEGATIVE (-> union of NEGATIVE)
+        result_negative = process.merge_intervals(data_negative, self.by)
+
+        # NO_DATA has the lowest priority, only if NO_DATA is present in all dataframes, the result is NO_DATA
+        #   (-> intersection of NO_DATA)
+        result_nodata = process.intersect_intervals(data_nodata, self.by)
+
+        # the remaining intervals are POSITIVE
+        result = pd.concat([result_negative, result_nodata])
+        result_positive = process.fill_missing_intervals(
+            result,
+            by=["person_id"],
+            observation_window=observation_window,
+            interval_type=IntervalType.POSITIVE,
+        )
+        result = pd.concat([result, result_positive])
+
+        return result
+
+    def handle_left_dependent_toggle(
+        self, data: list[pd.DataFrame], observation_window: TimeRange
+    ) -> pd.DataFrame:
+        """
+        Handles a left dependent toggle by merging the intervals of the left dependency with the intervals of the
+        right dependency.
+
+        :param data: The input data.
+        :param observation_window: The observation window.
+        :return: A DataFrame with the merged intervals.
+        """
+        assert isinstance(
+            self.expr, logic.LeftDependentToggle
+        ), "Dependency is not a LeftDependentToggle expression."
+
+        # data[0] is the left dependency (i.e. P)
+        # data[1] is the right dependency (i.e. I)
+        # not P --> no data
+        result_not_p = process.invert_intervals(data[0], self.by, observation_window)
+        result_not_p["interval_type"] = IntervalType.NOT_APPLICABLE
+
+        # P and I --> POSITIVE
+        result_p_and_i = process.intersect_intervals(data, self.by)
+
+        result = pd.concat([result_not_p, result_p_and_i])
+
+        # fill remaining time with NEGATIVE
+        result_no_data = process.fill_missing_intervals(
+            result,
+            by=["person_id"],
+            observation_window=observation_window,
+            interval_type=IntervalType.NEGATIVE,
+        )
+
+        result = pd.concat([result, result_no_data])
+
         return result
 
     def store_result_in_db(self, result: pd.DataFrame, params: dict) -> None:

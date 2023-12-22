@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -102,67 +102,6 @@ class RecommendationRun(Base):  # noqa: D101
     recommendation: Mapped["Recommendation"] = relationship(
         primaryjoin="RecommendationRun.recommendation_id == Recommendation.recommendation_id",
     )
-
-
-class RecommendationResult(Base):  # noqa: D101
-    __tablename__ = "recommendation_result"
-    __table_args__ = (
-        Index(
-            "ix_rec_result_run_id_cohort_category_person_id_valid_date",
-            "recommendation_run_id",
-            "cohort_category",
-            "person_id",
-            "valid_date",
-        ),
-        Index(
-            "ix_rec_result__run_id_pi_pair_id_criterion_id_valid_date",
-            "recommendation_run_id",
-            "pi_pair_id",
-            "criterion_id",
-            "valid_date",
-        ),
-        {"schema": SCHEMA_NAME},
-    )
-
-    recommendation_result_id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, index=True, autoincrement=True
-    )
-    recommendation_run_id = mapped_column(
-        ForeignKey(f"{SCHEMA_NAME}.recommendation_run.recommendation_run_id"),
-        index=True,
-    )
-    pi_pair_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{SCHEMA_NAME}.population_intervention_pair.pi_pair_id"),
-        index=True,
-        nullable=True,
-    )
-    criterion_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{SCHEMA_NAME}.recommendation_criterion.criterion_id"),
-        index=True,
-        nullable=True,
-    )
-    cohort_category = mapped_column(CohortCategoryEnum)
-    person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
-    )
-    valid_date: Mapped[date]
-
-    recommendation_run: Mapped["RecommendationRun"] = relationship(
-        primaryjoin="RecommendationResult.recommendation_run_id == RecommendationRun.recommendation_run_id",
-    )
-
-    population_intervention_pair: Mapped["PopulationInterventionPair"] = relationship(
-        primaryjoin="RecommendationResult.pi_pair_id == PopulationInterventionPair.pi_pair_id",
-    )
-
-    recommendation_criterion: Mapped["RecommendationCriterion"] = relationship(
-        primaryjoin="RecommendationResult.criterion_id == RecommendationCriterion.criterion_id",
-    )
-
-    # person = relationship(
-    #    "cds_cdm.person",
-    #    primaryjoin="RecommendationResult.person_id == cds_cdm.person.person_id",
-    # )
 
 
 class RecommendationResultInterval(Base):  # noqa: D101

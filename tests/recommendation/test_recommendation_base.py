@@ -14,10 +14,8 @@ from tqdm import tqdm
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
-from execution_engine.omop.db.celida.tables import (
-    PopulationInterventionPair,
-    RecommendationResult,
-)
+from execution_engine.omop.db.celida.tables import PopulationInterventionPair
+from execution_engine.omop.db.celida.views import full_day_coverage
 from execution_engine.omop.db.omop.tables import Person
 from execution_engine.util import TimeRange
 from tests._testdata import concepts, parameter
@@ -468,11 +466,13 @@ class TestRecommendationBase(ABC):
         idx_static = criteria["static"]
         criteria.loc[idx_static, "start_datetime"] = observation_window.start
         criteria.loc[idx_static, "end_datetime"] = observation_window.end
+
         df = self.expand_dataframe_by_date(
             criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
             observation_window=observation_window,
         )
-        # the base criterion is the visit, all other criteria are &-combined with the base criterion
+
+        # the base criterion is the visit, all other criteria are AND-combined with the base criterion
         df_base = self.expand_dataframe_by_date(
             pd.DataFrame(
                 {
@@ -600,19 +600,19 @@ class TestRecommendationBase(ABC):
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
         )
-        t = RecommendationResult
+        t = full_day_coverage
         t_plan = PopulationInterventionPair
 
         query = (
             select(
-                t.recommendation_result_id,
-                t.person_id,
+                t.c.recommendation_run_id,
+                t.c.person_id,
                 t_plan.pi_pair_name,
-                t.cohort_category,
-                t.valid_date,
+                t.c.cohort_category,
+                t.c.valid_date,
             )
             .outerjoin(PopulationInterventionPair)
-            .where(t.criterion_id.is_(None))
+            .where(t.c.criterion_id.is_(None))
         )
         df_result = omopdb.query(query)
         df_result["valid_date"] = pd.to_datetime(df_result["valid_date"])
@@ -634,7 +634,7 @@ class TestRecommendationBase(ABC):
         df_result = df_result.pivot_table(
             columns="name",
             index=["person_id", "date"],
-            values="recommendation_result_id",
+            values="recommendation_run_id",
             aggfunc=len,
             fill_value=0,
         ).astype(bool)

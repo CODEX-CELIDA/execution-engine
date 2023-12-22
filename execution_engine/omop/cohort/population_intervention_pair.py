@@ -1,8 +1,6 @@
-import logging
 from typing import Any, Dict
 
 from sqlalchemy import Table
-from sqlalchemy.orm import Query
 from sqlalchemy.sql import (
     Alias,
     CompoundSelect,
@@ -21,7 +19,6 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.serializable import Serializable
-from execution_engine.util.db import add_result_insert
 from execution_engine.util.sql import SelectInto
 
 
@@ -122,7 +119,7 @@ class PopulationInterventionPair(Serializable):
         )
         return {
             CohortCategory.POPULATION: population,
-            CohortCategory.POPULATION: intervention,
+            CohortCategory.INTERVENTION: intervention,
         }
 
     def add_population(self, criterion: Criterion | CriterionCombination) -> None:
@@ -298,29 +295,6 @@ class PopulationInterventionPair(Serializable):
 
         raise ValueError(f"Criterion {criterion.name} not found in population/intervention pair")"""
         raise NotImplementedError()
-
-    def combine(self) -> Query:
-        """
-        Combine the criteria into a single table.
-        """
-        if self._execution_map is None:
-            raise Exception("Execution map not initialized - run process() first")
-
-        logging.info("Yielding combination statements")
-
-        for category in [
-            CohortCategory.POPULATION,
-            CohortCategory.INTERVENTION,
-            CohortCategory.POPULATION_INTERVENTION,
-        ]:
-            query = self._execution_map.combine(cohort_category=category)
-            query = add_result_insert(
-                query,
-                pi_pair_id=self.id,
-                criterion_id=None,
-                cohort_category=category,
-            )
-            yield query
 
     def dict(self) -> dict[str, Any]:
         """

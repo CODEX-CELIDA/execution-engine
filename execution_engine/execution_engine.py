@@ -400,6 +400,8 @@ class ExecutionEngine:
                 result = con.execute(query)
                 recommendation.id = result.fetchone().recommendation_id
 
+                con.commit()
+
             for pi_pair in recommendation.population_intervention_pairs():
                 self.register_population_intervention_pair(
                     pi_pair, recommendation_id=recommendation.id
@@ -440,6 +442,8 @@ class ExecutionEngine:
 
                 result = con.execute(query)
                 pi_pair.id = result.fetchone().pi_pair_id
+
+                con.commit()
 
     def register_criterion(self, criterion: Criterion) -> None:
         """
@@ -556,8 +560,8 @@ class ExecutionEngine:
     def fetch_patients(self, run_id: int) -> dict:
         """Retrieve list of patients associated with a single run."""
         assert isinstance(run_id, int)
-
-        t = result_db.RecommendationResult.__table__.alias("result")
+        # todo: test / fix me
+        t = result_db.RecommendationResultInterval.__table__.alias("result")
         t_criterion = result_db.RecommendationCriterion.__table__.alias("criteria")
         query = (
             select(

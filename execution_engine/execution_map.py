@@ -1,8 +1,6 @@
 import logging
 from itertools import chain
-from typing import Iterator
-
-import sympy
+from typing import Iterator, Type
 
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
@@ -37,19 +35,47 @@ class ExecutionMap:
         :param base_criterion: The base criterion which is executed first and used to limit the number of patients
             that are considered for the execution of the other criteria.
         """
-        self._criteria = comb
-        self._expr = self._to_expression(self._criteria)
+        self._expr = self._to_expression(comb)
         self._base_criterion = base_criterion
         self._params = params
         self._root_task = self._create_execution_map()
 
         logging.info(f"Expression: {self._expr}")
 
+    @classmethod
+    def from_expression(
+        cls, expr: logic.Expr, base_criterion: Criterion, params: dict | None
+    ) -> "ExecutionMap":
+        """
+        Create an execution map from a logic expression.
+
+        :param expr: The logic expression.
+        :param base_criterion: The base criterion which is executed first and used to limit the number of patients
+            that are considered for the execution of the other criteria.
+        :return: The execution map.
+        """
+        instance = cls.__new__(cls)
+        instance._expr = expr
+        instance._base_criterion = base_criterion
+        instance._params = params
+        instance._root_task = instance._create_execution_map()
+
+        logging.info(f"Expression: {instance._expr}")
+
+        return instance
+
     def root_task(self) -> Task:
         """
         Return the root task of the execution map.
         """
         return self._root_task
+
+    @property
+    def expression(self) -> logic.Expr:
+        """
+        Get the expression of the execution map.
+        """
+        return self._expr
 
     @property
     def category(self) -> CohortCategory:
@@ -98,7 +124,9 @@ class ExecutionMap:
 
         return category
 
-    def __combine__(self, other: "ExecutionMap", operator: str) -> "ExecutionMap":
+    def combine(
+        self, other: "ExecutionMap", operator: Type[logic.BooleanFunction]
+    ) -> "ExecutionMap":
         """
         Combine two execution maps with an operator.
         """
@@ -111,17 +139,10 @@ class ExecutionMap:
             self._params is None and other._params is None
         ) or self._params == other._params, "params must be equal"
 
-        criteria = [self._criteria, other._criteria]
         category = self.get_combined_category(self, other)
 
-        return ExecutionMap(
-            CriterionCombination(
-                "CriterionCombination",  # todo: proper name
-                exclude=False,
-                operator=CriterionCombination.Operator(operator),
-                category=category,
-                criteria=criteria,
-            ),
+        return ExecutionMap.from_expression(
+            operator(self._expr, other._expr, category=category),
             self._base_criterion,
             self._params,
         )
@@ -130,24 +151,34 @@ class ExecutionMap:
         """
         Combine two execution maps with an AND operator.
         """
-        return self.__combine__(other, CriterionCombination.Operator.AND)
+        return self.combine(other, logic.And)
 
     def __or__(self, other: "ExecutionMap") -> "ExecutionMap":
         """
         Combine two execution maps with an OR operator.
         """
-        return self.__combine__(other, CriterionCombination.Operator.OR)
+        return self.combine(other, logic.Or)
 
     def __invert__(self) -> "ExecutionMap":
         """
         Invert the execution map.
         """
-        return ExecutionMap(self._criteria.invert(), self._base_criterion, self._params)
+        return ExecutionMap.from_expression(
+            logic.Not(self._expr, self.category), self._base_criterion, self._params
+        )
+
+    def __rshift__(self, other: "ExecutionMap") -> "ExecutionMap":
+        """
+        Combine two execution maps with an AND operator.
+        """
+        return self.combine(other, logic.LeftDependentToggle)
 
     @classmethod
-    def union(cls, *args: "ExecutionMap") -> "ExecutionMap":
+    def combine_from(
+        cls, *args: "ExecutionMap", operator: Type[logic.BooleanFunction]
+    ) -> "ExecutionMap":
         """
-        Combine multiple execution maps with an OR operator.
+        Combine multiple execution maps with an operator.
         """
         assert all(
             isinstance(arg, ExecutionMap) for arg in args
@@ -162,19 +193,10 @@ class ExecutionMap:
             all(arg._params == args[0]._params for arg in args)
         ), "params must be equal"
 
-        criteria = [arg._criteria for arg in args]
         category = cls.get_combined_category(*args)
 
-        return cls(
-            CriterionCombination(
-                "OR",
-                exclude=False,
-                operator=CriterionCombination.Operator(
-                    CriterionCombination.Operator.OR
-                ),
-                category=category,
-                criteria=criteria,
-            ),
+        return cls.from_expression(
+            operator(*[arg._expr for arg in args], category=category),
             args[0]._base_criterion,
             args[0]._params,
         )
@@ -204,7 +226,7 @@ class ExecutionMap:
 
         def conjunction_from_operator(
             operator: CriterionCombination.Operator,
-        ) -> sympy.Expr:
+        ) -> Type[logic.BooleanFunction]:
             """
             Convert the criterion's operator into a sympy conjunction (And or Or)
             """
@@ -247,14 +269,4 @@ class ExecutionMap:
         """
         Flatten the execution map into a list of criteria.
         """
-
-        def _traverse(comb: CriterionCombination) -> list[Criterion]:
-            criteria = []
-            for element in comb:
-                if isinstance(element, CriterionCombination):
-                    criteria += _traverse(element)
-                else:
-                    criteria.append(element)
-            return criteria
-
-        yield from _traverse(self._criteria)
+        yield from self._expr.atoms()
