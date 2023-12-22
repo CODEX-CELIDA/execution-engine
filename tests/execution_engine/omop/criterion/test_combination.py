@@ -62,7 +62,6 @@ class TestCriterionCombination(TestCriterion):
             name="test",
             exclude=False,
             category=CohortCategory.POPULATION,
-            drug_concepts=[concept_heparin_ingredient.concept_id],
             ingredient_concept=concept_heparin_ingredient,
             dose=ValueNumber(value=50, unit=concept_unit_mg),
             frequency=1,

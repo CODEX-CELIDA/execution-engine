@@ -135,7 +135,7 @@ concepts_heparin_other = [
     ),
 ]
 
-concept_enoxparin_ingredient = Concept(
+concept_enoxparin = Concept(
     concept_id=995271,
     concept_name="0.4 ML Enoxaparin 100 MG/ML Injectable Solution [Inhixa] by Emra-Med",
     domain_id="Drug",
@@ -143,5 +143,16 @@ concept_enoxparin_ingredient = Concept(
     concept_class_id="Marketed Product",
     standard_concept="S",
     concept_code="OMOP4821780",
+    invalid_reason=None,
+)
+
+concept_enoxparin_ingredient = Concept(
+    concept_id=1301025,
+    concept_name="enoxaparin",
+    domain_id="Drug",
+    vocabulary_id="RxNorm",
+    concept_class_id="Ingredient",
+    standard_concept="S",
+    concept_code="67108",
     invalid_reason=None,
 )

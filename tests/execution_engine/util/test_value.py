@@ -156,7 +156,7 @@ class TestValueNumber:
 
         with pytest.raises(
             ValueError,
-            match="If table is set, column_name must be a string, not a ColumnClause.",
+            match="If table is set, column_name must be a string, not a ColumnElement.",
         ):
             vn.to_sql(table=test_table, column_name=ColumnClause("value_as_number"))
 

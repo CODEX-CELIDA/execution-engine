@@ -12,6 +12,7 @@ from execution_engine.omop.criterion.abstract import (
     Criterion,
     create_conditional_interval_column,
 )
+from execution_engine.omop.db.omop import tables as omop
 from execution_engine.util import Interval, ValueNumber, value_factory
 from execution_engine.util.sql import SelectInto
 
@@ -26,7 +27,6 @@ class DrugExposure(Criterion):
         name: str,
         exclude: bool,
         category: CohortCategory,
-        drug_concepts: list[str],
         ingredient_concept: Concept,
         dose: ValueNumber | None,
         frequency: int | None,
@@ -38,7 +38,6 @@ class DrugExposure(Criterion):
         """
         super().__init__(name=name, exclude=exclude, category=category)
         self._set_omop_variables_from_domain("drug")
-        self._drug_concepts = drug_concepts
         self._ingredient_concept = ingredient_concept
         self._dose = dose
         self._frequency = frequency
@@ -59,10 +58,58 @@ class DrugExposure(Criterion):
     def _sql_filter_concept(self, query: Select) -> Select:
         """
         Return the SQL to filter the data for the criterion.
+
+        We here filter the drug_exposure table by all concepts that are descendants of the ingredient concept that
+        is associated with this DrugExposure Criterion.
+
+        Warning: We only take drugs that have the same amount_unit_concept_id as the ingredient!
+        If drug mixtures are specified in the OMOP CDM database, these WILL NOT be taken into account!
+
+        :param query: The query to filter
+        :return: The filtered query
         """
         drug_exposure = self._table
 
-        query = query.where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
+        c = omop.Concept.__table__.alias("c")
+        cd = omop.Concept.__table__.alias("cd")
+        ca = omop.t_concept_ancestor.alias("ca")
+        ds = omop.t_drug_strength.alias("ds")
+        ds_ingr = omop.t_drug_strength.alias("ds_ingr")
+
+        drugs_by_ingredient = (
+            select(cd.c.concept_id.label("descendant_concept_id"))
+            .join(
+                ca,
+                c.c.concept_id == ca.c.ancestor_concept_id,
+            )
+            .join(
+                cd,
+                cd.c.concept_id == ca.c.descendant_concept_id,
+            )
+            .join(
+                ds,
+                and_(
+                    ds.c.drug_concept_id == cd.c.concept_id,
+                    ds.c.ingredient_concept_id == c.c.concept_id,
+                ),
+            )
+            .join(
+                ds_ingr,
+                ds_ingr.c.drug_concept_id == c.c.concept_id,
+            )
+            .where(
+                and_(
+                    c.c.concept_id == self._ingredient_concept.concept_id,
+                    c.c.domain_id == "Drug",
+                    ds.c.amount_unit_concept_id == ds_ingr.c.amount_unit_concept_id,
+                    func.now().between(c.c.valid_start_date, c.c.valid_end_date),
+                    func.now().between(cd.c.valid_start_date, cd.c.valid_end_date),
+                    func.now().between(ds.c.valid_start_date, ds.c.valid_end_date),
+                )
+            )
+        )
+
+        query = query.where(drug_exposure.c.drug_concept_id.in_(drugs_by_ingredient))
 
         return query
 
@@ -265,7 +312,6 @@ class DrugExposure(Criterion):
             "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
-            "drug_concepts": self._drug_concepts,
             "ingredient_concept": self._ingredient_concept.dict(),
             "dose": self._dose.dict() if self._dose is not None else None,
             "frequency": self._frequency,
@@ -287,7 +333,6 @@ class DrugExposure(Criterion):
             name=data["name"],
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
-            drug_concepts=data["drug_concepts"],
             ingredient_concept=Concept(**data["ingredient_concept"]),
             dose=dose,
             frequency=data["frequency"],

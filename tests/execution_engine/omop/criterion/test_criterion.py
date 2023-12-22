@@ -24,7 +24,7 @@ from execution_engine.omop.db.celida.views import (
     partial_day_coverage,
 )
 from execution_engine.omop.db.omop.tables import Person
-from execution_engine.omop.sql import OMOPSQLClient
+from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import config
 from execution_engine.task import (  # noqa: F401     -- required for the mock.patch below
     runner,

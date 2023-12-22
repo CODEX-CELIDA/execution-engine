@@ -7,7 +7,7 @@ import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory, IntervalType
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import RecommendationResultInterval
-from execution_engine.omop.sql import OMOPSQLClient
+from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import config
 from execution_engine.task import process
 from execution_engine.util import TimeRange

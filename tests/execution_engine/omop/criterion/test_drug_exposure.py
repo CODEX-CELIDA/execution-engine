@@ -8,7 +8,7 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.util import Dosage, Interval, ValueNumber
 from tests._fixtures.concept import (
-    concept_enoxparin_ingredient,
+    concept_enoxparin,
     concept_heparin_ingredient,
     concept_unit_mg,
     concepts_heparin_other,
@@ -24,7 +24,7 @@ class TestDrugExposure(TestCriterion):
     def setup_related_concepts(self):
         concept_ids = [
             concept_heparin_ingredient.concept_id,
-            concept_enoxparin_ingredient.concept_id,
+            concept_enoxparin.concept_id,
         ]
 
         for concept_id in concept_ids:
@@ -62,7 +62,6 @@ class TestDrugExposure(TestCriterion):
                 name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
-                drug_concepts=self.related_concepts[ingredient_concept.concept_id],
                 ingredient_concept=ingredient_concept,
                 dose=dose,
                 frequency=frequency,
@@ -394,7 +393,7 @@ class TestDrugExposure(TestCriterion):
                 # date         qty
                 # 2023-03-01 100.0
                 {
-                    "drug_concept_id": concept_enoxparin_ingredient.concept_id,
+                    "drug_concept_id": concept_enoxparin.concept_id,
                     "start_datetime": "2023-03-02 09:36:24",
                     "end_datetime": "2023-03-02 10:36:24",
                     "quantity": 200,
@@ -633,7 +632,7 @@ class TestDrugExposure(TestCriterion):
                 # date         qty
                 # 2023-03-11 100.0
                 {
-                    "drug_concept_id": concept_enoxparin_ingredient.concept_id,
+                    "drug_concept_id": concept_enoxparin.concept_id,
                     "start_datetime": "2023-03-02 09:36:24+01:00",
                     "end_datetime": "2023-03-02 10:36:24+01:00",
                     "quantity": 200,
