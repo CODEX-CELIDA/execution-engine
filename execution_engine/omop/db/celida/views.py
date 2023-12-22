@@ -1,4 +1,4 @@
-from sqlalchemy import Date, Select, func, select
+from sqlalchemy import Date, Select, and_, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 
@@ -17,8 +17,6 @@ def view_full_day_coverage() -> Select:
     """
 
     one_day = func.cast(concat(1, "day"), INTERVAL)
-    one_second = func.cast(concat(1, "second"), INTERVAL)
-    rr = RecommendationRun.__table__.alias("rr")
     rri = RecommendationResultInterval.__table__.alias("rri")
 
     date_series = select(
@@ -54,12 +52,19 @@ def view_full_day_coverage() -> Select:
                     date_series.c.observation_start_datetime,
                 )
             ).label("covered_time"),
+            func.bool_or(rri.c.interval_type == IntervalType.POSITIVE).label(
+                "has_positive"
+            ),
+            func.bool_or(rri.c.interval_type == IntervalType.NO_DATA).label(
+                "has_no_data"
+            ),
+            func.bool_or(rri.c.interval_type == IntervalType.NEGATIVE).label(
+                "has_negative"
+            ),
         )
         .select_from(date_series)
         .outerjoin(
-            rri,
-            (date_series.c.recommendation_run_id == rri.c.recommendation_run_id)
-            & (rri.c.interval_type.in_(["POSITIVE", "NO_DATA"])),
+            rri, (date_series.c.recommendation_run_id == rri.c.recommendation_run_id)
         )
         .filter(
             rri.c.interval_start < date_series.c.day + one_day,
@@ -76,62 +81,20 @@ def view_full_day_coverage() -> Select:
         .cte("interval_coverage")
     )
 
-    observation_start_date = func.date_trunc(
-        "day", rr.c.observation_start_datetime
-    ).cast(Date)
-    observation_end_date = func.date_trunc("day", rr.c.observation_end_datetime).cast(
-        Date
-    )
-    covered_time = interval_coverage.c.covered_time
     day = interval_coverage.c.day.label("valid_date")
 
     # subtract one second from the covered time because 00:00:00 - 23:59:59 is considered to be a full day
-    covered_dates = (
-        select(
-            interval_coverage.c.recommendation_run_id,
-            interval_coverage.c.person_id,
-            interval_coverage.c.cohort_category,
-            interval_coverage.c.pi_pair_id,
-            interval_coverage.c.criterion_id,
-            day,
-        )
-        .join(
-            rr, rr.c.recommendation_run_id == interval_coverage.c.recommendation_run_id
-        )
-        .filter(
-            (
-                (day == observation_start_date)
-                & (day == observation_end_date)
-                & (
-                    covered_time
-                    >= rr.c.observation_end_datetime
-                    - rr.c.observation_start_datetime
-                    - one_second
-                )
-            )
-            | (
-                (day == observation_start_date)
-                & (
-                    covered_time
-                    >= rr.c.observation_start_datetime
-                    - observation_start_date
-                    - one_second
-                )
-            )
-            | (
-                (day == observation_end_date)
-                & (
-                    covered_time
-                    >= rr.c.observation_end_datetime
-                    - func.date_trunc("day", rr.c.observation_end_datetime)
-                    - one_second
-                )
-            )
-            | (
-                (day != observation_start_date)
-                & (day != observation_end_date)
-                & (covered_time >= one_day - one_second)
-            )
+    covered_dates = select(
+        interval_coverage.c.recommendation_run_id,
+        interval_coverage.c.person_id,
+        interval_coverage.c.cohort_category,
+        interval_coverage.c.pi_pair_id,
+        interval_coverage.c.criterion_id,
+        day,
+    ).filter(
+        and_(
+            interval_coverage.c.has_positive,
+            # not_(interval_coverage.c.has_negative),
         )
     )
 

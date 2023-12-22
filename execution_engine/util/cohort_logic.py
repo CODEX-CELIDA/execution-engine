@@ -143,15 +143,12 @@ class Expr(CohortCategorized, sympy.Expr):
     """
 
 
-class NonSimplifiableOr(BooleanFunction):
+class NonSimplifiableAnd(BooleanFunction):
     """
-    A NonSimplifiableOr object represents a logical OR operation that cannot be simplified.
+    A NonSimplifiableAnd object represents a logical AND operation that cannot be simplified.
 
     Simplified here means that when this operator is used on a single argument, still this operator is returned
-    instead of the argument itself, as is the case with the sympy.Or operator.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments (must contain category).
+    instead of the argument itself, as is the case with the sympy.And operator.
     """
 
 

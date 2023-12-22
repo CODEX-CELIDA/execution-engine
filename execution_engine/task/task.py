@@ -130,7 +130,7 @@ class Task:
                         data, base_data, observation_window
                     )
                 elif isinstance(
-                    self.expr, (logic.And, logic.Or, logic.NonSimplifiableOr)
+                    self.expr, (logic.And, logic.Or, logic.NonSimplifiableAnd)
                 ):
                     result = self.handle_binary_logical_operator(data)
                 elif isinstance(self.expr, logic.LeftDependentToggle):
@@ -237,9 +237,9 @@ class Task:
         """
         # todo: should we process results with a single predecessor at all or just loop through?
 
-        if isinstance(self.expr, logic.And):
+        if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
             result = process.intersect_intervals(data, self.by)
-        elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
+        elif isinstance(self.expr, logic.Or):
             result = process.merge_intervals(data, self.by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
@@ -264,28 +264,34 @@ class Task:
             self.expr, logic.NoDataPreservingAnd
         ), "Dependency is not a NoDataPreservingAnd expression."
 
-        data_negative = [
-            df[df["interval_type"] == IntervalType.NEGATIVE] for df in data
+        # data_negative = [
+        #     df[df["interval_type"] == IntervalType.NEGATIVE] for df in data
+        # ]
+        data_positive = [
+            df[df["interval_type"] == IntervalType.POSITIVE] for df in data
         ]
         data_nodata = [df[df["interval_type"] == IntervalType.NO_DATA] for df in data]
 
-        # NEGATIVE has the highest priority, if any NEGATIVE is present, the result is NEGATIVE (-> union of NEGATIVE)
-        result_negative = process.merge_intervals(data_negative, self.by)
+        result_positive = process.intersect_intervals(data_positive, self.by)
+
+        # todo: clean up
+        # # NEGATIVE has the highest priority, if any NEGATIVE is present, the result is NEGATIVE (-> union of NEGATIVE)
+        # result_negative = process.merge_intervals(data_negative, self.by)
 
         # NO_DATA has the lowest priority, only if NO_DATA is present in all dataframes, the result is NO_DATA
         #   (-> intersection of NO_DATA)
         result_nodata = process.intersect_intervals(data_nodata, self.by)
 
-        # the remaining intervals are POSITIVE
-        result = pd.concat([result_negative, result_nodata])
-        result_positive = process.invert_intervals(
+        # the remaining intervals are NEGATIVE
+        result = pd.concat([result_positive, result_nodata])
+        result_negative = process.invert_intervals(
             result,
             base=base_data,
             by=["person_id"],
             observation_window=observation_window,
-            interval_type=IntervalType.POSITIVE,
+            interval_type=IntervalType.NEGATIVE,
         )
-        result = pd.concat([result, result_positive])
+        result = pd.concat([result, result_negative])
 
         return result
 

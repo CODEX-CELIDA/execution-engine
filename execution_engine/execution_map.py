@@ -221,7 +221,11 @@ class ExecutionMap:
                 #   The problem is that we need a non-criterion sink node of the intervention and population in order
                 #   to store the results to the database without the criterion_id (as the result of the whole
                 #   intervention or population of this population/intervention pair).
-                return logic.NonSimplifiableOr
+                assert comb.operator.operator == CriterionCombination.Operator.AND, (
+                    f"Invalid operator {str(comb.operator)} for root node. "
+                    f"Expected {CriterionCombination.Operator.AND}"
+                )
+                return logic.NonSimplifiableAnd
             elif comb.operator.operator == CriterionCombination.Operator.AND:
                 return logic.And
             elif comb.operator.operator == CriterionCombination.Operator.OR:
