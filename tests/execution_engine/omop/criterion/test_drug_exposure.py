@@ -2,7 +2,6 @@ import pandas as pd
 import pendulum
 import pytest
 
-from execution_engine.clients import omopdb
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
@@ -18,34 +17,6 @@ from tests.functions import create_drug_exposure
 
 
 class TestDrugExposure(TestCriterion):
-    related_concepts: dict[int, list[str]] = {}
-
-    @pytest.fixture(scope="class", autouse=True)
-    def setup_related_concepts(self):
-        concept_ids = [
-            concept_heparin_ingredient.concept_id,
-            concept_enoxparin.concept_id,
-        ]
-
-        for concept_id in concept_ids:
-            self.related_concepts[concept_id] = omopdb.drugs_by_ingredient(
-                concept_id, with_unit=True
-            )["drug_concept_id"].tolist()
-
-    @staticmethod
-    def drug_concepts(concept: Concept):
-        """
-        Given a drug concept, find the ingredient of that drug and return all drugs that contain that ingredient.
-        """
-
-        ingredient = omopdb.drug_vocabulary_to_ingredient(
-            concept.vocabulary_id, concept.concept_code  # type: ignore
-        )
-
-        drugs = omopdb.drugs_by_ingredient(ingredient.concept_id, with_unit=True)  # type: ignore
-
-        return {"ingredient": ingredient, "drugs": drugs}
-
     @pytest.fixture
     def execute_drug_exposure_criterion(
         self, base_table, db_session, observation_window
