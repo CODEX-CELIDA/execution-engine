@@ -1,6 +1,5 @@
 from typing import Any, Dict
 
-from sqlalchemy import Table
 from sqlalchemy.sql import (
     Alias,
     CompoundSelect,
@@ -134,25 +133,6 @@ class PopulationInterventionPair(Serializable):
         """
         self._intervention.add(criterion)
 
-    def get_criterion(self, criterion_unique_name: str) -> Criterion | None:
-        """
-        Retrieve a criterion by its unique name.
-        """
-
-        """
-        def _traverse(comb: CriterionCombination) -> Criterion | None:
-            for element in comb:
-                if isinstance(element, CriterionCombination):
-                    found = _traverse(element)
-                    if found is not None:
-                        return found
-                elif element.unique_name() == criterion_unique_name:
-                    return element
-            return None
-
-        return _traverse(self._criteria)"""
-        raise NotImplementedError()
-
     def criteria(self) -> CriterionCombination:
         """
         Get the criteria of the population/intervention pair.
@@ -246,55 +226,6 @@ class PopulationInterventionPair(Serializable):
             ), f"Base table {base_table_out} not found in select"
         else:
             raise NotImplementedError(f"Unknown type {type(sql)}")
-
-    def process(self, base_table: Table) -> None:
-        """
-        Process the population/intervention pair into SQL statements.
-        """
-        raise NotImplementedError()
-        # self._execution_map = self.execution_map()
-        #
-        # i: int
-        # criterion: Criterion
-        #
-        # for i, criterion in enumerate(self._execution_map.flatten()):
-        #     logging.info(f"Processing {criterion.description()}")
-        #
-        #     query = criterion.DEPsql_generate(base_table=base_table)
-        #     self._assert_base_table_in_select(query, base_table.name)
-        #
-        #     query = add_result_insert(
-        #         query,
-        #         pi_pair_id=self.id,
-        #         criterion_id=criterion.id,
-        #         cohort_category=criterion.category,
-        #     )
-        #
-        #     yield query
-        #
-        # yield from self.combine()
-
-    def get_criterion_combination_name(self, criterion: Criterion) -> str:
-        """
-        Get the name of the criterion combination for the given criterion.
-        """
-
-        """def _traverse(comb: CriterionCombination) -> str:
-            for element in comb:
-                if isinstance(element, CriterionCombination):
-                    yield from _traverse(element)
-                else:
-                    yield comb, element
-
-        comb: CriterionCombination
-        element: Criterion
-
-        for comb, element in _traverse(self._criteria):
-            if element.dict() == criterion.dict():
-                return comb.unique_name()
-
-        raise ValueError(f"Criterion {criterion.name} not found in population/intervention pair")"""
-        raise NotImplementedError()
 
     def dict(self) -> dict[str, Any]:
         """

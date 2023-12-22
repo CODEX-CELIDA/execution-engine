@@ -64,7 +64,7 @@ class PointInTimeCriterion(ConceptCriterion):
         return query
 
     def process_result(
-        self, df: pd.DataFrame, observation_window: TimeRange
+        self, df: pd.DataFrame, base_data: pd.DataFrame, observation_window: TimeRange
     ) -> pd.DataFrame:
         """
         Process the result of the SQL query.
@@ -72,12 +72,16 @@ class PointInTimeCriterion(ConceptCriterion):
         Inserts NO_DATA intervals for all intervals that are not POSITIVE or NEGATIVE.
 
         :param df: The result of the SQL query.
+        :param base_data: The base data.
         :return: A processed DataFrame.
         """
         no_data_intervals = process.invert_intervals(
-            df, ["person_id"], observation_window
+            df,
+            base=base_data,
+            by=["person_id"],
+            observation_window=observation_window,
+            interval_type=IntervalType.NO_DATA,
         )
-        no_data_intervals["interval_type"] = IntervalType.NO_DATA
         df = pd.concat([df, no_data_intervals])
         df.sort_values(by=["person_id", "interval_start"], inplace=True)
 

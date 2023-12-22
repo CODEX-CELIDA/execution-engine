@@ -4,10 +4,9 @@ from typing import Iterator, Type
 
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
+from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.task.creator import TaskCreator
-from execution_engine.task.task import Task
 
 
 class ExecutionMap:
@@ -35,16 +34,14 @@ class ExecutionMap:
         :param base_criterion: The base criterion which is executed first and used to limit the number of patients
             that are considered for the execution of the other criteria.
         """
-        self._expr = self._to_expression(comb)
+        self._expr = self._to_expression(comb, params)
         self._base_criterion = base_criterion
-        self._params = params
-        self._root_task = self._create_execution_map()
 
         logging.info(f"Expression: {self._expr}")
 
     @classmethod
     def from_expression(
-        cls, expr: logic.Expr, base_criterion: Criterion, params: dict | None
+        cls, expr: logic.Expr, base_criterion: Criterion
     ) -> "ExecutionMap":
         """
         Create an execution map from a logic expression.
@@ -57,18 +54,10 @@ class ExecutionMap:
         instance = cls.__new__(cls)
         instance._expr = expr
         instance._base_criterion = base_criterion
-        instance._params = params
-        instance._root_task = instance._create_execution_map()
 
         logging.info(f"Expression: {instance._expr}")
 
         return instance
-
-    def root_task(self) -> Task:
-        """
-        Return the root task of the execution map.
-        """
-        return self._root_task
 
     @property
     def expression(self) -> logic.Expr:
@@ -135,17 +124,25 @@ class ExecutionMap:
             self._base_criterion == other._base_criterion
         ), "base criteria must be equal"
 
-        assert (
-            self._params is None and other._params is None
-        ) or self._params == other._params, "params must be equal"
-
         category = self.get_combined_category(self, other)
 
         return ExecutionMap.from_expression(
             operator(self._expr, other._expr, category=category),
             self._base_criterion,
-            self._params,
         )
+
+    def set_params(self, params: dict) -> None:
+        """
+        Set the parameters of the execution map.
+        """
+        self._expr.params = params
+
+    @property
+    def params(self) -> dict:
+        """
+        Get the parameters of the execution map.
+        """
+        return self._expr.params
 
     def __and__(self, other: "ExecutionMap") -> "ExecutionMap":
         """
@@ -164,7 +161,8 @@ class ExecutionMap:
         Invert the execution map.
         """
         return ExecutionMap.from_expression(
-            logic.Not(self._expr, self.category), self._base_criterion, self._params
+            logic.Not(self._expr, category=self.category, params=self._expr.params),
+            self._base_criterion,
         )
 
     def __rshift__(self, other: "ExecutionMap") -> "ExecutionMap":
@@ -179,6 +177,10 @@ class ExecutionMap:
     ) -> "ExecutionMap":
         """
         Combine multiple execution maps with an operator.
+
+        :param args: The execution maps.
+        :param operator: The operator.
+        :return: The combined execution map.
         """
         assert all(
             isinstance(arg, ExecutionMap) for arg in args
@@ -189,59 +191,51 @@ class ExecutionMap:
             len(set(arg._base_criterion for arg in args)) == 1
         ), "base criteria must be equal"
 
-        assert all(arg._params is None for arg in args) or (
-            all(arg._params == args[0]._params for arg in args)
-        ), "params must be equal"
-
         category = cls.get_combined_category(*args)
 
         return cls.from_expression(
             operator(*[arg._expr for arg in args], category=category),
             args[0]._base_criterion,
-            args[0]._params,
         )
 
-    def _create_execution_map(self) -> Task:
-        def count_usage(expr: logic.Expr, usage_count: dict[logic.Expr, int]) -> None:
-            usage_count[expr] = usage_count.get(expr, 0) + 1
-            if not expr.is_Atom:
-                for arg in expr.args:
-                    count_usage(arg, usage_count)
-
-        usage_counts: dict[logic.Expr, int] = {}
-        count_usage(self._expr, usage_counts)
-
-        tc = TaskCreator(base_criterion=self._base_criterion, params=self._params)
-
-        return tc.create_tasks_and_dependencies(self._expr)
-
     @staticmethod
-    def _to_expression(comb: CriterionCombination) -> logic.Expr:
+    def _to_expression(comb: CriterionCombination, params: dict | None) -> logic.Expr:
         """
-        Convert the criterion combination into a logic expression and a hashmap of
-        criteria by their name used in the NNF. This is a workaround because we are using sympy for the NNF conversion
-        and sympy seems not to allow adding custom attributes to the expression tree.
+        Convert the CriterionCombination into an expression of And, Not, Or objects (and possibly more operators).
+
+        :param comb: The criterion combination.
+        :param params: The parameters.
+        :return: The expression.
         """
         # todo: update docstring
 
-        def conjunction_from_operator(
-            operator: CriterionCombination.Operator,
+        def conjunction_from_combination(
+            comb: CriterionCombination,
         ) -> Type[logic.BooleanFunction]:
             """
-            Convert the criterion's operator into a sympy conjunction (And or Or)
+            Convert the criterion's operator into a logical conjunction (And or Or)
             """
-            if operator.operator == CriterionCombination.Operator.AND:
+            if comb.raw_name == "root":
+                # todo: this is a hack to make the root node an non-simplifiable Or node - otherwise, using the
+                #   sympy.Or,the root node would be simplified to the criterion if there is only one criterion.
+                #   The problem is that we need a non-criterion sink node of the intervention and population in order
+                #   to store the results to the database without the criterion_id (as the result of the whole
+                #   intervention or population of this population/intervention pair).
+                return logic.NonSimplifiableOr
+            elif comb.operator.operator == CriterionCombination.Operator.AND:
                 return logic.And
-            elif operator.operator == CriterionCombination.Operator.OR:
+            elif comb.operator.operator == CriterionCombination.Operator.OR:
                 return logic.Or
             else:
-                raise NotImplementedError(f'Operator "{str(operator)}" not implemented')
+                raise NotImplementedError(
+                    f'Operator "{str(comb.operator)}" not implemented'
+                )
 
         def _traverse(comb: CriterionCombination) -> logic.Symbol:
             """
-            Traverse the criterion combination and creates a collection of sympy conjunctions from it.
+            Traverse the criterion combination and creates a collection of logical conjunctions from it.
             """
-            conjunction = conjunction_from_operator(comb.operator)
+            conjunction = conjunction_from_combination(comb)
             symbols = []
 
             for entry in comb:
@@ -249,24 +243,83 @@ class ExecutionMap:
                     symbols.append(_traverse(entry))
                 else:
                     entry_name = entry.unique_name()
-                    s = logic.Symbol(entry_name, criterion=entry)
+                    s = logic.Symbol(entry_name, criterion=entry, params=params)
                     if entry.exclude:
-                        s = logic.Not(s, category=entry.category)
+                        s = logic.Not(s, category=entry.category, params=params)
                     symbols.append(s)
 
-            c = conjunction(*symbols, category=comb.category)
+            c = conjunction(*symbols, category=comb.category, params=params)
 
             if comb.exclude:
-                c = logic.Not(c, category=comb.category)
+                c = logic.Not(c, category=comb.category, params=params)
 
             return c
 
-        conj = _traverse(comb)
+        expression = _traverse(comb)
 
-        return conj
+        return expression
 
     def flatten(self) -> Iterator[Criterion]:
         """
         Flatten the execution map into a list of criteria.
         """
-        yield from self._expr.atoms()
+        for atom in self._expr.atoms():
+            yield atom.criterion
+
+    def to_graph(self) -> ExecutionGraph:
+        """
+        Convert the execution map into an execution graph.
+        """
+
+        def expression_to_graph(
+            expr: logic.Expr,
+            graph: ExecutionGraph | None = None,
+            parent: logic.Expr | None = None,
+        ) -> ExecutionGraph:
+            if graph is None:
+                graph = ExecutionGraph()
+
+            node_label = expr
+
+            criterion = expr.criterion if expr.is_Atom else None
+
+            graph.add_node(
+                node_label,
+                criterion=criterion,
+                category=expr.category,
+                params=expr.params,
+                store_result=False,
+            )
+
+            if criterion is not None:
+                graph.nodes[node_label]["store_result"] = True
+                graph.add_edge(base_node_label, node_label)
+
+            if parent is not None:
+                graph.add_edge(node_label, parent)
+
+            for arg in expr.args:
+                expression_to_graph(arg, graph, node_label)
+
+            return graph
+
+        graph = ExecutionGraph()
+        base_node_label = logic.Symbol(
+            self._base_criterion.unique_name(), criterion=self._base_criterion
+        )
+        graph.add_node(
+            base_node_label,
+            criterion=self._base_criterion,
+            category=CohortCategory.BASE,
+            store_result=True,
+            params={},
+        )
+
+        expression_to_graph(self._expr, graph=graph)
+
+        # todo: this is a hack to make the last and penultimate nodes of the population/intervention pair store the result
+        #  because the last (=sink) node at the current place this function is called is the combination of all
+        #  population/intervention pairs and not the last node of this specific population/intervention pair
+        graph.set_sink_nodes_store(hops=1)
+
+        return graph

@@ -1,6 +1,7 @@
 import pytest
 import sympy
 
+import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop.criterion.combination import CriterionCombination
@@ -128,14 +129,14 @@ class TestExecutionMap:
 
             emap = ExecutionMap(comb, base_criterion, params=params)
 
-            assert str(emap.root_task().expr) == str(sympy.sympify(s))
+            assert str(emap.expression) == str(sympy.sympify(s))
 
             criteria.add(comb)
 
         emap = ExecutionMap(criteria, base_criterion, params=params)
 
         assert (
-            str(emap.root_task().expr)
+            str(emap.expression)
             == "(a1 & b1 & c1) | (b1 | (b2 & ~c3 & (c1 | c2) & ~(a1 | a2))) | ~(c3 & (c1 | (~c2 & ~c3 & (c4 | c5 | (c5 & c6)))))"
         )
 
@@ -230,12 +231,12 @@ class TestExecutionMap:
 
         combined_map = emap("c1") & emap("c2") & emap("c3")
         assert isinstance(combined_map, ExecutionMap)
-        assert str(combined_map.root_task().expr) == "c3 & (c1 & c2)"
+        assert str(combined_map.expression) == "c3 & (c1 & c2)"
 
         combined_map = emap("c1 & c2 & ~c3") & emap("c4 & c5") & emap("c6 & (c7 | c8)")
         assert isinstance(combined_map, ExecutionMap)
         assert (
-            str(combined_map.root_task().expr)
+            str(combined_map.expression)
             == "(c6 & (c7 | c8)) & ((c4 & c5) & (c1 & c2 & ~c3))"
         )
 
@@ -245,7 +246,7 @@ class TestExecutionMap:
             f"({expressions[2]}) & (({expressions[1]}) & ({expressions[0]}))"
         )
 
-        assert sympy.sympify(str(combined_map.root_task().expr)) == sympy.sympify(
+        assert sympy.sympify(str(combined_map.expression)) == sympy.sympify(
             expected_expression
         )
 
@@ -255,12 +256,12 @@ class TestExecutionMap:
 
         combined_map = emap("c1") | emap("c2") | emap("c3")
         assert isinstance(combined_map, ExecutionMap)
-        assert str(combined_map.root_task().expr) == "c3 | (c1 | c2)"
+        assert str(combined_map.expression) == "c3 | (c1 | c2)"
 
         combined_map = emap("c1 & c2 & ~c3") | emap("c4 & c5") | emap("c6 & (c7 | c8)")
         assert isinstance(combined_map, ExecutionMap)
         assert (
-            str(combined_map.root_task().expr)
+            str(combined_map.expression)
             == "(c6 & (c7 | c8)) | ((c4 & c5) | (c1 & c2 & ~c3))"
         )
 
@@ -270,7 +271,7 @@ class TestExecutionMap:
             f"({expressions[2]}) | (({expressions[1]}) | ({expressions[0]}))"
         )
 
-        assert sympy.sympify(str(combined_map.root_task().expr)) == sympy.sympify(
+        assert sympy.sympify(str(combined_map.expression)) == sympy.sympify(
             expected_expression
         )
 
@@ -281,25 +282,21 @@ class TestExecutionMap:
         emap = build_emap("c1")
         inverted_map = ~emap
         assert isinstance(inverted_map, ExecutionMap)
-        assert emap._criteria.exclude is False
-        assert inverted_map._criteria.exclude is True
         for criterion in inverted_map.flatten():
             assert criterion.exclude is False
-        assert str(inverted_map.root_task().expr) == "~c1"
+        assert str(inverted_map.expression) == "~c1"
 
         emap = build_emap("a1 & b1 | c2")
         inverted_map = ~emap
         assert isinstance(inverted_map, ExecutionMap)
-        assert emap._criteria.exclude is False
-        assert inverted_map._criteria.exclude is True
         for criterion in inverted_map.flatten():
             assert criterion.exclude is False
-        assert str(inverted_map.root_task().expr) == "~(c2 | (a1 & b1))"
+        assert str(inverted_map.expression) == "~(c2 | (a1 & b1))"
 
         for emap, expr in zip(execution_maps, expressions):
             inverted_map = ~emap
             assert isinstance(inverted_map, ExecutionMap)
-            assert sympy.sympify(str(inverted_map.root_task().expr)) == sympy.sympify(
+            assert sympy.sympify(str(inverted_map.expression)) == sympy.sympify(
                 f"~({expr})"
             )
 
@@ -310,48 +307,54 @@ class TestExecutionMap:
         with pytest.raises(
             AssertionError, match="all args must be instance of ExecutionMap"
         ):
-            ExecutionMap.union(
-                execution_maps[0],
-                self.build_combination("c2"),
+            ExecutionMap.combine_from(
+                execution_maps[0], self.build_combination("c2"), operator=logic.And
             )
 
         with pytest.raises(AssertionError, match="base criteria must be equal"):
-            ExecutionMap.union(
+            ExecutionMap.combine_from(
                 execution_maps[0],
                 ExecutionMap(
                     self.build_combination("c2"),
                     MockCriterion("base_criterion2", category=CohortCategory.BASE),
                     params={},
                 ),
+                operator=logic.And,
             )
 
         with pytest.raises(AssertionError, match="params must be equal"):
-            ExecutionMap.union(
+            ExecutionMap.combine_from(
                 execution_maps[0],
                 ExecutionMap(
                     self.build_combination("c2"), base_criterion, params={"a": 1}
                 ),
+                operator=logic.And,
             )
 
-        combined_map = ExecutionMap.union(emap("c1"), emap("c2"), emap("c3"))
+        combined_map = ExecutionMap.combine_from(
+            emap("c1"), emap("c2"), emap("c3"), operator=logic.Or
+        )
         assert isinstance(combined_map, ExecutionMap)
-        assert str(combined_map.root_task().expr) == "c1 | c2 | c3"
+        assert str(combined_map.expression) == "c1 | c2 | c3"
 
-        combined_map = ExecutionMap.union(
-            emap("c1 & c2 & ~c3"), emap("c4 & c5"), emap("c6 & (c7 | c8)")
+        combined_map = ExecutionMap.combine_from(
+            emap("c1 & c2 & ~c3"),
+            emap("c4 & c5"),
+            emap("c6 & (c7 | c8)"),
+            operator=logic.Or,
         )
         assert isinstance(combined_map, ExecutionMap)
         assert (
-            str(combined_map.root_task().expr)
+            str(combined_map.expression)
             == "(c4 & c5) | (c6 & (c7 | c8)) | (c1 & c2 & ~c3)"
         )
 
-        combined_map = ExecutionMap.union(*execution_maps)
+        combined_map = ExecutionMap.combine_from(*execution_maps, operator=logic.Or)
         assert isinstance(combined_map, ExecutionMap)
         expected_expression = (
             f"({expressions[2]}) | (({expressions[1]}) | ({expressions[0]}))"
         )
 
-        assert sympy.sympify(str(combined_map.root_task().expr)) == sympy.sympify(
+        assert sympy.sympify(str(combined_map.expression)) == sympy.sympify(
             expected_expression
         )

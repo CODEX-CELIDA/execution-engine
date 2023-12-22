@@ -96,6 +96,13 @@ class CriterionCombination(AbstractCriterion):
         return f"CriterionCombination({self.operator.operator}).{self.category.value}.{self._name}(exclude={self._exclude})"
 
     @property
+    def raw_name(self) -> str:
+        """
+        Get the name of the criterion combination.
+        """
+        return self._name
+
+    @property
     def operator(self) -> "CriterionCombination.Operator":
         """
         Get the operator of the criterion combination (i.e. the type of combination, e.g. AND, OR, AT_LEAST, etc.).

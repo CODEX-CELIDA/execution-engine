@@ -539,8 +539,8 @@ class ExecutionEngine:
         # todo determine runner class
         # runner_class = runner.ParallelTaskRunner if use_multiprocessing else runner.SequentialTaskRunner
 
-        execution_map = recommendation.execution_map()
-        task_runner = runner.SequentialTaskRunner(execution_map)
+        execution_graph = recommendation.execution_graph()
+        task_runner = runner.SequentialTaskRunner(execution_graph)
         task_runner.run(params)
 
     def insert_intervals(self, data: pd.DataFrame, con: sqlalchemy.Connection) -> None:

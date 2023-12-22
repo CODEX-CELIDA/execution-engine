@@ -116,12 +116,12 @@ class Task:
         try:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
                 # atomic expressions (i.e. criterion)
-                result = self.handle_criterion(params, observation_window)
+                result = self.handle_criterion(params, base_data, observation_window)
 
                 self.store_result_in_db(result, params)
 
                 # here, already combine intervals with type NO_DATA and POSITIVE and drop NEGATIVE
-                result = self.consolidate_intervals(result)
+                # result = self.consolidate_intervals(result)
 
             else:
                 # non-atomic expressions (i.e. logical operations on criteria)
@@ -129,13 +129,17 @@ class Task:
                     result = self.handle_unary_logical_operator(
                         data, base_data, observation_window
                     )
-                elif isinstance(self.expr, (logic.And, logic.Or)):
+                elif isinstance(
+                    self.expr, (logic.And, logic.Or, logic.NonSimplifiableOr)
+                ):
                     result = self.handle_binary_logical_operator(data)
                 elif isinstance(self.expr, logic.LeftDependentToggle):
-                    result = self.handle_left_dependent_toggle(data, observation_window)
+                    result = self.handle_left_dependent_toggle(
+                        data, base_data, observation_window
+                    )
                 elif isinstance(self.expr, logic.NoDataPreservingAnd):
                     result = self.handle_no_data_preserving_and(
-                        data, observation_window
+                        data, base_data, observation_window
                     )
                 else:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
@@ -155,11 +159,16 @@ class Task:
         return result
 
     def handle_criterion(
-        self, params: dict, observation_window: TimeRange
+        self,
+        params: dict,
+        base_data: pd.DataFrame | None,
+        observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
         Handles a criterion by querying the database.
 
+        :param params: The parameters.
+        :param base_data: The result of the base criterion or None, if this is the base criterion.
         :observation_window: The observation window.
         :return: A DataFrame with the result of the query.
         """
@@ -167,7 +176,7 @@ class Task:
         query = self.criterion.create_query()
         result = engine.query(query, **params)
 
-        result = self.criterion.process_result(result, observation_window)
+        result = self.criterion.process_result(result, base_data, observation_window)
 
         return result
 
@@ -205,11 +214,15 @@ class Task:
         """
         assert self.expr.is_Not, "Dependency is not a Not expression."
 
-        result = process.invert_intervals(data[0], self.by, observation_window)
+        interval_type = data[0].interval_type.unique()
+        assert len(interval_type) == 1, "IntervalType must be consistent"
 
-        # need to add all persons that are not in the result
-        result = process.insert_missing_intervals(
-            result, base_data, self.by, observation_window
+        result = process.invert_intervals(
+            data[0],
+            base_data,
+            self.by,
+            observation_window,
+            interval_type=interval_type[0],
         )
 
         return result
@@ -222,22 +235,28 @@ class Task:
         :param params: The parameters.
         :return: A DataFrame with the merged or intersected intervals.
         """
+        # todo: should we process results with a single predecessor at all or just loop through?
+
         if isinstance(self.expr, logic.And):
             result = process.intersect_intervals(data, self.by)
-        elif isinstance(self.expr, logic.Or):
+        elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
             result = process.merge_intervals(data, self.by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
         return result
 
     def handle_no_data_preserving_and(
-        self, data: list[pd.DataFrame], observation_window: TimeRange
+        self,
+        data: list[pd.DataFrame],
+        base_data: pd.DataFrame,
+        observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
         Handles a NoDataPreservingAnd by merging the intervals of the left dependency with the intervals of the
         right dependency.
 
         :param data: The input data.
+        :param base_data: The result of the base criterion.
         :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
         """
@@ -259,8 +278,9 @@ class Task:
 
         # the remaining intervals are POSITIVE
         result = pd.concat([result_negative, result_nodata])
-        result_positive = process.fill_missing_intervals(
+        result_positive = process.invert_intervals(
             result,
+            base=base_data,
             by=["person_id"],
             observation_window=observation_window,
             interval_type=IntervalType.POSITIVE,
@@ -270,13 +290,17 @@ class Task:
         return result
 
     def handle_left_dependent_toggle(
-        self, data: list[pd.DataFrame], observation_window: TimeRange
+        self,
+        data: list[pd.DataFrame],
+        base_data: pd.DataFrame,
+        observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
         Handles a left dependent toggle by merging the intervals of the left dependency with the intervals of the
         right dependency.
 
         :param data: The input data.
+        :param base_data: The result of the base criterion.
         :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
         """
@@ -287,8 +311,13 @@ class Task:
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
         # not P --> no data
-        result_not_p = process.invert_intervals(data[0], self.by, observation_window)
-        result_not_p["interval_type"] = IntervalType.NOT_APPLICABLE
+        result_not_p = process.invert_intervals(
+            data[0],
+            base_data,
+            ["person_id"],
+            observation_window,
+            interval_type=IntervalType.NOT_APPLICABLE,
+        )
 
         # P and I --> POSITIVE
         result_p_and_i = process.intersect_intervals(data, self.by)
@@ -296,8 +325,9 @@ class Task:
         result = pd.concat([result_not_p, result_p_and_i])
 
         # fill remaining time with NEGATIVE
-        result_no_data = process.fill_missing_intervals(
+        result_no_data = process.invert_intervals(
             result,
+            base=base_data,
             by=["person_id"],
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
@@ -324,7 +354,7 @@ class Task:
 
         result = result.assign(
             criterion_id=criterion_id,
-            pi_pair_id=params["pi_pair_id"],
+            pi_pair_id=params.get("pi_pair_id", None),
             recommendation_run_id=params["run_id"],
             cohort_category=self.category,
         )  # todo: can we get category directly instead of storing it in the task?

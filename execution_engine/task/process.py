@@ -9,6 +9,13 @@ from execution_engine.util.interval import empty_interval_datetime as empty_inte
 from execution_engine.util.interval import interval_datetime as interval
 
 
+def unique_items(df: pd.DataFrame) -> set[tuple]:
+    """
+    Returns the unique items in the DataFrame.
+    """
+    return set(tuple(row) for row in df.itertuples(index=False))
+
+
 def _interval_union(intervals: list[Interval]) -> Interval:
     """
     Performs a union on the given intervals.
@@ -25,17 +32,21 @@ def _interval_union(intervals: list[Interval]) -> Interval:
 
 
 def insert_missing_intervals(
-    df: pd.DataFrame, base: pd.DataFrame, by: list[str], observation_window: TimeRange
+    df: pd.DataFrame,
+    base: pd.DataFrame,
+    observation_window: TimeRange,
+    interval_type: IntervalType,
 ) -> pd.DataFrame:
     """
     Inserts the missing intervals in the DataFrame.
 
     :param df: The DataFrame with the intervals.
     :param base: The DataFrame with the base criterion.
-    :param by: A list of column names to group by.
     :param observation_window: The observation window.
+    :param interval_type: The type of the intervals that are added.
     :return: A DataFrame with the inserted intervals.
     """
+    by = ["person_id"]
 
     rows_df = df[by].drop_duplicates()
     rows_base = base[by].drop_duplicates()
@@ -46,36 +57,62 @@ def insert_missing_intervals(
         columns=["_merge"]
     )
     unique_to_base = unique_to_base.assign(
-        interval_start=observation_window.start, interval_end=observation_window.end
+        interval_start=observation_window.start,
+        interval_end=observation_window.end,
+        interval_type=interval_type,
     )
 
     return pd.concat([df, unique_to_base])
 
 
 def invert_intervals(
-    df: pd.DataFrame, by: list[str], observation_window: TimeRange
+    df: pd.DataFrame,
+    base: pd.DataFrame,
+    by: list[str],
+    observation_window: TimeRange,
+    interval_type: IntervalType,
 ) -> pd.DataFrame:
     """
     Inverts the intervals in the DataFrame.
-    """
 
-    if df.empty:
-        return df
+    Inserts the full observation_window for all patients in base that are not in df.
+
+    :param df: The DataFrame with the intervals.
+    :param base: The DataFrame with the base criterion.
+    :param by: A list of column names to group by.
+    :param observation_window: The observation window.
+    :param interval_type: The type of the intervals that are added.
+    :return: A DataFrame with the inserted intervals.
+    """
 
     if not len(by):
         raise ValueError("by must not be empty")
 
-    result = {}
+    if "interval_type" in by:
+        raise ValueError("by must not contain interval_type")
 
-    for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
-        new_intervals = to_intervals(group[["interval_start", "interval_end"]])
-        new_interval_union = _interval_union(new_intervals)
+    unique_persons = df["person_id"].unique()
 
-        result[group_keys] = (
-            observation_window.interval() & new_interval_union.complement()
-        )
+    if not df.empty:
+        result = {}
 
-    return _result_to_df(result, by)
+        for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
+            new_intervals = to_intervals(group[["interval_start", "interval_end"]])
+            new_interval_union = _interval_union(new_intervals)
+
+            result[group_keys] = (
+                observation_window.interval() & new_interval_union.complement()
+            )
+
+        df = _result_to_df(result, by)
+        df["interval_type"] = interval_type
+
+    return insert_missing_intervals(
+        df,
+        base=base[~base["person_id"].isin(unique_persons)],
+        observation_window=observation_window,
+        interval_type=interval_type,
+    )
 
 
 def to_intervals(df: pd.DataFrame) -> list[Interval]:
@@ -169,30 +206,6 @@ def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     return _process_intervals(dfs, by, lambda x, y: x & y)
 
 
-def fill_missing_intervals(
-    df: pd.DataFrame,
-    by: list[str],
-    observation_window: TimeRange,
-    interval_type: IntervalType,
-) -> pd.DataFrame:
-    """
-    Fills the missing intervals in the DataFrame.
-
-    This is done by inverting the given intervals (w.r.t. the observation window) and assigning the given interval type.
-
-    :param df: The DataFrame with the intervals.
-    :param by: A list of column names to group by.
-    :param observation_window: The observation window.
-    :param interval_type: The type of the intervals that are added.
-    :return: A DataFrame with the filled intervals.
-    """
-
-    result = invert_intervals(df, by=by, observation_window=observation_window)
-    result["interval_type"] = interval_type
-
-    return result
-
-
 def _result_to_df(
     result: dict[tuple[str] | str, Interval], by: list[str]
 ) -> pd.DataFrame:
@@ -235,9 +248,6 @@ def filter_common_items(
     :param columns: A list of column names to filter on.
     :return: A list of DataFrames with the common items.
     """
-
-    def unique_items(df: pd.DataFrame) -> set[tuple]:
-        return set(tuple(row) for row in df.itertuples(index=False))
 
     if not len(dfs):
         return dfs

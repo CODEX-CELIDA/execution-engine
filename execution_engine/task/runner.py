@@ -16,7 +16,8 @@ from typing import (
 
 import pandas as pd
 
-from execution_engine.execution_map import ExecutionMap
+from execution_engine.execution_graph import ExecutionGraph
+from execution_engine.task.creator import TaskCreator
 from execution_engine.task.task import Task, TaskError, TaskStatus
 
 T = TypeVar("T")
@@ -40,21 +41,14 @@ class QueueLike(Protocol, Generic[T]):
         ...
 
 
-def flatten_tasks(root_task: Task) -> list[Task]:
+def flatten_tasks(execution_graph: ExecutionGraph) -> list[Task]:
     """
-    Flattens a task tree into a list of tasks.
+    Flattens a task graph into a list of tasks.
 
-    :param root_task: The root task to flatten.
+    :param execution_graph: The execution graph.
     :return: A list of tasks.
     """
-    tasks = []
-    queue = [root_task]
-    while queue:
-        current_task = queue.pop()
-        if current_task not in tasks:
-            tasks.append(current_task)
-        queue.extend(current_task.dependencies)
-    return tasks
+    return execution_graph.nodes()
 
 
 class TaskRunner(ABC):
@@ -62,8 +56,8 @@ class TaskRunner(ABC):
     An abstract class for running a list of tasks.
     """
 
-    def __init__(self, execution_map: ExecutionMap):
-        self.tasks = flatten_tasks(execution_map.root_task())
+    def __init__(self, execution_graph: ExecutionGraph):
+        self.tasks = TaskCreator.create_tasks_and_dependencies(execution_graph)
         self.completed_tasks: set[str] = set()
         self.enqueued_tasks: set[str] = set()
 
@@ -148,8 +142,8 @@ class SequentialTaskRunner(TaskRunner):
     Runs a list of tasks sequentially.
     """
 
-    def __init__(self, execution_map: ExecutionMap):
-        super().__init__(execution_map)
+    def __init__(self, execution_graph: ExecutionGraph):
+        super().__init__(execution_graph)
 
         self._shared_results: dict[str, pd.DataFrame] = {}
         self._queue: queue.Queue = queue.Queue()
@@ -203,8 +197,8 @@ class ParallelTaskRunner(TaskRunner):
     Runs a list of tasks in parallel.
     """
 
-    def __init__(self, execution_map: ExecutionMap, num_workers: int = 4):
-        super().__init__(execution_map)
+    def __init__(self, execution_graph: ExecutionGraph, num_workers: int = 4):
+        super().__init__(execution_graph)
         self.num_workers = num_workers
         self.manager = multiprocessing.Manager()
         self._shared_results = self.manager.dict()

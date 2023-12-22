@@ -16,6 +16,7 @@ from sqlalchemy import (
 
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
+from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop import cohort
 
@@ -94,23 +95,36 @@ class Recommendation(Serializable):
         """
         return self._description
 
-    def execution_map(self) -> ExecutionMap:
+    def execution_graph(self) -> ExecutionGraph:
         """
-        Get the execution map of the full recommendation.
+        Get the execution maps of the full recommendation.
 
         The execution map of the full recommendation is constructed from combining the population and intervention
         execution maps of the individual population/intervention pairs of the recommendation.
         """
 
-        pi_pairs = []
-        # todo: missing individual population / intervention (of full recommendation)
+        p_maps = []
+        i_maps = []
+        pi_maps = []
 
         for pi_pair in self._pi_pairs:
             emap = pi_pair.execution_map()
             p, i = emap[CohortCategory.POPULATION], emap[CohortCategory.INTERVENTION]
-            pi_pairs.append(p >> i)
+            pi = p >> i
+            pi.set_params(p.params)
 
-        return ExecutionMap.combine_from(*pi_pairs, operator=logic.NoDataPreservingAnd)
+            p_maps.append(p)
+            i_maps.append(i)
+            pi_maps.append(pi)
+
+        p_map = ExecutionMap.combine_from(*p_maps, operator=logic.NoDataPreservingAnd)
+        i_map = ExecutionMap.combine_from(*i_maps, operator=logic.NoDataPreservingAnd)
+        pi_map = ExecutionMap.combine_from(*pi_maps, operator=logic.NoDataPreservingAnd)
+
+        common_graph = p_map.to_graph() + i_map.to_graph() + pi_map.to_graph()
+        common_graph.set_sink_nodes_store()
+
+        return common_graph
 
     def criteria(self) -> CriterionCombination:
         """
@@ -190,12 +204,14 @@ class Recommendation(Serializable):
         Retrieve a criterion object by its unique name.
         """
 
-        for pi_pair in self._pi_pairs:
+        """        for pi_pair in self._pi_pairs:
             criterion = pi_pair.get_criterion(criterion_unique_name)
             if criterion is not None:
                 return criterion
 
-        raise ValueError(f"Could not find criterion '{criterion_unique_name}'")
+        raise ValueError(f"Could not find criterion '{criterion_unique_name}'")"""
+
+        raise NotImplementedError()
 
     def dict(self) -> dict:
         """

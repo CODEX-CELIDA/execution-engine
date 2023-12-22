@@ -321,7 +321,10 @@ class Criterion(AbstractCriterion):
         return query
 
     def process_result(
-        self, df: pd.DataFrame, observation_window: TimeRange
+        self,
+        df: pd.DataFrame,
+        base_data: pd.DataFrame | None,
+        observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
         Process the result of the SQL query.
@@ -330,6 +333,9 @@ class Criterion(AbstractCriterion):
         `create_query`.
 
         :param df: The result of the SQL query.
+        :param base_data: The result from the base criterion or None if this is the base criterion. This is used to
+            add intervals for all patients that are not in the result of the SQL query.
+        :param observation_window: The observation window.
         :return: A processed DataFrame.
         """
         return df
