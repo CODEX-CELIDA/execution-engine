@@ -312,7 +312,9 @@ class OMOPSQLClient:
 
         return c
 
-    def drug_vocabulary_to_ingredient(self, vocabulary_id: str, code: str) -> Concept:
+    def drug_vocabulary_to_ingredient_via_ancestor(
+        self, vocabulary_id: str, code: str
+    ) -> Concept:
         """
         Get the ingredient concept for the given drug code in the given vocabulary.
         """
@@ -340,7 +342,7 @@ class OMOPSQLClient:
                     c.c.concept_code == bindparam("code"),
                     c.c.domain_id == "Drug",
                     ci.c.concept_class_id == "Ingredient",
-                    ci.c.standard_concept == "S",
+                    # ci.c.standard_concept == "S",
                     c.c.vocabulary_id == bindparam("vocabulary_id"),
                     c.c.valid_start_date <= func.now(),
                     c.c.valid_end_date >= func.now(),
@@ -355,6 +357,66 @@ class OMOPSQLClient:
         assert len(df) == 1, f"Expected 1 row, got {len(df)}"
 
         return self.get_concept_info(df.iloc[0].ingredient_concept_id)
+
+    def drug_vocabulary_to_ingredient(
+        self, vocabulary_id: str, code: str
+    ) -> Concept | None:
+        """
+        Get the ingredient concept for the given drug code in the given vocabulary.
+        """
+        c = omop.Concept.__table__.alias("c")
+        cr = omop.t_concept_relationship.alias("cr")
+        ci = omop.Concept.__table__.alias("ci")
+
+        query = (
+            select(
+                c.c.concept_id.label("drug_concept_id"),
+                c.c.concept_name.label("drug_concept_name"),
+                c.c.concept_class_id.label("drug_concept_class"),
+                c.c.concept_code.label("drug_concept_code"),
+                ci.c.concept_id.label("ingredient_concept_id"),
+                ci.c.concept_name.label("ingredient_concept_name"),
+                ci.c.concept_class_id.label("ingredient_concept_class"),
+            )
+            .join(
+                cr,
+                cr.c.concept_id_1 == c.c.concept_id,
+            )
+            .join(
+                ci,
+                ci.c.concept_id == cr.c.concept_id_2,
+            )
+            .where(
+                and_(
+                    c.c.concept_code == bindparam("code"),
+                    cr.c.relationship_id == "Maps to",
+                    ci.c.concept_class_id == "Ingredient",
+                    c.c.domain_id == "Drug",
+                    ci.c.standard_concept == "S",
+                    c.c.vocabulary_id == bindparam("vocabulary_id"),
+                    c.c.valid_start_date <= func.now(),
+                    c.c.valid_end_date >= func.now(),
+                    ci.c.valid_start_date <= func.now(),
+                    ci.c.valid_end_date >= func.now(),
+                )
+            )
+        )
+
+        df = self.query(query, code=str(code), vocabulary_id=vocabulary_id)
+
+        if len(df) == 0:
+            return None
+        elif len(df) > 1:
+            raise ValueError(
+                f"Expected concept for {vocabulary_id} #{code}, got {len(df)}"
+            )
+
+        c = df.iloc[0]
+        self._vocabulary_logger.info(
+            f'"{c.drug_concept_id}","{c.drug_concept_name}","drug_vocabulary_to_ingredient","{c.ingredient_concept_id}","{c.ingredient_concept_name}"'
+        )
+
+        return self.get_concept_info(c.ingredient_concept_id)
 
     def drugs_by_ingredient(self, drug_concept_id: str | int) -> pd.DataFrame:
         """

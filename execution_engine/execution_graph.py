@@ -52,7 +52,9 @@ class ExecutionGraph(nx.DiGraph):
         plt.title("Expression Graph")
         plt.show()
 
-    def set_sink_nodes_store(self, hops: int = 0) -> None:
+    def set_sink_nodes_store(
+        self, hops: int = 0, desired_category: CohortCategory | None = None
+    ) -> None:
         """
         Set the store_result flag for all sink nodes of the graph.
 
@@ -61,6 +63,7 @@ class ExecutionGraph(nx.DiGraph):
         be stored.
 
         :param hops: The number of hops to go back from the sink nodes.
+        :param desired_category: The category of the sink nodes. None means all categories.
         """
 
         def is_sink_of_category(
@@ -88,11 +91,16 @@ class ExecutionGraph(nx.DiGraph):
                     graph.nodes[predecessor]["store_result"] = True
                     set_predecessors_store(predecessor, graph, hops_remaining - 1)
 
-        for category in [
-            CohortCategory.POPULATION,
-            CohortCategory.INTERVENTION,
-            CohortCategory.POPULATION_INTERVENTION,
-        ]:
+        if desired_category is not None:
+            categories = [desired_category]
+        else:
+            categories = [
+                CohortCategory.POPULATION,
+                CohortCategory.INTERVENTION,
+                CohortCategory.POPULATION_INTERVENTION,
+            ]
+
+        for category in categories:
             sink_nodes_of_desired_category = [
                 node
                 for node in self.nodes()

@@ -120,9 +120,6 @@ class Task:
 
                 self.store_result_in_db(result, params)
 
-                # here, already combine intervals with type NO_DATA and POSITIVE and drop NEGATIVE
-                # result = self.consolidate_intervals(result)
-
             else:
                 # non-atomic expressions (i.e. logical operations on criteria)
                 if isinstance(self.expr, logic.Not):
@@ -214,15 +211,16 @@ class Task:
         """
         assert self.expr.is_Not, "Dependency is not a Not expression."
 
-        interval_type = data[0].interval_type.unique()
-        assert len(interval_type) == 1, "IntervalType must be consistent"
+        # interval_type = data[0].interval_type.unique()
+        # assert len(interval_type) == 1, "IntervalType must be consistent"
 
         result = process.invert_intervals(
             data[0],
             base_data,
-            self.by,
-            observation_window,
-            interval_type=interval_type[0],
+            by=["person_id"],
+            observation_window=observation_window,
+            interval_type=None,
+            missing_interval_type=IntervalType.NO_DATA,
         )
 
         return result
@@ -232,10 +230,12 @@ class Task:
         Handles a binary logical operator (And or Or) by merging or intersecting the intervals of the
 
         :param data: The input data.
-        :param params: The parameters.
         :return: A DataFrame with the merged or intersected intervals.
         """
-        # todo: should we process results with a single predecessor at all or just loop through?
+
+        if len(data) == 1:
+            # if there is only one dependency, return the intervals of that dependency, i.e. no merge/intersect
+            return data[0]
 
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
             result = process.intersect_intervals(data, self.by)
@@ -290,6 +290,7 @@ class Task:
             by=["person_id"],
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
+            missing_interval_type=IntervalType.NEGATIVE,
         )
         result = pd.concat([result, result_negative])
 
@@ -323,6 +324,7 @@ class Task:
             ["person_id"],
             observation_window,
             interval_type=IntervalType.NOT_APPLICABLE,
+            missing_interval_type=IntervalType.NOT_APPLICABLE,
         )
 
         # P and I --> POSITIVE
@@ -337,6 +339,7 @@ class Task:
             by=["person_id"],
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
+            missing_interval_type=IntervalType.NEGATIVE,
         )
 
         result = pd.concat([result, result_no_data])
@@ -355,7 +358,7 @@ class Task:
 
         if len(result) == 0:
             return
-
+        print(self.expr)
         criterion_id = self.criterion.id if self.criterion is not None else None
 
         result = result.assign(

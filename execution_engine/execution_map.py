@@ -270,9 +270,12 @@ class ExecutionMap:
         for atom in self._expr.atoms():
             yield atom.criterion
 
-    def to_graph(self) -> ExecutionGraph:
+    def to_graph(self, category: CohortCategory) -> ExecutionGraph:
         """
         Convert the execution map into an execution graph.
+
+        :param category: The category of the execution graph.
+            This is used to set all sink nodes of this category to store the result.
         """
 
         def expression_to_graph(
@@ -321,9 +324,9 @@ class ExecutionMap:
 
         expression_to_graph(self._expr, graph=graph)
 
-        # todo: this is a hack to make the last and penultimate nodes of the population/intervention pair store the result
-        #  because the last (=sink) node at the current place this function is called is the combination of all
+        # todo: this is a hack to make the last and penultimate nodes of the population/intervention pair store the
+        #  result because the last (=sink) node at the current place this function is called is the combination of all
         #  population/intervention pairs and not the last node of this specific population/intervention pair
-        graph.set_sink_nodes_store(hops=1)
+        graph.set_sink_nodes_store(hops=1, desired_category=category)
 
         return graph

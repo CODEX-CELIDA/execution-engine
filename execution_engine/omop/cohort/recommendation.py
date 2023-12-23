@@ -121,7 +121,11 @@ class Recommendation(Serializable):
         i_map = ExecutionMap.combine_from(*i_maps, operator=logic.NoDataPreservingAnd)
         pi_map = ExecutionMap.combine_from(*pi_maps, operator=logic.NoDataPreservingAnd)
 
-        common_graph = p_map.to_graph() + i_map.to_graph() + pi_map.to_graph()
+        common_graph = (
+            p_map.to_graph(CohortCategory.POPULATION)
+            + i_map.to_graph(CohortCategory.INTERVENTION)
+            + pi_map.to_graph(CohortCategory.POPULATION_INTERVENTION)
+        )
         common_graph.set_sink_nodes_store()
 
         return common_graph

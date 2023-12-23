@@ -14,8 +14,8 @@ from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
+from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
 from execution_engine.omop.vocabulary import (
     SNOMEDCT,
     VocabularyFactory,
@@ -144,7 +144,8 @@ class DrugAdministrationAction(AbstractAction):
                 )
                 continue
 
-            ingredients.append(ingredient)
+            if ingredient is not None:
+                ingredients.append(ingredient)
 
         if len(set(ingredients)) > 1:
             raise NotImplementedError(
@@ -314,7 +315,7 @@ class DrugAdministrationAction(AbstractAction):
 
             for extension in self._extensions:
                 comb.add(
-                    ConceptCriterion(
+                    PointInTimeCriterion(
                         name=f"{self._name}_ext_{extension['code'].concept_name}",
                         exclude=False,  # extensions are always included (at least for now)
                         category=CohortCategory.INTERVENTION,

@@ -38,7 +38,7 @@ def insert_missing_intervals(
     interval_type: IntervalType,
 ) -> pd.DataFrame:
     """
-    Inserts the missing intervals in the DataFrame.
+    Insert missing intervals into a dataframe, determined by the keys in the base dataframe.
 
     :param df: The DataFrame with the intervals.
     :param base: The DataFrame with the base criterion.
@@ -70,7 +70,8 @@ def invert_intervals(
     base: pd.DataFrame,
     by: list[str],
     observation_window: TimeRange,
-    interval_type: IntervalType,
+    interval_type: IntervalType | None,
+    missing_interval_type: IntervalType,
 ) -> pd.DataFrame:
     """
     Inverts the intervals in the DataFrame.
@@ -81,7 +82,8 @@ def invert_intervals(
     :param base: The DataFrame with the base criterion.
     :param by: A list of column names to group by.
     :param observation_window: The observation window.
-    :param interval_type: The type of the intervals that are added.
+    :param interval_type: The type of the intervals that are added. None if it should be inferred from the DataFrame.
+    :param missing_interval_type: The type of the newly added intervals that are missing after inversion.
     :return: A DataFrame with the inserted intervals.
     """
 
@@ -96,6 +98,12 @@ def invert_intervals(
     if not df.empty:
         result = {}
 
+        if interval_type is None:
+            assert (
+                df.groupby(by)["interval_type"].nunique().nunique() == 1
+            ), "only one interval_type per group is supported"
+            interval_types = df.groupby(by)["interval_type"].first()
+
         for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
             new_intervals = to_intervals(group[["interval_start", "interval_end"]])
             new_interval_union = _interval_union(new_intervals)
@@ -105,14 +113,75 @@ def invert_intervals(
             )
 
         df = _result_to_df(result, by)
-        df["interval_type"] = interval_type
+
+        if interval_type is None:
+            df = pd.merge(df, interval_types, on="person_id")
+        else:
+            df["interval_type"] = interval_type
 
     return insert_missing_intervals(
         df,
         base=base[~base["person_id"].isin(unique_persons)],
         observation_window=observation_window,
-        interval_type=interval_type,
+        interval_type=missing_interval_type,
     )
+
+
+def combine_intervals(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Combine overlapping intervals in a DataFrame based on a specified priority order.
+
+    This function iterates through a sorted DataFrame of intervals and combines them based on the interval type's
+    priority. The priority order is NEGATIVE > POSITIVE > NODATA. In the case of overlapping intervals with different
+    types, the interval with the higher priority is chosen. If intervals of the same type overlap, they are merged into
+    a single interval.
+
+    Parameters:
+    sorted_df (pd.DataFrame): A Pandas DataFrame containing the intervals. It should have the columns
+                              'person_id', 'interval_start', 'interval_end', and 'interval_type'.
+                              The DataFrame should be sorted as described above.
+
+    Returns:
+    pd.DataFrame: A new DataFrame with combined intervals as per the specified rules.
+                   The resulting DataFrame will have the same columns as the input DataFrame.
+    """
+    # Define the custom sort order for 'interval_type'
+    priority_order = [
+        IntervalType.NEGATIVE,
+        IntervalType.POSITIVE,
+        IntervalType.NO_DATA,
+        IntervalType.NOT_APPLICABLE,
+    ]
+
+    # Convert 'interval_type' to a Categorical type with the specified order
+    df["interval_type"] = pd.Categorical(
+        df["interval_type"], categories=priority_order, ordered=True
+    )
+
+    df = df.sort_values(
+        by=["person_id", "interval_type", "interval_start"],
+        ascending=[True, True, True],
+    )
+    combined: list[pd.Series] = []
+
+    for _, row in df.iterrows():
+        if not combined:
+            combined.append(row)
+            continue
+
+        last = combined[-1]
+        if (
+            row["person_id"] == last["person_id"]
+            and row["interval_start"] <= last["interval_end"]
+        ):
+            # Overlapping interval found
+            if row["interval_end"] > last["interval_end"]:
+                # Split the interval based on priority
+                combined.append(row)
+        else:
+            combined.append(row)
+
+    return pd.DataFrame(combined)
 
 
 def to_intervals(df: pd.DataFrame) -> list[Interval]:
@@ -165,6 +234,7 @@ def _process_intervals(
     ), "dfs must be a list of DataFrames"
 
     result = {}
+
     for df in dfs:
         if df.empty:
             continue
@@ -190,7 +260,10 @@ def merge_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     :return: A DataFrame with the merged intervals.
     """
 
-    return _process_intervals(dfs, by, lambda x, y: x | y)
+    df = _process_intervals(dfs, by, lambda x, y: x | y)
+    df = combine_intervals(df)
+
+    return df
 
 
 def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:

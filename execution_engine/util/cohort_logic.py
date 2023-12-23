@@ -151,6 +151,15 @@ class NonSimplifiableAnd(BooleanFunction):
     instead of the argument itself, as is the case with the sympy.And operator.
     """
 
+    def __new__(cls, *args: Any, **kwargs: Any) -> "NonSimplifiableAnd":
+        """
+        Create a new NonSimplifiableAnd object.
+        """
+        if len(args) == 1 and isinstance(args[0], (And, Or)):
+            return args[0]
+
+        return super().__new__(cls, *args, **kwargs)
+
 
 class NoDataPreservingAnd(BooleanFunction):
     """
