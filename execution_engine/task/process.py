@@ -41,7 +41,7 @@ def insert_missing_intervals(
     Insert missing intervals into a dataframe, determined by the keys in the base dataframe.
 
     :param df: The DataFrame with the intervals.
-    :param base: The DataFrame with the base criterion.
+    :param base: The DataFrame with the base criterion. Used to determine the patients for which intervals are missing.
     :param observation_window: The observation window.
     :param interval_type: The type of the intervals that are added.
     :return: A DataFrame with the inserted intervals.
@@ -347,3 +347,44 @@ def filter_common_items(
         filtered_dfs.append(filtered_df)
 
     return filtered_dfs
+
+
+def mask_intervals(
+    df: pd.DataFrame,
+    mask: pd.DataFrame,
+    interval_type_outside_mask: IntervalType,
+    observation_window: TimeRange,
+) -> pd.DataFrame:
+    """
+    Masks the intervals in the DataFrames grouped by columns.
+
+    :param df: A DataFrames with intervals that should be masked.
+    :param mask: A DataFrame with intervals that should be used for masking.
+    :param interval_type_outside_mask: The interval type for intervals outside the mask.
+    :param observation_window: The observation window.
+    :return: A DataFrame with the masked intervals.
+    """
+
+    by = ["person_id", "interval_type"]
+
+    person_mask = {}
+    for person_id, group in mask.groupby(by=["person_id"]):
+        person_mask[person_id[0]] = _interval_union(
+            to_intervals(group[["interval_start", "interval_end"]])
+        )
+
+    result = {}
+    for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
+        new_intervals = to_intervals(group[["interval_start", "interval_end"]])
+        new_interval_union = _interval_union(new_intervals)
+
+        result[group_keys] = (
+            new_interval_union & person_mask[group_keys[by.index("person_id")]]
+        )
+
+    result = _result_to_df(result, by)
+    result = insert_missing_intervals(
+        result, mask, observation_window, interval_type_outside_mask
+    )
+
+    return result

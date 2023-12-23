@@ -194,6 +194,20 @@ class NoDataPreservingAnd(BooleanFunction):
         raise ValueError("Invalid value for ThreeValuedLogic")
 
 
+class NoDataPreservingOr(BooleanFunction):
+    """
+    A Or object represents a logical OR operation.
+
+    This operator handles the three valued algebra of NODATA, POSITIVE, NEGATIVE, according to the following rules:
+
+    | left/right | NODATA   | POSITIVE | NEGATIVE |
+    |------------|----------|----------|----------|
+    | NODATA     | NODATA   | POSITIVE | NEGATIVE |
+    | POSITIVE   | POSITIVE | POSITIVE | POSITIVE |
+    | NEGATIVE   | NEGATIVE | POSITIVE | NEGATIVE |
+    """
+
+
 class LeftDependentToggle(BooleanFunction):
     """
     A LeftDependentToggle object represents a logical AND operation if the left operand is positive,

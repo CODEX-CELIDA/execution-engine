@@ -117,8 +117,8 @@ class Recommendation(Serializable):
             i_maps.append(i)
             pi_maps.append(pi)
 
-        p_map = ExecutionMap.combine_from(*p_maps, operator=logic.NoDataPreservingAnd)
-        i_map = ExecutionMap.combine_from(*i_maps, operator=logic.NoDataPreservingAnd)
+        p_map = ExecutionMap.combine_from(*p_maps, operator=logic.NoDataPreservingOr)
+        i_map = ExecutionMap.combine_from(*i_maps, operator=logic.NoDataPreservingOr)
         pi_map = ExecutionMap.combine_from(*pi_maps, operator=logic.NoDataPreservingAnd)
 
         common_graph = (

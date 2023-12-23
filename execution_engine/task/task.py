@@ -118,7 +118,7 @@ class Task:
                 # atomic expressions (i.e. criterion)
                 result = self.handle_criterion(params, base_data, observation_window)
 
-                self.store_result_in_db(result, params)
+                self.store_result_in_db(result, base_data, params, observation_window)
 
             else:
                 # non-atomic expressions (i.e. logical operations on criteria)
@@ -135,14 +135,20 @@ class Task:
                         data, base_data, observation_window
                     )
                 elif isinstance(self.expr, logic.NoDataPreservingAnd):
-                    result = self.handle_no_data_preserving_and(
+                    result = self.handle_no_data_preserving_operator(
+                        data, base_data, observation_window
+                    )
+                elif isinstance(self.expr, logic.NoDataPreservingOr):
+                    result = self.handle_no_data_preserving_operator(
                         data, base_data, observation_window
                     )
                 else:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
                 if self.store_result:
-                    self.store_result_in_db(result, params)
+                    self.store_result_in_db(
+                        result, base_data, params, observation_window
+                    )
 
         except Exception as e:
             self.status = TaskStatus.FAILED
@@ -220,7 +226,7 @@ class Task:
             by=["person_id"],
             observation_window=observation_window,
             interval_type=None,
-            missing_interval_type=IntervalType.NO_DATA,
+            missing_interval_type=IntervalType.POSITIVE,
         )
 
         return result
@@ -245,7 +251,7 @@ class Task:
             raise ValueError(f"Unsupported expression type: {self.expr}")
         return result
 
-    def handle_no_data_preserving_and(
+    def handle_no_data_preserving_operator(
         self,
         data: list[pd.DataFrame],
         base_data: pd.DataFrame,
@@ -261,8 +267,8 @@ class Task:
         :return: A DataFrame with the merged intervals.
         """
         assert isinstance(
-            self.expr, logic.NoDataPreservingAnd
-        ), "Dependency is not a NoDataPreservingAnd expression."
+            self.expr, (logic.NoDataPreservingAnd, logic.NoDataPreservingOr)
+        ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
 
         # data_negative = [
         #     df[df["interval_type"] == IntervalType.NEGATIVE] for df in data
@@ -272,14 +278,11 @@ class Task:
         ]
         data_nodata = [df[df["interval_type"] == IntervalType.NO_DATA] for df in data]
 
-        result_positive = process.intersect_intervals(data_positive, self.by)
+        if isinstance(self.expr, logic.NoDataPreservingAnd):
+            result_positive = process.intersect_intervals(data_positive, self.by)
+        else:
+            result_positive = process.merge_intervals(data_positive, self.by)
 
-        # todo: clean up
-        # # NEGATIVE has the highest priority, if any NEGATIVE is present, the result is NEGATIVE (-> union of NEGATIVE)
-        # result_negative = process.merge_intervals(data_negative, self.by)
-
-        # NO_DATA has the lowest priority, only if NO_DATA is present in all dataframes, the result is NO_DATA
-        #   (-> intersection of NO_DATA)
         result_nodata = process.intersect_intervals(data_nodata, self.by)
 
         # the remaining intervals are NEGATIVE
@@ -346,20 +349,37 @@ class Task:
 
         return result
 
-    def store_result_in_db(self, result: pd.DataFrame, params: dict) -> None:
+    def store_result_in_db(
+        self,
+        result: pd.DataFrame,
+        base_data: pd.DataFrame | None,
+        params: dict,
+        observation_window: TimeRange,
+    ) -> None:
         """
         Stores the result in the database.
 
         :param result: The result to store.
+        :param base_data: The result of the base criterion.
         :param params: The parameters.
+        :param observation_window: The observation window.
         :return: None.
         """
         # todo do we want to assign here (i.e. instead of outside the task somehow or at least as params to the statement)
 
         if len(result) == 0:
             return
-        print(self.expr)
+
         criterion_id = self.criterion.id if self.criterion is not None else None
+
+        if base_data is not None:
+            # intersect with the base criterion
+            result = process.mask_intervals(
+                result,
+                base_data,
+                interval_type_outside_mask=IntervalType.NOT_APPLICABLE,
+                observation_window=observation_window,
+            )
 
         result = result.assign(
             criterion_id=criterion_id,
