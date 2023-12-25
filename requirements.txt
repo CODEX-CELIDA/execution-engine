@@ -7,6 +7,6 @@ pandas==2.1.4
 psycopg[binary]==3.1.15
 sqlalchemy==2.0.23
 pydantic<3.0.0
-fastapi==0.105.0
+fastapi==0.106.0
 uvicorn[standard]==0.24.0.post1
 pendulum==2.1.2
