@@ -51,14 +51,14 @@ class Task:
         self,
         expr: logic.Expr,
         criterion: Criterion,
-        params: dict | None,
+        bind_params: dict | None,
         store_result: bool = False,
     ) -> None:
         self.expr = expr
         self.criterion = criterion
         self.dependencies: list[Task] = []
         self.status = TaskStatus.PENDING
-        self.params = params if params is not None else {}
+        self.bind_params = bind_params if bind_params is not None else {}
         self.store_result = store_result
 
     @property
@@ -90,23 +90,26 @@ class Task:
         return find_base_task(self)
 
     def run(
-        self, data: list[pd.DataFrame], base_data: pd.DataFrame | None, params: dict
+        self,
+        data: list[pd.DataFrame],
+        base_data: pd.DataFrame | None,
+        bind_params: dict,
     ) -> pd.DataFrame:
         """
         Runs the task.
 
         :param data: The input data.
         :param base_data: The result of the base criterion or None, if this is the base criterion.
-        :param params: The parameters.
+        :param bind_params: The parameters.
         :return: The result of the task.
         """
 
         # todo: should we only use the params from the task instead of the parameter?
-        params = params | self.params
+        bind_params = bind_params | self.bind_params
 
         observation_window = TimeRange(
-            start=params["observation_start_datetime"],
-            end=params["observation_end_datetime"],
+            start=bind_params["observation_start_datetime"],
+            end=bind_params["observation_end_datetime"],
             name="observation_window",
         )
 
@@ -116,9 +119,13 @@ class Task:
         try:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
                 # atomic expressions (i.e. criterion)
-                result = self.handle_criterion(params, base_data, observation_window)
+                result = self.handle_criterion(
+                    bind_params, base_data, observation_window
+                )
 
-                self.store_result_in_db(result, base_data, params, observation_window)
+                self.store_result_in_db(
+                    result, base_data, bind_params, observation_window
+                )
 
             else:
                 # non-atomic expressions (i.e. logical operations on criteria)
@@ -147,7 +154,7 @@ class Task:
 
                 if self.store_result:
                     self.store_result_in_db(
-                        result, base_data, params, observation_window
+                        result, base_data, bind_params, observation_window
                     )
 
         except Exception as e:
@@ -163,21 +170,21 @@ class Task:
 
     def handle_criterion(
         self,
-        params: dict,
+        bind_params: dict,
         base_data: pd.DataFrame | None,
         observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
         Handles a criterion by querying the database.
 
-        :param params: The parameters.
+        :param bind_params: The parameters.
         :param base_data: The result of the base criterion or None, if this is the base criterion.
-        :observation_window: The observation window.
+        :param observation_window: The observation window.
         :return: A DataFrame with the result of the query.
         """
         engine = get_engine()
         query = self.criterion.create_query()
-        result = engine.query(query, **params)
+        result = engine.query(query, **bind_params)
 
         result = self.criterion.process_result(result, base_data, observation_window)
 
@@ -353,7 +360,7 @@ class Task:
         self,
         result: pd.DataFrame,
         base_data: pd.DataFrame | None,
-        params: dict,
+        bind_params: dict,
         observation_window: TimeRange,
     ) -> None:
         """
@@ -361,7 +368,7 @@ class Task:
 
         :param result: The result to store.
         :param base_data: The result of the base criterion.
-        :param params: The parameters.
+        :param bind_params: The parameters.
         :param observation_window: The observation window.
         :return: None.
         """
@@ -369,8 +376,6 @@ class Task:
 
         if len(result) == 0:
             return
-
-        criterion_id = self.criterion.id if self.criterion is not None else None
 
         if base_data is not None:
             # intersect with the base criterion
@@ -381,12 +386,18 @@ class Task:
                 observation_window=observation_window,
             )
 
+        pi_pair_id = bind_params.get("pi_pair_id", None)
+        criterion_id = self.criterion.id if self.expr.is_Atom else None
+
+        if self.expr.is_Atom:
+            assert pi_pair_id is None, "pi_pair_id shall be None for criterion"
+
         result = result.assign(
             criterion_id=criterion_id,
-            pi_pair_id=params.get("pi_pair_id", None),
-            recommendation_run_id=params["run_id"],
+            pi_pair_id=pi_pair_id,
+            recommendation_run_id=bind_params["run_id"],
             cohort_category=self.category,
-        )  # todo: can we get category directly instead of storing it in the task?
+        )
 
         with get_engine().begin() as conn:
             conn.execute(
@@ -405,6 +416,6 @@ class Task:
         Returns a string representation of the Task object.
         """
         if self.expr.is_Atom:
-            return f"Task({self.expr}, criterion={self.criterion}, category={self.expr.category})"
+            return f"Task({self.expr.name}, criterion={self.criterion}, category={self.expr.category})"
         else:
             return f"Task({self.expr}), category={self.expr.category})"

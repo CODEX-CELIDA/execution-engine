@@ -2,6 +2,7 @@ import itertools
 import re
 from typing import Any, Dict, Iterator, Self
 
+import networkx as nx
 from sqlalchemy import (
     Column,
     Date,
@@ -17,7 +18,6 @@ from sqlalchemy import (
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_graph import ExecutionGraph
-from execution_engine.execution_map import ExecutionMap
 from execution_engine.omop import cohort
 
 # )
@@ -103,30 +103,47 @@ class Recommendation(Serializable):
         execution maps of the individual population/intervention pairs of the recommendation.
         """
 
-        p_maps = []
-        i_maps = []
-        pi_maps = []
+        p_nodes = []
+        i_nodes = []
+        pi_nodes = []
+        pi_graphs = []
 
         for pi_pair in self._pi_pairs:
-            emap = pi_pair.execution_map()
-            p, i = emap[CohortCategory.POPULATION], emap[CohortCategory.INTERVENTION]
-            pi = p >> i
-            pi.set_params(p.params)
+            pi_graph = pi_pair.execution_graph()
 
-            p_maps.append(p)
-            i_maps.append(i)
-            pi_maps.append(pi)
+            p_nodes.append(pi_graph.sink_node(CohortCategory.POPULATION))
+            i_nodes.append(pi_graph.sink_node(CohortCategory.INTERVENTION))
+            pi_nodes.append(pi_graph.sink_node(CohortCategory.POPULATION_INTERVENTION))
+            pi_graphs.append(pi_graph)
 
-        p_map = ExecutionMap.combine_from(*p_maps, operator=logic.NoDataPreservingOr)
-        i_map = ExecutionMap.combine_from(*i_maps, operator=logic.NoDataPreservingOr)
-        pi_map = ExecutionMap.combine_from(*pi_maps, operator=logic.NoDataPreservingAnd)
-
-        common_graph = (
-            p_map.to_graph(CohortCategory.POPULATION)
-            + i_map.to_graph(CohortCategory.INTERVENTION)
-            + pi_map.to_graph(CohortCategory.POPULATION_INTERVENTION)
+        p_combination_node = logic.NoDataPreservingOr(
+            *p_nodes, category=CohortCategory.POPULATION
         )
-        common_graph.set_sink_nodes_store()
+        i_combination_node = logic.NoDataPreservingOr(
+            *i_nodes, category=CohortCategory.INTERVENTION
+        )
+        pi_combination_node = logic.NoDataPreservingAnd(
+            *pi_nodes, category=CohortCategory.POPULATION_INTERVENTION
+        )
+
+        common_graph = nx.compose_all(pi_graphs)
+
+        common_graph.add_node(
+            p_combination_node, store_result=True, category=CohortCategory.POPULATION
+        )
+        common_graph.add_node(
+            i_combination_node, store_result=True, category=CohortCategory.INTERVENTION
+        )
+
+        common_graph.add_node(
+            pi_combination_node,
+            store_result=True,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        common_graph.add_edges_from((src, p_combination_node) for src in p_nodes)
+        common_graph.add_edges_from((src, i_combination_node) for src in i_nodes)
+        common_graph.add_edges_from((src, pi_combination_node) for src in pi_nodes)
 
         return common_graph
 

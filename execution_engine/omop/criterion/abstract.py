@@ -166,6 +166,10 @@ class AbstractCriterion(Serializable, ABC):
         """
         return self.name
 
+    # todo: this unique name should not be used anymore. it was a workaround in sympy to prevent
+    #       that different criteria are considered equal just on the basis of the name. we should
+    #       replace sympy by an own implementation of Symbol etc. anyway. these should be compared
+    #       based on the dict() representation of the criteria (--> implement __eq__ for criterion)
     def unique_name(self) -> str:
         """
         Get a unique name for the criterion.

@@ -20,14 +20,16 @@ class TaskCreator:
         :return: The Graph object for the expression.
         """
 
-        def node_to_task(node: logic.Expr, attr: dict) -> Task:
-            criterion = attr["criterion"]
+        def node_to_task(expr: logic.Expr, attr: dict) -> Task:
+            criterion = expr.criterion if expr.is_Atom else None
+            store_result = attr.get("store_result", False)
+            bind_params = attr.get("bind_params", {})
 
             task = Task(
-                expr=node,
+                expr=expr,
                 criterion=criterion,
-                params=attr["params"],
-                store_result=attr["store_result"],
+                bind_params=bind_params,
+                store_result=store_result,
             )
 
             return task

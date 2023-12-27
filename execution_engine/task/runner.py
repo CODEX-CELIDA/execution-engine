@@ -78,11 +78,11 @@ class TaskRunner(ABC):
                 self.enqueued_tasks.add(task.name())
 
     @abstractmethod
-    def run(self, params: dict) -> None:
+    def run(self, bind_params: dict) -> None:
         """
         Runs the tasks. This method must be implemented by subclasses.
 
-        :param params: The parameters to pass to the tasks.
+        :param bind_params: The parameters to pass to the tasks.
         :return: None.
         """
 
@@ -114,12 +114,12 @@ class TaskRunner(ABC):
 
         return no_op_lock()
 
-    def run_task(self, task: Task, params: dict) -> None:
+    def run_task(self, task: Task, bind_params: dict) -> None:
         """
         Runs a task.
 
         :param task: The task to run.
-        :param params: The parameters to pass to the task.
+        :param bind_params: The parameters to pass to the task.
         :return: None.
         """
         # Ensure all dependencies are processed first
@@ -131,7 +131,7 @@ class TaskRunner(ABC):
         input_data = [self.shared_results[dep.name()] for dep in task.dependencies]
         base_data = self.shared_results.get(task.get_base_task().name(), None)
 
-        result = task.run(input_data, base_data, params)
+        result = task.run(input_data, base_data, bind_params)
 
         with self.lock:
             self.shared_results[task.name()] = result
@@ -162,11 +162,11 @@ class SequentialTaskRunner(TaskRunner):
         """
         return self._queue
 
-    def run(self, params: dict) -> None:
+    def run(self, bind_params: dict) -> None:
         """
         Runs the tasks sequentially.
 
-        :param params: The parameters to pass to the tasks.
+        :param bind_params: The parameters to pass to the tasks.
         :return: None.
         """
         try:
@@ -175,7 +175,7 @@ class SequentialTaskRunner(TaskRunner):
 
                 while not self.queue.empty():
                     current_task = self.queue.get()
-                    self.run_task(current_task, params)
+                    self.run_task(current_task, bind_params)
 
                     if current_task.status != TaskStatus.COMPLETED:
                         raise TaskError(
@@ -221,11 +221,11 @@ class ParallelTaskRunner(TaskRunner):
         """
         return self._queue
 
-    def run(self, params: dict) -> None:
+    def run(self, bind_params: dict) -> None:
         """
         Runs the tasks in parallel.
 
-        :param params: The parameters to pass to the tasks.
+        :param bind_params: The parameters to pass to the tasks.
         :return: None.
         """
 
@@ -245,7 +245,7 @@ class ParallelTaskRunner(TaskRunner):
                 logging.info(f"Got task {task}")
 
                 try:
-                    self.run_task(task, params)
+                    self.run_task(task, bind_params)
 
                     if task.status != TaskStatus.COMPLETED:
                         raise TaskError(

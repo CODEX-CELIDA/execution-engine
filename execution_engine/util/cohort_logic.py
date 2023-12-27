@@ -112,14 +112,6 @@ class CohortCategorized(sympy.Basic, Generic[T]):
 
         obj.category = category
 
-        params = kwargs.get("params")
-
-        if params is not None:
-            assert isinstance(params, dict), "Params must be a dict"
-            obj.params = params
-        else:
-            obj.params = {}
-
         return obj
 
 
@@ -302,13 +294,6 @@ class Symbol(sympy.Symbol):
         assert isinstance(
             obj.criterion, Criterion
         ), "Criterion must be a Criterion object"
-
-        params = kwargs.get("params")
-        if params is not None:
-            assert isinstance(params, dict), "Params must be a dict"
-            obj.params = params
-        else:
-            obj.params = {}
 
         return obj
 

@@ -12,8 +12,9 @@ from sqlalchemy.sql import (
 from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
 from sqlalchemy.sql.selectable import CTE
 
+import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
-from execution_engine.execution_map import ExecutionMap
+from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
@@ -38,7 +39,6 @@ class PopulationInterventionPair(Serializable):
     _name: str
     _population: CriterionCombination
     _intervention: CriterionCombination
-    _execution_map: ExecutionMap | None = None
 
     def __init__(
         self,
@@ -51,7 +51,6 @@ class PopulationInterventionPair(Serializable):
         self._name = name
         self._url = url
         self._base_criterion = base_criterion
-        self._execution_map: ExecutionMap | None = None
 
         self.set_criteria(CohortCategory.POPULATION, population)
         self.set_criteria(CohortCategory.INTERVENTION, intervention)
@@ -101,25 +100,23 @@ class PopulationInterventionPair(Serializable):
         """
         return self._url
 
-    def execution_map(self) -> dict[CohortCategory, ExecutionMap]:
+    def execution_graph(self) -> ExecutionGraph:
         """
-        Get the execution map for the population/intervention pair.
+        Get the execution graph for the population/intervention pair.
         """
-        # todo can we find a better place to insert this id?
-        #     it seems like a mixture of two paradigms, initially
-        #     the criteria / tasks etc didn't know about "plans" and so on
-        params = {"pi_pair_id": self.id}
 
-        population = ExecutionMap(
-            self._population, base_criterion=self._base_criterion, params=params
+        pi = logic.LeftDependentToggle(
+            ExecutionGraph.combination_to_expression(self._population),
+            ExecutionGraph.combination_to_expression(self._intervention),
+            category=CohortCategory.POPULATION_INTERVENTION,
         )
-        intervention = ExecutionMap(
-            self._intervention, base_criterion=self._base_criterion, params=params
-        )
-        return {
-            CohortCategory.POPULATION: population,
-            CohortCategory.INTERVENTION: intervention,
-        }
+        pi_graph = ExecutionGraph.from_expression(pi, self._base_criterion)
+
+        assert self._id is not None, "Population/intervention pair id not set"
+        # todo: should we supply self instead of self._id?
+        pi_graph.set_sink_nodes_store(bind_params=dict(pi_pair_id=self._id))
+
+        return pi_graph
 
     def add_population(self, criterion: Criterion | CriterionCombination) -> None:
         """

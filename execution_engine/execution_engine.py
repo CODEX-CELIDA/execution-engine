@@ -524,7 +524,7 @@ class ExecutionEngine:
             f"Observation window from {start_datetime.strftime(date_format)} to {end_datetime.strftime(date_format)}"
         )
 
-        params = {
+        bind_params = {
             "run_id": run_id,
             "observation_start_datetime": start_datetime,
             "observation_end_datetime": end_datetime,
@@ -541,7 +541,7 @@ class ExecutionEngine:
 
         execution_graph = recommendation.execution_graph()
         task_runner = runner.SequentialTaskRunner(execution_graph)
-        task_runner.run(params)
+        task_runner.run(bind_params)
 
     def insert_intervals(self, data: pd.DataFrame, con: sqlalchemy.Connection) -> None:
         """Inserts the intervals into the database."""
@@ -633,11 +633,11 @@ class ExecutionEngine:
         criterion = recommendation.get_criterion(criterion_name)
 
         statement = criterion.sql_select_data(person_id)
-        params = {
+        bind_params = {
             "start_datetime": start_datetime,
             "end_datetime": end_datetime,
         }
 
-        self._db.log_query(statement, params)
+        self._db.log_query(statement, bind_params)
 
-        return self._db.query(statement, **params)
+        return self._db.query(statement, **bind_params)
