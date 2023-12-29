@@ -82,7 +82,6 @@ def db_setup():
 
         con.commit()
 
-    logger.info("yielding a sessionmaker against the test postgres db.")
     yield sessionmaker(bind=engine, expire_on_commit=False)
 
 

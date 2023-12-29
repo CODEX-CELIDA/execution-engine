@@ -15,13 +15,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from execution_engine.constants import CohortCategory, IntervalType
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.db.base import Base
 from execution_engine.omop.db.celida import SCHEMA_NAME
 from execution_engine.omop.db.celida.triggers import (
     create_trigger_interval_overlap_check_sql,
     trigger_interval_overlap_check_function_sql,
 )
+from execution_engine.util.interval import IntervalType
 
 IntervalTypeEnum = Enum(IntervalType, name="interval_type", schema=SCHEMA_NAME)
 CohortCategoryEnum = Enum(CohortCategory, name="cohort_category", schema=SCHEMA_NAME)

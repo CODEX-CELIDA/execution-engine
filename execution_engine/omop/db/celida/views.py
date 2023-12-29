@@ -2,13 +2,13 @@ from sqlalchemy import Date, Select, and_, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 
-from execution_engine.constants import IntervalType
 from execution_engine.omop.db.base import Base
 from execution_engine.omop.db.celida.tables import (
     RecommendationResultInterval,
     RecommendationRun,
 )
 from execution_engine.omop.db.view import view
+from execution_engine.util.interval import IntervalType
 
 
 def view_full_day_coverage() -> Select:

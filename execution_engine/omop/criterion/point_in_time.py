@@ -3,7 +3,6 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import Interval, Select, bindparam, func, select
 
-from execution_engine.constants import IntervalType
 from execution_engine.omop.criterion.abstract import (
     column_interval_type,
     create_conditional_interval_column,
@@ -11,6 +10,7 @@ from execution_engine.omop.criterion.abstract import (
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.task import process
 from execution_engine.util import TimeRange
+from execution_engine.util.interval import IntervalType
 
 
 class PointInTimeCriterion(ConceptCriterion):
@@ -109,15 +109,14 @@ class PointInTimeCriterion(ConceptCriterion):
 
         :param df: The result of the SQL query.
         :param base_data: The base data.
+        :param observation_window: The observation window.
         :return: A processed DataFrame.
         """
-        no_data_intervals = process.invert_intervals(
+        no_data_intervals = process.complementary_intervals(
             df,
-            base=base_data,
-            by=["person_id"],
+            reference_df=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NO_DATA,
-            missing_interval_type=IntervalType.NO_DATA,
         )
         df = pd.concat([df, no_data_intervals])
         df.sort_values(by=["person_id", "interval_start"], inplace=True)

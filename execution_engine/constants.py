@@ -47,29 +47,6 @@ class CohortCategory(StrEnum):
         return self.name
 
 
-class IntervalType(StrEnum):
-    """
-    The type of interval
-    """
-
-    POSITIVE = "POSITIVE"
-    NEGATIVE = "NEGATIVE"
-    NO_DATA = "NO_DATA"
-    NOT_APPLICABLE = "NOT_APPLICABLE"
-
-    def __repr__(self) -> str:
-        """
-        Get the string representation of the category.
-        """
-        return str(self)
-
-    def __str__(self) -> str:
-        """
-        Get the string representation of the interval type.
-        """
-        return self.name
-
-
 class OMOPConcepts(Enum):
     """
     Collection of standard concepts in the OMOP CDM.

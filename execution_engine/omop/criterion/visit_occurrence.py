@@ -3,8 +3,9 @@ from typing import Any, Dict
 from sqlalchemy import select
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory, IntervalType, OMOPConcepts
+from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.criterion.abstract import column_interval_type
+from execution_engine.util.interval import IntervalType
 
 __all__ = ["VisitOccurrence", "ActivePatients", "PatientsActiveDuringPeriod"]
 

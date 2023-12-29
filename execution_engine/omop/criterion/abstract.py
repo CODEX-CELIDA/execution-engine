@@ -23,7 +23,7 @@ from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select, TableClause
 from sqlalchemy.sql.functions import concat
 
-from execution_engine.constants import CohortCategory, IntervalType
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.db.celida.tables import (
     IntervalTypeEnum,
@@ -42,6 +42,7 @@ from execution_engine.omop.db.omop.tables import (
 )
 from execution_engine.omop.serializable import Serializable
 from execution_engine.util import TimeRange
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.sql import SelectInto, select_into
 
 __all__ = ["AbstractCriterion", "Criterion"]

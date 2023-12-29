@@ -1,8 +1,8 @@
 from sqlalchemy import Select
 
-from execution_engine.constants import IntervalType
 from execution_engine.omop.criterion.abstract import column_interval_type
 from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.util.interval import IntervalType
 
 
 class ContinuousCriterion(ConceptCriterion):

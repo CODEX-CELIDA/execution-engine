@@ -16,6 +16,7 @@ from sqlalchemy.sql.elements import (
 from execution_engine.omop.concepts import Concept
 from execution_engine.util.interval import (
     DateTimeInterval,
+    IntervalType,
     interval_datetime,
     interval_int,
 )
@@ -304,22 +305,14 @@ class TimeRange(BaseModel):
         """
         return self.end - self.start
 
-    def interval(self, as_timestamp: bool = False) -> DateTimeInterval:
+    def interval(self, type_: IntervalType) -> DateTimeInterval:
         """
         Get the interval of the time range.
 
-        :param as_timestamp: If True, return the interval as a timestamp (i.e. the number of seconds).
+        :param type_: The type of interval to get.
         :return: The interval.
         """
-        if as_timestamp:
-            # todo enable me once it is clear this function is not called incorrectly anymore
-            """return interval_int(
-                int(self.start.timestamp()), int(self.end.timestamp())
-            )"""
-            raise NotImplementedError("Only as_timestamp=False is supported.")
-
-        else:
-            return interval_datetime(self.start, self.end)
+        return interval_datetime(self.start, self.end, type_=type_)
 
     def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
         """

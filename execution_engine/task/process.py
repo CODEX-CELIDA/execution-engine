@@ -2,11 +2,31 @@ from typing import Callable
 
 import pandas as pd
 
-from execution_engine.constants import IntervalType
 from execution_engine.util import TimeRange
 from execution_engine.util.interval import DateTimeInterval as Interval
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import empty_interval_datetime as empty_interval
 from execution_engine.util.interval import interval_datetime as interval
+
+df_dtypes = {
+    "person_id": "int64",
+    "interval_start": "datetime64[ns, UTC]",
+    "interval_end": "datetime64[ns, UTC]",
+    "interval_type": "category",
+}
+
+
+def concat_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
+    """
+    Concatenates the DataFrames in the list.
+
+    :param dfs: A list of DataFrames.
+    :return: A DataFrame with the concatenated DataFrames.
+    """
+    dfs = [df for df in dfs if not df.empty]
+    if not dfs:
+        return pd.DataFrame()
+    return pd.concat(dfs)
 
 
 def unique_items(df: pd.DataFrame) -> set[tuple]:
@@ -31,127 +51,155 @@ def _interval_union(intervals: list[Interval]) -> Interval:
     return r
 
 
-def insert_missing_intervals(
+def complementary_intervals(
     df: pd.DataFrame,
-    base: pd.DataFrame,
+    reference_df: pd.DataFrame,
     observation_window: TimeRange,
-    interval_type: IntervalType,
+    interval_type: IntervalType | str = "auto",
+    interval_type_missing_persons: IntervalType = IntervalType.NO_DATA,
 ) -> pd.DataFrame:
     """
-    Insert missing intervals into a dataframe, determined by the keys in the base dataframe.
+    Insert missing intervals into a dataframe, i.e. the complement of the existing intervals w.r.t. the observation
+    window. Persons that are not in the dataframe but in the base dataframe are added as well (with the full
+    observation window as the interval).
 
     :param df: The DataFrame with the intervals.
-    :param base: The DataFrame with the base criterion. Used to determine the patients for which intervals are missing.
+    :param reference_df: The DataFrame with the base criterion. Used to determine the patients for which intervals
+        are missing.
     :param observation_window: The observation window.
-    :param interval_type: The type of the intervals that are added.
+    :param interval_type: The type of the complementary intervals for persons existing in the DataFrame. If 'auto',
+        the interval_type should be the (unique) interval_type of the person's intervals in the DataFrame.
+    :param interval_type_missing_persons: The interval type for the complementary intervals for persons that are not
+        in the DataFrame but only in the reference DataFrame.
     :return: A DataFrame with the inserted intervals.
     """
     by = ["person_id"]
 
+    if not isinstance(interval_type, IntervalType) and not interval_type == "auto":
+        raise ValueError(
+            f"interval_type must be an IntervalType or 'auto', got {interval_type}"
+        )
+
+    # get intervals for missing persons (in df w.r.t. base)
     rows_df = df[by].drop_duplicates()
-    rows_base = base[by].drop_duplicates()
+    rows_base = reference_df[by].drop_duplicates()
 
     merged_df = pd.merge(rows_base, rows_df, on=by, how="outer", indicator=True)
 
-    unique_to_base = merged_df[merged_df["_merge"] == "left_only"].drop(
-        columns=["_merge"]
+    df_missing_persons = (
+        merged_df[merged_df["_merge"] == "left_only"]
+        .drop(columns=["_merge"])
+        .assign(
+            interval_start=observation_window.start,
+            interval_end=observation_window.end,
+            interval_type=interval_type_missing_persons,
+        )
     )
-    unique_to_base = unique_to_base.assign(
-        interval_start=observation_window.start,
-        interval_end=observation_window.end,
-        interval_type=interval_type,
-    )
 
-    return pd.concat([df, unique_to_base])
-
-
-def invert_intervals(
-    df: pd.DataFrame,
-    base: pd.DataFrame,
-    by: list[str],
-    observation_window: TimeRange,
-    interval_type: IntervalType | None,
-    missing_interval_type: IntervalType,
-) -> pd.DataFrame:
-    """
-    Inverts the intervals in the DataFrame.
-
-    Inserts the full observation_window for all patients in base that are not in df.
-
-    :param df: The DataFrame with the intervals.
-    :param base: The DataFrame with the base criterion.
-    :param by: A list of column names to group by.
-    :param observation_window: The observation window.
-    :param interval_type: The type of the intervals that are added. None if it should be inferred from the DataFrame.
-    :param missing_interval_type: The type of the newly added intervals that are missing after inversion.
-    :return: A DataFrame with the inserted intervals.
-    """
-
-    if not len(by):
-        raise ValueError("by must not be empty")
-
-    if "interval_type" in by:
-        raise ValueError("by must not contain interval_type")
-
-    unique_persons = df["person_id"].unique()
-
+    # invert intervals in time to get the missing intervals of existing persons
     if not df.empty:
         result = {}
 
-        if interval_type is None:
+        if interval_type == "auto":
             assert (
                 df.groupby(by)["interval_type"].nunique().nunique() == 1
             ), "only one interval_type per group is supported"
             interval_types = df.groupby(by)["interval_type"].first()
 
         for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
-            new_intervals = to_intervals(group[["interval_start", "interval_end"]])
+            new_intervals = df_to_intervals(
+                group[["interval_start", "interval_end", "interval_type"]]
+            )
             new_interval_union = _interval_union(new_intervals)
 
             result[group_keys] = (
-                observation_window.interval() & new_interval_union.complement()
+                # take the least of the intersection of the observation window to retain the type of the
+                #   original interval
+                observation_window.interval(IntervalType.intersection_priority()[-1])
+                & new_interval_union.complement(
+                    type_=interval_type if interval_type != "auto" else None  # type: ignore # type_ is not 'str' here (as mypy thinks)
+                )
             )
 
         df = _result_to_df(result, by)
 
-        if interval_type is None:
-            df = pd.merge(df, interval_types, on="person_id")
+        # todo: remove me
+        if interval_type == "auto":
+            X = pd.merge(df, interval_types, on="person_id")
+            assert X["interval_type_x"].equals(X["interval_type_y"])
+            # todo: remove me
         else:
             df["interval_type"] = interval_type
 
-    return insert_missing_intervals(
-        df,
-        base=base[~base["person_id"].isin(unique_persons)],
-        observation_window=observation_window,
-        interval_type=missing_interval_type,
-    )
+    return concat_dfs([df, df_missing_persons])
 
 
-def combine_intervals(df: pd.DataFrame) -> pd.DataFrame:
+def invert_intervals(
+    df: pd.DataFrame,
+    reference_df: pd.DataFrame,
+    observation_window: TimeRange,
+) -> pd.DataFrame:
     """
-    Combine overlapping intervals in a DataFrame based on a specified priority order.
+    Inverts the intervals in the DataFrame.
+
+    The inversion is performed in time and value, i.e. first the complement set of the intervals is taken (w.r.t. the
+    observation window) and then the original intervals are added back in, but with the inverted value.
+
+    Also, the full observation_window is added for all patients in base that are not in df.
+
+    :param df: The DataFrame with the intervals.
+    :param reference_df: The DataFrame with the base criterion.
+    :param observation_window: The observation window.
+    :return: A DataFrame with the inserted intervals.
+    """
+    df_c = complementary_intervals(
+        df,
+        reference_df=reference_df,
+        observation_window=observation_window,
+        interval_type="auto",
+    )
+    df["interval_type"] = ~df["interval_type"]
+
+    df = concat_dfs([df, df_c])
+
+    return df
+
+
+def merge_interval_across_types(df: pd.DataFrame, operator: str) -> pd.DataFrame:
+    """
+    Merge overlapping intervals in a DataFrame based on an operator (AND/OR) and the associated priority order of
+    interval types.
 
     This function iterates through a sorted DataFrame of intervals and combines them based on the interval type's
-    priority. The priority order is NEGATIVE > POSITIVE > NODATA. In the case of overlapping intervals with different
-    types, the interval with the higher priority is chosen. If intervals of the same type overlap, they are merged into
-    a single interval.
+    priority. The priority order is:
+        -   for AND-combination: NEGATIVE > POSITIVE > NOT_APPLICABLE > NODATA
+        -   for OR-combination: POSITIVE > NODATA > NOT_APPLICABLE > NEGATIVE
+    In the case of overlapping intervals with different types, the interval with the higher priority is chosen.
+    If intervals of the same type overlap, they are merged into a single interval.
 
-    Parameters:
-    sorted_df (pd.DataFrame): A Pandas DataFrame containing the intervals. It should have the columns
-                              'person_id', 'interval_start', 'interval_end', and 'interval_type'.
-                              The DataFrame should be sorted as described above.
-
-    Returns:
-    pd.DataFrame: A new DataFrame with combined intervals as per the specified rules.
-                   The resulting DataFrame will have the same columns as the input DataFrame.
+    :param df: A Pandas DataFrame containing the intervals. It should have the columns
+                  'person_id', 'interval_start', 'interval_end', and 'interval_type'.
+    :param operator: The operator to use for combining the intervals. Valid values are 'AND' and 'OR'.
+    :return: A new DataFrame with combined intervals as per the specified rules.
+        The resulting DataFrame will have the same columns as the input DataFrame.
     """
     # Define the custom sort order for 'interval_type'
-    priority_order = [
-        IntervalType.NEGATIVE,
-        IntervalType.POSITIVE,
-        IntervalType.NO_DATA,
-        IntervalType.NOT_APPLICABLE,
-    ]
+    if operator == "AND":
+        priority_order = [
+            IntervalType.NEGATIVE,
+            IntervalType.POSITIVE,
+            IntervalType.NOT_APPLICABLE,
+            IntervalType.NO_DATA,
+        ]
+    elif operator == "OR":
+        priority_order = [
+            IntervalType.POSITIVE,
+            IntervalType.NO_DATA,
+            IntervalType.NOT_APPLICABLE,
+            IntervalType.NEGATIVE,
+        ]
+    else:
+        raise ValueError(f"Invalid operator '{operator}'")
 
     # Convert 'interval_type' to a Categorical type with the specified order
     df["interval_type"] = pd.Categorical(
@@ -184,7 +232,7 @@ def combine_intervals(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(combined)
 
 
-def to_intervals(df: pd.DataFrame) -> list[Interval]:
+def df_to_intervals(df: pd.DataFrame) -> list[Interval]:
     """
     Converts the DataFrame to intervals.
 
@@ -193,37 +241,23 @@ def to_intervals(df: pd.DataFrame) -> list[Interval]:
     """
 
     return [
-        interval(start, end)
-        for start, end in zip(df["interval_start"], df["interval_end"])
+        interval(start, end, type_)
+        for start, end, type_ in zip(
+            df["interval_start"], df["interval_end"], df["interval_type"]
+        )
     ]
 
 
-def timestamps_to_intervals(group: pd.DataFrame) -> list[Interval]:
-    """
-    Converts the timestamps in the DataFrame to intervals.
-
-    :param group: A DataFrame with columns "interval_start" and "interval_end" containing timestamps.
-    :return: A list of intervals.
-    """
-    divisor = 1000000000
-    group = group.astype("int64") // divisor
-    return [
-        interval(start, end)
-        for start, end in zip(group["interval_start"], group["interval_end"])
-    ]
-
-
-def _process_intervals(
-    dfs: list[pd.DataFrame], by: list[str], operation: Callable
-) -> pd.DataFrame:
+def _process_intervals(dfs: list[pd.DataFrame], operation: Callable) -> pd.DataFrame:
     """
     Processes the intervals in the DataFrames (intersect or union)
 
     :param dfs: A list of DataFrames.
-    :param by: A list of column names to group by.
     :param operation: The operation to perform on the intervals (intersect or union).
     :return: A DataFrame with the processed intervals.
     """
+
+    by = ["person_id"]
 
     if not len(dfs):
         return dfs
@@ -240,7 +274,9 @@ def _process_intervals(
             continue
 
         for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
-            new_intervals = to_intervals(group[["interval_start", "interval_end"]])
+            new_intervals = df_to_intervals(
+                group[["interval_start", "interval_end", "interval_type"]]
+            )
             new_interval_union = _interval_union(new_intervals)
 
             if group_keys not in result:
@@ -251,7 +287,7 @@ def _process_intervals(
     return _result_to_df(result, by)
 
 
-def merge_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
+def union_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     """
     Merges the intervals in the DataFrames grouped by columns.
 
@@ -260,8 +296,8 @@ def merge_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     :return: A DataFrame with the merged intervals.
     """
 
-    df = _process_intervals(dfs, by, lambda x, y: x | y)
-    df = combine_intervals(df)
+    df = _process_intervals(dfs, lambda x, y: x | y)
+    # df = merge_interval_across_types(df, operator='OR')
 
     return df
 
@@ -274,52 +310,75 @@ def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     :param by: A list of column names to group by.
     :return: A DataFrame with the intersected intervals.
     """
-    dfs = filter_common_items(dfs, by)
+    dfs = filter_dataframes_by_shared_column_values(dfs, by)
 
-    return _process_intervals(dfs, by, lambda x, y: x & y)
+    df = _process_intervals(dfs, lambda x, y: x & y)
+    # df = merge_interval_across_types(df, operator='AND')
+
+    return df
 
 
-def _result_to_df(
-    result: dict[tuple[str] | str, Interval], by: list[str]
+# todo: remove parameters once it's clear this functionality isn't required
+def mask_intervals(
+    df: pd.DataFrame,
+    mask: pd.DataFrame,
+    # interval_type_outside_mask: IntervalType,
+    # observation_window: TimeRange,
 ) -> pd.DataFrame:
     """
-    Converts the result of the interval operations to a DataFrame.
+    Masks the intervals in the DataFrames grouped by columns.
 
-    :param result: The result of the interval operations.
-    :param by: A list of column names to group by.
-    :return: A DataFrame with the interval results.
+    The intervals in df are intersected with the intervals in mask. The intervals outside the mask are set to
+    interval_type_outside_mask, the intervals inside the mask are left unchanged.
+
+    :param df: A DataFrames with intervals that should be masked.
+    :param mask: A DataFrame with intervals that should be used for masking.
+    :param interval_type_outside_mask: The interval type for intervals outside the mask.
+    :param observation_window: The observation window.
+    :return: A DataFrame with the masked intervals.
     """
-    records = []
-    for group_keys, intervals in result.items():
-        # Check if group_keys is a tuple or a single value and unpack accordingly
-        if isinstance(group_keys, tuple):
-            record_keys = dict(zip(by, group_keys))
-        else:
-            record_keys = {by[0]: group_keys}
 
-        for interv in intervals:
-            record = {
-                **record_keys,
-                "interval_start": interv.lower,
-                "interval_end": interv.upper,
-            }
-            records.append(record)
+    by = ["person_id", "interval_type"]
 
-    return pd.DataFrame(records, columns=by + ["interval_start", "interval_end"])
+    person_mask = {}
+    for person_id, group in mask.groupby(by=["person_id"]):
+        person_mask[person_id[0]] = _interval_union(
+            df_to_intervals(group[["interval_start", "interval_end", "interval_type"]])
+        )
+
+    result = {}
+    for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
+        intervals = df_to_intervals(
+            group[["interval_start", "interval_end", "interval_type"]]
+        )
+        intervals = _interval_union(intervals)
+
+        result[group_keys] = intervals & person_mask[group_keys[by.index("person_id")]]
+
+    result = _result_to_df(result, by)
+
+    # removed because this adds intervals for patients that do not have any intervals, but this
+    #       is not really required (I think). it just adds a lot of data to the database.
+    # df_c = complementary_intervals(
+    #    result, mask, observation_window=observation_window, interval_type=interval_type_outside_mask
+    # )
+    # result = _concat_dfs([result, df_c])
+
+    return result
 
 
-def filter_common_items(
+def filter_dataframes_by_shared_column_values(
     dfs: list[pd.DataFrame], columns: list[str]
 ) -> list[pd.DataFrame]:
     """
-    Filters the DataFrames based on common items in the specified columns.
+    Filters the DataFrames based on shared values in the specified columns.
 
-    Returned are only those rows of each dataframe of which the values in the columns identified
-    by the parameter `columns` are common to all dataframes.
+    Returned are only those rows of each dataframe where the values in the columns identified
+    by the parameter `columns` are shared across all dataframes.
 
     :param dfs: A list of DataFrames.
     :param columns: A list of column names to filter on.
-    :return: A list of DataFrames with the common items.
+    :return: A list of DataFrames with the rows that have shared column values.
     """
 
     if not len(dfs):
@@ -349,42 +408,33 @@ def filter_common_items(
     return filtered_dfs
 
 
-def mask_intervals(
-    df: pd.DataFrame,
-    mask: pd.DataFrame,
-    interval_type_outside_mask: IntervalType,
-    observation_window: TimeRange,
+def _result_to_df(
+    result: dict[tuple[str] | str, Interval], by: list[str]
 ) -> pd.DataFrame:
     """
-    Masks the intervals in the DataFrames grouped by columns.
+    Converts the result of the interval operations to a DataFrame.
 
-    :param df: A DataFrames with intervals that should be masked.
-    :param mask: A DataFrame with intervals that should be used for masking.
-    :param interval_type_outside_mask: The interval type for intervals outside the mask.
-    :param observation_window: The observation window.
-    :return: A DataFrame with the masked intervals.
+    :param result: The result of the interval operations.
+    :param by: A list of column names to group by.
+    :return: A DataFrame with the interval results.
     """
+    records = []
+    for group_keys, intervals in result.items():
+        # Check if group_keys is a tuple or a single value and unpack accordingly
+        if isinstance(group_keys, tuple):
+            record_keys = dict(zip(by, group_keys))
+        else:
+            record_keys = {by[0]: group_keys}
 
-    by = ["person_id", "interval_type"]
+        for interv in intervals:
+            record = {
+                **record_keys,
+                "interval_start": interv.lower,
+                "interval_end": interv.upper,
+                "interval_type": interv.type,
+            }
+            records.append(record)
 
-    person_mask = {}
-    for person_id, group in mask.groupby(by=["person_id"]):
-        person_mask[person_id[0]] = _interval_union(
-            to_intervals(group[["interval_start", "interval_end"]])
-        )
-
-    result = {}
-    for group_keys, group in df.groupby(by, as_index=False, group_keys=False):
-        new_intervals = to_intervals(group[["interval_start", "interval_end"]])
-        new_interval_union = _interval_union(new_intervals)
-
-        result[group_keys] = (
-            new_interval_union & person_mask[group_keys[by.index("person_id")]]
-        )
-
-    result = _result_to_df(result, by)
-    result = insert_missing_intervals(
-        result, mask, observation_window, interval_type_outside_mask
+    return pd.DataFrame(
+        records, columns=by + ["interval_start", "interval_end", "interval_type"]
     )
-
-    return result

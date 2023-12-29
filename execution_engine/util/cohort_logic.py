@@ -2,8 +2,9 @@ from typing import Any, Generic, Type, TypeVar
 
 import sympy
 
-from execution_engine.constants import CohortCategory, IntervalType
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.util.interval import IntervalType
 
 T = TypeVar("T", bound="CohortCategorized")
 
@@ -100,7 +101,7 @@ class CohortCategorized(sympy.Basic, Generic[T]):
         :return: A new CohortCategorized object.
         """
         obj = super().__new__(cls, *args)
-        if not type(obj) == cls:
+        if type(obj) is not cls:
             # The sympy.And, sympy.Or classes return the original symbol if only one argument is given
             return obj
 

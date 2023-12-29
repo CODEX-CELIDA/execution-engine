@@ -4,13 +4,14 @@ from enum import Enum, auto
 import pandas as pd
 
 import execution_engine.util.cohort_logic as logic
-from execution_engine.constants import CohortCategory, IntervalType
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import RecommendationResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import config
 from execution_engine.task import process
 from execution_engine.util import TimeRange
+from execution_engine.util.interval import IntervalType
 
 
 def get_engine() -> OMOPSQLClient:
@@ -157,7 +158,7 @@ class Task:
                         result, base_data, bind_params, observation_window
                     )
 
-        except Exception as e:
+        except TaskError as e:  # todo change to exception
             self.status = TaskStatus.FAILED
             exception_type = type(e).__name__  # Get the type of the exception
             raise TaskError(
@@ -202,7 +203,7 @@ class Task:
         df["interval_type"] = IntervalType.POSITIVE
 
         # merge overlapping/adjacent intervals to reduce the number of intervals
-        return process.merge_intervals([df], self.by)
+        return process.union_intervals([df], self.by)
 
     def handle_unary_logical_operator(
         self,
@@ -224,16 +225,10 @@ class Task:
         """
         assert self.expr.is_Not, "Dependency is not a Not expression."
 
-        # interval_type = data[0].interval_type.unique()
-        # assert len(interval_type) == 1, "IntervalType must be consistent"
-
         result = process.invert_intervals(
             data[0],
             base_data,
-            by=["person_id"],
             observation_window=observation_window,
-            interval_type=None,
-            missing_interval_type=IntervalType.POSITIVE,
         )
 
         return result
@@ -253,7 +248,7 @@ class Task:
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
             result = process.intersect_intervals(data, self.by)
         elif isinstance(self.expr, logic.Or):
-            result = process.merge_intervals(data, self.by)
+            result = process.union_intervals(data, self.by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
         return result
@@ -265,14 +260,26 @@ class Task:
         observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
-        Handles a NoDataPreservingAnd by merging the intervals of the left dependency with the intervals of the
-        right dependency.
+        Handles a NoDataPreservingAnd/Or operator.
+
+        These are used to combine POPULATION, INTERVENTION and POPULATION/INTERVENTION results from different
+        population/intervention pairs into a single result (i.e. the full recommendation's POPULATION etc.).
+
+        The POSITIVE intervals are intersected (And) or merged (Or), the NO_DATA intervals are intersected and the
+        remaining intervals are set to NEGATIVE.
+
+
 
         :param data: The input data.
         :param base_data: The result of the base criterion.
         :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
         """
+        # todo: - what does this logic actually do (where does it come from)?
+        #       - should the no_data intervals be intersected for both AND and OR?
+        #       - what should happen to the NOT_APPLICABLE intervals?
+        #       - can this be handled directly by the new IntervalWithType?
+        # I think the initial idea was to intersect POSITIVEs and NO_DATAs and then fill the remaining time with NEGATIVEs
         assert isinstance(
             self.expr, (logic.NoDataPreservingAnd, logic.NoDataPreservingOr)
         ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
@@ -284,25 +291,28 @@ class Task:
             df[df["interval_type"] == IntervalType.POSITIVE] for df in data
         ]
         data_nodata = [df[df["interval_type"] == IntervalType.NO_DATA] for df in data]
+        # data_not_applicable = [
+        #    df[df["interval_type"] == IntervalType.NOT_APPLICABLE] for df in data
+        # ]
 
         if isinstance(self.expr, logic.NoDataPreservingAnd):
             result_positive = process.intersect_intervals(data_positive, self.by)
+        elif isinstance(self.expr, logic.NoDataPreservingOr):
+            result_positive = process.union_intervals(data_positive, self.by)
         else:
-            result_positive = process.merge_intervals(data_positive, self.by)
+            raise ValueError(f"Unsupported expression type: {self.expr}")
 
         result_nodata = process.intersect_intervals(data_nodata, self.by)
 
         # the remaining intervals are NEGATIVE
-        result = pd.concat([result_positive, result_nodata])
-        result_negative = process.invert_intervals(
+        result = process.concat_dfs([result_positive, result_nodata])
+        result_negative = process.complementary_intervals(
             result,
-            base=base_data,
-            by=["person_id"],
+            reference_df=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
-            missing_interval_type=IntervalType.NEGATIVE,
         )
-        result = pd.concat([result, result_negative])
+        result = process.concat_dfs([result, result_negative])
 
         return result
 
@@ -327,32 +337,30 @@ class Task:
 
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
-        # not P --> no data
-        result_not_p = process.invert_intervals(
+        # not P --> not applicable
+
+        result_not_p = process.complementary_intervals(
             data[0],
-            base_data,
-            ["person_id"],
-            observation_window,
+            reference_df=base_data,
+            observation_window=observation_window,
             interval_type=IntervalType.NOT_APPLICABLE,
-            missing_interval_type=IntervalType.NOT_APPLICABLE,
+            interval_type_missing_persons=IntervalType.NOT_APPLICABLE,
         )
 
         # P and I --> POSITIVE
         result_p_and_i = process.intersect_intervals(data, self.by)
 
-        result = pd.concat([result_not_p, result_p_and_i])
+        result = process.concat_dfs([result_not_p, result_p_and_i])
 
         # fill remaining time with NEGATIVE
-        result_no_data = process.invert_intervals(
+        result_no_data = process.complementary_intervals(
             result,
-            base=base_data,
-            by=["person_id"],
+            reference_df=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
-            missing_interval_type=IntervalType.NEGATIVE,
         )
 
-        result = pd.concat([result, result_no_data])
+        result = process.concat_dfs([result, result_no_data])
 
         return result
 
@@ -381,9 +389,9 @@ class Task:
             # intersect with the base criterion
             result = process.mask_intervals(
                 result,
-                base_data,
-                interval_type_outside_mask=IntervalType.NOT_APPLICABLE,
-                observation_window=observation_window,
+                mask=base_data,
+                # interval_type_outside_mask=IntervalType.NOT_APPLICABLE,
+                # observation_window=observation_window,
             )
 
         pi_pair_id = bind_params.get("pi_pair_id", None)

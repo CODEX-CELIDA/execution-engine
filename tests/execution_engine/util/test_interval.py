@@ -1,11 +1,7 @@
 import pytest
 
-from execution_engine.util.intervalt import IntervalType as T
-from execution_engine.util.intervalt import (
-    IntInterval,
-    empty_interval_int,
-    interval_int,
-)
+from execution_engine.util.interval import IntervalType as T
+from execution_engine.util.interval import IntInterval, empty_interval_int, interval_int
 
 
 class TestInterval:

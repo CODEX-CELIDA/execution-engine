@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 from sqlalchemy.sql import Select, extract
 
-from execution_engine.constants import CohortCategory, IntervalType
+from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     column_interval_type,
@@ -10,6 +10,7 @@ from execution_engine.omop.criterion.abstract import (
 )
 from execution_engine.omop.criterion.continuous import ContinuousCriterion
 from execution_engine.util import Interval, ValueNumber, value_factory
+from execution_engine.util.interval import IntervalType
 
 __all__ = ["ProcedureOccurrence"]
 
