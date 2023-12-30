@@ -86,7 +86,7 @@ class IntervalType(StrEnum):
         """
         Return the priority order for intersection starting with the highest priority.
         """
-        return [cls.NEGATIVE, cls.NOT_APPLICABLE, cls.POSITIVE, cls.NO_DATA]
+        return [cls.NEGATIVE, cls.POSITIVE, cls.NOT_APPLICABLE, cls.NO_DATA]
 
     @classmethod
     def least_intersection_priority(cls) -> "IntervalType":

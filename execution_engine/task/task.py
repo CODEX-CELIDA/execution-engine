@@ -141,7 +141,10 @@ class Task:
                     result = self.handle_binary_logical_operator(data)
                 elif isinstance(self.expr, logic.LeftDependentToggle):
                     result = self.handle_left_dependent_toggle(
-                        data, base_data, observation_window
+                        left=data[0],
+                        right=data[1],
+                        base_data=base_data,
+                        observation_window=observation_window,
                     )
                 elif isinstance(self.expr, logic.NoDataPreservingAnd):
                     result = self.handle_no_data_preserving_operator(
@@ -209,7 +212,8 @@ class Task:
         from the result.
 
         :param data: The input data.
-        :param base_data: The result of the base criterion (required to add full observation window for patients with no data).
+        :param base_data: The result of the base criterion (required to add full observation window for patients with
+                no data).
         :param observation_window: The observation window.
         :return: A DataFrame with the inverted intervals.
         """
@@ -241,6 +245,7 @@ class Task:
             result = process.union_intervals(data)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
+
         return result
 
     def handle_no_data_preserving_operator(
@@ -277,6 +282,7 @@ class Task:
         elif isinstance(self.expr, logic.NoDataPreservingOr):
             result = process.union_intervals(data)
 
+        # todo: the only difference between this function and handle_binary_logical_operator is the following lines
         result_negative = process.complementary_intervals(
             result,
             reference_df=base_data,
@@ -284,49 +290,42 @@ class Task:
             interval_type=IntervalType.NEGATIVE,
         )
 
-        """# data_negative = [
-        #     df[df["interval_type"] == IntervalType.NEGATIVE] for df in data
-        # ]
-        data_positive = [
-            df[df["interval_type"] == IntervalType.POSITIVE] for df in data
-        ]
-        data_nodata = [df[df["interval_type"] == IntervalType.NO_DATA] for df in data]
-        # data_not_applicable = [
-        #    df[df["interval_type"] == IntervalType.NOT_APPLICABLE] for df in data
-        # ]
-
-        if isinstance(self.expr, logic.NoDataPreservingAnd):
-            result_positive = process.intersect_intervals(data_positive)
-        elif isinstance(self.expr, logic.NoDataPreservingOr):
-            result_positive = process.union_intervals(data_positive)
-        else:
-            raise ValueError(f"Unsupported expression type: {self.expr}")
-
-        result_nodata = process.intersect_intervals(data_nodata)
-
-        # the remaining intervals are NEGATIVE
-        result = process.concat_dfs([result_positive, result_nodata])
-        result_negative = process.complementary_intervals(
-            result,
-            reference_df=base_data,
-            observation_window=observation_window,
-            interval_type=IntervalType.NEGATIVE,
-        )"""
         result = process.concat_dfs([result, result_negative])
 
         return result
 
     def handle_left_dependent_toggle(
         self,
-        data: list[pd.DataFrame],
+        left: pd.DataFrame,
+        right: pd.DataFrame,
         base_data: pd.DataFrame,
         observation_window: TimeRange,
     ) -> pd.DataFrame:
         """
         Handles a left dependent toggle by merging the intervals of the left dependency with the intervals of the
-        right dependency.
+        right dependency according to the following rules:
 
-        :param data: The input data.
+        - If P is NEGATIVE or NO_DATA, the result is NOT_APPLICABLE (NO_DATA: because we cannot decide whether the
+            recommendationis applicable or not).
+        - If P is POSITIVE, the result is:
+            - POSITIVE if I is POSITIVE
+            - NEGATIVE if I is NEGATIVE
+            - NO_DATA if I is NO_DATA
+
+        In tabular form:
+
+        | P | I | Result |
+        |---|---|--------|
+        | NEGATIVE | * | NOT_APPLICABLE |
+        | NO_DATA | * | NOT_APPLICABLE |
+        | POSITIVE | POSITIVE | POSITIVE |
+        | POSITIVE | NEGATIVE | NEGATIVE |
+        | POSITIVE | NO_DATA | NO_DATA |
+
+        :param left: The intervals of the left dependency (the one that determines whether the right dependency is
+                    returned).
+        :param right: The intervals of the right dependency (the one that is taken when the left dependency is
+                      POSITIVE).
         :param base_data: The result of the base criterion.
         :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
@@ -337,18 +336,19 @@ class Task:
 
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
-        # not P --> not applicable
+
+        idx_p = left["interval_type"] == IntervalType.POSITIVE
+        data_p = left[idx_p]
 
         result_not_p = process.complementary_intervals(
-            data[0],
+            data_p,
             reference_df=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NOT_APPLICABLE,
-            interval_type_missing_persons=IntervalType.NOT_APPLICABLE,
         )
 
         # P and I --> POSITIVE
-        result_p_and_i = process.intersect_intervals(data)
+        result_p_and_i = process.intersect_intervals([data_p, right])
 
         result = process.concat_dfs([result_not_p, result_p_and_i])
 
