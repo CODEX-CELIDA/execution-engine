@@ -268,11 +268,6 @@ class Task:
         :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
         """
-        # todo: - what does this logic actually do (where does it come from)?
-        #       - should the no_data intervals be intersected for both AND and OR?
-        #       - what should happen to the NOT_APPLICABLE intervals?
-        #       - can this be handled directly by the new IntervalWithType?
-        # I think the initial idea was to intersect POSITIVEs and NO_DATAs and then fill the remaining time with NEGATIVEs
         assert isinstance(
             self.expr, (logic.NoDataPreservingAnd, logic.NoDataPreservingOr)
         ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
@@ -283,6 +278,7 @@ class Task:
             result = process.union_intervals(data)
 
         # todo: the only difference between this function and handle_binary_logical_operator is the following lines
+        #  - can we merge?
         result_negative = process.complementary_intervals(
             result,
             reference_df=base_data,

@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import NUMERIC, DateTime, and_, bindparam, case, func, select
+from sqlalchemy import NUMERIC, and_, bindparam, case, func, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql import Select
 from sqlalchemy.sql.functions import concat
@@ -12,6 +12,7 @@ from execution_engine.omop.criterion.abstract import (
     Criterion,
     create_conditional_interval_column,
 )
+from execution_engine.omop.db.base import DateTimeWithTimeZone
 from execution_engine.omop.db.omop import tables as omop
 from execution_engine.util import Interval, ValueNumber, value_factory
 from execution_engine.util.sql import SelectInto
@@ -155,7 +156,10 @@ class DrugExposure(Criterion):
             interval_starts = query.add_columns(
                 (
                     func.date_trunc(
-                        "day", bindparam("observation_start_datetime", type_=DateTime)
+                        "day",
+                        bindparam(
+                            "observation_start_datetime", type_=DateTimeWithTimeZone
+                        ),
                     )
                     + interval_length_seconds
                     * (
@@ -167,7 +171,8 @@ class DrugExposure(Criterion):
                                     - func.date_trunc(
                                         "day",
                                         bindparam(
-                                            "observation_start_datetime", type_=DateTime
+                                            "observation_start_datetime",
+                                            type_=DateTimeWithTimeZone,
                                         ),
                                     )
                                 ),

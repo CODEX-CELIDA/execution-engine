@@ -11,5 +11,6 @@ class AllergyCharacteristic(AbstractCodeableConceptCharacteristic):
 
     _concept_code = SCT_ALLERGIC_DISPOSITION
     _concept_vocabulary = SNOMEDCT
-    _criterion_class = ConditionOccurrence
+    _criterion_class = ConditionOccurrence  # allergies resemble Condition more than Observation, although they
+    # are observations in OMOP
     _concept_value_static = True

@@ -10,7 +10,6 @@ import sqlalchemy
 from sqlalchemy import (
     ColumnElement,
     Date,
-    DateTime,
     Table,
     and_,
     bindparam,
@@ -25,6 +24,7 @@ from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
+from execution_engine.omop.db.base import DateTimeWithTimeZone
 from execution_engine.omop.db.celida.tables import (
     IntervalTypeEnum,
     RecommendationResultInterval,
@@ -352,8 +352,16 @@ class Criterion(AbstractCriterion):
         Generate the header of the SQL query.
         """
 
-        c_start = self._get_datetime_column(self._table, "start")
-        c_end = self._get_datetime_column(self._table, "end")
+        if self._static:
+            # If this criterion is a static criterion, i.e. one whose value does not change over time,
+            # then we add the observation range as the interval range
+            c_start = bindparam(
+                "observation_start_datetime", type_=DateTimeWithTimeZone
+            )
+            c_end = bindparam("observation_end_datetime", type_=DateTimeWithTimeZone)
+        else:
+            c_start = self._get_datetime_column(self._table, "start")
+            c_end = self._get_datetime_column(self._table, "end")
 
         query = select(
             self._table.c.person_id,
@@ -447,10 +455,12 @@ class Criterion(AbstractCriterion):
             # but we need to add the observation range as the valid range
 
             query = query.add_columns(
-                bindparam("observation_start_datetime", type_=DateTime).label(
-                    "valid_from"
+                bindparam(
+                    "observation_start_datetime", type_=DateTimeWithTimeZone
+                ).label("valid_from"),
+                bindparam("observation_end_datetime", type_=DateTimeWithTimeZone).label(
+                    "valid_to"
                 ),
-                bindparam("observation_end_datetime", type_=DateTime).label("valid_to"),
             )
 
             return query
@@ -538,12 +548,14 @@ class Criterion(AbstractCriterion):
         )
         query = query.add_columns(
             func.greatest(
-                c_valid_from, bindparam("observation_start_datetime", type_=DateTime)
+                c_valid_from,
+                bindparam("observation_start_datetime", type_=DateTimeWithTimeZone),
             ).label("valid_from")
         )
         query = query.add_columns(
             func.least(
-                c_valid_to, bindparam("observation_end_datetime", type_=DateTime)
+                c_valid_to,
+                bindparam("observation_end_datetime", type_=DateTimeWithTimeZone),
             ).label("valid_to")
         )
 
@@ -554,9 +566,11 @@ class Criterion(AbstractCriterion):
                 literal_column("person_id"),
                 func.generate_series(
                     func.date_trunc(
-                        "day", literal_column("valid_from", type_=DateTime)
+                        "day", literal_column("valid_from", type_=DateTimeWithTimeZone)
                     ),
-                    func.date_trunc("day", literal_column("valid_to", type_=DateTime)),
+                    func.date_trunc(
+                        "day", literal_column("valid_to", type_=DateTimeWithTimeZone)
+                    ),
                     func.cast(concat(1, "day"), INTERVAL),
                 )
                 .cast(Date)

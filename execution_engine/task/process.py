@@ -1,3 +1,4 @@
+from functools import reduce
 from typing import Callable
 
 import pandas as pd
@@ -44,7 +45,7 @@ def concat_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     """
     dfs = [df for df in dfs if not df.empty]
     if not dfs:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=df_dtypes.keys())
     return pd.concat(dfs)
 
 
@@ -52,7 +53,7 @@ def unique_items(df: pd.DataFrame) -> set[tuple]:
     """
     Returns the unique items in the DataFrame.
     """
-    return set(tuple(row) for row in df.itertuples(index=False))
+    return set(df.itertuples(index=False, name=None))
 
 
 def _interval_union(intervals: list[Interval]) -> Interval:
@@ -318,12 +319,9 @@ def intersect_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     return df
 
 
-# todo: remove parameters once it's clear this functionality isn't required
 def mask_intervals(
     df: pd.DataFrame,
     mask: pd.DataFrame,
-    # interval_type_outside_mask: IntervalType,
-    # observation_window: TimeRange,
 ) -> pd.DataFrame:
     """
     Masks the intervals in the DataFrames grouped by columns.
@@ -333,8 +331,6 @@ def mask_intervals(
 
     :param df: A DataFrames with intervals that should be masked.
     :param mask: A DataFrame with intervals that should be used for masking.
-    :param interval_type_outside_mask: The interval type for intervals outside the mask.
-    :param observation_window: The observation window.
     :return: A DataFrame with the masked intervals.
     """
 
@@ -360,18 +356,11 @@ def mask_intervals(
 
     result = _result_to_df(result, by)
 
-    # todo: remove comment if this is really not needed
-    # removed because this adds intervals for patients that do not have any intervals, but this
-    #       is not really required (I think). it just adds a lot of data to the database.
-    # df_c = complementary_intervals(
-    #    result, mask, observation_window=observation_window, interval_type=interval_type_outside_mask
-    # )
-    # result = _concat_dfs([result, df_c])
-
     return result
 
 
-def filter_dataframes_by_shared_column_values(
+# todo: remove me
+def filter_dataframes_by_shared_column_valuesX(
     dfs: list[pd.DataFrame], columns: list[str]
 ) -> list[pd.DataFrame]:
     """
@@ -407,6 +396,39 @@ def filter_dataframes_by_shared_column_values(
         filtered_df = df[
             df.apply(lambda row: tuple(row[columns]) in common_items, axis=1)
         ]
+        filtered_dfs.append(filtered_df)
+
+    return filtered_dfs
+
+
+def filter_dataframes_by_shared_column_values(
+    dfs: list[pd.DataFrame], columns: list[str]
+) -> list[pd.DataFrame]:
+    """
+    Filters the DataFrames based on shared values in the specified columns.
+
+    Returned are only those rows of each dataframe where the values in the columns identified
+    by the parameter `columns` are shared across all dataframes.
+
+    :param dfs: A list of DataFrames.
+    :param columns: A list of column names to filter on.
+    :return: A list of DataFrames with the rows that have shared column values.
+    """
+
+    # Find common rows across all DataFrames
+    # Use reduce to iteratively inner join DataFrames on the specified columns
+    common_rows = reduce(
+        lambda left, right: pd.merge(left[columns], right[columns], on=columns), dfs
+    )
+
+    # Drop duplicate rows to keep only unique combinations of the specified columns
+    common_rows = common_rows.drop_duplicates()
+
+    # Filter each DataFrame to keep only the common rows
+    filtered_dfs = []
+    for df in dfs:
+        # Merge with common_rows and keep only the rows present in common_rows
+        filtered_df = pd.merge(df, common_rows, on=columns, how="inner")
         filtered_dfs.append(filtered_df)
 
     return filtered_dfs
