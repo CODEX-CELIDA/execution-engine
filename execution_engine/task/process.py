@@ -115,7 +115,7 @@ def complementary_intervals(
             result[group_keys] = (
                 # take the least of the intersection of the observation window to retain the type of the
                 #   original interval
-                observation_window.interval(IntervalType.intersection_priority()[-1])
+                observation_window.interval(IntervalType.least_intersection_priority())
                 & new_interval_union.complement(
                     type_=interval_type if interval_type != "auto" else None  # type: ignore # type_ is not 'str' here (as mypy thinks)
                 )
@@ -287,12 +287,11 @@ def _process_intervals(dfs: list[pd.DataFrame], operation: Callable) -> pd.DataF
     return _result_to_df(result, by)
 
 
-def union_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
+def union_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     """
     Merges the intervals in the DataFrames grouped by columns.
 
     :param dfs: A list of DataFrames.
-    :param by: A list of column names to group by.
     :return: A DataFrame with the merged intervals.
     """
 
@@ -302,15 +301,14 @@ def union_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     return df
 
 
-def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
+def intersect_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     """
     Intersects the intervals in the DataFrames grouped by columns.
 
     :param dfs: A list of DataFrames.
-    :param by: A list of column names to group by.
     :return: A DataFrame with the intersected intervals.
     """
-    dfs = filter_dataframes_by_shared_column_values(dfs, by)
+    # dfs = filter_dataframes_by_shared_column_values(dfs, by)
 
     df = _process_intervals(dfs, lambda x, y: x & y)
     # df = merge_interval_across_types(df, operator='AND')
@@ -338,10 +336,12 @@ def mask_intervals(
     :return: A DataFrame with the masked intervals.
     """
 
-    by = ["person_id", "interval_type"]
+    by = ["person_id"]
 
     person_mask = {}
     for person_id, group in mask.groupby(by=["person_id"]):
+        # set to the least priority to retain type of original interval
+        group = group.assign(interval_type=IntervalType.least_intersection_priority())
         person_mask[person_id[0]] = _interval_union(
             df_to_intervals(group[["interval_start", "interval_end", "interval_type"]])
         )
@@ -357,6 +357,7 @@ def mask_intervals(
 
     result = _result_to_df(result, by)
 
+    # todo: remove comment if this is really not needed
     # removed because this adds intervals for patients that do not have any intervals, but this
     #       is not really required (I think). it just adds a lot of data to the database.
     # df_c = complementary_intervals(

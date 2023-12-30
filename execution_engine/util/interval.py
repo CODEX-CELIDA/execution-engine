@@ -77,16 +77,23 @@ class IntervalType(StrEnum):
     @classmethod
     def union_priority(cls) -> list["IntervalType"]:  # OR |
         """
-        Return the priority order for union.
+        Return the priority order for union starting with the highest priority.
         """
         return [cls.POSITIVE, cls.NO_DATA, cls.NOT_APPLICABLE, cls.NEGATIVE]
 
     @classmethod
     def intersection_priority(cls) -> list["IntervalType"]:  # AND &
         """
-        Return the priority order for intersection.
+        Return the priority order for intersection starting with the highest priority.
         """
         return [cls.NEGATIVE, cls.NOT_APPLICABLE, cls.POSITIVE, cls.NO_DATA]
+
+    @classmethod
+    def least_intersection_priority(cls) -> "IntervalType":
+        """
+        Return the least type that can be returned by an intersection.
+        """
+        return cls.intersection_priority()[-1]
 
 
 Atomic = namedtuple("Atomic", ["left", "lower", "upper", "right", "type"])
@@ -748,7 +755,7 @@ class AbstractDiscreteIntervalWithType(
         return super()._mergeable(first, second)
 
 
-class IntInterval(AbstractDiscreteIntervalWithType[int, IntervalType]):  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is
+class IntInterval(AbstractDiscreteIntervalWithType[int, IntervalType]):  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is # todo: can we fix this?
     """
     An integer interval.
     """
@@ -757,7 +764,7 @@ class IntInterval(AbstractDiscreteIntervalWithType[int, IntervalType]):  # type:
 
 
 class DateTimeInterval(
-    AbstractDiscreteIntervalWithType[datetime.datetime, IntervalType]  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is
+    AbstractDiscreteIntervalWithType[datetime.datetime, IntervalType]  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is # todo: can we fix this?
 ):
     """
     A datetime interval (second precision).

@@ -2,6 +2,7 @@ import logging
 from enum import Enum, auto
 
 import pandas as pd
+from sqlalchemy.exc import DBAPIError, IntegrityError, SQLAlchemyError
 
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
@@ -46,7 +47,7 @@ class Task:
     """
 
     """The columns to group by when merging or intersecting intervals."""
-    by = ["person_id", "interval_type"]
+    # by = ["person_id"]
 
     def __init__(
         self,
@@ -189,21 +190,10 @@ class Task:
 
         result = self.criterion.process_result(result, base_data, observation_window)
 
-        return result
-
-    def consolidate_intervals(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Consolidates the intervals of the DataFrame by dropping NEGATIVE intervals and considering
-        all remaining intervals (i.e. NO_DATA) as POSITIVE.
-
-        :param df: The DataFrame with the intervals.
-        :return: A DataFrame with the consolidated intervals.
-        """
-        df = df[df["interval_type"] != IntervalType.NEGATIVE]
-        df["interval_type"] = IntervalType.POSITIVE
-
         # merge overlapping/adjacent intervals to reduce the number of intervals
-        return process.union_intervals([df], self.by)
+        result = process.union_intervals([result])
+
+        return result
 
     def handle_unary_logical_operator(
         self,
@@ -246,9 +236,9 @@ class Task:
             return data[0]
 
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
-            result = process.intersect_intervals(data, self.by)
+            result = process.intersect_intervals(data)
         elif isinstance(self.expr, logic.Or):
-            result = process.union_intervals(data, self.by)
+            result = process.union_intervals(data)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
         return result
@@ -268,8 +258,6 @@ class Task:
         The POSITIVE intervals are intersected (And) or merged (Or), the NO_DATA intervals are intersected and the
         remaining intervals are set to NEGATIVE.
 
-
-
         :param data: The input data.
         :param base_data: The result of the base criterion.
         :param observation_window: The observation window.
@@ -284,7 +272,19 @@ class Task:
             self.expr, (logic.NoDataPreservingAnd, logic.NoDataPreservingOr)
         ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
 
-        # data_negative = [
+        if isinstance(self.expr, logic.NoDataPreservingAnd):
+            result = process.intersect_intervals(data)
+        elif isinstance(self.expr, logic.NoDataPreservingOr):
+            result = process.union_intervals(data)
+
+        result_negative = process.complementary_intervals(
+            result,
+            reference_df=base_data,
+            observation_window=observation_window,
+            interval_type=IntervalType.NEGATIVE,
+        )
+
+        """# data_negative = [
         #     df[df["interval_type"] == IntervalType.NEGATIVE] for df in data
         # ]
         data_positive = [
@@ -296,13 +296,13 @@ class Task:
         # ]
 
         if isinstance(self.expr, logic.NoDataPreservingAnd):
-            result_positive = process.intersect_intervals(data_positive, self.by)
+            result_positive = process.intersect_intervals(data_positive)
         elif isinstance(self.expr, logic.NoDataPreservingOr):
-            result_positive = process.union_intervals(data_positive, self.by)
+            result_positive = process.union_intervals(data_positive)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
 
-        result_nodata = process.intersect_intervals(data_nodata, self.by)
+        result_nodata = process.intersect_intervals(data_nodata)
 
         # the remaining intervals are NEGATIVE
         result = process.concat_dfs([result_positive, result_nodata])
@@ -311,7 +311,7 @@ class Task:
             reference_df=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
-        )
+        )"""
         result = process.concat_dfs([result, result_negative])
 
         return result
@@ -348,7 +348,7 @@ class Task:
         )
 
         # P and I --> POSITIVE
-        result_p_and_i = process.intersect_intervals(data, self.by)
+        result_p_and_i = process.intersect_intervals(data)
 
         result = process.concat_dfs([result_not_p, result_p_and_i])
 
@@ -406,12 +406,30 @@ class Task:
             recommendation_run_id=bind_params["run_id"],
             cohort_category=self.category,
         )
-
-        with get_engine().begin() as conn:
-            conn.execute(
-                RecommendationResultInterval.__table__.insert(),
-                result.to_dict(orient="records"),
+        try:
+            with get_engine().begin() as conn:
+                conn.execute(
+                    RecommendationResultInterval.__table__.insert(),
+                    result.to_dict(orient="records"),
+                )
+        except IntegrityError as e:
+            # Handle integrity errors (e.g., constraint violations)
+            logging.error(
+                f"A database integrity error occurred in task {self.name()}: {e}"
             )
+            raise
+        except DBAPIError as e:
+            # Handle exceptions specific to the DBAPI in use
+            logging.error(f"A DBAPI error occurred in task {self.name()}: {e}")
+            raise
+        except SQLAlchemyError as e:
+            # Handle general SQLAlchemy errors
+            logging.error(f"A SQLAlchemy error occurred in task {self.name()}: {e}")
+            raise
+        except Exception as e:
+            # Handle other exceptions
+            logging.error(f"An error occurred in task {self.name()}: {e}")
+            raise
 
     def name(self) -> str:
         """

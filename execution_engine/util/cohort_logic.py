@@ -142,18 +142,22 @@ class NonSimplifiableAnd(BooleanFunction):
 
     Simplified here means that when this operator is used on a single argument, still this operator is returned
     instead of the argument itself, as is the case with the sympy.And operator.
+
+    The reason for this operator is that if there is a single population or intervention criterion, the And/Or
+    operators would simplify to the criterion itself. In that case, the _whole_ population or intervention expression of
+    the respective population/intervention pair, which should be written to the database with criterion_id = None, would
+    be lost (i.e. not written, because there is no graph execution node that would perform this. This operator prevents
+    that.
     """
 
     def __new__(cls, *args: Any, **kwargs: Any) -> "NonSimplifiableAnd":
         """
         Create a new NonSimplifiableAnd object.
         """
-        if len(args) == 1 and isinstance(args[0], (And, Or)):
-            return args[0]
-
         return super().__new__(cls, *args, **kwargs)
 
 
+# todo: can this be removed because IntervalWithType is now implemented? I would think so.
 class NoDataPreservingAnd(BooleanFunction):
     """
     A And object represents a logical AND operation.
