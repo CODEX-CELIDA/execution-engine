@@ -4,6 +4,8 @@ from sqlalchemy.sql.functions import concat
 
 from execution_engine.omop.db.base import Base
 from execution_engine.omop.db.celida.tables import (
+    PopulationInterventionPair,
+    RecommendationCriterion,
     RecommendationResultInterval,
     RecommendationRun,
 )
@@ -146,6 +148,36 @@ def view_partial_day_coverage() -> Select:
     return stmt
 
 
+def interval_result_view() -> Select:
+    """
+    Return Select statement for view to calculate the interval results.
+    """
+
+    rri = RecommendationResultInterval.__table__.alias("rri")
+    pip = PopulationInterventionPair.__table__.alias("pip")
+    rc = RecommendationCriterion.__table__.alias("rc")
+
+    stmt = (
+        select(
+            rri.c.recommendation_run_id,
+            rri.c.person_id,
+            rri.c.pi_pair_id,
+            pip.c.pi_pair_name,
+            rri.c.criterion_id,
+            rc.c.criterion_name,
+            rri.c.cohort_category,
+            rri.c.interval_type,
+            rri.c.interval_start,
+            rri.c.interval_end,
+        )
+        .select_from(rri)
+        .outerjoin(pip, (rri.c.pi_pair_id == pip.c.pi_pair_id))
+        .outerjoin(rc, (rri.c.criterion_id == rc.c.criterion_id))
+    )
+
+    return stmt
+
+
 full_day_coverage = view(
     "full_day_coverage",
     Base.metadata,
@@ -157,5 +189,12 @@ partial_day_coverage = view(
     "partial_day_coverage",
     Base.metadata,
     view_partial_day_coverage(),
+    schema="celida",
+)
+
+interval_result = view(
+    "interval_result",
+    Base.metadata,
+    interval_result_view(),
     schema="celida",
 )
