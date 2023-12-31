@@ -14,12 +14,12 @@ class TestInterval:
             (T.NEGATIVE, T.POSITIVE, T.NEGATIVE),
             (T.NEGATIVE, T.NO_DATA, T.NEGATIVE),
             (T.NEGATIVE, T.NOT_APPLICABLE, T.NEGATIVE),
+            (T.NO_DATA, T.NO_DATA, T.NO_DATA),
+            (T.NO_DATA, T.POSITIVE, T.NO_DATA),
+            (T.NO_DATA, T.NOT_APPLICABLE, T.NO_DATA),
             (T.POSITIVE, T.POSITIVE, T.POSITIVE),
-            (T.POSITIVE, T.NO_DATA, T.POSITIVE),
             (T.POSITIVE, T.NOT_APPLICABLE, T.POSITIVE),
             (T.NOT_APPLICABLE, T.NOT_APPLICABLE, T.NOT_APPLICABLE),
-            (T.NOT_APPLICABLE, T.NO_DATA, T.NOT_APPLICABLE),
-            (T.NO_DATA, T.NO_DATA, T.NO_DATA),
         ],
     )
     def test_intersect_interval_different_type(self, type1, type2, type_expected):

@@ -162,6 +162,9 @@ class Task:
                         result, base_data, bind_params, observation_window
                     )
 
+            if set(process.df_dtypes.keys()) != set(result.columns):
+                raise TaskError("Invalid result columns.")
+
         except TaskError as e:  # todo change to exception
             self.status = TaskStatus.FAILED
             exception_type = type(e).__name__  # Get the type of the exception

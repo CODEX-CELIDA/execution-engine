@@ -312,9 +312,7 @@ def intersect_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     :return: A DataFrame with the intersected intervals.
     """
     dfs = filter_dataframes_by_shared_column_values(dfs, columns=["person_id"])
-
     df = _process_intervals(dfs, _and_)
-    # df = merge_interval_across_types(df, operator='AND')
 
     return df
 
@@ -415,6 +413,9 @@ def filter_dataframes_by_shared_column_values(
     :return: A list of DataFrames with the rows that have shared column values.
     """
 
+    if len(dfs) == 1:
+        return dfs
+
     # Find common rows across all DataFrames
     # Use reduce to iteratively inner join DataFrames on the specified columns
     common_rows = reduce(
@@ -426,6 +427,7 @@ def filter_dataframes_by_shared_column_values(
 
     # Filter each DataFrame to keep only the common rows
     filtered_dfs = []
+
     for df in dfs:
         # Merge with common_rows and keep only the rows present in common_rows
         filtered_df = pd.merge(df, common_rows, on=columns, how="inner")
