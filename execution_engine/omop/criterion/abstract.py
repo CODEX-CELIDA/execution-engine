@@ -25,10 +25,7 @@ from sqlalchemy.sql.functions import concat
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.db.base import DateTimeWithTimeZone
-from execution_engine.omop.db.celida.tables import (
-    IntervalTypeEnum,
-    RecommendationResultInterval,
-)
+from execution_engine.omop.db.celida.tables import IntervalTypeEnum, ResultInterval
 from execution_engine.omop.db.omop.tables import (
     Base,
     ConditionOccurrence,
@@ -608,9 +605,7 @@ class Criterion(AbstractCriterion):
         if not isinstance(query, Select):
             raise ValueError("query must be a Select or CTE")
 
-        query = select_into(
-            query, RecommendationResultInterval.__table__, temporary=False
-        )
+        query = select_into(query, ResultInterval.__table__, temporary=False)
         query.description = query.select.description
 
         return query

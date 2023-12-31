@@ -4,10 +4,10 @@ from sqlalchemy.sql.functions import concat
 
 from execution_engine.omop.db.base import Base
 from execution_engine.omop.db.celida.tables import (
+    Criterion,
+    ExecutionRun,
     PopulationInterventionPair,
-    RecommendationCriterion,
-    RecommendationResultInterval,
-    RecommendationRun,
+    ResultInterval,
 )
 from execution_engine.omop.db.view import view
 from execution_engine.util.interval import IntervalType
@@ -19,24 +19,24 @@ def view_full_day_coverage() -> Select:
     """
 
     one_day = func.cast(concat(1, "day"), INTERVAL)
-    rri = RecommendationResultInterval.__table__.alias("rri")
+    rri = ResultInterval.__table__.alias("rri")
 
     date_series = select(
-        RecommendationRun.recommendation_run_id,
+        ExecutionRun.run_id,
         func.generate_series(
-            func.date_trunc("day", RecommendationRun.observation_start_datetime),
-            func.date_trunc("day", RecommendationRun.observation_end_datetime),
+            func.date_trunc("day", ExecutionRun.observation_start_datetime),
+            func.date_trunc("day", ExecutionRun.observation_end_datetime),
             one_day,
         )
         .cast(Date)
         .label("day"),
-        RecommendationRun.observation_start_datetime,
-        RecommendationRun.observation_end_datetime,
+        ExecutionRun.observation_start_datetime,
+        ExecutionRun.observation_end_datetime,
     ).cte("date_series")
 
     interval_coverage = (
         select(
-            date_series.c.recommendation_run_id,
+            date_series.c.run_id,
             rri.c.person_id,
             rri.c.cohort_category,
             rri.c.pi_pair_id,
@@ -65,15 +65,13 @@ def view_full_day_coverage() -> Select:
             ),
         )
         .select_from(date_series)
-        .outerjoin(
-            rri, (date_series.c.recommendation_run_id == rri.c.recommendation_run_id)
-        )
+        .outerjoin(rri, (date_series.c.run_id == rri.c.run_id))
         .filter(
             rri.c.interval_start < date_series.c.day + one_day,
             rri.c.interval_end > date_series.c.day,
         )
         .group_by(
-            date_series.c.recommendation_run_id,
+            date_series.c.run_id,
             date_series.c.day,
             rri.c.person_id,
             rri.c.cohort_category,
@@ -87,7 +85,7 @@ def view_full_day_coverage() -> Select:
 
     # subtract one second from the covered time because 00:00:00 - 23:59:59 is considered to be a full day
     covered_dates = select(
-        interval_coverage.c.recommendation_run_id,
+        interval_coverage.c.run_id,
         interval_coverage.c.person_id,
         interval_coverage.c.cohort_category,
         interval_coverage.c.pi_pair_id,
@@ -111,12 +109,12 @@ def view_partial_day_coverage() -> Select:
         select(
             func.generate_series(
                 func.greatest(
-                    RecommendationResultInterval.interval_start.cast(Date),
-                    RecommendationRun.observation_start_datetime.cast(Date),
+                    ResultInterval.interval_start.cast(Date),
+                    ExecutionRun.observation_start_datetime.cast(Date),
                 ),
                 func.least(
-                    RecommendationResultInterval.interval_end.cast(Date),
-                    RecommendationRun.observation_end_datetime.cast(Date),
+                    ResultInterval.interval_end.cast(Date),
+                    ExecutionRun.observation_end_datetime.cast(Date),
                 ),
                 func.cast(concat(1, " day"), INTERVAL),
             )
@@ -130,16 +128,16 @@ def view_partial_day_coverage() -> Select:
     # Creating the main query
     stmt = (
         select(
-            RecommendationResultInterval.recommendation_run_id,
-            RecommendationResultInterval.pi_pair_id,
-            RecommendationResultInterval.criterion_id,
-            RecommendationResultInterval.cohort_category,
-            RecommendationResultInterval.person_id,
+            ResultInterval.run_id,
+            ResultInterval.pi_pair_id,
+            ResultInterval.criterion_id,
+            ResultInterval.cohort_category,
+            ResultInterval.person_id,
             subquery.c.date_series.label("valid_date"),
         )
         .distinct()
         .where(
-            RecommendationResultInterval.interval_type.in_(
+            ResultInterval.interval_type.in_(
                 [IntervalType.POSITIVE, IntervalType.NO_DATA]
             )
         )
@@ -153,13 +151,13 @@ def interval_result_view() -> Select:
     Return Select statement for view to calculate the interval results.
     """
 
-    rri = RecommendationResultInterval.__table__.alias("rri")
+    rri = ResultInterval.__table__.alias("rri")
     pip = PopulationInterventionPair.__table__.alias("pip")
-    rc = RecommendationCriterion.__table__.alias("rc")
+    rc = Criterion.__table__.alias("rc")
 
     stmt = (
         select(
-            rri.c.recommendation_run_id,
+            rri.c.run_id,
             rri.c.person_id,
             rri.c.pi_pair_id,
             pip.c.pi_pair_name,

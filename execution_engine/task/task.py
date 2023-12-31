@@ -7,7 +7,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, SQLAlchemyError
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.db.celida.tables import RecommendationResultInterval
+from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import config
 from execution_engine.task import process
@@ -402,13 +402,13 @@ class Task:
         result = result.assign(
             criterion_id=criterion_id,
             pi_pair_id=pi_pair_id,
-            recommendation_run_id=bind_params["run_id"],
+            run_id=bind_params["run_id"],
             cohort_category=self.category,
         )
         try:
             with get_engine().begin() as conn:
                 conn.execute(
-                    RecommendationResultInterval.__table__.insert(),
+                    ResultInterval.__table__.insert(),
                     result.to_dict(orient="records"),
                 )
         except IntegrityError as e:

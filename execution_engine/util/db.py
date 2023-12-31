@@ -10,7 +10,7 @@ from sqlalchemy import (
 )
 
 from execution_engine.constants import CohortCategory
-from execution_engine.omop.db.celida.tables import RecommendationResultInterval
+from execution_engine.omop.db.celida.tables import ResultInterval
 
 
 def add_result_insert(
@@ -35,13 +35,13 @@ def add_result_insert(
         query.c.person_id,
         query.c.interval_start,
         query.c.interval_end,
-        cast(
-            query.c.interval_type, RecommendationResultInterval.interval_type.type
-        ).label("interval_type"),
+        cast(query.c.interval_type, ResultInterval.interval_type.type).label(
+            "interval_type"
+        ),
     ).select_from(query)
 
     query_select = query_select.add_columns(
-        bindparam("run_id", type_=Integer()).label("recommendation_run_id"),
+        bindparam("run_id", type_=Integer()).label("run_id"),
         bindparam("pi_pair_id", pi_pair_id).label("pi_pair_id"),
         bindparam("cohort_category", cohort_category, type_=Enum(CohortCategory)).label(
             "cohort_category"
@@ -49,7 +49,7 @@ def add_result_insert(
         bindparam("criterion_id", criterion_id).label("criterion_id"),
     )
 
-    t_result = RecommendationResultInterval.__table__
+    t_result = ResultInterval.__table__
     query_insert = t_result.insert().from_select(
         query_select.selected_columns, query_select
     )

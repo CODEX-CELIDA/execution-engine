@@ -5,7 +5,7 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM {schema}.{table}
         WHERE NEW.person_id = person_id
-        AND NEW.recommendation_run_id = recommendation_run_id
+        AND NEW.run_id = run_id
         AND NEW.pi_pair_id IS NOT DISTINCT FROM pi_pair_id
         AND NEW.criterion_id IS NOT DISTINCT FROM criterion_id
         AND NEW.cohort_category IS NOT DISTINCT FROM cohort_category
@@ -19,7 +19,7 @@ $$ LANGUAGE plpgsql;
 
 """
 create_trigger_interval_overlap_check_sql = """
-CREATE TRIGGER trigger_recommendation_result_interval_before_insert
+CREATE TRIGGER trigger_result_interval_before_insert
 BEFORE INSERT ON {schema}.{table}
 FOR EACH ROW EXECUTE FUNCTION check_overlapping_intervals();
 """

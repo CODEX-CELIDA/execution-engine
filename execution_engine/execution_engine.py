@@ -453,8 +453,8 @@ class ExecutionEngine:
         """
         _, crit_hash = self._hash(criterion)
 
-        query = select(result_db.RecommendationCriterion).where(
-            result_db.RecommendationCriterion.criterion_hash == crit_hash
+        query = select(result_db.Criterion).where(
+            result_db.Criterion.criterion_hash == crit_hash
         )
         with self._db.begin() as con:
             criterion_db = con.execute(query).fetchone()
@@ -463,13 +463,13 @@ class ExecutionEngine:
                 criterion.id = criterion_db.criterion_id
             else:
                 query = (
-                    insert(result_db.RecommendationCriterion)
+                    insert(result_db.Criterion)
                     .values(
                         criterion_hash=crit_hash,
                         criterion_name=criterion.unique_name(),
                         criterion_description=criterion.description(),
                     )
-                    .returning(result_db.RecommendationCriterion.criterion_id)
+                    .returning(result_db.Criterion.criterion_id)
                 )
 
                 result = con.execute(query)
@@ -484,19 +484,19 @@ class ExecutionEngine:
         """Registers the run in the result database."""
         with self._db.begin() as con:
             query = (
-                result_db.RecommendationRun.__table__.insert()
+                result_db.ExecutionRun.__table__.insert()
                 .values(
                     recommendation_id=recommendation.id,
                     observation_start_datetime=start_datetime,
                     observation_end_datetime=end_datetime,
                     run_datetime=datetime.now(),
                 )
-                .returning(result_db.RecommendationRun.recommendation_run_id)
+                .returning(result_db.ExecutionRun.run_id)
             )
 
             result = con.execute(query).fetchone()
 
-        return result.recommendation_run_id
+        return result.run_id
 
     def execute_recommendation(
         self,
@@ -550,7 +550,7 @@ class ExecutionEngine:
 
         (
             data.to_sql(
-                name=result_db.RecommendationResultInterval.__tablename__,
+                name=result_db.ResultInterval.__tablename__,
                 con=con,
                 if_exists="append",
                 index=False,
@@ -561,8 +561,8 @@ class ExecutionEngine:
         """Retrieve list of patients associated with a single run."""
         assert isinstance(run_id, int)
         # todo: test / fix me
-        t = result_db.RecommendationResultInterval.__table__.alias("result")
-        t_criterion = result_db.RecommendationCriterion.__table__.alias("criteria")
+        t = result_db.ResultInterval.__table__.alias("result")
+        t_criterion = result_db.Criterion.__table__.alias("criteria")
         query = (
             select(
                 t.c.cohort_category,
@@ -573,7 +573,7 @@ class ExecutionEngine:
             .join(t_criterion)
             .filter(
                 and_(
-                    t.c.recommendation_run_id == run_id,
+                    t.c.run_id == run_id,
                     t.c.pi_pair_id.is_(None),
                 )
             )
@@ -586,12 +586,12 @@ class ExecutionEngine:
         assert isinstance(run_id, int)
 
         t_rec = result_db.Recommendation.__table__.alias("rec")
-        t_run = result_db.RecommendationRun.__table__.alias("run")
+        t_run = result_db.ExecutionRun.__table__.alias("run")
 
         query = (
             select(t_rec.c.recommendation_hash, t_rec.c.recommendation_json)
             .join(t_run)
-            .filter(t_run.c.recommendation_run_id == run_id)
+            .filter(t_run.c.run_id == run_id)
         )
 
         return self._db.query(query)
@@ -601,11 +601,11 @@ class ExecutionEngine:
         Retrieve information about a single run.
         """
         t_rec = result_db.Recommendation.__table__.alias("rec")
-        t_run = result_db.RecommendationRun.__table__.alias("run")
+        t_run = result_db.ExecutionRun.__table__.alias("run")
 
         query = (
             select(
-                t_run.c.recommendation_run_id,
+                t_run.c.run_id,
                 t_run.c.observation_start_datetime,
                 t_run.c.observation_end_datetime,
                 t_rec.c.recommendation_id,
@@ -615,7 +615,7 @@ class ExecutionEngine:
             )
             .select_from(t_run)
             .join(t_rec)
-            .filter(t_run.c.recommendation_run_id == run_id)
+            .filter(t_run.c.run_id == run_id)
         )
 
         return self._db.query(query).iloc[0].to_dict()
@@ -640,4 +640,4 @@ class ExecutionEngine:
 
         self._db.log_query(statement, bind_params)
 
-        return self._db.query(statement, **bind_params)
+        return self._db.query(statement, params=bind_params)

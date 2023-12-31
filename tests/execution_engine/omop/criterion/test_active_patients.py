@@ -52,10 +52,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
                         self.result_view_partial_day.c.person_id,
                         func.count("*").label("count"),
                     )
-                    .where(
-                        self.result_view_partial_day.c.recommendation_run_id
-                        == self.recommendation_run_id
-                    )
+                    .where(self.result_view_partial_day.c.run_id == self.run_id)
                     .group_by(self.result_view_partial_day.c.person_id)
                 )
                 result = db_session.execute(stmt)
@@ -232,10 +229,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             stmt = select(
                 self.result_view_partial_day.c.person_id,
                 self.result_view_partial_day.c.valid_date,
-            ).where(
-                self.result_view_partial_day.c.recommendation_run_id
-                == self.recommendation_run_id
-            )
+            ).where(self.result_view_partial_day.c.run_id == self.run_id)
             df = pd.read_sql(stmt, db_session.connection())
             df["valid_date"] = pd.to_datetime(df["valid_date"])
 

@@ -68,8 +68,8 @@ class PopulationInterventionPair(Base):  # noqa: D101
     pi_pair_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
 
 
-class RecommendationCriterion(Base):  # noqa: D101
-    __tablename__ = "recommendation_criterion"
+class Criterion(Base):  # noqa: D101
+    __tablename__ = "criterion"
     __table_args__ = {"schema": SCHEMA_NAME}
 
     criterion_id: Mapped[int] = mapped_column(
@@ -83,11 +83,11 @@ class RecommendationCriterion(Base):  # noqa: D101
     criterion_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
 
 
-class RecommendationRun(Base):  # noqa: D101
-    __tablename__ = "recommendation_run"
+class ExecutionRun(Base):  # noqa: D101
+    __tablename__ = "execution_run"
     __table_args__ = {"schema": SCHEMA_NAME}
 
-    recommendation_run_id: Mapped[int] = mapped_column(
+    run_id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
         index=True,
@@ -101,16 +101,16 @@ class RecommendationRun(Base):  # noqa: D101
     run_datetime: Mapped[datetime]
 
     recommendation: Mapped["Recommendation"] = relationship(
-        primaryjoin="RecommendationRun.recommendation_id == Recommendation.recommendation_id",
+        primaryjoin="ExecutionRun.recommendation_id == Recommendation.recommendation_id",
     )
 
 
-class RecommendationResultInterval(Base):  # noqa: D101
-    __tablename__ = "recommendation_result_interval"
+class ResultInterval(Base):  # noqa: D101
+    __tablename__ = "result_interval"
     __table_args__ = (
         Index(
             "ix_rec_result_int_run_id_cohort_category_person_id_valid_date",
-            "recommendation_run_id",
+            "run_id",
             "cohort_category",
             "person_id",
             "interval_start",
@@ -118,7 +118,7 @@ class RecommendationResultInterval(Base):  # noqa: D101
         ),
         Index(
             "ix_rec_result_int_run_id_pi_pair_id_criterion_id_valid_date",
-            "recommendation_run_id",
+            "run_id",
             "pi_pair_id",
             "criterion_id",
             "person_id",
@@ -128,11 +128,11 @@ class RecommendationResultInterval(Base):  # noqa: D101
         {"schema": SCHEMA_NAME},
     )
 
-    recommendation_result_id: Mapped[int] = mapped_column(
+    result_id: Mapped[int] = mapped_column(
         Integer, primary_key=True, index=True, autoincrement=True
     )
-    recommendation_run_id = mapped_column(
-        ForeignKey(f"{SCHEMA_NAME}.recommendation_run.recommendation_run_id"),
+    run_id = mapped_column(
+        ForeignKey(f"{SCHEMA_NAME}.execution_run.run_id"),
         index=True,
     )
     pi_pair_id: Mapped[int] = mapped_column(
@@ -141,7 +141,7 @@ class RecommendationResultInterval(Base):  # noqa: D101
         nullable=True,
     )
     criterion_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{SCHEMA_NAME}.recommendation_criterion.criterion_id"),
+        ForeignKey(f"{SCHEMA_NAME}.criterion.criterion_id"),
         index=True,
         nullable=True,
     )
@@ -153,20 +153,20 @@ class RecommendationResultInterval(Base):  # noqa: D101
     interval_end: Mapped[datetime]
     interval_type = mapped_column(IntervalTypeEnum)
 
-    recommendation_run: Mapped["RecommendationRun"] = relationship(
-        primaryjoin="RecommendationResultInterval.recommendation_run_id == RecommendationRun.recommendation_run_id",
+    execution_run: Mapped["ExecutionRun"] = relationship(
+        primaryjoin="ResultInterval.run_id == ExecutionRun.run_id",
     )
 
     population_intervention_pair: Mapped["PopulationInterventionPair"] = relationship(
-        primaryjoin="RecommendationResultInterval.pi_pair_id == PopulationInterventionPair.pi_pair_id",
+        primaryjoin="ResultInterval.pi_pair_id == PopulationInterventionPair.pi_pair_id",
     )
 
-    recommendation_criterion: Mapped["RecommendationCriterion"] = relationship(
-        primaryjoin="RecommendationResultInterval.criterion_id == RecommendationCriterion.criterion_id",
+    criterion: Mapped["Criterion"] = relationship(
+        primaryjoin="ResultInterval.criterion_id == Criterion.criterion_id",
     )
 
 
-@event.listens_for(RecommendationResultInterval.__table__, "after_create")
+@event.listens_for(ResultInterval.__table__, "after_create")
 def create_interval_overlap_check_triggers(
     target: Table, connection: Connection, **kw: Any
 ) -> None:

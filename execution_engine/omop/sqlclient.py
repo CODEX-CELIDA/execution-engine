@@ -194,7 +194,6 @@ class OMOPSQLClient:
         """Return the tables in the OMOP CDM database."""
         return self._metadata.tables
 
-    # todo: change from **params to params
     def query(self, sql: Any, **kwargs: Any) -> pd.DataFrame:
         """
         Run the given SQL query against the OMOP CDM database.

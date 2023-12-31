@@ -24,7 +24,7 @@ from execution_engine.omop import cohort
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.factory import criterion_factory
-from execution_engine.omop.db.celida.tables import RecommendationResultInterval
+from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.serializable import Serializable
 
 
@@ -209,11 +209,11 @@ class Recommendation(Serializable):
         Select the patients in the given cohort category.
         """
         # todo: update me
-        table = RecommendationResultInterval.__table__
+        table = ResultInterval.__table__
 
         return select(table.c.person_id).where(
             and_(
-                table.c.recommendation_run_id == bindparam("run_id"),
+                table.c.run_id == bindparam("run_id"),
                 table.c.pi_pair_id.is_(None),
                 table.c.criterion_id.is_(None),
                 table.c.cohort_category == category.name,
