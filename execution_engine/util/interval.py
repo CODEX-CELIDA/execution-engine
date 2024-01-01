@@ -221,9 +221,7 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
         :param ignore_inf: whether to ignore inf values.
         :return: a new Interval instance with the specified attributes replaced.
         """
-        replace = super(self.__class__, self).replace(
-            left, lower, upper, right, ignore_inf=ignore_inf
-        )
+        replace = super().replace(left, lower, upper, right, ignore_inf=ignore_inf)
         if type_ is not None:
             return self.__class__(
                 *[
