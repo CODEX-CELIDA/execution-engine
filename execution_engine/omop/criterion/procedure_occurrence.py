@@ -9,7 +9,7 @@ from execution_engine.omop.criterion.abstract import (
     create_conditional_interval_column,
 )
 from execution_engine.omop.criterion.continuous import ContinuousCriterion
-from execution_engine.util import Interval, ValueNumber, value_factory
+from execution_engine.util import DosageInterval, ValueNumber, value_factory
 from execution_engine.util.interval import IntervalType
 
 __all__ = ["ProcedureOccurrence"]
@@ -65,7 +65,7 @@ class ProcedureOccurrence(ContinuousCriterion):
 
         # todo: this should not filter but also set the interval_type
         if self._timing is not None:
-            interval = Interval(self._timing.unit.concept_code)
+            interval = DosageInterval(self._timing.unit.concept_code)
             column = extract(interval.name, end_datetime - start_datetime).label(
                 "duration"
             )

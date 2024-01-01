@@ -325,7 +325,7 @@ class TimeRange(BaseModel):
         }
 
 
-class Interval(str, Enum):
+class DosageInterval(str, Enum):
     """
     An interval of time used in Drug Dosing.
     """
@@ -346,7 +346,7 @@ class Dosage(BaseModel):
 
     dose: ValueNumber
     frequency: PositiveInt
-    interval: Interval
+    interval: DosageInterval
 
     class Config:
         """

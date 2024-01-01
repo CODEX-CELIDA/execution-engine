@@ -5,7 +5,7 @@ import pytest
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.util import Dosage, Interval, ValueNumber
+from execution_engine.util import Dosage, DosageInterval, ValueNumber
 from tests._fixtures.concept import (
     concept_enoxparin,
     concept_heparin_ingredient,
@@ -26,7 +26,7 @@ class TestDrugExposure(TestCriterion):
             exclude: bool,
             dose: ValueNumber | None,
             frequency: int | None,
-            interval: Interval | None,
+            interval: DosageInterval | None,
             route: Concept | None,
         ) -> pd.DataFrame:
             criterion = DrugExposure(
@@ -123,7 +123,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -131,7 +131,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -139,7 +139,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -147,7 +147,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -155,7 +155,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -163,7 +163,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -171,7 +171,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -179,7 +179,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -187,7 +187,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -197,7 +197,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=100, value_max=100, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -205,7 +205,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=99, value_max=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -215,7 +215,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=0, value_max=10000, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -272,7 +272,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=87.0, value_max=150, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.WEEK,
+                    interval=DosageInterval.WEEK,
                 ),
                 {
                     "2023-03-01",
@@ -290,7 +290,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=12.9, value_max=86.9, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.WEEK,
+                    interval=DosageInterval.WEEK,
                 ),
                 {
                     "2023-03-08",
@@ -308,7 +308,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=12.9, value_max=86.9, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {
                     "2023-03-02",
@@ -326,7 +326,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=12.9, value_max=86.9, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -389,7 +389,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01", "2023-03-03"},
             ),
@@ -397,7 +397,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -454,7 +454,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=50, value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-03"},
             ),
@@ -464,7 +464,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.7, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -474,7 +474,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.7, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -484,7 +484,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.7, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=3,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -494,7 +494,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.8, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -549,7 +549,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01", "2023-03-02"},
             ),
@@ -557,7 +557,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -565,7 +565,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=200.1, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -620,7 +620,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-11"},
             ),
@@ -679,7 +679,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=29.3, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-03", "2023-03-04"},
             ),
@@ -687,7 +687,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=29.3, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02", "2023-03-03"},
             ),
@@ -695,7 +695,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=93.0, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02", "2023-03-03"},
             ),
@@ -703,7 +703,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=94.0, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-03"},
             ),
@@ -711,7 +711,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=96.0, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -719,7 +719,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=1.0, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.WEEK,
+                    interval=DosageInterval.WEEK,
                 ),
                 {
                     "2023-03-01",
@@ -784,7 +784,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=1, value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-03"},
             ),
@@ -794,7 +794,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=129.9, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -851,7 +851,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=0, value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -917,7 +917,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01", "2023-03-31"},
             ),
@@ -925,7 +925,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=50, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-30", "2023-03-31"},
             ),
@@ -933,7 +933,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -1001,7 +1001,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=18.54, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-03"},
             ),
@@ -1009,7 +1009,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=86.40, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04", "2023-03-10", "2023-03-11"},
             ),
@@ -1017,7 +1017,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=8726.40, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-05"},
             ),
@@ -1025,7 +1025,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=9137.44, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-06"},
             ),
@@ -1033,7 +1033,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=9590.40, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-07"},
             ),
@@ -1041,7 +1041,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=9072.25, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-08"},
             ),
@@ -1049,7 +1049,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=3544.80, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-09"},
             ),
@@ -1057,7 +1057,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=86.34, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-12"},
             ),
@@ -1065,7 +1065,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=10000, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -1073,7 +1073,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=4,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {},
             ),
@@ -1081,7 +1081,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=3,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {
                     "2023-03-06",
@@ -1093,7 +1093,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {
                     "2023-03-05",
@@ -1107,7 +1107,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {
                     "2023-03-03",
@@ -1178,7 +1178,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=80, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-01"},
             ),
@@ -1186,7 +1186,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=147, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -1194,7 +1194,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=67, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-02", "2023-03-03"},
             ),
@@ -1240,7 +1240,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=DosageInterval.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -1304,7 +1304,7 @@ class TestDrugExposure(TestCriterion):
             Dosage(
                 dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                 frequency=1,
-                interval=Interval.DAY,
+                interval=DosageInterval.DAY,
             )
         ],
     )
