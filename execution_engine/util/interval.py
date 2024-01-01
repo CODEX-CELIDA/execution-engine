@@ -2,7 +2,7 @@ import datetime
 import warnings
 from collections import namedtuple
 from enum import StrEnum
-from typing import Any, Generic, List, Protocol, TypeVar
+from typing import Any, Generic, Protocol, TypeVar
 
 from portion import CLOSED, Interval
 from portion.const import Bound, inf
@@ -177,7 +177,7 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
         lower: IntervalT,
         upper: IntervalT,
         right: Bound,
-        type_: IntervalTypeT,
+        type_: IntervalTypeT | None = None,
     ) -> "IntervalWithType":
         """
         Create an Interval instance containing a single atomic interval.
@@ -199,6 +199,40 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
             instance._intervals = [Atomic(left, lower, upper, right, type_)]
 
         return instance
+
+    def replace(
+        self,
+        left: Bound | None = None,
+        lower: IntervalT | None = None,
+        upper: IntervalT | None = None,
+        right: Bound | None = None,
+        type_: IntervalTypeT | None = None,
+        *,
+        ignore_inf: bool = True
+    ) -> "IntervalWithType":
+        """
+        Return a new Interval instance with the specified attributes replaced.
+
+        :param left: either CLOSED or OPEN.
+        :param lower: value of the lower bound.
+        :param upper: value of the upper bound.
+        :param right: either CLOSED or OPEN.
+        :param type_: the type of the interval.
+        :param ignore_inf: whether to ignore inf values.
+        :return: a new Interval instance with the specified attributes replaced.
+        """
+        replace = super(self.__class__, self).replace(
+            left, lower, upper, right, ignore_inf=ignore_inf
+        )
+        if type_ is not None:
+            return self.__class__(
+                *[
+                    self.__class__.from_atomic(*interval[:-1], type_)  # type: ignore # this is not "too many arguments"
+                    for interval in replace._intervals
+                ]
+            )
+
+        return replace
 
     @classmethod
     def _mergeable(cls, a: Atomic, b: Atomic) -> bool:
@@ -344,76 +378,24 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
             self._intervals + other._intervals,
             key=lambda i: (i.lower, i.left == Bound.OPEN),
         )
-        merged_intervals: list[Atomic] = []
+        merged_intervals = []
 
-        for atomic in all_intervals:
-            if not merged_intervals:
-                merged_intervals.append(atomic)
-                continue
+        intervals = [
+            self.__class__.from_atomic(*interval) for interval in all_intervals
+        ]
 
-            last = merged_intervals[-1]
+        if len(intervals) <= 1:
+            return self.__class__(*intervals)
 
-            if self._overlaps_atomic(last, atomic):
-                # Split overlapping intervals
-                split_intervals = self._split_overlapping_atomics(last, atomic)
-                merged_intervals.pop()  # Remove the last interval
-                merged_intervals.extend(split_intervals)  # Add the split intervals
+        for a, b in zip(intervals[:-1], intervals[1:]):
+            if a.type == b.type or a.type is None or b.type is None:
+                merged_intervals.append(self.__class__(a, b))
             else:
-                merged_intervals.append(atomic)
+                lower, upper = (a, b) if a.type < b.type else (b, a)
+                merged_intervals.append(lower - upper.replace(type_=lower.type))
+                merged_intervals.append(upper)
 
-        return self.__class__(
-            *[self.__class__.from_atomic(*i) for i in merged_intervals]
-        )
-
-    @staticmethod
-    def _overlaps_atomic(a: Atomic, b: Atomic) -> bool:
-        """
-        Check if two atomic intervals overlap.
-        """
-        return a.upper > b.lower and b.upper > a.lower
-
-    @staticmethod
-    def _split_overlapping_atomics(a: Atomic, b: Atomic) -> List[Atomic]:
-        """
-        Split two overlapping atomic intervals into non-overlapping intervals.
-        """
-        sorted_intervals = sorted([a, b], key=lambda i: i.lower)
-        first, second = sorted_intervals
-
-        split_points = sorted(
-            set([first.lower, first.upper, second.lower, second.upper])
-        )
-        result_intervals = []
-
-        type_priority = IntervalType.union_priority()
-
-        for i in range(len(split_points) - 1):
-            lower = split_points[i]
-            upper = split_points[i + 1]
-
-            # Determine the interval type based on the overlap
-            if (
-                lower >= first.lower
-                and upper <= first.upper
-                and lower >= second.lower
-                and upper <= second.upper
-            ):
-                # Overlapping segment
-                interval_type = min(
-                    (first.type, second.type), key=lambda t: type_priority.index(t)
-                )
-            elif lower >= first.lower and upper <= first.upper:
-                # Non-overlapping segment from first
-                interval_type = first.type
-            else:
-                # Non-overlapping segment from second
-                interval_type = second.type
-
-            result_intervals.append(
-                Atomic(Bound.CLOSED, lower, upper, Bound.CLOSED, interval_type)
-            )
-
-        return result_intervals
+        return self.__class__(*merged_intervals)
 
     def complement(self, type_: IntervalTypeT | None = None) -> "IntervalWithType":
         """
@@ -712,7 +694,7 @@ class AbstractDiscreteIntervalWithType(
         lower: IntervalT,
         upper: IntervalT,
         right: Bound,
-        type_: IntervalTypeT,
+        type_: IntervalTypeT | None = None,
     ) -> "AbstractDiscreteIntervalWithType":
         """
         Create an Interval instance containing a single atomic interval.

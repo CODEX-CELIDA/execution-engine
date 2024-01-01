@@ -8,17 +8,12 @@ import pendulum
 import pytest
 from sqlalchemy import Column, Date, Integer, MetaData, Table, bindparam, select, text
 
+import execution_engine.omop.db.celida.tables as celida_tables
 from execution_engine.constants import CohortCategory
-from execution_engine.execution_map import ExecutionMap
+from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
-from execution_engine.omop.db.celida.tables import (
-    PopulationInterventionPair,
-    RecommendationCriterion,
-    RecommendationResultInterval,
-    RecommendationRun,
-)
 from execution_engine.omop.db.celida.views import (
     full_day_coverage,
     partial_day_coverage,
@@ -30,7 +25,7 @@ from execution_engine.task import (  # noqa: F401     -- required for the mock.p
     runner,
     task,
 )
-from execution_engine.util import TimeRange, ValueConcept, ValueNumber
+from execution_engine.util import TimeRange, ValueConcept, ValueNumber, cohort_logic
 from execution_engine.util.db import add_result_insert
 from tests._testdata import concepts
 from tests.functions import create_visit
@@ -57,10 +52,10 @@ def date_set(tc: Iterable):
 
 
 class TestCriterion:
-    result_table = RecommendationResultInterval.__table__
+    result_table = celida_tables.ResultInterval.__table__
     result_view_partial_day = partial_day_coverage
     result_view_full_day = full_day_coverage
-    recommendation_run_id = 1234
+    run_id = 1234
     criterion_id = 5678
     pi_pair_id = 9012
 
@@ -86,8 +81,8 @@ class TestCriterion:
             text("SET session_replication_role = 'replica';")
         )  # Disable foreign key checks
 
-        insert_query = RecommendationRun.__table__.insert().values(
-            recommendation_run_id=self.recommendation_run_id,
+        insert_query = celida_tables.ExecutionRun.__table__.insert().values(
+            run_id=self.run_id,
             observation_start_datetime=observation_window.start,
             observation_end_datetime=observation_window.end,
             run_datetime=datetime.datetime.now(),
@@ -95,7 +90,7 @@ class TestCriterion:
         )
 
         self.register_population_intervention_pair(
-            self.pi_pair_id, "TestPopulationInterventionPair", db_session
+            self.pi_pair_id, "Testcelida_tables.PopulationInterventionPair", db_session
         )
 
         db_session.execute(insert_query)
@@ -103,8 +98,8 @@ class TestCriterion:
 
         yield
 
-        db_session.query(RecommendationRun).delete()
-        db_session.query(PopulationInterventionPair).delete()
+        db_session.query(celida_tables.ExecutionRun).delete()
+        db_session.query(celida_tables.PopulationInterventionPair).delete()
 
         db_session.commit()
 
@@ -185,7 +180,7 @@ class TestCriterion:
 
         db_session.execute(
             query,
-            params={"run_id": cls.recommendation_run_id} | observation_window.dict(),
+            params={"run_id": cls.run_id} | observation_window.dict(),
         )
 
         db_session.commit()
@@ -194,7 +189,7 @@ class TestCriterion:
             yield
         finally:
             db_session.execute(text("SET session_replication_role = 'origin';"))
-            db_session.query(RecommendationResultInterval).delete()
+            db_session.query(celida_tables.ResultInterval).delete()
             db_session.commit()
 
     @pytest.fixture
@@ -217,13 +212,13 @@ class TestCriterion:
         """
 
         exists = db_session.query(
-            db_session.query(RecommendationCriterion)
+            db_session.query(celida_tables.Criterion)
             .filter_by(criterion_id=criterion.id)
             .exists()
         ).scalar()
 
         if not exists:
-            new_criterion = RecommendationCriterion(
+            new_criterion = celida_tables.Criterion(
                 criterion_id=criterion.id,
                 criterion_name=criterion.description(),
                 criterion_description=criterion.description(),
@@ -239,13 +234,13 @@ class TestCriterion:
         """
 
         exists = db_session.query(
-            db_session.query(PopulationInterventionPair)
+            db_session.query(celida_tables.PopulationInterventionPair)
             .filter_by(pi_pair_id=id_)
             .exists()
         ).scalar()
 
         if not exists:
-            new_criterion = PopulationInterventionPair(
+            new_criterion = celida_tables.PopulationInterventionPair(
                 pi_pair_id=id_,
                 recommendation_id=-1,
                 pi_pair_url="https://example.com",
@@ -287,9 +282,7 @@ class TestCriterion:
         query = criterion.create_query()
 
         query = query.add_columns(
-            bindparam("recommendation_run_id", self.recommendation_run_id).label(
-                "recommendation_run_id"
-            ),
+            bindparam("run_id", self.run_id).label("run_id"),
             bindparam("pi_pair_id", self.pi_pair_id).label("pi_pair_id"),
             bindparam("criterion_id", self.criterion_id).label("criterion_id"),
             bindparam("cohort_category", CohortCategory.POPULATION).label(
@@ -297,7 +290,7 @@ class TestCriterion:
             ),
         )
 
-        t_result = RecommendationResultInterval.__table__
+        t_result = celida_tables.ResultInterval.__table__
         query_insert = t_result.insert().from_select(query.selected_columns, query)
         db_session.execute(query_insert, params=observation_window.dict())
         db_session.commit()
@@ -305,16 +298,24 @@ class TestCriterion:
     def insert_criterion_combination(
         self, db_session, combination, base_criterion, observation_window: TimeRange
     ):
-        execution_map = ExecutionMap(
-            combination, base_criterion, params={"pi_pair_id": self.pi_pair_id}
+        graph = ExecutionGraph.from_criterion_combination(combination, base_criterion)
+
+        # we need to add a NoDataPreservingAnd node to insert NEGATIVE intervals
+        sink_node = graph.sink_node(CohortCategory.POPULATION)
+        p_combination_node = cohort_logic.NoDataPreservingAnd(
+            sink_node, category=CohortCategory.POPULATION
         )
-        params = observation_window.dict() | {"run_id": self.recommendation_run_id}
 
-        db_session.execute(
-            text("SET session_replication_role = 'replica';")
-        )  # disable fkey checks (because of recommendation_result.run_id)
+        graph.add_node(
+            p_combination_node, store_result=True, category=CohortCategory.POPULATION
+        )
+        graph.add_edge(sink_node, p_combination_node)
 
-        task_runner = runner.SequentialTaskRunner(execution_map)
+        graph.set_sink_nodes_store(bind_params={"pi_pair_id": self.pi_pair_id})
+
+        params = observation_window.dict() | {"run_id": self.run_id}
+
+        task_runner = runner.SequentialTaskRunner(graph)
         task_runner.run(params)
 
     def fetch_filtered_results(
@@ -326,11 +327,11 @@ class TestCriterion:
     ):
         view = (
             self.result_view_full_day
-            if criterion_id is None
-            else self.result_view_partial_day
+            # if criterion_id is None
+            # else self.result_view_partial_day
         )
         stmt = select(view.c.person_id, view.c.valid_date).where(
-            view.c.recommendation_run_id == self.recommendation_run_id
+            view.c.run_id == self.run_id
         )
 
         if criterion_id is not None:
@@ -349,7 +350,7 @@ class TestCriterion:
         df = pd.read_sql(
             stmt,
             db_session.connection(),
-            params={"run_id": self.recommendation_run_id},
+            params={"run_id": self.run_id},
         )
         df["valid_date"] = pd.to_datetime(df["valid_date"])
 

@@ -17,7 +17,7 @@ from execution_engine.omop.db.omop import tables as omop
 from .concepts import Concept
 
 
-def disable_foreign_key_checks(
+def _disable_foreign_key_checks(
     dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
 ) -> None:
     """
@@ -33,7 +33,7 @@ def disable_foreign_key_checks(
     cursor.close()
 
 
-def enable_foreign_key_checks(
+def _enable_foreign_key_checks(
     dbapi_connection: DBAPIConnection, connection_record: ConnectionPoolEntry
 ) -> None:
     """
@@ -135,13 +135,13 @@ class OMOPSQLClient:
         """
         Disable foreign key checks.
         """
-        event.listen(self._engine, "connect", disable_foreign_key_checks)
+        event.listen(self._engine, "connect", _disable_foreign_key_checks)
 
     def enable_foreign_key_checks(self) -> None:
         """
         Enable foreign key checks.
         """
-        event.remove(self._engine, "connect", disable_foreign_key_checks)
+        event.remove(self._engine, "connect", _disable_foreign_key_checks)
 
     @staticmethod
     def _setup_logger(name: str) -> logging.Logger:

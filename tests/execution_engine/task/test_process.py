@@ -7,33 +7,28 @@ import pytest
 import pytz
 from pytz.tzinfo import DstTzInfo
 
+from execution_engine.task import process
 from execution_engine.task.process import (
     _interval_union,
     _result_to_df,
-    filter_common_items,
+    df_to_intervals,
+    filter_dataframes_by_shared_column_values,
     intersect_intervals,
     invert_intervals,
-    merge_intervals,
+    union_intervals,
 )
-from execution_engine.task.process import (
-    timestamps_to_intervals as timestamps_to_intervals,
-)
-from execution_engine.task.process import to_intervals
 from execution_engine.util import TimeRange
-from execution_engine.util.interval import (
-    DateTimeInterval,
-    empty_interval_datetime,
-    interval_datetime,
-    interval_int,
-)
+from execution_engine.util.interval import DateTimeInterval
+from execution_engine.util.interval import IntervalType as T
+from execution_engine.util.interval import empty_interval_datetime, interval_datetime
 
 # todo: test interval inversion
 # todo: test interval and
 # todo: test interval or
 
 
-def interval(start: str, end: str) -> DateTimeInterval:
-    return interval_datetime(pendulum.parse(start), pendulum.parse(end))
+def interval(start: str, end: str, type_=T.POSITIVE) -> DateTimeInterval:
+    return interval_datetime(pendulum.parse(start), pendulum.parse(end), type_=type_)
 
 
 def parse_dt(s: str, tz: DstTzInfo) -> datetime.datetime:
@@ -61,47 +56,53 @@ class TestIntervalUnion:
     def test_interval_union_single_datetime_interval(self):
         start_time = pendulum.parse("2020-01-01 00:00:00")
         end_time = pendulum.parse("2020-01-02 00:00:00")
-        interv = interval_datetime(start_time, end_time)
+        interv = interval_datetime(start_time, end_time, type_=T.POSITIVE)
         assert (
             _interval_union([interv]) == interv
         ), "Failed: Single interval should return itself"
 
     def test_interval_union_non_overlapping_datetime_intervals(self):
         intervals = [
-            interval("2020-01-01 00:00:00", "2020-01-01 12:00:00"),
-            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00"),
+            interval("2020-01-01 00:00:00", "2020-01-01 12:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
-        expected = interval("2020-01-01 00:00:00", "2020-01-01 12:00:00") | interval(
-            "2020-01-01 13:00:00", "2020-01-01 23:00:00"
-        )
+        expected = interval(
+            "2020-01-01 00:00:00", "2020-01-01 12:00:00", type_=T.POSITIVE
+        ) | interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE)
         assert (
             _interval_union(intervals) == expected
         ), "Failed: Non-overlapping intervals not handled correctly"
 
     def test_interval_union_overlapping_datetime_intervals(self):
         intervals = [
-            interval("2020-01-01 00:00:00", "2020-01-01 15:00:00"),
-            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00"),
+            interval("2020-01-01 00:00:00", "2020-01-01 15:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
-        expected = interval("2020-01-01 00:00:00", "2020-01-01 23:00:00")
+        expected = interval(
+            "2020-01-01 00:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE
+        )
         assert (
             _interval_union(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
 
         intervals = [
-            interval("2020-01-01 00:00:00", "2020-01-01 13:00:00"),
-            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00"),
+            interval("2020-01-01 00:00:00", "2020-01-01 13:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
-        expected = interval("2020-01-01 00:00:00", "2020-01-01 23:00:00")
+        expected = interval(
+            "2020-01-01 00:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE
+        )
         assert (
             _interval_union(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
 
         intervals = [
-            interval("2020-01-01 00:00:00", "2023-01-01 12:00:00"),
-            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00"),
+            interval("2020-01-01 00:00:00", "2023-01-01 12:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
-        expected = interval("2020-01-01 00:00:00", "2023-01-01 12:00:00")
+        expected = interval(
+            "2020-01-01 00:00:00", "2023-01-01 12:00:00", type_=T.POSITIVE
+        )
         assert (
             _interval_union(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
@@ -171,62 +172,10 @@ class TestIntervalUnion:
         ), "Failed: Mixed intervals not handled correctly"
 
 
-class TestTimestampsToIntervals:
-    def test_timestamps_to_intervals_empty(self):
-        df = pd.DataFrame(columns=["interval_start", "interval_end"])
-        assert (
-            timestamps_to_intervals(df) == []
-        ), "Failed: Empty DataFrame should return an empty list"
-
-    def test_timestamps_to_intervals_single_row(self):
-        df = pd.DataFrame(
-            {"interval_start": [1000000000], "interval_end": [2000000000]}
-        )
-        expected = [interval_int(1, 2)]
-        assert (
-            timestamps_to_intervals(df) == expected
-        ), "Failed: Single row DataFrame not handled correctly"
-
-    def test_timestamps_to_intervals_multiple_rows(self):
-        df = pd.DataFrame(
-            {
-                "interval_start": [1000000000, 3000000000],
-                "interval_end": [2000000000, 4000000000],
-            }
-        )
-        expected = [interval_int(1, 2), interval_int(3, 4)]
-        assert (
-            timestamps_to_intervals(df) == expected
-        ), "Failed: Multiple rows DataFrame not handled correctly"
-
-    def test_timestamps_to_intervals_invalid_structure(self):
-        df = pd.DataFrame({"start": [1000000000], "end": [2000000000]})
-        with pytest.raises(KeyError):
-            timestamps_to_intervals(
-                df
-            ), "Failed: DataFrame with invalid structure should raise KeyError"
-
-    def test_timestamps_to_intervals(self):
-        data = {
-            "interval_start": pd.to_datetime(["2023-01-01", "2023-01-02"]),
-            "interval_end": pd.to_datetime(["2023-01-02", "2023-01-03"]),
-        }
-        df = pd.DataFrame(data)
-
-        result = timestamps_to_intervals(df)
-
-        expected = [
-            interval_int(1672531200, 1672617600),
-            interval_int(1672617600, 1672704000),
-        ]
-
-        assert result == expected
-
-
 class TestToIntervals:
     def test_to_intervals_empty_dataframe(self):
-        df = pd.DataFrame(columns=["interval_start", "interval_end"])
-        result = to_intervals(df)
+        df = pd.DataFrame(columns=["interval_start", "interval_end", "interval_type"])
+        result = df_to_intervals(df)
         assert result == [], "Failed: Empty DataFrame should return an empty list"
 
     def test_to_intervals_single_row(self):
@@ -234,10 +183,11 @@ class TestToIntervals:
             {
                 "interval_start": pd.to_datetime(["2020-01-01T00:00:00"], utc=True),
                 "interval_end": pd.to_datetime(["2020-01-02T00:00:00"], utc=True),
+                "interval_type": T.POSITIVE,
             }
         )
         expected = [interval("2020-01-01T00:00:00", "2020-01-02T00:00:00")]
-        result = to_intervals(df)
+        result = df_to_intervals(df)
         assert result == expected, "Failed: Single row DataFrame not handled correctly"
 
     def test_to_intervals_multiple_rows(self):
@@ -249,13 +199,14 @@ class TestToIntervals:
                 "interval_end": pd.to_datetime(
                     ["2020-01-02T00:00:00", "2020-01-04T00:00:00"], utc=True
                 ),
+                "interval_type": [T.POSITIVE, T.POSITIVE],
             }
         )
         expected = [
-            interval("2020-01-01T00:00:00", "2020-01-02T00:00:00"),
-            interval("2020-01-03T00:00:00", "2020-01-04T00:00:00"),
+            interval("2020-01-01T00:00:00", "2020-01-02T00:00:00", type_=T.POSITIVE),
+            interval("2020-01-03T00:00:00", "2020-01-04T00:00:00", type_=T.POSITIVE),
         ]
-        result = to_intervals(df)
+        result = df_to_intervals(df)
         assert (
             result == expected
         ), "Failed: Multiple rows DataFrame not handled correctly"
@@ -265,7 +216,7 @@ class TestToIntervals:
             {"start": ["2020-01-01T00:00:00"], "end": ["2020-01-02T00:00:00"]}
         )
         with pytest.raises(KeyError):
-            to_intervals(
+            df_to_intervals(
                 df
             ), "Failed: DataFrame with invalid structure should raise KeyError"
 
@@ -314,7 +265,8 @@ class TestResultToDf:
         }
         df = _result_to_df(result, ["group", "subgroup"])
         assert all(
-            df.columns == ["group", "subgroup", "interval_start", "interval_end"]
+            df.columns
+            == ["group", "subgroup", "interval_start", "interval_end", "interval_type"]
         ), "Failed: Group keys as tuples not handled correctly"
 
     def test_result_to_df_timezones(self):
@@ -339,10 +291,12 @@ class TestResultToDf:
                 interval_datetime(
                     parse_dt("2021-01-01 00:00:00", tz=tz_start),
                     parse_dt("2021-01-01 02:00:00", tz=tz_end),
+                    type_=T.POSITIVE,
                 ),
                 interval_datetime(
                     parse_dt("2021-01-02 00:00:00", tz=tz_start),
                     parse_dt("2021-01-02 02:00:00", tz=tz_end),
+                    type_=T.POSITIVE,
                 ),
             ]
         }
@@ -358,6 +312,7 @@ class TestResultToDf:
                 pd.Timestamp("2021-01-01 02:00:00", tz=tz_end),
                 pd.Timestamp("2021-01-02 02:00:00", tz=tz_end),
             ],
+            "interval_type": [T.POSITIVE, T.POSITIVE],
         }
         expected_df = pd.DataFrame(expected_data)
 
@@ -376,12 +331,14 @@ class TestResultToDf:
                 interval_datetime(
                     parse_dt("2021-01-01 00:00:00", tz=tz_start),
                     parse_dt("2021-01-01 02:00:00", tz=tz_end),
+                    type_=T.POSITIVE,
                 )
             ],
             (2, "B"): [
                 interval_datetime(
                     parse_dt("2021-01-02 00:00:00", tz=tz_start),
                     parse_dt("2021-01-02 02:00:00", tz=tz_end),
+                    type_=T.POSITIVE,
                 )
             ],
         }
@@ -398,6 +355,7 @@ class TestResultToDf:
                 pd.Timestamp("2021-01-01 02:00:00", tz=tz_end),
                 pd.Timestamp("2021-01-02 02:00:00", tz=tz_end),
             ],
+            "interval_type": [T.POSITIVE, T.POSITIVE],
         }
         expected_df = pd.DataFrame(expected_data)
 
@@ -412,30 +370,43 @@ class TestInvertIntervals:
         return TimeRange(start="2023-01-01 01:00:00Z", end="2023-01-03 16:00:00Z")
 
     def test_invert_intervals_empty_dataframe(self, observation_window):
-        df = pd.DataFrame(columns=["interval_start", "interval_end"])
+        df = pd.DataFrame(columns=process.df_dtypes.keys())
         result = invert_intervals(df, [], observation_window)
         # Expecting the entire observation window since no intervals to invert
         expected_result = pd.DataFrame(
-            columns=["interval_start", "interval_end"]
+            columns=process.df_dtypes.keys()
         )  # empty dataframe
         pd.testing.assert_frame_equal(result, expected_result)
 
     def test_invert_intervals_single_row(self, observation_window):
+        reference_df = pd.DataFrame(
+            {
+                "person_id": [1],
+                "interval_start": [observation_window.start],
+                "interval_end": [observation_window.end],
+                "interval_type": [T.POSITIVE],
+            }
+        )
+
         # exactly the same as observation window
         df = pd.DataFrame(
             {
                 "person_id": [1],
                 "interval_start": [observation_window.start],
                 "interval_end": [observation_window.end],
+                "interval_type": [T.POSITIVE],
             }
         )
-        expected_result = _result_to_df({(1,): []}, ["person_id"])
+        expected_result = pd.DataFrame(
+            {
+                "person_id": [1],
+                "interval_start": [observation_window.start],
+                "interval_end": [observation_window.end],
+                "interval_type": [T.NEGATIVE],
+            }
+        )
 
-        # empty by
-        with pytest.raises(ValueError):
-            invert_intervals(df, [], observation_window)
-
-        result = invert_intervals(df, ["person_id"], observation_window)
+        result = invert_intervals(df, reference_df, observation_window)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # longer than observation window
@@ -444,6 +415,7 @@ class TestInvertIntervals:
                 "person_id": [1],
                 "interval_start": [observation_window.start - one_hour],
                 "interval_end": [observation_window.end + one_hour],
+                "interval_type": [T.POSITIVE],
             }
         )
         expected_result = pd.DataFrame(
@@ -458,6 +430,7 @@ class TestInvertIntervals:
                 "person_id": [1],
                 "interval_start": [observation_window.start],
                 "interval_end": [observation_window.end - one_hour],
+                "interval_type": [T.POSITIVE],
             }
         )
         expected_result = pd.DataFrame(
@@ -465,6 +438,7 @@ class TestInvertIntervals:
                 "person_id": [1],
                 "interval_start": [observation_window.end - one_hour + one_second],
                 "interval_end": [observation_window.end],
+                "interval_type": [T.POSITIVE],
             }
         )
         result = invert_intervals(df, ["person_id"], observation_window)
@@ -476,6 +450,7 @@ class TestInvertIntervals:
                 "person_id": [1],
                 "interval_start": [observation_window.start + one_hour],
                 "interval_end": [observation_window.end],
+                "interval_type": [T.POSITIVE],
             }
         )
         expected_result = pd.DataFrame(
@@ -483,6 +458,7 @@ class TestInvertIntervals:
                 "person_id": [1],
                 "interval_start": [observation_window.start],
                 "interval_end": [observation_window.start + one_hour - one_second],
+                "interval_type": [T.POSITIVE],
             }
         )
         result = invert_intervals(df, ["person_id"], observation_window)
@@ -494,6 +470,7 @@ class TestInvertIntervals:
                 "person_id": [1],
                 "interval_start": [observation_window.start + one_hour],
                 "interval_end": [observation_window.end - one_hour],
+                "interval_type": [T.POSITIVE],
             }
         )
         expected_result = pd.DataFrame(
@@ -507,6 +484,7 @@ class TestInvertIntervals:
                     observation_window.start + one_hour - one_second,
                     observation_window.end,
                 ],
+                "interval_type": [T.POSITIVE, T.POSITIVE],
             }
         )
 
@@ -569,7 +547,7 @@ class TestInvertIntervals:
 
 class TestFilterCommonItems:
     def test_filter_common_items_empty_dataframe_list(self):
-        result = filter_common_items([], ["column1", "column2"])
+        result = filter_dataframes_by_shared_column_values([], ["column1", "column2"])
         assert (
             result == []
         ), "Failed: Empty list of DataFrames should return an empty list"
@@ -577,7 +555,7 @@ class TestFilterCommonItems:
     def test_filter_common_items_single_dataframe(self):
         # supplying a single data frame should return the same data frame
         df = pd.DataFrame({"column1": [1, 2], "column2": [3, 4]})
-        result = filter_common_items([df], ["column1", "column2"])
+        result = filter_dataframes_by_shared_column_values([df], ["column1", "column2"])
         pd.testing.assert_frame_equal(result[0], df)
 
     def test_filter_common_items_multiple_dataframes_common_items(self):
@@ -585,7 +563,9 @@ class TestFilterCommonItems:
         df1 = pd.DataFrame({"column1": [1, 2, 8, 9], "column2": [3, 4, 5, 8]})
         df2 = pd.DataFrame({"column1": [1, 3, 8, 9], "column2": [3, 5, 6, 8]})
         expected_df = pd.DataFrame({"column1": [1, 9], "column2": [3, 8]}, index=[0, 3])
-        result = filter_common_items([df1, df2], ["column1", "column2"])
+        result = filter_dataframes_by_shared_column_values(
+            [df1, df2], ["column1", "column2"]
+        )
         pd.testing.assert_frame_equal(result[0], expected_df)
         pd.testing.assert_frame_equal(result[1], expected_df)
 
@@ -593,7 +573,9 @@ class TestFilterCommonItems:
         # compare two dataframes that have no common items
         df1 = pd.DataFrame({"column1": [1], "column2": [3]})
         df2 = pd.DataFrame({"column1": [2], "column2": [4]})
-        result = filter_common_items([df1, df2], ["column1", "column2"])
+        result = filter_dataframes_by_shared_column_values(
+            [df1, df2], ["column1", "column2"]
+        )
         assert all(
             df.empty for df in result
         ), "Failed: DataFrames with no common items should return empty DataFrames"
@@ -603,7 +585,7 @@ class TestFilterCommonItems:
         df1 = pd.DataFrame({"column1": [1, 2], "column2": [3, 4]})
         df2 = pd.DataFrame({"column1": [1, 3], "column2": [3, 5]})
         with pytest.raises(KeyError):
-            filter_common_items([df1, df2], ["invalid_column"])
+            filter_dataframes_by_shared_column_values([df1, df2], ["invalid_column"])
 
     def test_filter_common_items(self):
         # Create sample DataFrames
@@ -630,7 +612,9 @@ class TestFilterCommonItems:
         )
 
         # Call the function
-        filtered_dfs = filter_common_items([df1, df2, df3], ["A", "B"])
+        filtered_dfs = filter_dataframes_by_shared_column_values(
+            [df1, df2, df3], ["A", "B"]
+        )
 
         # Define expected output
         expected_df1 = pd.DataFrame(
@@ -666,7 +650,7 @@ class TestFilterCommonItems:
 
 class TestMergeIntervals:
     def test_merge_intervals_empty_dataframe_list(self):
-        result = merge_intervals([], ["group"])
+        result = union_intervals([], ["group"])
         assert (
             result.empty
         ), "Failed: Empty list of DataFrames should return an empty DataFrame"
@@ -691,7 +675,7 @@ class TestMergeIntervals:
             }
         )
 
-        result = merge_intervals([df], ["group"])
+        result = union_intervals([df], ["group"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -710,7 +694,7 @@ class TestMergeIntervals:
                 "interval_end": pd.to_datetime(["2020-01-06 12:00:00"]),
             }
         )
-        result = merge_intervals([df1, df2], ["group"])
+        result = union_intervals([df1, df2], ["group"])
         expected_df = pd.DataFrame(
             {
                 "group": ["A"],
@@ -735,7 +719,7 @@ class TestMergeIntervals:
                 "interval_end": pd.to_datetime(["2020-01-04 18:00:00"]),
             }
         )
-        result = merge_intervals([df1, df2], ["group"])
+        result = union_intervals([df1, df2], ["group"])
         expected_df = pd.concat([df1, df2]).reset_index(drop=True)
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -754,7 +738,7 @@ class TestMergeIntervals:
                 "interval_end": pd.to_datetime(["2020-01-04 18:00:00"]),
             }
         )
-        result = merge_intervals([df1, df2], ["group"])
+        result = union_intervals([df1, df2], ["group"])
         expected_df = pd.DataFrame(
             {
                 "group": ["A"],
@@ -781,7 +765,7 @@ class TestMergeIntervals:
                 "interval_end": pd.to_datetime(["2020-01-03 12:00:00"]),
             }
         )
-        result = merge_intervals([df1, df2], ["group1", "group2"])
+        result = union_intervals([df1, df2], ["group1", "group2"])
         expected_df = pd.DataFrame(
             {
                 "group1": ["A"],
@@ -818,7 +802,7 @@ class TestMergeIntervals:
         df2 = pd.DataFrame(data2)
 
         # Call the function
-        result_df = merge_intervals([df1, df2], ["person_id", "concept_id"])
+        result_df = union_intervals([df1, df2], ["person_id", "concept_id"])
 
         # Define expected output
         expected_data = {
@@ -909,7 +893,7 @@ class TestMergeIntervals:
             .reset_index(drop=True)
         )
 
-        result = merge_intervals([df1, df2, df3], ["group1", "group2"])
+        result = union_intervals([df1, df2, df3], ["group1", "group2"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
