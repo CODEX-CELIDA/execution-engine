@@ -15,7 +15,10 @@ from tqdm import tqdm
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
 from execution_engine.omop.db.celida.tables import PopulationInterventionPair
-from execution_engine.omop.db.celida.views import full_day_coverage
+from execution_engine.omop.db.celida.views import (
+    full_day_coverage,
+    partial_day_coverage,
+)
 from execution_engine.omop.db.omop.tables import Person
 from execution_engine.util import TimeRange
 from tests._testdata import concepts, parameter
@@ -210,6 +213,8 @@ class TestRecommendationBase(ABC):
         if invalid_combinations:
             idx_invalid = create_index_from_logical_expression(df, invalid_combinations)
             df = df[~idx_invalid].copy()
+
+        # return df.iloc[1675:1676]
 
         if not run_slow_tests:
             df = pd.concat([df.head(15), df.tail(15)]).drop_duplicates()
@@ -600,44 +605,70 @@ class TestRecommendationBase(ABC):
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
         )
-        t = full_day_coverage
-        t_plan = PopulationInterventionPair
 
-        query = (
-            select(
-                t.c.recommendation_run_id,
-                t.c.person_id,
-                t_plan.pi_pair_name,
-                t.c.cohort_category,
-                t.c.valid_date,
+        def get_query(t, category):
+            return (
+                select(
+                    t.c.run_id,
+                    t.c.person_id,
+                    PopulationInterventionPair.pi_pair_name,
+                    t.c.cohort_category,
+                    t.c.valid_date,
+                )
+                .outerjoin(PopulationInterventionPair)
+                .where(t.c.criterion_id.is_(None))
+                .where(t.c.cohort_category.in_(category))
             )
-            .outerjoin(PopulationInterventionPair)
-            .where(t.c.criterion_id.is_(None))
-        )
-        df_result = omopdb.query(query)
-        df_result["valid_date"] = pd.to_datetime(df_result["valid_date"])
-        df_result["name"] = df_result["cohort_category"].map(
-            {
-                CohortCategory.INTERVENTION: "i",
-                CohortCategory.POPULATION: "p",
-                CohortCategory.POPULATION_INTERVENTION: "p_i",
-            }
-        )
-        df_result["name"] = df_result.apply(
-            lambda row: row["name"]
-            if row["pi_pair_name"] is None
-            else f"{row['name']}_{row['pi_pair_name']}",
-            axis=1,
+
+        def process_result(df_result):
+            df_result["valid_date"] = pd.to_datetime(df_result["valid_date"])
+            df_result["name"] = df_result["cohort_category"].map(
+                {
+                    CohortCategory.INTERVENTION: "i",
+                    CohortCategory.POPULATION: "p",
+                    CohortCategory.POPULATION_INTERVENTION: "p_i",
+                }
+            )
+            df_result["name"] = df_result.apply(
+                lambda row: row["name"]
+                if row["pi_pair_name"] is None
+                else f"{row['name']}_{row['pi_pair_name']}",
+                axis=1,
+            )
+
+            df_result = df_result.rename(columns={"valid_date": "date"})
+
+            df_result = df_result.pivot_table(
+                columns="name",
+                index=["person_id", "date"],
+                values="run_id",
+                aggfunc=len,
+                fill_value=0,
+            ).astype(bool)
+
+            return df_result
+
+        # P is fulfilled if they are fulfilled on any time of the day
+        df_result_p_i = omopdb.query(
+            get_query(
+                partial_day_coverage,
+                category=[CohortCategory.BASE, CohortCategory.POPULATION],
+            )
         )
 
-        df_result = df_result.rename(columns={"valid_date": "date"})
-        df_result = df_result.pivot_table(
-            columns="name",
-            index=["person_id", "date"],
-            values="recommendation_run_id",
-            aggfunc=len,
-            fill_value=0,
-        ).astype(bool)
+        # P_I is fulfilled only if it is fulfilled on the full day
+        df_result_pi = omopdb.query(
+            get_query(
+                full_day_coverage,
+                category=[
+                    CohortCategory.INTERVENTION,
+                    CohortCategory.POPULATION_INTERVENTION,
+                ],
+            )
+        )
+
+        df_result = pd.concat([df_result_p_i, df_result_pi])
+        df_result = process_result(df_result)
 
         result_expected = RecommendationCriteriaCombination(
             name="expected", df=criteria_extended
