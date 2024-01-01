@@ -1,4 +1,4 @@
-from sqlalchemy import Date, Select, and_, func, select
+from sqlalchemy import Date, Select, and_, func, not_, select
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 
@@ -13,7 +13,7 @@ from execution_engine.omop.db.view import view
 from execution_engine.util.interval import IntervalType
 
 
-def view_full_day_coverage() -> Select:
+def view_interval_coverage() -> Select:
     """
     Return Select statement for view to calculate the full day coverage of recommendation results.
     """
@@ -78,9 +78,23 @@ def view_full_day_coverage() -> Select:
             rri.c.pi_pair_id,
             rri.c.criterion_id,
         )
-        .cte("interval_coverage")
     )
 
+    return interval_coverage
+
+
+interval_coverage = view(
+    "interval_coverage",
+    Base.metadata,
+    view_interval_coverage(),
+    schema="celida",
+)
+
+
+def view_full_day_coverage() -> Select:
+    """
+    Return Select statement for view to calculate the full day coverage of recommendation results.
+    """
     day = interval_coverage.c.day.label("valid_date")
 
     # subtract one second from the covered time because 00:00:00 - 23:59:59 is considered to be a full day
@@ -94,7 +108,7 @@ def view_full_day_coverage() -> Select:
     ).filter(
         and_(
             interval_coverage.c.has_positive,
-            # not_(interval_coverage.c.has_negative),
+            not_(interval_coverage.c.has_negative),
         )
     )
 
