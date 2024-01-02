@@ -492,25 +492,6 @@ class OMOPSQLClient:
 
         Note that the relationship is directed, so this will return false if ancestor is related to descendant.
         """
-        # todo: remove me when it is sure that the sqlalchemy query works
-        query = """
-            SELECT
-              cr.relationship_id   AS relationship_id,
-              d.concept_id         AS concept_id,
-              d.concept_name       AS concept_name,
-              d.concept_code       AS concept_code,
-              d.concept_class_id   AS concept_class_id,
-              d.vocabulary_id      AS concept_vocab_id
-            FROM cds_cdm.concept_relationship AS cr
-              JOIN cds_cdm.concept AS a ON cr.concept_id_1 = a.concept_id
-              JOIN cds_cdm.concept AS d ON cr.concept_id_2 = d.concept_id
-            WHERE
-              a.concept_id = %(ancestor)s
-              and d.concept_id = %(descendant)s
-              and cr.invalid_reason IS null
-              and relationship_id = %(relationship_id)s
-        """
-
         a = omop.Concept.__table__.alias("a")
         d = omop.Concept.__table__.alias("d")
         cr = omop.t_concept_relationship.alias("ca")

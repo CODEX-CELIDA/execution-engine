@@ -1,4 +1,5 @@
 from functools import reduce
+from operator import and_, or_
 from typing import Callable
 
 import pandas as pd
@@ -15,25 +16,6 @@ df_dtypes = {
     "interval_end": "datetime64[ns, UTC]",
     "interval_type": "category",
 }
-
-
-def _or_(x: Interval, y: Interval) -> Interval:
-    """
-    Performs a union on the given intervals.
-
-    Helper function for _process intervals.
-    """
-    return x | y
-
-
-def _and_(x: Interval, y: Interval) -> Interval:
-    """
-    Performs am intersection on the given intervals.
-
-    Helper function for _process intervals.
-    """
-
-    return x & y
 
 
 def concat_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
@@ -202,7 +184,7 @@ def _process_intervals(dfs: list[pd.DataFrame], operator: Callable) -> pd.DataFr
 
     for df in dfs:
         if df.empty:
-            if operator == _and_:
+            if operator == and_:
                 # if the operation is intersection, an empty dataframe means that the result is empty
                 return pd.DataFrame(columns=df.columns)
             else:
@@ -231,7 +213,7 @@ def union_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     :return: A DataFrame with the merged intervals.
     """
 
-    df = _process_intervals(dfs, _or_)
+    df = _process_intervals(dfs, or_)
     # df = merge_interval_across_types(df, operator='OR')
 
     return df
@@ -245,7 +227,7 @@ def intersect_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     :return: A DataFrame with the intersected intervals.
     """
     dfs = filter_dataframes_by_shared_column_values(dfs, columns=["person_id"])
-    df = _process_intervals(dfs, _and_)
+    df = _process_intervals(dfs, and_)
 
     return df
 
@@ -288,48 +270,6 @@ def mask_intervals(
     result = _result_to_df(result, by)
 
     return result
-
-
-# todo: remove me
-def filter_dataframes_by_shared_column_valuesX(
-    dfs: list[pd.DataFrame], columns: list[str]
-) -> list[pd.DataFrame]:
-    """
-    Filters the DataFrames based on shared values in the specified columns.
-
-    Returned are only those rows of each dataframe where the values in the columns identified
-    by the parameter `columns` are shared across all dataframes.
-
-    :param dfs: A list of DataFrames.
-    :param columns: A list of column names to filter on.
-    :return: A list of DataFrames with the rows that have shared column values.
-    """
-
-    if not len(dfs):
-        return dfs
-
-    # make sure the columns exist in all dataframes, otherwise we get a KeyError - name the missing columns
-    # in the error message
-    for i, df in enumerate(dfs):
-        for column in columns:
-            if column not in df.columns:
-                raise KeyError(f"Column '{column}' not found in DataFrame {i}")
-
-    common_items = unique_items(dfs[0][columns])
-
-    # Find common items across all DataFrames
-    for df in dfs[1:]:
-        common_items.intersection_update(unique_items(df[columns]))
-
-    filtered_dfs = []
-    for df in dfs:
-        # Filter DataFrame based on common items
-        filtered_df = df[
-            df.apply(lambda row: tuple(row[columns]) in common_items, axis=1)
-        ]
-        filtered_dfs.append(filtered_df)
-
-    return filtered_dfs
 
 
 def filter_dataframes_by_shared_column_values(
