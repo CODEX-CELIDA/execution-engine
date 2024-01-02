@@ -6,7 +6,7 @@ const RunSelector = ({ onRunSelect }) => {
 
     useEffect(() => {
         // Fetch the list of recommendation runs from your API
-        fetch('http://localhost:8000/recommendation_runs')
+        fetch('http://localhost:8000/execution_runs')
             .then(response => response.json())
             .then(data => setRuns(data))
             .catch(error => console.error('Error fetching runs:', error));
@@ -21,8 +21,8 @@ const RunSelector = ({ onRunSelect }) => {
         <select value={selectedRun} onChange={handleChange}>
             <option value="">Select a Run</option>
             {runs.map(run => (
-                <option key={run.recommendation_run_id} value={run.recommendation_run_id}>
-                    {run.recommendation_run_id}
+                <option key={run.run_id} value={run.run_id}>
+                    {run.run_id}
                 </option>
             ))}
         </select>

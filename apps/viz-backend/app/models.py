@@ -8,7 +8,7 @@ class RecommendationRun(BaseModel):
     Represents a single recommendation run.
     """
 
-    recommendation_run_id: int
+    run_id: int
     observation_start_datetime: datetime
     observation_end_datetime: datetime
     run_datetime: datetime

@@ -30,41 +30,36 @@ def get_db() -> Session:
         db.close()
 
 
-@app.get("/recommendation_runs", response_model=List[RecommendationRun])
-def get_recommendation_runs(db: Session = Depends(get_db)) -> dict:
+@app.get("/execution_runs", response_model=List[RecommendationRun])
+def get_execution_runs(db: Session = Depends(get_db)) -> dict:
     """
     Get all recommendation runs.
     """
     result = db.execute(
         text(
             """
-    SELECT recommendation_run_id, observation_start_datetime, observation_end_datetime, run_datetime
-    FROM recommendation_run
+    SELECT run_id, observation_start_datetime, observation_end_datetime, run_datetime
+    FROM execution_run
     """
         )
     )
     return result.fetchall()
 
 
-@app.get("/intervals/{recommendation_run_id}", response_model=List[Interval])
-def get_intervals(recommendation_run_id: int, db: Session = Depends(get_db)) -> dict:
+@app.get("/intervals/{run_id}", response_model=List[Interval])
+def get_intervals(run_id: int, db: Session = Depends(get_db)) -> dict:
     """
     Get all intervals for a given recommendation run.
     """
     result = db.execute(
         text(
             """
-    SELECT rri.person_id, rri.pi_pair_id, rri.criterion_id, pip.pi_pair_name,
-           rc.criterion_name, rri.interval_type, rri.interval_start, rri.interval_end,
-           rr.observation_start_datetime, rr.observation_end_datetime, rri.cohort_category
-    FROM recommendation_result_interval rri
-    LEFT JOIN population_intervention_pair pip ON rri.pi_pair_id = pip.pi_pair_id
-    LEFT JOIN recommendation_criterion rc ON rri.criterion_id = rc.criterion_id
-    JOIN recommendation_run rr ON rri.recommendation_run_id = rr.recommendation_run_id
-    WHERE rri.recommendation_run_id = :recommendation_run_id
+    SELECT *
+    FROM interval_result
+    WHERE run_id = :run_id
     """
         ),
-        {"recommendation_run_id": recommendation_run_id},
+        {"run_id": run_id},
     )
     return result.fetchall()
 
