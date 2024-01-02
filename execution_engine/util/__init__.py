@@ -1,6 +1,6 @@
 from abc import ABC, ABCMeta, abstractmethod
 from datetime import date, datetime, timedelta
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Any
 
 import pendulum
@@ -325,7 +325,7 @@ class TimeRange(BaseModel):
         }
 
 
-class DosageInterval(str, Enum):
+class TimeUnit(StrEnum):
     """
     An interval of time used in Drug Dosing.
     """
@@ -346,7 +346,7 @@ class Dosage(BaseModel):
 
     dose: ValueNumber
     frequency: PositiveInt
-    interval: DosageInterval
+    interval: TimeUnit
 
     class Config:
         """
@@ -355,6 +355,19 @@ class Dosage(BaseModel):
 
         use_enum_values = True
         """ Use enum values instead of names. """
+
+
+class Timing(BaseModel):
+    """
+    The timing of a criterion.
+    """
+
+    count: PositiveInt | None
+    duration: float | None
+    duration_unit: TimeUnit | None
+    frequency: PositiveInt | None
+    period: PositiveInt | None
+    period_unit: TimeUnit | None
 
 
 class AbstractPrivateMethods(ABCMeta):

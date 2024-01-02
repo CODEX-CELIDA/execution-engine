@@ -67,18 +67,27 @@ class IntervalType(StrEnum):
     """
 
     __union_priority_order: list[str] = [POSITIVE, NO_DATA, NOT_APPLICABLE, NEGATIVE]
+
+    # POSITIVE has higher priority than NO_DATA, as in measurements we return NO_DATA intervals for all intervals
+    # inbetween measurements (and outside), and these are &-ed with the POSITIVE intervals for e.g. conditions.
+    # previously, NO_DATA was higher priority than POSITIVE because in POPULATION_INTERVENTION, when the POPULATION is
+    # POSITIVE but the INTERVENTION isNO_DATA, the result _should_ be NO_DATA (but is currently POSITIVE) - this is now
+    # handled in the LeftDependentToggle handler in task.py
     __intersection_priority_order: list[str] = [
         NEGATIVE,
         POSITIVE,
         NO_DATA,
         NOT_APPLICABLE,
     ]
+
     __invert_map: dict[str, str] = {
         POSITIVE: NEGATIVE,
         NEGATIVE: POSITIVE,
         NO_DATA: NO_DATA,
         NOT_APPLICABLE: NOT_APPLICABLE,
     }
+
+    __bool_true = [POSITIVE, NO_DATA, NOT_APPLICABLE]
 
     def __repr__(self) -> str:
         """
@@ -98,6 +107,34 @@ class IntervalType(StrEnum):
         """
         return self.__class__(self.__invert_map[self])
 
+    def __or__(self, other: Any) -> "IntervalType":
+        """
+        Return the interval type with the highest union priority.
+        """
+        if self.__union_priority_order.index(self) < self.__union_priority_order.index(
+            other
+        ):
+            return self
+        else:
+            return other
+
+    def __and__(self, other: Any) -> "IntervalType":
+        """
+        Return the interval type with the highest intersection priority.
+        """
+        if self.__intersection_priority_order.index(
+            self
+        ) < self.__intersection_priority_order.index(other):
+            return self
+        else:
+            return other
+
+    def __bool__(self) -> bool:
+        """
+        Return True if the interval type has higher or equal intersection priority than POSITIVE, False otherwise.
+        """
+        return self in self.__bool_true
+
     @classmethod
     def union_priority(cls) -> list["IntervalType"]:  # OR |
         """
@@ -110,12 +147,6 @@ class IntervalType(StrEnum):
         """
         Return the priority order for intersection starting with the highest priority.
         """
-        # POSITIVE has higher priority than NO_DATA, as in measurements we return NO_DATA intervals for all intervals
-        # inbetween measurements (and outside of), and these are &-ed with the POSITIVE intervals for e.g. conditions.
-        # todo: previously, NO_DATA was higher priority than POSITIVE - why?
-        #    --> because in POPULATION_INTERVENTION, when the POPULATION is POSITIVE but the INTERVENTION is
-        #        NO_DATA, the result _should_ be NO_DATA (but is currently POSITIVE) -- the logic needs to be adjusted
-        #        at the LeftDependentTrigger level (i.e. different priority orders for different operators!)
         return [cls(member) for member in cls.__intersection_priority_order]
 
     @classmethod
@@ -192,6 +223,26 @@ class IntervalType(StrEnum):
             yield
         finally:
             cls.__invert_map = cast(dict[str, str], original_map)
+
+    @classmethod
+    @contextmanager
+    def custom_bool_true(cls, bool_true: list["IntervalType"]) -> Iterator:
+        """
+        Temporarily set the bool true values.
+
+        :param bool_true: the bool true values.
+        """
+        if not all(isinstance(member, cls) for member in bool_true):
+            raise ValueError(
+                "All elements of 'bool_true' must be IntervalType enum members."
+            )
+
+        original_bool_true = cls.__bool_true
+        cls.__bool_true = [member.value for member in bool_true]
+        try:
+            yield
+        finally:
+            cls.__bool_true = cast(list[str], original_bool_true)
 
 
 Atomic = namedtuple("Atomic", ["left", "lower", "upper", "right", "type"])

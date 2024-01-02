@@ -21,7 +21,7 @@ from execution_engine.omop.vocabulary import (
     VocabularyFactory,
     standard_vocabulary,
 )
-from execution_engine.util import DosageInterval, Value, ValueNumber
+from execution_engine.util import TimeUnit, Value, ValueNumber
 
 
 class ExtensionType(TypedDict):
@@ -48,7 +48,7 @@ class DrugAdministrationAction(AbstractAction):
         ingredient_concept: Concept,
         dose: ValueNumber | None = None,
         frequency: int | None = None,
-        interval: DosageInterval | None = None,
+        interval: TimeUnit | None = None,
         route: Concept | None = None,
         extensions: list[ExtensionType] | None = None,
     ) -> None:
@@ -235,14 +235,14 @@ class DrugAdministrationAction(AbstractAction):
         return parse_code(dosage.route)
 
     @classmethod
-    def process_timing(cls, dosage: Dosage) -> Tuple[int, DosageInterval]:
+    def process_timing(cls, dosage: Dosage) -> Tuple[int, TimeUnit]:
         """
         Returns the frequency and interval of the dosage.
         """
         timing = dosage.timing
         frequency = timing.repeat.frequency
         period = timing.repeat.period
-        interval = DosageInterval(timing.repeat.periodUnit)
+        interval = TimeUnit(timing.repeat.periodUnit)
 
         if period != 1:
             raise NotImplementedError(

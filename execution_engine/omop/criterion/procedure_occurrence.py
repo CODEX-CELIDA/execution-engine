@@ -9,7 +9,7 @@ from execution_engine.omop.criterion.abstract import (
     create_conditional_interval_column,
 )
 from execution_engine.omop.criterion.continuous import ContinuousCriterion
-from execution_engine.util import DosageInterval, ValueNumber, value_factory
+from execution_engine.util import TimeUnit, ValueNumber, value_factory
 from execution_engine.util.interval import IntervalType
 
 __all__ = ["ProcedureOccurrence"]
@@ -53,25 +53,18 @@ class ProcedureOccurrence(ContinuousCriterion):
         query = self._sql_header()
         query = self._sql_filter_concept(query)
 
-        # todo: is this even required in procedure?
-        if self._value is not None:
+        if self._timing is not None:
+            interval = TimeUnit(self._timing.unit.concept_code)
+            column = extract(interval.name, end_datetime - start_datetime).label(
+                "duration"
+            )
             conditional_column = create_conditional_interval_column(
-                self._value.to_sql(self._table)
+                self._timing.to_sql(table=None, column_name=column, with_unit=False)
             )
         else:
             conditional_column = column_interval_type(IntervalType.POSITIVE)
 
         query = query.add_columns(conditional_column)
-
-        # todo: this should not filter but also set the interval_type
-        if self._timing is not None:
-            interval = DosageInterval(self._timing.unit.concept_code)
-            column = extract(interval.name, end_datetime - start_datetime).label(
-                "duration"
-            )
-            query = query.filter(
-                self._timing.to_sql(table=None, column_name=column, with_unit=False)
-            )
 
         return query
 

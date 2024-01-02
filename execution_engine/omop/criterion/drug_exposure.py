@@ -16,12 +16,7 @@ from execution_engine.omop.criterion.abstract import (
 )
 from execution_engine.omop.db.base import DateTimeWithTimeZone
 from execution_engine.omop.db.omop import tables as omop
-from execution_engine.util import (
-    DosageInterval,
-    IntervalType,
-    ValueNumber,
-    value_factory,
-)
+from execution_engine.util import IntervalType, TimeUnit, ValueNumber, value_factory
 from execution_engine.util.sql import SelectInto
 
 __all__ = ["DrugExposure"]
@@ -38,7 +33,7 @@ class DrugExposure(Criterion):
         ingredient_concept: Concept,
         dose: ValueNumber | None,
         frequency: int | None,
-        interval: DosageInterval | str | None,
+        interval: TimeUnit | str | None,
         route: Concept | None,
     ) -> None:
         """
@@ -52,15 +47,13 @@ class DrugExposure(Criterion):
 
         if interval is not None:
             if isinstance(interval, str):
-                interval = DosageInterval(interval)
-            assert isinstance(
-                interval, DosageInterval
-            ), "interval must be an Interval or str"
+                interval = TimeUnit(interval)
+            assert isinstance(interval, TimeUnit), "interval must be an Interval or str"
         else:
             logging.warning(
                 f"No interval specified in {self.description()}, using default 'day'"
             )
-            interval = DosageInterval.DAY
+            interval = TimeUnit.DAY
 
         self._interval = interval
         self._route = route
@@ -148,6 +141,7 @@ class DrugExposure(Criterion):
             logging.warning("Route specified, but not implemented yet")
 
         # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
+        # todo: also this uses a hard-coded "1" for the interval
         interval = func.cast(concat(1, self._interval.name), SQLInterval)  # type: ignore
         interval_length_seconds = func.cast(
             func.extract("EPOCH", interval), NUMERIC

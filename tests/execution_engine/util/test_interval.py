@@ -481,3 +481,102 @@ class TestIntervalType:
         with pytest.raises(ValueError):
             with IntervalType.custom_invert_map({"INVALID": IntervalType.NEGATIVE}):
                 pass
+
+    def test_or(self):
+        # POSITIVE | others
+        assert IntervalType.POSITIVE | IntervalType.NEGATIVE == IntervalType.POSITIVE
+        assert IntervalType.NEGATIVE | IntervalType.POSITIVE == IntervalType.POSITIVE
+        assert IntervalType.POSITIVE | IntervalType.NO_DATA == IntervalType.POSITIVE
+        assert IntervalType.NO_DATA | IntervalType.POSITIVE == IntervalType.POSITIVE
+        assert (
+            IntervalType.POSITIVE | IntervalType.NOT_APPLICABLE == IntervalType.POSITIVE
+        )
+        assert (
+            IntervalType.NOT_APPLICABLE | IntervalType.POSITIVE == IntervalType.POSITIVE
+        )
+
+        # NO_DATA | others
+        assert IntervalType.NO_DATA | IntervalType.NEGATIVE == IntervalType.NO_DATA
+        assert IntervalType.NEGATIVE | IntervalType.NO_DATA == IntervalType.NO_DATA
+        assert (
+            IntervalType.NO_DATA | IntervalType.NOT_APPLICABLE == IntervalType.NO_DATA
+        )
+        assert (
+            IntervalType.NOT_APPLICABLE | IntervalType.NO_DATA == IntervalType.NO_DATA
+        )
+
+        # NOT_APPLICABLE | others
+        assert (
+            IntervalType.NOT_APPLICABLE | IntervalType.NEGATIVE
+            == IntervalType.NOT_APPLICABLE
+        )
+        assert (
+            IntervalType.NEGATIVE | IntervalType.NOT_APPLICABLE
+            == IntervalType.NOT_APPLICABLE
+        )
+
+        # same types
+        assert IntervalType.POSITIVE | IntervalType.POSITIVE == IntervalType.POSITIVE
+        assert IntervalType.NEGATIVE | IntervalType.NEGATIVE == IntervalType.NEGATIVE
+        assert IntervalType.NO_DATA | IntervalType.NO_DATA == IntervalType.NO_DATA
+        assert (
+            IntervalType.NOT_APPLICABLE | IntervalType.NOT_APPLICABLE
+            == IntervalType.NOT_APPLICABLE
+        )
+
+    def test_and(self):
+        # NEGATIVE & others
+        assert IntervalType.NEGATIVE & IntervalType.POSITIVE == IntervalType.NEGATIVE
+        assert IntervalType.POSITIVE & IntervalType.NEGATIVE == IntervalType.NEGATIVE
+        assert IntervalType.NEGATIVE & IntervalType.NO_DATA == IntervalType.NEGATIVE
+        assert IntervalType.NO_DATA & IntervalType.NEGATIVE == IntervalType.NEGATIVE
+        assert (
+            IntervalType.NEGATIVE & IntervalType.NOT_APPLICABLE == IntervalType.NEGATIVE
+        )
+        assert (
+            IntervalType.NOT_APPLICABLE & IntervalType.NEGATIVE == IntervalType.NEGATIVE
+        )
+
+        # POSITIVE & others
+        assert IntervalType.POSITIVE & IntervalType.NO_DATA == IntervalType.POSITIVE
+        assert IntervalType.NO_DATA & IntervalType.POSITIVE == IntervalType.POSITIVE
+        assert (
+            IntervalType.POSITIVE & IntervalType.NOT_APPLICABLE == IntervalType.POSITIVE
+        )
+        assert (
+            IntervalType.NOT_APPLICABLE & IntervalType.POSITIVE == IntervalType.POSITIVE
+        )
+
+        # NO_DATA & others
+        assert (
+            IntervalType.NO_DATA & IntervalType.NOT_APPLICABLE == IntervalType.NO_DATA
+        )
+        assert (
+            IntervalType.NOT_APPLICABLE & IntervalType.NO_DATA == IntervalType.NO_DATA
+        )
+
+        # same types
+        assert IntervalType.POSITIVE & IntervalType.POSITIVE == IntervalType.POSITIVE
+        assert IntervalType.NEGATIVE & IntervalType.NEGATIVE == IntervalType.NEGATIVE
+        assert IntervalType.NO_DATA & IntervalType.NO_DATA == IntervalType.NO_DATA
+        assert (
+            IntervalType.NOT_APPLICABLE & IntervalType.NOT_APPLICABLE
+            == IntervalType.NOT_APPLICABLE
+        )
+
+    def test_bool(self):
+        assert IntervalType.POSITIVE
+        assert IntervalType.NO_DATA
+        assert IntervalType.NOT_APPLICABLE
+
+        assert not IntervalType.NEGATIVE
+
+    def test_custom_bool(self):
+        with IntervalType.custom_bool_true([IntervalType.NEGATIVE]):
+            assert IntervalType.NEGATIVE
+            assert not IntervalType.POSITIVE
+            assert not IntervalType.NO_DATA
+            assert not IntervalType.NOT_APPLICABLE
+
+        # Test that the map is restored
+        self.test_bool()

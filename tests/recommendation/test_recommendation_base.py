@@ -2,6 +2,7 @@ import datetime
 import itertools
 import re
 from abc import ABC
+from functools import reduce
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ from execution_engine.omop.db.celida.views import (
     partial_day_coverage,
 )
 from execution_engine.omop.db.omop.tables import Person
-from execution_engine.util import TimeRange
+from execution_engine.util import IntervalType, TimeRange
 from tests._testdata import concepts, parameter
 from tests.functions import (
     create_condition,
@@ -31,6 +32,15 @@ from tests.functions import (
     create_visit,
     generate_binary_combinations_dataframe,
 )
+
+MISSING_DATA_TYPE = {
+    "condition": IntervalType.NEGATIVE,
+    "observation": IntervalType.NO_DATA,
+    "drug": IntervalType.NEGATIVE,
+    "visit": IntervalType.NEGATIVE,
+    "measurement": IntervalType.NO_DATA,
+    "procedure": IntervalType.NEGATIVE,
+}
 
 
 class RecommendationCriteriaCombination:
@@ -43,6 +53,12 @@ class RecommendationCriteriaCombination:
             self.df = df.set_index(["person_id", "date"])
         else:
             self.df = df
+
+        # make NO_DATA and NOT_APPLICABLE equal to False
+        with IntervalType.custom_bool_true(
+            [IntervalType.POSITIVE, IntervalType.NOT_APPLICABLE]
+        ):
+            self.df = self.df.astype(bool)
 
     def __getitem__(self, item):
         return self.df[item]
@@ -154,23 +170,40 @@ class RecommendationCriteriaCombination:
         return reports
 
 
-def create_index_from_logical_expression(
+def elementwise_mask(s1, mask, fill_value=False):
+    return s1.combine(mask, lambda x, y: x if y else fill_value)
+
+
+def elementwise_and(s1, s2):
+    return s1.combine(s2, lambda x, y: x & y)
+
+
+def elementwise_or(s1, s2):
+    return s1.combine(s2, lambda x, y: x | y)
+
+
+def elementwise_not(s1):
+    return s1.map(lambda x: ~x)
+
+
+def combine_dataframe_via_logical_expression(
     df: pd.DataFrame, expression: str
-) -> npt.NDArray[np.bool_]:
-    # parse the sympy expression
+) -> npt.NDArray:
+    def eval_expr(expr):
+        if isinstance(expr, sympy.Symbol):
+            return df[str(expr)]
+        elif isinstance(expr, sympy.And):
+            return reduce(elementwise_and, map(eval_expr, expr.args))
+        elif isinstance(expr, sympy.Or):
+            return reduce(elementwise_or, map(eval_expr, expr.args))
+        elif isinstance(expr, sympy.Not):
+            return elementwise_not(eval_expr(expr.args[0]))
+        else:
+            raise ValueError(f"Unsupported expression: {expr}")
+
     parsed_expr = sympy.parse_expr(expression)
 
-    # get the symbols in the expression
-    symbols_in_expr = list(parsed_expr.free_symbols)
-    symbols_in_expr = [str(symbol) for symbol in symbols_in_expr]
-
-    # create a function from the expression
-    func = sympy.lambdify(symbols_in_expr, parsed_expr)
-
-    # calculate the result using the DataFrame columns
-    index = func(*[df[symbol] for symbol in symbols_in_expr])
-
-    return index
+    return eval_expr(parsed_expr)
 
 
 @pytest.mark.recommendation
@@ -211,7 +244,9 @@ class TestRecommendationBase(ABC):
 
         # Remove invalid combinations
         if invalid_combinations:
-            idx_invalid = create_index_from_logical_expression(df, invalid_combinations)
+            idx_invalid = combine_dataframe_via_logical_expression(
+                df, invalid_combinations
+            )
             df = df[~idx_invalid].copy()
 
         # return df.iloc[1675:1676]
@@ -473,7 +508,9 @@ class TestRecommendationBase(ABC):
         criteria.loc[idx_static, "end_datetime"] = observation_window.end
 
         df = self.expand_dataframe_by_date(
-            criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
+            criteria[
+                ["person_id", "concept", "start_datetime", "end_datetime", "type"]
+            ],
             observation_window=observation_window,
         )
 
@@ -485,25 +522,52 @@ class TestRecommendationBase(ABC):
                     "start_datetime": visit_datetime.start,
                     "end_datetime": visit_datetime.end,
                     "concept": "BASE",
+                    "type": "visit",
                 }
             ),
             observation_window,
         )
 
-        df.loc[:, [c for c in unique_criteria if c not in df.columns]] = False
+        for c in unique_criteria:
+            if c not in df.columns:
+                df[c] = MISSING_DATA_TYPE[getattr(parameter, "COVID19").type]
 
         for group_name, group in population_intervention.items():
-            df[f"p_{group_name}"] = create_index_from_logical_expression(
+            df[f"p_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["population"])
             )
-            df[f"i_{group_name}"] = create_index_from_logical_expression(
+            df[f"i_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["intervention"])
             )
-            df[f"p_i_{group_name}"] = df[f"p_{group_name}"] & df[f"i_{group_name}"]
+            # P&I is handled differently than the usual intersection priority order of IntervalType, which is
+            # NEGATIVE > POSITIVE > NO_DATA > NOT_APPLICABLE, => POSITIVE & NO_DATA = POSITIVE
+            # Here, we need: NEGATIVE > NO_DATA > POSITIVE > NOT_APPLICABLE, so that POSITIVE & NO_DATA = NO_DATA
+            with IntervalType.custom_intersection_priority_order(
+                order=[
+                    IntervalType.NEGATIVE,
+                    IntervalType.NO_DATA,
+                    IntervalType.POSITIVE,
+                    IntervalType.NOT_APPLICABLE,
+                ]
+            ):
+                df[f"p_i_{group_name}"] = elementwise_and(
+                    df[f"p_{group_name}"], df[f"i_{group_name}"]
+                )
 
-        df["p"] = df[[c for c in df.columns if c.startswith("p_")]].any(axis=1)
-        df["i"] = df[[c for c in df.columns if c.startswith("i_")]].any(axis=1)
-        df["p_i"] = df[[c for c in df.columns if c.startswith("p_i_")]].any(axis=1)
+        df["p"] = reduce(
+            elementwise_or,
+            [
+                df[c]
+                for c in df.columns
+                if c.startswith("p_") and not c.startswith("p_i_")
+            ],
+        )
+        df["i"] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c.startswith("i_")]
+        )
+        df["p_i"] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c.startswith("p_i_")]
+        )
 
         assert len(df_base) == len(df)
 
@@ -511,7 +575,9 @@ class TestRecommendationBase(ABC):
         # criterion is valid
         df = pd.merge(df_base, df, on=["person_id", "date"], how="left", validate="1:1")
         df = df.set_index(["person_id", "date"])
-        df = df.apply(lambda x: x & df["BASE"])
+        df = df.apply(
+            lambda x: elementwise_mask(x, df["BASE"], fill_value=IntervalType.NEGATIVE)
+        )
         df = df.drop(columns="BASE")
 
         return df.reset_index()
@@ -528,6 +594,15 @@ class TestRecommendationBase(ABC):
 
         # Set end_datetime equal to start_datetime if it's NaT
         df["end_datetime"].fillna(df["start_datetime"], inplace=True)
+
+        types = (
+            df[["concept", "type"]]
+            .drop_duplicates()
+            .set_index("concept")["type"]
+            .to_dict()
+        )
+
+        type_missing_data = {k: MISSING_DATA_TYPE[v] for k, v in types.items()}
 
         # Create a new dataframe with one row for each date (ignoring time) between start_datetime and end_datetime
         df_expanded = pd.concat(
@@ -564,7 +639,8 @@ class TestRecommendationBase(ABC):
             lambda x: x > 0
         )
 
-        # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date and observation_end_date
+        # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date
+        # and observation_end_date
         unique_person_ids = df["person_id"].unique()
         date_range = pd.date_range(
             observation_window.start.date(), observation_window.end.date(), freq="D"
@@ -583,6 +659,13 @@ class TestRecommendationBase(ABC):
         merged_df[merged_df.columns[2:]] = merged_df[merged_df.columns[2:]].fillna(
             False
         )
+
+        # Fill missing values with the missing data type
+        for column in merged_df.columns[2:]:
+            idx = merged_df[column]
+            merged_df[column] = merged_df[column].astype(object)
+            merged_df.loc[~idx, column] = type_missing_data[column]
+            merged_df.loc[idx, column] = IntervalType.POSITIVE
 
         return merged_df
 
