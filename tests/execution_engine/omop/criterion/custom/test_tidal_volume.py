@@ -10,6 +10,8 @@ from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 from tests.functions import create_measurement
 
+# todo: add a test for mulitple heights --> only the latest one should be used
+
 
 class TestTidalVolumePerIdealBodyWeight(TestCriterion):
     @pytest.fixture
