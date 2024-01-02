@@ -47,9 +47,23 @@ class IntervalType(StrEnum):
     """
 
     POSITIVE = "POSITIVE"
+    """Indicates that the criterion/combination of criteria associated with the interval is/are satisfied."""
+
     NEGATIVE = "NEGATIVE"
+    """Indicates that the criterion/combination of criteria associated with the interval is/are not satisfied."""
+
     NO_DATA = "NO_DATA"
+    """
+    Indicates that there is no data available to determine whether the criterion/combination of criteria associated
+    with the interval is/are satisfied.
+    """
+
     NOT_APPLICABLE = "NOT_APPLICABLE"
+    """
+    Indicates that the criterion/combination of criteria associated with the interval is/are not applicable.
+    Currently only used for the POPULATION_INTERVENTION combination, where this is the result if the population
+    criterion/combination of criteria is/are not satisfied.
+    """
 
     def __repr__(self) -> str:
         """
@@ -86,7 +100,13 @@ class IntervalType(StrEnum):
         """
         Return the priority order for intersection starting with the highest priority.
         """
-        return [cls.NEGATIVE, cls.NO_DATA, cls.POSITIVE, cls.NOT_APPLICABLE]
+        # POSITIVE has higher priority than NO_DATA, as in measurements we return NO_DATA intervals for all intervals
+        # inbetween measurements (and outside of), and these are &-ed with the POSITIVE intervals for e.g. conditions.
+        # todo: previously, NO_DATA was higher priority than POSITIVE - why?
+        #    --> because in POPULATION_INTERVENTION, when the POPULATION is POSITIVE but the INTERVENTION is
+        #        NO_DATA, the result _should_ be NO_DATA (but is currently POSITIVE) -- the logic needs to be adjusted
+        #        at the LeftDependentTrigger level (i.e. different priority orders for different operators!)
+        return [cls.NEGATIVE, cls.POSITIVE, cls.NO_DATA, cls.NOT_APPLICABLE]
 
     @classmethod
     def least_intersection_priority(cls) -> "IntervalType":
