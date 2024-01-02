@@ -305,7 +305,7 @@ class Task:
         right dependency according to the following rules:
 
         - If P is NEGATIVE or NO_DATA, the result is NOT_APPLICABLE (NO_DATA: because we cannot decide whether the
-            recommendationis applicable or not).
+            recommendation is applicable or not).
         - If P is POSITIVE, the result is:
             - POSITIVE if I is POSITIVE
             - NEGATIVE if I is NEGATIVE
@@ -346,10 +346,22 @@ class Task:
             interval_type=IntervalType.NOT_APPLICABLE,
         )
 
-        # P and I --> POSITIVE
-        result_p_and_i = process.intersect_intervals([data_p, right])
+        # P&I is handled differently than the usual intersection priority order of IntervalType, which is
+        # NEGATIVE > POSITIVE > NO_DATA > NOT_APPLICABLE, => POSITIVE & NO_DATA = POSITIVE
+        # Here, we need: NEGATIVE > NO_DATA > POSITIVE > NOT_APPLICABLE, so that POSITIVE & NO_DATA = NO_DATA
+        # So we split I into NO_DATA and the rest and intersect P with NO_DATA and the rest separately.
+        idx_i_nodata = right["interval_type"] == IntervalType.NO_DATA
+        data_i_nodata = right[idx_i_nodata]
+        data_i_rest = right[~idx_i_nodata]
 
-        result = process.concat_dfs([result_not_p, result_p_and_i])
+        result_p_and_i_nodata = process.intersect_intervals(
+            [data_p, data_i_nodata]
+        ).assign(interval_type=IntervalType.NO_DATA)
+        result_p_and_i_rest = process.intersect_intervals([data_p, data_i_rest])
+
+        result = process.concat_dfs(
+            [result_not_p, result_p_and_i_nodata, result_p_and_i_rest]
+        )
 
         # fill remaining time with NEGATIVE
         result_no_data = process.complementary_intervals(
