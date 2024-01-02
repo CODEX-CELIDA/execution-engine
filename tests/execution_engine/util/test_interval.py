@@ -362,8 +362,122 @@ class TestInterval:
 
 
 class TestIntervalType:
-    def test_invert_interval_type(self):
+    def test_repr(self):
+        assert repr(IntervalType.POSITIVE) == "POSITIVE"
+
+    def test_str(self):
+        assert str(IntervalType.NEGATIVE) == "NEGATIVE"
+
+    def test_invert(self):
         assert ~IntervalType.POSITIVE == IntervalType.NEGATIVE
         assert ~IntervalType.NEGATIVE == IntervalType.POSITIVE
         assert ~IntervalType.NO_DATA == IntervalType.NO_DATA
         assert ~IntervalType.NOT_APPLICABLE == IntervalType.NOT_APPLICABLE
+
+        assert ~~IntervalType.POSITIVE == IntervalType.POSITIVE
+        assert ~~IntervalType.NEGATIVE == IntervalType.NEGATIVE
+        assert ~~IntervalType.NO_DATA == IntervalType.NO_DATA
+        assert ~~IntervalType.NOT_APPLICABLE == IntervalType.NOT_APPLICABLE
+
+    def test_union_priority(self):
+        assert IntervalType.union_priority() == [
+            IntervalType.POSITIVE,
+            IntervalType.NO_DATA,
+            IntervalType.NOT_APPLICABLE,
+            IntervalType.NEGATIVE,
+        ]
+
+    def test_intersection_priority(self):
+        assert IntervalType.intersection_priority() == [
+            IntervalType.NEGATIVE,
+            IntervalType.POSITIVE,
+            IntervalType.NO_DATA,
+            IntervalType.NOT_APPLICABLE,
+        ]
+
+    def test_least_intersection_priority(self):
+        assert IntervalType.least_intersection_priority() == IntervalType.NOT_APPLICABLE
+
+    def test_custom_union_priority_order(self):
+        with IntervalType.custom_union_priority_order(
+            [
+                IntervalType.NEGATIVE,
+                IntervalType.POSITIVE,
+                IntervalType.NO_DATA,
+                IntervalType.NOT_APPLICABLE,
+            ]
+        ):
+            assert IntervalType.union_priority() == [
+                IntervalType.NEGATIVE,
+                IntervalType.POSITIVE,
+                IntervalType.NO_DATA,
+                IntervalType.NOT_APPLICABLE,
+            ]
+        assert IntervalType.union_priority() == [
+            IntervalType.POSITIVE,
+            IntervalType.NO_DATA,
+            IntervalType.NOT_APPLICABLE,
+            IntervalType.NEGATIVE,
+        ]
+
+    def test_custom_intersection_priority_order(self):
+        with IntervalType.custom_intersection_priority_order(
+            [
+                IntervalType.POSITIVE,
+                IntervalType.NEGATIVE,
+                IntervalType.NO_DATA,
+                IntervalType.NOT_APPLICABLE,
+            ]
+        ):
+            assert IntervalType.intersection_priority() == [
+                IntervalType.POSITIVE,
+                IntervalType.NEGATIVE,
+                IntervalType.NO_DATA,
+                IntervalType.NOT_APPLICABLE,
+            ]
+        assert IntervalType.intersection_priority() == [
+            IntervalType.NEGATIVE,
+            IntervalType.POSITIVE,
+            IntervalType.NO_DATA,
+            IntervalType.NOT_APPLICABLE,
+        ]
+
+    def test_custom_union_priority_order_exception(self):
+        with pytest.raises(ValueError):
+            with IntervalType.custom_union_priority_order(
+                [IntervalType.POSITIVE, "INVALID"]
+            ):
+                pass
+
+    def test_custom_intersection_priority_order_exception(self):
+        with pytest.raises(ValueError):
+            with IntervalType.custom_intersection_priority_order(
+                [IntervalType.POSITIVE, "INVALID"]
+            ):
+                pass
+
+    def test_custom_invert_map(self):
+        test_map = {
+            IntervalType.POSITIVE: IntervalType.NO_DATA,
+            IntervalType.NEGATIVE: IntervalType.NOT_APPLICABLE,
+            IntervalType.NO_DATA: IntervalType.POSITIVE,
+            IntervalType.NOT_APPLICABLE: IntervalType.NEGATIVE,
+        }
+
+        with IntervalType.custom_invert_map(test_map):
+            assert ~IntervalType.POSITIVE == IntervalType.NO_DATA
+            assert ~IntervalType.NEGATIVE == IntervalType.NOT_APPLICABLE
+            assert ~IntervalType.NO_DATA == IntervalType.POSITIVE
+            assert ~IntervalType.NOT_APPLICABLE == IntervalType.NEGATIVE
+
+        # Test that the map is restored
+        self.test_invert()
+
+    def test_custom_invert_map_exception(self):
+        with pytest.raises(ValueError):
+            with IntervalType.custom_invert_map({IntervalType.POSITIVE: "INVALID"}):
+                pass
+
+        with pytest.raises(ValueError):
+            with IntervalType.custom_invert_map({"INVALID": IntervalType.NEGATIVE}):
+                pass

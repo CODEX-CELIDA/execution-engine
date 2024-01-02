@@ -1,8 +1,9 @@
 import datetime
 import warnings
 from collections import namedtuple
+from contextlib import contextmanager
 from enum import StrEnum
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Any, Generic, Iterator, Protocol, TypeVar, cast
 
 from portion import CLOSED, Interval
 from portion.const import Bound, inf
@@ -65,6 +66,20 @@ class IntervalType(StrEnum):
     criterion/combination of criteria is/are not satisfied.
     """
 
+    __union_priority_order: list[str] = [POSITIVE, NO_DATA, NOT_APPLICABLE, NEGATIVE]
+    __intersection_priority_order: list[str] = [
+        NEGATIVE,
+        POSITIVE,
+        NO_DATA,
+        NOT_APPLICABLE,
+    ]
+    __invert_map: dict[str, str] = {
+        POSITIVE: NEGATIVE,
+        NEGATIVE: POSITIVE,
+        NO_DATA: NO_DATA,
+        NOT_APPLICABLE: NOT_APPLICABLE,
+    }
+
     def __repr__(self) -> str:
         """
         Get the string representation of the category.
@@ -81,19 +96,14 @@ class IntervalType(StrEnum):
         """
         Get the complement of the interval type.
         """
-        if self == self.POSITIVE:
-            return self.NEGATIVE  # type: ignore # mypy doesn't like self.NEGATIVE ("Never has no attribute 'NEGATIVE'")
-        if self == self.NEGATIVE:
-            return self.POSITIVE  # type: ignore # mypy doesn't like self.POSITIVE ("Never has no attribute 'POSITIVE'")
-        # NO_DATA and NOT_APPLICABLE are self-inverting
-        return self
+        return self.__class__(self.__invert_map[self])
 
     @classmethod
     def union_priority(cls) -> list["IntervalType"]:  # OR |
         """
         Return the priority order for union starting with the highest priority.
         """
-        return [cls.POSITIVE, cls.NO_DATA, cls.NOT_APPLICABLE, cls.NEGATIVE]
+        return [cls(member) for member in cls.__union_priority_order]
 
     @classmethod
     def intersection_priority(cls) -> list["IntervalType"]:  # AND &
@@ -106,7 +116,7 @@ class IntervalType(StrEnum):
         #    --> because in POPULATION_INTERVENTION, when the POPULATION is POSITIVE but the INTERVENTION is
         #        NO_DATA, the result _should_ be NO_DATA (but is currently POSITIVE) -- the logic needs to be adjusted
         #        at the LeftDependentTrigger level (i.e. different priority orders for different operators!)
-        return [cls.NEGATIVE, cls.POSITIVE, cls.NO_DATA, cls.NOT_APPLICABLE]
+        return [cls(member) for member in cls.__intersection_priority_order]
 
     @classmethod
     def least_intersection_priority(cls) -> "IntervalType":
@@ -114,6 +124,74 @@ class IntervalType(StrEnum):
         Return the least type that can be returned by an intersection.
         """
         return cls.intersection_priority()[-1]
+
+    @classmethod
+    @contextmanager
+    def custom_union_priority_order(cls, order: list["IntervalType"]) -> Iterator:
+        """
+        Temporarily set the priority order for union.
+
+        :param order: the priority order for union.
+        """
+        if set(order) != {member for member in cls}:
+            raise ValueError(
+                "All elements of 'order' must be IntervalType enum members."
+            )
+
+        original_order = cls.__union_priority_order
+        cls.__union_priority_order = [member.value for member in order]
+        try:
+            yield
+        finally:
+            cls.__union_priority_order = cast(list[str], original_order)
+
+    @classmethod
+    @contextmanager
+    def custom_intersection_priority_order(
+        cls, order: list["IntervalType"]
+    ) -> Iterator:
+        """
+        Temporarily set the priority order for intersection.
+
+        :param order: the priority order for intersection.
+        """
+        if set(order) != {member.value for member in cls}:
+            raise ValueError(
+                "All elements of 'order' must be IntervalType enum members."
+            )
+
+        original_order = cls.__intersection_priority_order
+        cls.__intersection_priority_order = [member.value for member in order]
+        try:
+            yield
+        finally:
+            cls.__intersection_priority_order = cast(list[str], original_order)
+
+    @classmethod
+    @contextmanager
+    def custom_invert_map(
+        cls, invert_map: dict["IntervalType", "IntervalType"]
+    ) -> Iterator:
+        """
+        Temporarily set the invert map.
+
+        :param invert_map: the invert map.
+        """
+        if set(invert_map.keys()) != {member.value for member in cls}:
+            raise ValueError(
+                "All keys of 'invert_map' must be IntervalType enum members."
+            )
+        if set(invert_map.values()) != {member.value for member in cls}:
+            raise ValueError(
+                "All values of 'invert_map' must be IntervalType enum members."
+            )
+
+        original_map = cls.__invert_map
+        cls.__invert_map = {key.value: value.value for key, value in invert_map.items()}
+        try:
+            yield
+        finally:
+            cls.__invert_map = cast(dict[str, str], original_map)
 
 
 Atomic = namedtuple("Atomic", ["left", "lower", "upper", "right", "type"])

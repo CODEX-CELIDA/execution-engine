@@ -349,19 +349,17 @@ class Task:
         # P&I is handled differently than the usual intersection priority order of IntervalType, which is
         # NEGATIVE > POSITIVE > NO_DATA > NOT_APPLICABLE, => POSITIVE & NO_DATA = POSITIVE
         # Here, we need: NEGATIVE > NO_DATA > POSITIVE > NOT_APPLICABLE, so that POSITIVE & NO_DATA = NO_DATA
-        # So we split I into NO_DATA and the rest and intersect P with NO_DATA and the rest separately.
-        idx_i_nodata = right["interval_type"] == IntervalType.NO_DATA
-        data_i_nodata = right[idx_i_nodata]
-        data_i_rest = right[~idx_i_nodata]
+        with IntervalType.custom_intersection_priority_order(
+            order=[
+                IntervalType.NEGATIVE,
+                IntervalType.NO_DATA,
+                IntervalType.POSITIVE,
+                IntervalType.NOT_APPLICABLE,
+            ]
+        ):
+            result_p_and_i = process.intersect_intervals([data_p, right])
 
-        result_p_and_i_nodata = process.intersect_intervals(
-            [data_p, data_i_nodata]
-        ).assign(interval_type=IntervalType.NO_DATA)
-        result_p_and_i_rest = process.intersect_intervals([data_p, data_i_rest])
-
-        result = process.concat_dfs(
-            [result_not_p, result_p_and_i_nodata, result_p_and_i_rest]
-        )
+        result = process.concat_dfs([result_not_p, result_p_and_i])
 
         # fill remaining time with NEGATIVE
         result_no_data = process.complementary_intervals(
