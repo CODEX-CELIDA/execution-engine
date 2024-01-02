@@ -22,6 +22,7 @@ from execution_engine.omop.db.celida.triggers import (
     create_trigger_interval_overlap_check_sql,
     trigger_interval_overlap_check_function_sql,
 )
+from execution_engine.omop.db.omop import SCHEMA_NAME as OMOP_SCHEMA_NAME
 from execution_engine.util.interval import IntervalType
 
 IntervalTypeEnum = Enum(IntervalType, name="interval_type", schema=SCHEMA_NAME)
@@ -147,7 +148,7 @@ class ResultInterval(Base):  # noqa: D101
     )
     cohort_category = mapped_column(CohortCategoryEnum)
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{OMOP_SCHEMA_NAME}.person.person_id"), index=True
     )
     interval_start: Mapped[datetime]
     interval_end: Mapped[datetime]
@@ -206,7 +207,7 @@ class Comment(Base):  # noqa: D101
     )
 
     person_id: Mapped[int] = mapped_column(
-        ForeignKey("cds_cdm.person.person_id"), index=True
+        ForeignKey(f"{OMOP_SCHEMA_NAME}.person.person_id"), index=True
     )
 
     text: Mapped[str]
