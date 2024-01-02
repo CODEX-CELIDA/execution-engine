@@ -59,3 +59,11 @@ class OMOPConcepts(Enum):
     GENDER_MALE = 8507
     TIDAL_VOLUME_ON_VENTILATOR = 21490854
     ALLERGY = 43021170
+    UNIT_ML_PER_KG = 9571
+    UNIT_KG = 9529
+
+    def __str__(self) -> str:
+        """
+        Get the string representation of the concept.
+        """
+        return str(self.value)

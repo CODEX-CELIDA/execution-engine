@@ -8,6 +8,8 @@ from typing import Any, Dict, Type, TypedDict, cast
 import pandas as pd
 import sqlalchemy
 from sqlalchemy import (
+    CTE,
+    Alias,
     ColumnElement,
     Date,
     Table,
@@ -389,6 +391,7 @@ class Criterion(AbstractCriterion):
         """
         raise NotImplementedError()
 
+    # todo: remove me
     def DEPRECATEDsql_generate(self, base_table: TableClause) -> Select:
         """
         Get the SQL representation of the criterion.
@@ -420,9 +423,16 @@ class Criterion(AbstractCriterion):
         raise NotImplementedError("implement me - we are not using base table anymore")
 
     def _get_datetime_column(
-        self, table: TableClause, type_: str = "start"
+        self, table: TableClause | CTE | Alias, type_: str = "start"
     ) -> sqlalchemy.Column:
-        table_name = table.original.name
+        table_element = table.element if isinstance(table, Alias) else table
+
+        if isinstance(table_element, CTE):
+            table = table.element
+        elif isinstance(table_element, Table):
+            table_name = table_element.name
+        else:
+            raise ValueError("table must be a Table or CTE")
 
         candidate_prefixes = [
             f"{self._OMOP_COLUMN_PREFIX}_{type_}",
