@@ -12,7 +12,7 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.vocabulary import standard_vocabulary
-from execution_engine.util import Value, ValueConcept, ValueNumber
+from execution_engine.util.value import Value, ValueConcept, ValueNumber
 
 
 @staticmethod

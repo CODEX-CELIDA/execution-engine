@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import Any, Dict
 
 from sqlalchemy.sql import Select
@@ -5,7 +6,8 @@ from sqlalchemy.sql import Select
 from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.util import Value, value_factory
+from execution_engine.util.types import Timing
+from execution_engine.util.value import Value, value_factory
 
 __all__ = ["ConceptCriterion"]
 
@@ -19,7 +21,7 @@ STATIC_CLINICAL_CONCEPTS = [int(OMOPConcepts.BODY_WEIGHT.value)]  # type: list[i
 # TODO: Only use weight etc from the current encounter/visit!
 
 
-class ConceptCriterion(Criterion):
+class ConceptCriterion(Criterion, ABC):
     """
     Abstract class for a criterion based on an OMOP concept and optional value.
 
@@ -37,12 +39,14 @@ class ConceptCriterion(Criterion):
         concept: Concept,
         value: Value | None = None,
         static: bool | None = None,
+        timing: Timing | None = None,
     ):
         super().__init__(name=name, exclude=exclude, category=category)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
         self._value = value
+        self._timing = timing
 
         # static is a boolean that indicates whether the criterion is static or not
         # it is initially set by the _set_omop_variables_from_domain() function, but can be overridden
@@ -115,6 +119,7 @@ class ConceptCriterion(Criterion):
             "concept": self._concept.dict(),
             "value": self._value.dict() if self._value is not None else None,
             "static": self._static,
+            "timing": self._timing.dict() if self._timing is not None else None,
         }
 
     @classmethod
@@ -130,4 +135,5 @@ class ConceptCriterion(Criterion):
             concept=Concept(**data["concept"]),
             value=value_factory(**data["value"]) if data["value"] is not None else None,
             static=data["static"],
+            timing=Timing(**data["timing"]) if data["timing"] is not None else None,
         )

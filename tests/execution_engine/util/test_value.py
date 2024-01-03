@@ -3,9 +3,13 @@ from pydantic import ValidationError
 from sqlalchemy import Column, ColumnClause, MetaData, Table
 
 from execution_engine.omop.concepts import Concept
-from execution_engine.util import (
+from execution_engine.util.enum import TimeUnit
+from execution_engine.util.value import (
     ValueConcept,
+    ValueDuration,
+    ValueFrequency,
     ValueNumber,
+    ValuePeriod,
     get_precision,
     value_factory,
 )
@@ -285,7 +289,7 @@ class TestValueConcept:
     def test_str(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
         assert (
-            str(value_concept)
+            repr(value_concept)
             == 'Value == OMOP Concept: "Test Concept" (1) [test#unit]'
         )
 
@@ -359,3 +363,90 @@ class TestValueFactory:
 
         with pytest.raises(ValueError, match="Unknown value class UnknownClass"):
             value_factory("UnknownClass", data)
+
+
+class TestValuePeriod:
+    def test_non_negative_value(self):
+        vp = ValuePeriod(unit=TimeUnit.DAY, value=4)
+        assert vp.value == 4
+
+    def test_negative_value_raises_error(self):
+        with pytest.raises(ValueError):
+            ValuePeriod(unit=TimeUnit.DAY, value=-1)
+
+    def test_non_int_value_raises_error(self):
+        with pytest.raises(ValidationError):
+            ValuePeriod(unit=TimeUnit.DAY, value=1.5)
+
+    def test_validator_not_allows_none(self):
+        with pytest.raises(ValidationError):
+            ValuePeriod(unit=TimeUnit.HOUR)
+
+    def test_validator_disallows_value_min(self):
+        with pytest.raises(ValidationError):
+            ValuePeriod(unit=TimeUnit.HOUR, value_min=5)
+
+    def test_validator_disallows_value_max(self):
+        with pytest.raises(ValidationError):
+            ValuePeriod(unit=TimeUnit.HOUR, value_max=10)
+
+    def test_value_min_max_validation(self):
+        with pytest.raises(ValueError):
+            ValuePeriod(unit=TimeUnit.DAY, value_min=2, value_max=5)
+
+    def test_normal_value(self):
+        vtf = ValuePeriod(unit=TimeUnit.DAY, value=3)
+        assert vtf.value == 3
+        assert vtf.unit == TimeUnit.DAY
+
+
+class TestValueDuration:
+    def test_float_value_handling(self):
+        vd = ValueDuration(unit=TimeUnit.HOUR, value=2.5)
+        assert vd.value == 2.5
+        assert vd.unit == TimeUnit.HOUR
+
+    def test_str_with_value(self):
+        # Assuming TimeUnit is defined and has a member 'HOUR'
+        vt = ValueDuration(unit=TimeUnit.HOUR, value=10)
+        assert str(vt) == "Value == 10.0 HOUR"
+
+    def test_str_with_value_min_max(self):
+        vt = ValueDuration(unit=TimeUnit.HOUR, value_min=5, value_max=15)
+        assert str(vt) == "5.0 <= Value <= 15.0 HOUR"
+
+    def test_str_with_value_min(self):
+        vt = ValueDuration(unit=TimeUnit.HOUR, value_min=5)
+        assert str(vt) == "Value >= 5.0 HOUR"
+
+    def test_str_with_value_max(self):
+        vt = ValueDuration(unit=TimeUnit.HOUR, value_max=15)
+        assert str(vt) == "Value <= 15.0 HOUR"
+
+    def test_str_value_not_set(self):
+        with pytest.raises(ValidationError):
+            ValueDuration(unit=TimeUnit.HOUR)
+
+    def test_parse_greater_than_or_equal(self):
+        vt = ValueDuration.parse(">=5", TimeUnit.DAY)
+        assert vt.value_min == 5
+        assert vt.unit == TimeUnit.DAY
+
+
+class TestValueFrequency:
+    def test_no_unit(self):
+        vf = ValueFrequency(value=3)
+        assert vf.value == 3
+        assert vf.unit is None
+
+    def test_non_negative_integer(self):
+        vf = ValueFrequency(value=5)
+        assert vf.value == 5
+
+    def test_negative_value_raises_error(self):
+        with pytest.raises(ValueError):
+            ValueFrequency(value=-1)
+
+    def test_unit_raises_error(self):
+        with pytest.raises(ValueError):
+            ValueFrequency(value=5, unit=TimeUnit.HOUR)

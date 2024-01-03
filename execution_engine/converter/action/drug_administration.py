@@ -21,7 +21,8 @@ from execution_engine.omop.vocabulary import (
     VocabularyFactory,
     standard_vocabulary,
 )
-from execution_engine.util import TimeUnit, Value, ValueNumber
+from execution_engine.util.enum import TimeUnit
+from execution_engine.util.value import Value, ValueNumber
 
 
 class ExtensionType(TypedDict):

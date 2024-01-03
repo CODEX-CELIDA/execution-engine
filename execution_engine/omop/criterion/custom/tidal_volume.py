@@ -17,7 +17,7 @@ from sqlalchemy.sql import Select
 import execution_engine.omop.db.omop.tables as omop_tables
 from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
-from execution_engine.util import ValueNumber
+from execution_engine.util.value import ValueNumber
 
 __all__ = ["TidalVolumePerIdealBodyWeight"]
 

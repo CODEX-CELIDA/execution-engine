@@ -25,8 +25,10 @@ from execution_engine.task import (  # noqa: F401     -- required for the mock.p
     runner,
     task,
 )
-from execution_engine.util import TimeRange, ValueConcept, ValueNumber, cohort_logic
+from execution_engine.util import cohort_logic
 from execution_engine.util.db import add_result_insert
+from execution_engine.util.types import TimeRange
+from execution_engine.util.value import ValueConcept, ValueNumber
 from tests._testdata import concepts
 from tests.functions import create_visit
 

@@ -5,7 +5,9 @@ import pytest
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.util import Dosage, TimeUnit, ValueNumber
+from execution_engine.util.enum import TimeUnit
+from execution_engine.util.types import Dosage
+from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_enoxparin,
     concept_heparin_ingredient,

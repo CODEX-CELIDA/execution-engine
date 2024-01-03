@@ -8,7 +8,8 @@ from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
-from execution_engine.util import TimeRange, ValueNumber
+from execution_engine.util.types import TimeRange
+from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
     concept_covid19,
