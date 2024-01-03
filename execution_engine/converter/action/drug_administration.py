@@ -1,5 +1,5 @@
 import logging
-from typing import Self, Tuple, TypedDict, cast
+from typing import Self, TypedDict, cast
 
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
@@ -100,7 +100,6 @@ class DrugAdministrationAction(AbstractAction):
             ]  # dosage is bound to 0..1 by drug-administration-action profile
             dose = cls.process_dosage(dosage)
             route = cls.process_route(dosage)
-            frequency, interval = cls.process_timing(dosage)
 
             extensions = cls.process_dosage_extensions(dosage)
 
@@ -109,8 +108,6 @@ class DrugAdministrationAction(AbstractAction):
                 exclude=exclude,
                 ingredient_concept=ingredient,
                 dose=dose,
-                frequency=frequency,
-                interval=interval,
                 route=route,
                 extensions=extensions,
             )
@@ -177,7 +174,7 @@ class DrugAdministrationAction(AbstractAction):
             0
         ]  # todo: should iterate over doseAndRate (could have multiple)
 
-        value = cast(ValueNumber, parse_value(dose_and_rate, value_prefix="dose"))
+        dose = cast(ValueNumber, parse_value(dose_and_rate, value_prefix="dose"))
 
         if (
             dose_and_rate.rateRatio is not None
@@ -186,7 +183,9 @@ class DrugAdministrationAction(AbstractAction):
         ):
             raise NotImplementedError("dosage rates have not been implemented yet")
 
-        return value
+        timing = cls.process_timing(dosage.timing)
+
+        return Dosage(dose=dose, **timing.dict())
 
     @classmethod
     def process_dosage_extensions(cls, dosage: Dosage) -> list[ExtensionType]:
@@ -236,23 +235,6 @@ class DrugAdministrationAction(AbstractAction):
         return parse_code(dosage.route)
 
     @classmethod
-    def process_timing(cls, dosage: Dosage) -> Tuple[int, TimeUnit]:
-        """
-        Returns the frequency and interval of the dosage.
-        """
-        timing = dosage.timing
-        frequency = timing.repeat.frequency
-        period = timing.repeat.interval
-        interval = TimeUnit(timing.repeat.periodUnit)
-
-        if period != 1:
-            raise NotImplementedError(
-                "Periods other than 1 have not yet been implemented"
-            )
-
-        return frequency, interval
-
-    @classmethod
     def filter_same_unit(cls, df: pd.DataFrame, unit: Concept) -> pd.DataFrame:
         """
         Filters the given dataframe to only include rows with the given unit.
@@ -296,8 +278,6 @@ class DrugAdministrationAction(AbstractAction):
             category=CohortCategory.INTERVENTION,
             ingredient_concept=self._ingredient_concept,
             dose=self._dose,
-            frequency=self._frequency,
-            interval=self._interval,
             route=self._route,
         )
 

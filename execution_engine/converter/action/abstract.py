@@ -1,8 +1,10 @@
 from abc import abstractmethod
 from typing import Self, Type, final
 
+from fhir.resources.timing import Timing as FHIRTiming
+
 from execution_engine.constants import CohortCategory
-from execution_engine.converter.converter import CriterionConverter
+from execution_engine.converter.converter import CriterionConverter, parse_code
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.fhir.util import get_coding
@@ -10,6 +12,8 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.vocabulary import AbstractVocabulary
 from execution_engine.util import AbstractPrivateMethods
+from execution_engine.util.types import Timing
+from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 
 
 class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
@@ -56,6 +60,60 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
         return (
             cls._concept_vocabulary.is_system(cc.system)
             and cc.code == cls._concept_code
+        )
+
+    @classmethod
+    def process_timing(cls, timing: FHIRTiming) -> Timing:
+        """
+        Returns the frequency and interval of the dosage.
+        """
+
+        rep = timing.repeat
+
+        if rep is None:
+            code = parse_code(timing.code)
+            raise NotImplementedError(
+                f"Timing without repeat has not been implemented (code={code})"
+            )
+
+        # Process COUNT
+        if rep.boundsPeriod is not None or rep.boundsDuration is not None:
+            raise NotImplementedError(
+                "Timing with boundsPeriod or boundsDuration has not been implemented"
+            )
+
+        if rep.boundsRange is not None and rep.count is not None:
+            raise NotImplementedError("Must either use boundsRange or count, not both")
+
+        if rep.boundsRange is not None:
+            count = ValueCount(
+                value_min=rep.boundsRange.low.value,
+                value_max=rep.boundsRange.high.value,
+            )
+        elif rep.count is not None:
+            count = ValueCount(value=rep.count)
+
+        # Process DURATION
+        if rep.durationMax is not None:
+            duration = ValueDuration(
+                value_min=rep.duration, value_max=rep.durationMax, unit=rep.durationUnit
+            )
+        else:
+            duration = ValueDuration(value=rep.duration, unit=rep.durationUnit)
+
+        # Process FREQUENCY
+        if rep.frequencyMax is not None:
+            frequency = ValueCount(value_min=rep.frequency, value_max=rep.frequencyMax)
+        else:
+            frequency = ValueCount(value=rep.frequency, value_max=rep.frequencyMax)
+
+        # Process INTERVAL
+        if rep.periodMax is not None:
+            raise NotImplementedError("periodMax has not been implemented")
+        interval = ValuePeriod(value=rep.period, unit=rep.periodUnit)
+
+        return Timing(
+            count=count, duration=duration, frequency=frequency, interval=interval
         )
 
     @abstractmethod

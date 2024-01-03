@@ -108,6 +108,14 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
     value_min: ValueT | None = None
     value_max: ValueT | None = None
 
+    class Config:
+        """
+        Pydantic configuration.
+        """
+
+        use_enum_values = True
+        """ Use enum values instead of names (of e.g. TimeUnit, when converting to dict). """
+
     @root_validator  # type: ignore
     def validate_value(cls, values: dict) -> dict:
         """
@@ -143,7 +151,7 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
         if self.value is not None:
             s = f"={self.value}"
         elif self.value_min is not None and self.value_max is not None:
-            s = f"between({self.value_min}, {self.value_max})"
+            s = f"=between({self.value_min}, {self.value_max})"
         elif self.value_min is not None:
             s = f">={self.value_min}"
         elif self.value_max is not None:
@@ -206,11 +214,16 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
         self,
         table: TableClause | None = None,
         column_name: str | ColumnClause = "value_as_number",
-        with_unit: bool = True,  # with_unit is required as drug doses from FHIR have a unit,
+        with_unit: bool = False,  # with_unit is required as drug doses from FHIR have a unit,
         # but the drug_exposure table not
     ) -> ColumnElement:
         """
         Get the sqlalchemy representation of the value.
+
+        :param table: The table to get the column from.
+        :param column_name: The name of the column to get.
+        :param with_unit: Whether to include the unit in the clause (as an additional WHERE AND clause).
+        :return: The sqlalchemy clause.
         """
 
         clauses = []

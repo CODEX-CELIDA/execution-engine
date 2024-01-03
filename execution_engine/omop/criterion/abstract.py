@@ -499,7 +499,7 @@ class Criterion(AbstractCriterion):
             return query
 
         if sql_value is None:
-            sql_value = self._value.to_sql(self._table)
+            sql_value = self._value.to_sql(self._table, with_unit=True)
 
         c_datetime = self._get_datetime_column(self._table, "start")
         c_date = func.date(c_datetime)

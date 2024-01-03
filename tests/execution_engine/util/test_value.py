@@ -122,7 +122,7 @@ class TestValueNumber:
     def test_to_sql(self, unit_concept, test_table):
         vn = ValueNumber(unit=unit_concept, value=5)
 
-        clauses = vn.to_sql()
+        clauses = vn.to_sql(with_unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
@@ -130,7 +130,7 @@ class TestValueNumber:
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
-        clauses = vn.to_sql()
+        clauses = vn.to_sql(with_unit=True)
         assert len(clauses.clauses) == 3
         assert (
             str(clauses)
@@ -138,7 +138,7 @@ class TestValueNumber:
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1)
-        clauses = vn.to_sql()
+        clauses = vn.to_sql(with_unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
@@ -146,7 +146,7 @@ class TestValueNumber:
         )
 
         vn = ValueNumber(unit=unit_concept, value_max=10)
-        clauses = vn.to_sql()
+        clauses = vn.to_sql(with_Unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
@@ -160,7 +160,7 @@ class TestValueNumber:
             vn.to_sql(table=test_table, column_name=ColumnClause("value_as_number"))
 
         vn = ValueNumber(unit=unit_concept, value=5)
-        clauses = vn.to_sql(table=test_table)
+        clauses = vn.to_sql(table=test_table, with_unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
@@ -168,7 +168,7 @@ class TestValueNumber:
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
-        clauses = vn.to_sql(table=test_table)
+        clauses = vn.to_sql(table=test_table, with_unit=True)
         assert len(clauses.clauses) == 3
         assert (
             str(clauses)
@@ -176,7 +176,7 @@ class TestValueNumber:
         )
 
         vn = ValueNumber(unit=unit_concept, value_min=1)
-        clauses = vn.to_sql(table=test_table)
+        clauses = vn.to_sql(table=test_table, with_unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
@@ -184,7 +184,7 @@ class TestValueNumber:
         )
 
         vn = ValueNumber(unit=unit_concept, value_max=10)
-        clauses = vn.to_sql(table=test_table)
+        clauses = vn.to_sql(table=test_table, with_unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
@@ -193,7 +193,7 @@ class TestValueNumber:
 
         vn = ValueNumber(unit=unit_concept, value=5)
         custom_column = ColumnClause("custom_column")
-        clauses = vn.to_sql(column_name=custom_column)
+        clauses = vn.to_sql(column_name=custom_column, with_unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)

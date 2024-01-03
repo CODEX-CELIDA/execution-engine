@@ -26,9 +26,7 @@ class TestDrugExposure(TestCriterion):
         def _run_drug_exposure(
             ingredient_concept: Concept,
             exclude: bool,
-            dose: ValueNumber | None,
-            frequency: int | None,
-            interval: TimeUnit | None,
+            dose: Dosage | None,
             route: Concept | None,
         ) -> pd.DataFrame:
             criterion = DrugExposure(
@@ -37,8 +35,6 @@ class TestDrugExposure(TestCriterion):
                 category=CohortCategory.POPULATION,
                 ingredient_concept=ingredient_concept,
                 dose=dose,
-                frequency=frequency,
-                interval=interval,
                 route=route,
             )
 
@@ -94,9 +90,7 @@ class TestDrugExposure(TestCriterion):
         result = execute_drug_exposure_criterion(
             ingredient_concept=concept_heparin_ingredient,
             exclude=False,
-            dose=dosage.dose,
-            frequency=dosage.frequency,
-            interval=dosage.interval,
+            dose=dosage,
             route=None,
         )
 
@@ -1336,9 +1330,7 @@ class TestDrugExposure(TestCriterion):
         result = execute_drug_exposure_criterion(
             ingredient_concept=concept_heparin_ingredient,
             exclude=False,
-            dose=dosage.dose,
-            frequency=dosage.frequency,
-            interval=dosage.interval,
+            dose=dosage,
             route=None,
         )
 

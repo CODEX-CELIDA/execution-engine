@@ -1,16 +1,6 @@
 from abc import ABCMeta
 from typing import Any
 
-ucum_to_postgres = {
-    "s": "second",
-    "min": "minute",
-    "h": "hour",
-    "d": "day",
-    "wk": "week",
-    "mo": "month",
-    "a": "year",
-}
-
 
 class AbstractPrivateMethods(ABCMeta):
     """

@@ -8,7 +8,7 @@ from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
-from execution_engine.util.types import TimeRange
+from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
@@ -68,9 +68,11 @@ class TestCriterionCombination(TestCriterion):
             exclude=False,
             category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
-            dose=ValueNumber(value=50, unit=concept_unit_mg),
-            frequency=1,
-            interval="d",
+            dose=Dosage(
+                dose=ValueNumber(value=50, unit=concept_unit_mg),
+                frequency=1,
+                interval="d",
+            ),
             route=None,
         )
 

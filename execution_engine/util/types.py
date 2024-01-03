@@ -106,6 +106,8 @@ class Timing(BaseModel):
         """
 
         validate_assignment = True
+        use_enum_values = True
+        """ Use enum values instead of names (of TimeUnit, when converting to dict. """
 
     @validator("count", "frequency", pre=True)
     def convert_to_value_count(cls, v: Any) -> ValueCount:
@@ -125,7 +127,7 @@ class Timing(BaseModel):
 
         Possible under the assumption that a single value is value, not value_min or value_max.
         """
-        if isinstance(v, TimeUnit):
+        if isinstance(v, (TimeUnit, str)):
             return ValuePeriod(value=1, unit=v)
 
         return v
@@ -145,12 +147,28 @@ class Timing(BaseModel):
 
         return values
 
-    def __repr__(self) -> str:
+    def __str_components__(self) -> list[str]:
         """
         Get the string representation of the timing.
         """
+        params = []
 
-        return f"{self.__class__.__name__}(count{self.count}, duration{self.duration}, frequency{self.frequency} per {self.interval})"
+        if self.count is not None:
+            params.append(f"count{self.count}")
+        if self.duration is not None:
+            params.append(f"duration{self.duration}")
+        if self.frequency is not None:
+            params.append(f"frequency{self.frequency} per {self.interval}")
+
+        return params
+
+    def __str__(self) -> str:
+        """
+        Get the string representation of the timing.
+        """
+        return (
+            f"{self.__class__.__name__}(" + ", ".join(self.__str_components__()) + ")"
+        )
 
 
 class Dosage(Timing):
@@ -168,3 +186,14 @@ class Dosage(Timing):
         # todo: why is this needed? Remove it or comment why it's needed.
         use_enum_values = True
         """ Use enum values instead of names. """
+
+    def __str_components__(self) -> list[str]:
+        """
+        Get the string representation of the dosage.
+        """
+        params = []
+
+        if self.dose is not None:
+            params.append(f"dose{self.dose}")
+
+        return params + super().__str_components__()

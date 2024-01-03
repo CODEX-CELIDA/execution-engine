@@ -8,6 +8,16 @@ from sqlalchemy.sql.functions import concat, func
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.value.value import Value, ValueNumeric, check_int
 
+_ucum_to_postgres = {
+    "s": "second",
+    "min": "minute",
+    "h": "hour",
+    "d": "day",
+    "wk": "week",
+    "mo": "month",
+    "a": "year",
+}
+
 
 class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
     """
@@ -33,7 +43,9 @@ class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
 
         E.g. ValuePeriod(value=1, unit=TimeUnit.DAY) corresponds to SQL "INTERVAL '1 DAY'"
         """
-        return func.cast(concat(self.value, self.unit), SQLInterval)
+        return func.cast(
+            concat(self.value, _ucum_to_postgres[str(self.unit)]), SQLInterval
+        )
 
 
 class ValueCount(ValueNumeric[NonNegativeInt, None]):

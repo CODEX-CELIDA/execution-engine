@@ -16,8 +16,12 @@ from execution_engine.omop.criterion.abstract import (
 )
 from execution_engine.omop.db.base import DateTimeWithTimeZone
 from execution_engine.omop.db.omop import tables as omop
-from execution_engine.util import IntervalType, TimeUnit, ValueNumber, value_factory
+from execution_engine.util.enum import TimeUnit
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.sql import SelectInto
+from execution_engine.util.types import Dosage
+from execution_engine.util.value import ValueNumber
+from execution_engine.util.value.factory import value_factory
 
 __all__ = ["DrugExposure"]
 
@@ -31,9 +35,7 @@ class DrugExposure(Criterion):
         exclude: bool,
         category: CohortCategory,
         ingredient_concept: Concept,
-        dose: ValueNumber | None,
-        frequency: int | None,
-        interval: TimeUnit | str | None,
+        dose: Dosage | None,
         route: Concept | None,
     ) -> None:
         """
@@ -42,20 +44,24 @@ class DrugExposure(Criterion):
         super().__init__(name=name, exclude=exclude, category=category)
         self._set_omop_variables_from_domain("drug")
         self._ingredient_concept = ingredient_concept
-        self._dose = dose
-        self._frequency = frequency
 
-        if interval is not None:
-            if isinstance(interval, str):
-                interval = TimeUnit(interval)
-            assert isinstance(interval, TimeUnit), "interval must be an Interval or str"
-        else:
-            logging.warning(
-                f"No interval specified in {self.description()}, using default 'day'"
+        if dose is None:
+            dose = Dosage(
+                dose=None,
+                count=None,
+                duration=None,
+                frequency=1,
+                interval=1 * TimeUnit.DAY,
             )
-            interval = TimeUnit.DAY
+        elif dose.frequency is None:
+            logging.warning(  # type: ignore # (statement is reachable)
+                f"No frequency specified in {self.description()}, using default 'Any / day'"
+            )
+            # set period first, otherwise validation error is triggered
+            dose.period = 1 * TimeUnit.DAY
+            dose.frequency = 1
 
-        self._interval = interval
+        self._dose = dose
         self._route = route
 
     @property
@@ -142,7 +148,7 @@ class DrugExposure(Criterion):
 
         # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
         # todo: also this uses a hard-coded "1" for the interval
-        interval = func.cast(concat(1, self._interval.name), SQLInterval)  # type: ignore
+        interval = self._dose.interval.to_sql_interval()
         interval_length_seconds = func.cast(
             func.extract("EPOCH", interval), NUMERIC
         ).label("interval_length_seconds")
@@ -251,20 +257,20 @@ class DrugExposure(Criterion):
         ).label("interval_quantity")
         c_interval_count = func.count().label("interval_count")
 
-        if self._dose is not None:
+        if self._dose.dose is not None:
             conditional_interval_column = create_conditional_interval_column(
                 condition=and_(
-                    self._dose.to_sql(column_name=c_interval_quantity, with_unit=False),
-                    c_interval_count >= self._frequency,
+                    self._dose.dose.to_sql(column_name=c_interval_quantity),
+                    self._dose.frequency.to_sql(column_name=c_interval_count),
                 )
             )
-        elif self._frequency is not None:
+        elif self._dose.frequency is not None:
             conditional_interval_column = create_conditional_interval_column(
-                condition=c_interval_count >= self._frequency
+                condition=self._dose.frequency.to_sql(column_name=c_interval_count)
             )
         else:
             # any dose and any frequency is fine
-            conditional_interval_column = column_interval_type(IntervalType.POSITIVE)
+            conditional_interval_column = column_interval_type(IntervalType.POSITIVE)  # type: ignore # (statement is reachable)
 
         query = (
             select(
@@ -313,12 +319,11 @@ class DrugExposure(Criterion):
         """
         Get a human-readable description of the criterion.
         """
-        interval = self._interval if hasattr(self, "_interval") else None
         route = self._route if hasattr(self, "_route") else None
         return (
             f"{self.__class__.__name__}['{self._name}']("
             f"ingredient={self._ingredient_concept.concept_name}, "
-            f"dose={str(self._dose)}, frequency={self._frequency}/{interval}, "
+            f"dose={str(self._dose)}, "
             f"route={route.concept_name if route is not None else None} "
             f")"
         )
@@ -333,8 +338,6 @@ class DrugExposure(Criterion):
             "category": self._category.value,
             "ingredient_concept": self._ingredient_concept.dict(),
             "dose": self._dose.dict() if self._dose is not None else None,
-            "frequency": self._frequency,
-            "interval": self._interval,
             "route": self._route.dict() if self._route is not None else None,
         }
 
@@ -354,7 +357,5 @@ class DrugExposure(Criterion):
             category=CohortCategory(data["category"]),
             ingredient_concept=Concept(**data["ingredient_concept"]),
             dose=dose,
-            frequency=data["frequency"],
-            interval=data["interval"],
             route=Concept(**data["route"]) if data["route"] is not None else None,
         )

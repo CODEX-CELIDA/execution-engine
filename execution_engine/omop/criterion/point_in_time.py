@@ -39,7 +39,7 @@ class PointInTimeCriterion(ConceptCriterion):
         """
         if self._value is not None:
             conditional_column = create_conditional_interval_column(
-                self._value.to_sql(table=query)
+                self._value.to_sql(table=query, with_unit=True)
             )
         else:
             conditional_column = column_interval_type(IntervalType.POSITIVE)
