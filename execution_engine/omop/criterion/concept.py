@@ -7,7 +7,8 @@ from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.util.types import Timing
-from execution_engine.util.value import Value, value_factory
+from execution_engine.util.value import Value
+from execution_engine.util.value.factory import value_factory
 
 __all__ = ["ConceptCriterion"]
 

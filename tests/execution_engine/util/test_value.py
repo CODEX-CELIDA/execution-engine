@@ -4,7 +4,8 @@ from sqlalchemy import Column, ColumnClause, MetaData, Table
 
 from execution_engine.omop.concepts import Concept
 from execution_engine.util.enum import TimeUnit
-from execution_engine.util.value import ValueConcept, ValueNumber, value_factory
+from execution_engine.util.value import ValueConcept, ValueNumber
+from execution_engine.util.value.factory import value_factory
 from execution_engine.util.value.time import ValueDuration, ValueFrequency, ValuePeriod
 from execution_engine.util.value.value import get_precision
 
