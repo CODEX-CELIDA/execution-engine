@@ -10,12 +10,8 @@ from execution_engine.util.interval import (
     IntervalType,
     interval_datetime,
 )
-from execution_engine.util.value import (
-    ValueDuration,
-    ValueFrequency,
-    ValueNumber,
-    ValuePeriod,
-)
+from execution_engine.util.value import ValueNumber
+from execution_engine.util.value.time import ValueDuration, ValueFrequency, ValuePeriod
 
 
 class TimeRange(BaseModel):
@@ -107,17 +103,35 @@ class Timing(BaseModel):
     """
     The timing of a criterion.
 
-    The criterion is satisfied _once_ if it is satisfied 'frequency' times in an interval of 'interval' units,
+    The criterion is satisfied _once_ if it is satisfied 'frequency' times in an interval of 'period',
     where each time should last 'duration'. The criterion is satisfied if it is satisfied 'count' times.
 
     The timing of a criterion is defined by the following parameters:
     - count: The number of times that the criterion should be satisfied according to the other parameters.
-    - duration + unit: The duration of each time that the criterion should be satisfied.
-    - frequency: Number of repetitions of the criterion per 'interval'
-    - interval + unit: The interval in which the criterion should be satisfied 'frequency' times.
+    - duration: The duration of each time that the criterion should be satisfied.
+    - frequency: Number of repetitions of the criterion per 'period'
+    - period: The interval in which the criterion should be satisfied 'frequency' times.
     """
 
     count: ValueFrequency | None
     duration: ValueDuration | None  # from duration OR boundsRange
     frequency: ValueFrequency | None
     period: ValuePeriod | None
+
+    @validator("count", "frequency", pre=True)
+    def convert_to_value_frequency(cls, v: Any) -> ValueFrequency:
+        """
+        Convert the count and frequency to ValueFrequency when they are integers.
+
+        Possible because ValueFrequency has no other parameters.
+        """
+        if isinstance(v, int):
+            return ValueFrequency(value=v)
+        return v
+
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the timing.
+        """
+
+        return f"{self.__class__.__name__}(count{self.count}, duration{self.duration}, frequency{self.frequency} per {self.period})"
