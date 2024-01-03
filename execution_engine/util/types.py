@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import pendulum
-from pydantic import BaseModel, NonNegativeInt, root_validator, validator
+from pydantic import BaseModel, root_validator, validator
 
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import (
@@ -11,7 +11,7 @@ from execution_engine.util.interval import (
     interval_datetime,
 )
 from execution_engine.util.value import ValueNumber
-from execution_engine.util.value.time import ValueDuration, ValuePeriod
+from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 
 
 class TimeRange(BaseModel):
@@ -95,20 +95,39 @@ class Timing(BaseModel):
         satisfied 'frequency' times).
     """
 
-    count: NonNegativeInt | None
+    count: ValueCount | None
     duration: ValueDuration | None  # from duration OR boundsRange
-    frequency: NonNegativeInt | None
+    frequency: ValueCount | None
     interval: ValuePeriod | None
+
+    class Config:
+        """
+        Pydantic configuration.
+        """
+
+        validate_assignment = True
+
+    @validator("count", "frequency", pre=True)
+    def convert_to_value_count(cls, v: Any) -> ValueCount:
+        """
+        Convert the count and frequency to ValueFrequency when they are integers.
+
+        Possible because ValueFrequency has no other parameters.
+        """
+        if isinstance(v, int):
+            return ValueCount(value=v)
+        return v
 
     @validator("interval", pre=True)
     def convert_to_value_period(cls, v: Any) -> ValuePeriod:
         """
         Convert the count and frequency to ValueFrequency when they are integers.
 
-        Possible because ValueFrequency has no other parameters.
+        Possible under the assumption that a single value is value, not value_min or value_max.
         """
         if isinstance(v, TimeUnit):
             return ValuePeriod(value=1, unit=v)
+
         return v
 
     @root_validator  # type: ignore
@@ -131,7 +150,7 @@ class Timing(BaseModel):
         Get the string representation of the timing.
         """
 
-        return f"{self.__class__.__name__}(count={self.count}, duration{self.duration}, frequency={self.frequency} per {self.interval})"
+        return f"{self.__class__.__name__}(count{self.count}, duration{self.duration}, frequency{self.frequency} per {self.interval})"
 
 
 class Dosage(Timing):

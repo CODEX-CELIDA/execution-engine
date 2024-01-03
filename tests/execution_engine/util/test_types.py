@@ -60,8 +60,8 @@ class TestDosage:
         )
         assert dosage.dose.value == 10
         assert dosage.dose.unit == concept_unit_mg
-        assert dosage.count == 5
-        assert dosage.frequency == 10
+        assert dosage.count.value == 5
+        assert dosage.frequency.value == 10
 
     @pytest.mark.skip(
         reason="Timing in Dosage is another type that does not use the use use_enum_values flag"
@@ -133,3 +133,22 @@ class TestTiming:
         assert (
             repr(timing) == "Timing(count=5, duration=1.5 HOUR, frequency=10 per 2 DAY)"
         )
+
+    def test_set_values_after_creation(self):
+        timing = Timing(count=5)
+
+        timing.interval = 1 * TimeUnit.DAY
+        assert timing.interval == ValuePeriod(value=1, unit=TimeUnit.DAY)
+        assert timing.frequency == 1  # Frequency is set to 1 when interval is set
+
+        timing.frequency = 10
+        assert timing.frequency.value == 10
+
+        # make sure timing.frequency is not overwritten when timing.interval is set before
+        timing = Timing(count=5)
+
+        # we can't assign a frequency without an interval
+        with pytest.raises(ValidationError):
+            timing.frequency = 10
+        # timing.interval = 1 * TimeUnit.DAY
+        # assert timing.frequency == 10

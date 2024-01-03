@@ -156,12 +156,6 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
 
         return s
 
-    def __repr__(self) -> str:
-        """
-        Get the string representation of the value.
-        """
-        return str(self)
-
     @classmethod
     def parse(cls, s: str, unit: UnitT) -> "ValueNumber":
         """

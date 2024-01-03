@@ -1,6 +1,9 @@
 from pydantic import validator
 from pydantic.types import NonNegativeInt
-from sqlalchemy import ColumnElement, TableClause
+from sqlalchemy import ColumnElement
+from sqlalchemy import Interval as SQLInterval
+from sqlalchemy import TableClause
+from sqlalchemy.sql.functions import concat, func
 
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.value.value import Value, ValueNumeric, check_int
@@ -24,6 +27,26 @@ class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
 
         return f"{self.value} {self.unit}"
 
+    def to_sql_interval(self) -> ColumnElement:
+        """
+        Get the SQL Interval representation of the value.
+
+        E.g. ValuePeriod(value=1, unit=TimeUnit.DAY) corresponds to SQL "INTERVAL '1 DAY'"
+        """
+        return func.cast(concat(self.value, self.unit), SQLInterval)
+
+
+class ValueCount(ValueNumeric[NonNegativeInt, None]):
+    """
+    A non-negative integer value without a unit.
+    """
+
+    unit: None = None
+
+    _validate_value = validator("value", pre=True, allow_reuse=True)(check_int)
+    _validate_value_min = validator("value_min", pre=True, allow_reuse=True)(check_int)
+    _validate_value_max = validator("value_max", pre=True, allow_reuse=True)(check_int)
+
 
 class ValueDuration(ValueNumeric[float, TimeUnit]):
     """
@@ -36,7 +59,7 @@ class ValueFrequency(Value):
     A non-negative integer value with no unit, with a Period.
     """
 
-    frequency: NonNegativeInt
+    frequency: ValueCount
     period: ValuePeriod
 
     def to_sql(
