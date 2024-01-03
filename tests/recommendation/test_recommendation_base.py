@@ -21,7 +21,8 @@ from execution_engine.omop.db.celida.views import (
     partial_day_coverage,
 )
 from execution_engine.omop.db.omop.tables import Person
-from execution_engine.util import IntervalType, TimeRange
+from execution_engine.util.interval import IntervalType
+from execution_engine.util.types import TimeRange
 from tests._testdata import concepts, parameter
 from tests.functions import (
     create_condition,

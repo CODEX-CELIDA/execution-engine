@@ -9,8 +9,8 @@ from execution_engine.omop.criterion.abstract import (
 )
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.task import process
-from execution_engine.util import TimeRange
 from execution_engine.util.interval import IntervalType
+from execution_engine.util.types import TimeRange
 
 
 class PointInTimeCriterion(ConceptCriterion):
@@ -30,17 +30,6 @@ class PointInTimeCriterion(ConceptCriterion):
             self._validity_duration_hours = float("inf")
         else:
             self._validity_duration_hours = validity_duration_hours
-
-    def set_validity_duration_hours(
-        self, validity_duration_hours: float | None
-    ) -> None:
-        """
-        Set the validity duration in hours.
-
-        :param validity_duration_hours: The validity duration in hours.
-            Infinitely long if None (or inf).
-        """
-        self._validity_duration_hours = validity_duration_hours
 
     def _sql_interval_type_column(self, query: Select | CTE) -> ColumnElement:
         """

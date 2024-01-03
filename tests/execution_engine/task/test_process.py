@@ -17,10 +17,10 @@ from execution_engine.task.process import (
     invert_intervals,
     union_intervals,
 )
-from execution_engine.util import TimeRange
 from execution_engine.util.interval import DateTimeInterval
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.interval import empty_interval_datetime, interval_datetime
+from execution_engine.util.types import TimeRange
 
 # todo: test interval inversion
 # todo: test interval and

@@ -5,7 +5,7 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     Base,
     metadata,
 )
-from execution_engine.util import TimeRange
+from execution_engine.util.types import TimeRange
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 
 

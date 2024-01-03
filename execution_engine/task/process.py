@@ -4,11 +4,11 @@ from typing import Callable
 
 import pandas as pd
 
-from execution_engine.util import TimeRange
 from execution_engine.util.interval import DateTimeInterval as Interval
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import empty_interval_datetime as empty_interval
 from execution_engine.util.interval import interval_datetime as interval
+from execution_engine.util.types import TimeRange
 
 df_dtypes = {
     "person_id": "int64",

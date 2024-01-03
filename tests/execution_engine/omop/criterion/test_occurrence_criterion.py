@@ -2,7 +2,7 @@ from abc import ABC
 
 import pytest
 
-from execution_engine.util import TimeRange
+from execution_engine.util.types import TimeRange
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 
 

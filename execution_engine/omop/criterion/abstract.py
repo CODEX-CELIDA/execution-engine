@@ -40,9 +40,9 @@ from execution_engine.omop.db.omop.tables import (
     VisitOccurrence,
 )
 from execution_engine.omop.serializable import Serializable
-from execution_engine.util import TimeRange
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.sql import SelectInto, select_into
+from execution_engine.util.types import TimeRange
 
 __all__ = ["AbstractCriterion", "Criterion"]
 
