@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import pendulum
-from pydantic import BaseModel, PositiveInt, validator
+from pydantic import BaseModel, NonNegativeInt, root_validator, validator
 
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import (
@@ -11,7 +11,7 @@ from execution_engine.util.interval import (
     interval_datetime,
 )
 from execution_engine.util.value import ValueNumber
-from execution_engine.util.value.time import ValueDuration, ValueFrequency, ValuePeriod
+from execution_engine.util.value.time import ValueDuration, ValuePeriod
 
 
 class TimeRange(BaseModel):
@@ -81,57 +81,71 @@ class TimeRange(BaseModel):
         }
 
 
-class Dosage(BaseModel):
-    """
-    A dosage consisting of a dose, frequency and interval.
-    """
-
-    dose: ValueNumber
-    frequency: PositiveInt
-    interval: TimeUnit
-
-    class Config:
-        """
-        Pydantic configuration.
-        """
-
-        use_enum_values = True
-        """ Use enum values instead of names. """
-
-
 class Timing(BaseModel):
     """
     The timing of a criterion.
 
-    The criterion is satisfied _once_ if it is satisfied 'frequency' times in an interval of 'period',
+    The criterion is satisfied _once_ if it is satisfied 'frequency' times in a certain period,
     where each time should last 'duration'. The criterion is satisfied if it is satisfied 'count' times.
 
     The timing of a criterion is defined by the following parameters:
     - count: The number of times that the criterion should be satisfied according to the other parameters.
     - duration: The duration of each time that the criterion should be satisfied.
-    - frequency: Number of repetitions of the criterion per 'period'
-    - period: The interval in which the criterion should be satisfied 'frequency' times.
+    - frequency: Number of repetitions of the criterion per period (= the interval in which the criterion should be
+        satisfied 'frequency' times).
     """
 
-    count: ValueFrequency | None
+    count: NonNegativeInt | None
     duration: ValueDuration | None  # from duration OR boundsRange
-    frequency: ValueFrequency | None
-    period: ValuePeriod | None
+    frequency: NonNegativeInt | None
+    interval: ValuePeriod | None
 
-    @validator("count", "frequency", pre=True)
-    def convert_to_value_frequency(cls, v: Any) -> ValueFrequency:
+    @validator("interval", pre=True)
+    def convert_to_value_period(cls, v: Any) -> ValuePeriod:
         """
         Convert the count and frequency to ValueFrequency when they are integers.
 
         Possible because ValueFrequency has no other parameters.
         """
-        if isinstance(v, int):
-            return ValueFrequency(value=v)
+        if isinstance(v, TimeUnit):
+            return ValuePeriod(value=1, unit=v)
         return v
+
+    @root_validator  # type: ignore
+    def validate_value(cls, values: dict) -> dict:
+        """
+        Validate interval is set when frequency is set; set frequency when interval is set.
+        """
+
+        if values.get("interval") is None:
+            if values.get("frequency") is not None:
+                raise ValueError("interval must be set when frequency is set.")
+        else:
+            if values.get("frequency") is None:
+                values["frequency"] = 1
+
+        return values
 
     def __repr__(self) -> str:
         """
         Get the string representation of the timing.
         """
 
-        return f"{self.__class__.__name__}(count{self.count}, duration{self.duration}, frequency{self.frequency} per {self.period})"
+        return f"{self.__class__.__name__}(count={self.count}, duration{self.duration}, frequency={self.frequency} per {self.interval})"
+
+
+class Dosage(Timing):
+    """
+    A dosage consisting of a dose in addition to the Timing fields.
+    """
+
+    dose: ValueNumber | None
+
+    class Config:
+        """
+        Pydantic configuration.
+        """
+
+        # todo: why is this needed? Remove it or comment why it's needed.
+        use_enum_values = True
+        """ Use enum values instead of names. """

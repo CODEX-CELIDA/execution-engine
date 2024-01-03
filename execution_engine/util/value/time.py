@@ -1,8 +1,9 @@
 from pydantic import validator
 from pydantic.types import NonNegativeInt
+from sqlalchemy import ColumnElement, TableClause
 
 from execution_engine.util.enum import TimeUnit
-from execution_engine.util.value.value import ValueNumeric, check_int
+from execution_engine.util.value.value import Value, ValueNumeric, check_int
 
 
 class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
@@ -30,13 +31,21 @@ class ValueDuration(ValueNumeric[float, TimeUnit]):
     """
 
 
-class ValueFrequency(ValueNumeric[NonNegativeInt, None]):
+class ValueFrequency(Value):
     """
-    A non-negative integer value with no unit.
+    A non-negative integer value with no unit, with a Period.
     """
 
-    unit: None = None
+    frequency: NonNegativeInt
+    period: ValuePeriod
 
-    _validate_value = validator("value", pre=True, allow_reuse=True)(check_int)
-    _validate_value_min = validator("value_min", pre=True, allow_reuse=True)(check_int)
-    _validate_value_max = validator("value_max", pre=True, allow_reuse=True)(check_int)
+    def to_sql(
+        self,
+        table: TableClause | None,
+        column_name: str = "value_as_number",
+        with_unit: bool = True,
+    ) -> ColumnElement:
+        """
+        Get the SQL representation of the value.
+        """
+        raise NotImplementedError()

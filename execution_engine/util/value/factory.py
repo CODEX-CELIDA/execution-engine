@@ -1,4 +1,4 @@
-from execution_engine.util.value.time import ValueDuration, ValueFrequency, ValuePeriod
+from execution_engine.util.value.time import ValueDuration, ValuePeriod
 from execution_engine.util.value.value import Value, ValueConcept, ValueNumber
 
 
@@ -17,7 +17,6 @@ def value_factory(class_name: str, data: dict) -> Value:
         "ValueConcept": ValueConcept,
         "ValuePeriod": ValuePeriod,
         "ValueDuration": ValueDuration,
-        "ValueFrequency": ValueFrequency,
     }
 
     """Create a value from a dictionary."""

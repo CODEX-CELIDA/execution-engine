@@ -6,7 +6,7 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.value import ValueConcept, ValueNumber
 from execution_engine.util.value.factory import value_factory
-from execution_engine.util.value.time import ValueDuration, ValueFrequency, ValuePeriod
+from execution_engine.util.value.time import ValueDuration, ValuePeriod
 from execution_engine.util.value.value import get_precision
 
 
@@ -426,22 +426,3 @@ class TestValueDuration:
         vt = ValueDuration.parse(">=5", TimeUnit.DAY)
         assert vt.value_min == 5
         assert vt.unit == TimeUnit.DAY
-
-
-class TestValueFrequency:
-    def test_no_unit(self):
-        vf = ValueFrequency(value=3)
-        assert vf.value == 3
-        assert vf.unit is None
-
-    def test_non_negative_integer(self):
-        vf = ValueFrequency(value=5)
-        assert vf.value == 5
-
-    def test_negative_value_raises_error(self):
-        with pytest.raises(ValueError):
-            ValueFrequency(value=-1)
-
-    def test_unit_raises_error(self):
-        with pytest.raises(ValueError):
-            ValueFrequency(value=5, unit=TimeUnit.HOUR)

@@ -242,7 +242,7 @@ class DrugAdministrationAction(AbstractAction):
         """
         timing = dosage.timing
         frequency = timing.repeat.frequency
-        period = timing.repeat.period
+        period = timing.repeat.interval
         interval = TimeUnit(timing.repeat.periodUnit)
 
         if period != 1:
