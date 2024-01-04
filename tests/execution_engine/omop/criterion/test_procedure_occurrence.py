@@ -3,8 +3,9 @@ import pytest
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
+from execution_engine.util.enum import TimeUnit
+from execution_engine.util.types import Timing
 from execution_engine.util.value import ValueNumber
-from tests._fixtures.concept import concept_unit_hour
 from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence
 from tests.functions import create_procedure
 
@@ -59,7 +60,7 @@ class TestProcedureOccurrence(Occurrence):
             exclude: bool,
             value: ValueNumber | None = None,
         ):
-            timing = ValueNumber(value_min=2, unit=concept_unit_hour)
+            timing = Timing(duration=2 * TimeUnit.HOUR)
 
             criterion = ProcedureOccurrence(
                 name="test",

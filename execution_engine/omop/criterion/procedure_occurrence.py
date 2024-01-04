@@ -9,8 +9,10 @@ from execution_engine.omop.criterion.abstract import (
     create_conditional_interval_column,
 )
 from execution_engine.omop.criterion.continuous import ContinuousCriterion
-from execution_engine.util import TimeUnit, ValueNumber, value_factory
 from execution_engine.util.interval import IntervalType
+from execution_engine.util.types import Timing
+from execution_engine.util.value import ValueNumber
+from execution_engine.util.value.factory import value_factory
 
 __all__ = ["ProcedureOccurrence"]
 
@@ -25,7 +27,7 @@ class ProcedureOccurrence(ContinuousCriterion):
         category: CohortCategory,
         concept: Concept,
         value: ValueNumber | None = None,
-        timing: ValueNumber | None = None,
+        timing: Timing | None = None,
         static: bool | None = None,
     ) -> None:
         super().__init__(
@@ -53,13 +55,13 @@ class ProcedureOccurrence(ContinuousCriterion):
         query = self._sql_header()
         query = self._sql_filter_concept(query)
 
-        if self._timing is not None:
-            interval = TimeUnit(self._timing.unit.concept_code)
-            column = extract(interval.name, end_datetime - start_datetime).label(
+        if self._timing is not None and self._timing.duration is not None:
+            duration = self._timing.duration
+            column = extract(duration.unit, end_datetime - start_datetime).label(
                 "duration"
             )
             conditional_column = create_conditional_interval_column(
-                self._timing.to_sql(table=None, column_name=column, with_unit=False)
+                duration.to_sql(table=None, column_name=column)
             )
         else:
             conditional_column = column_interval_type(IntervalType.POSITIVE)
