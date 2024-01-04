@@ -19,17 +19,9 @@ class PointInTimeCriterion(ConceptCriterion):
     def __init__(
         self,
         *args: Any,
-        validity_duration_hours: float | None = 12,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
-
-        self._validity_duration_hours: float | None = None
-
-        if self._static:
-            self._validity_duration_hours = float("inf")
-        else:
-            self._validity_duration_hours = validity_duration_hours
 
     def _sql_interval_type_column(self, query: Select | CTE) -> ColumnElement:
         """
@@ -50,6 +42,8 @@ class PointInTimeCriterion(ConceptCriterion):
         """
         Get the SQL representation of the criterion.
         """
+
+        # todo: handle self._static variables - these should be backfilled within the observation range ?
 
         if self._OMOP_VALUE_REQUIRED:
             assert self._value is not None, "Value is required for this criterion"

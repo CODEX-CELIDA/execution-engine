@@ -172,6 +172,12 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
         }[gender]
         db_session.add(p)
 
+        t_height, t_tv = pendulum.parse(times["height"]), pendulum.parse(times["tv"])
+        if t_tv < t_height:
+            # if tv is before height, we don't have a height measurement for the tv
+            # todo: or should we consider height as "static"
+            expected = []
+
         v_height = self.create_value(
             visit_occurrence=vo,
             concept_id=concepts.BODY_HEIGHT,
@@ -197,13 +203,6 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
         df = criterion_execute_func(
             concept=concept, value=value, exclude=exclude
         ).query(f"{p.person_id} == person_id")
-
-        # exclusion is now performed only when combining the criteria into population/intervention
-        # if exclude:
-        #    expected = self.invert_date_points(
-        #        time_range=observation_window,
-        #        subtract=expected,
-        #    )
 
         assert set(df["valid_date"].dt.date) == self.date_points(expected)
 
