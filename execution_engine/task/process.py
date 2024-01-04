@@ -18,6 +18,13 @@ df_dtypes = {
 }
 
 
+def empty_df() -> pd.DataFrame:
+    """
+    Returns an empty DataFrame with the correct dtypes.
+    """
+    return pd.DataFrame(columns=df_dtypes.keys())
+
+
 def concat_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     """
     Concatenates the DataFrames in the list.
@@ -26,9 +33,11 @@ def concat_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     :return: A DataFrame with the concatenated DataFrames.
     """
     dfs = [df for df in dfs if not df.empty]
+
     if not dfs:
-        return pd.DataFrame(columns=df_dtypes.keys())
-    return pd.concat(dfs)
+        return empty_df()
+
+    return pd.concat(dfs).reset_index(drop=True)
 
 
 def unique_items(df: pd.DataFrame) -> set[tuple]:
@@ -53,6 +62,57 @@ def _interval_union(intervals: list[Interval]) -> Interval:
     return r
 
 
+def forward_fill(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Forward fills the intervals in the DataFrame.
+
+    Each interval is extended to the next interval of a _different_ type.
+    I.e. if there are multiple consecutive intervals of the same type, they are merged into one interval, and the
+    last interval of these is extended until the start of the next interval (which is of a different type).
+
+    The last interval for each person is not extended (but may be merged with the previous intervals, if they
+    are of the same type).
+
+    :param df: A DataFrame with the intervals.
+    :return: A DataFrame with the forward filled intervals.
+
+    Example:
+        >>> import pandas as pd
+        >>> data = [
+        ...     (1, '2023-03-01 08:00:00', '2023-03-01 08:00:00', 'POSITIVE'),
+        ...     (1, '2023-03-01 09:00:00', '2023-03-01 09:00:00', 'POSITIVE'),
+        ...     (1, '2023-03-01 09:10:00', '2023-03-01 10:00:00', 'POSITIVE'),
+        ...     (1, '2023-03-01 11:00:00', '2023-03-01 11:00:00', 'NEGATIVE'),
+        ...     (1, '2023-03-01 12:00:00', '2023-03-01 13:00:00', 'POSITIVE'),
+        ...     (1, '2023-03-01 14:00:00', '2023-03-01 15:00:00', 'POSITIVE')
+        ... ]
+        >>> df = pd.DataFrame(data, columns=['person_id', 'interval_start', 'interval_end', 'interval_type'])
+        >>> forward_fill(df)
+        # Expected result:
+        #    person_id     interval_start       interval_end      interval_type
+        # 0          1 2023-03-01 08:00:00 2023-03-01 11:00:00      POSITIVE
+        # 1          1 2023-03-01 11:00:00 2023-03-01 12:00:00      NEGATIVE
+        # 2          1 2023-03-01 12:00:00 2023-03-01 15:00:00      POSITIVE
+    """
+    by = ["person_id"]
+
+    def process_group(group: pd.DataFrame) -> pd.DataFrame:
+        group = group.sort_values(by="interval_start")
+
+        idx = group["interval_type"] != group["interval_type"].shift(1)
+        last_datetime = group["interval_end"].iloc[-1]
+
+        result = group[idx].copy()
+
+        result["interval_end"] = result["interval_start"].shift(
+            -1, fill_value=last_datetime
+        )
+
+        return result
+
+    return df.groupby(by).apply(process_group).reset_index(drop=True)
+
+
 def complementary_intervals(
     df: pd.DataFrame,
     reference_df: pd.DataFrame,
@@ -62,13 +122,13 @@ def complementary_intervals(
     """
     Insert missing intervals into a dataframe, i.e. the complement of the existing intervals w.r.t. the observation
     window. Persons that are not in the dataframe but in the base dataframe are added as well (with the full
-    observation window as the interval).
+    observation window as the interval). All added intervals have the given interval_type.
 
     :param df: The DataFrame with the intervals.
     :param reference_df: The DataFrame with the base criterion. Used to determine the patients for which intervals
         are missing.
     :param observation_window: The observation window.
-    :param interval_type: The type of the complementary intervals for persons existing in the DataFrame.
+    :param interval_type: The type of the complementary intervals.
     :return: A DataFrame with the inserted intervals.
     """
     by = ["person_id"]
@@ -122,9 +182,12 @@ def invert_intervals(
     Inverts the intervals in the DataFrame.
 
     The inversion is performed in time and value, i.e. first the complement set of the intervals is taken (w.r.t. the
-    observation window) and then the original intervals are added back in, but with the inverted value.
+    observation window) and then the original intervals are added back in. Then, all intervals are inverted in value.
 
     Also, the full observation_window is added for all patients in base that are not in df.
+
+    Note: This means that intervals for missing persons are returned as POSITIVE, because they are considered
+    NEGATIVE in the complement set and then inverted.
 
     :param df: The DataFrame with the intervals.
     :param reference_df: The DataFrame with the base criterion.
@@ -161,19 +224,19 @@ def df_to_intervals(df: pd.DataFrame) -> list[Interval]:
     ]
 
 
-def _process_intervals(dfs: list[pd.DataFrame], operator: Callable) -> pd.DataFrame:
+def _process_intervals(
+    dfs: list[pd.DataFrame], operator: Callable, by: list[str]
+) -> pd.DataFrame:
     """
     Processes the intervals in the DataFrames (intersect or union)
 
     :param dfs: A list of DataFrames.
     :param operator: The operation to perform on the intervals (intersect or union).
+    :param by: A list of column names to group by.
     :return: A DataFrame with the processed intervals.
     """
-
-    by = ["person_id"]
-
     if not len(dfs):
-        return dfs
+        return empty_df()
 
     # assert dfs is a list of dataframes
     assert isinstance(dfs, list) and all(
@@ -205,29 +268,27 @@ def _process_intervals(dfs: list[pd.DataFrame], operator: Callable) -> pd.DataFr
     return _result_to_df(result, by)
 
 
-def union_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
+def union_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     """
     Merges the intervals in the DataFrames grouped by columns.
 
     :param dfs: A list of DataFrames.
+    :param by: A list of column names to group by.
     :return: A DataFrame with the merged intervals.
     """
-
-    df = _process_intervals(dfs, or_)
-    # df = merge_interval_across_types(df, operator='OR')
-
-    return df
+    return _process_intervals(dfs, or_, by=by)
 
 
-def intersect_intervals(dfs: list[pd.DataFrame]) -> pd.DataFrame:
+def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     """
     Intersects the intervals in the DataFrames grouped by columns.
 
     :param dfs: A list of DataFrames.
+    :param by: A list of column names to group by.
     :return: A DataFrame with the intersected intervals.
     """
-    dfs = filter_dataframes_by_shared_column_values(dfs, columns=["person_id"])
-    df = _process_intervals(dfs, and_)
+    dfs = filter_dataframes_by_shared_column_values(dfs, columns=by)
+    df = _process_intervals(dfs, and_, by=by)
 
     return df
 
@@ -286,7 +347,7 @@ def filter_dataframes_by_shared_column_values(
     :return: A list of DataFrames with the rows that have shared column values.
     """
 
-    if len(dfs) == 1:
+    if len(dfs) <= 1:
         return dfs
 
     # Find common rows across all DataFrames

@@ -83,13 +83,15 @@ class PointInTimeCriterion(ConceptCriterion):
         """
         Process the result of the SQL query.
 
-        Inserts NO_DATA intervals for all intervals that are not POSITIVE or NEGATIVE.
+        Forward fill all intervals and in insert NO_DATA intervals for missing time in observation_window.
 
         :param df: The result of the SQL query.
         :param base_data: The base data.
         :param observation_window: The observation window.
         :return: A processed DataFrame.
         """
+        df = process.forward_fill(df)
+
         no_data_intervals = process.complementary_intervals(
             df,
             reference_df=base_data,

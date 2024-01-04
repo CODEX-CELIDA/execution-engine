@@ -47,7 +47,7 @@ class Task:
     """
 
     """The columns to group by when merging or intersecting intervals."""
-    # by = ["person_id"]
+    by = ["person_id"]
 
     def __init__(
         self,
@@ -197,7 +197,7 @@ class Task:
         result = self.criterion.process_result(result, base_data, observation_window)
 
         # merge overlapping/adjacent intervals to reduce the number of intervals
-        result = process.union_intervals([result])
+        result = process.union_intervals([result], by=self.by)
 
         return result
 
@@ -243,9 +243,9 @@ class Task:
             return data[0]
 
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
-            result = process.intersect_intervals(data)
+            result = process.intersect_intervals(data, by=self.by)
         elif isinstance(self.expr, logic.Or):
-            result = process.union_intervals(data)
+            result = process.union_intervals(data, by=self.by)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
 
@@ -276,9 +276,9 @@ class Task:
         ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
 
         if isinstance(self.expr, logic.NoDataPreservingAnd):
-            result = process.intersect_intervals(data)
+            result = process.intersect_intervals(data, by=self.by)
         elif isinstance(self.expr, logic.NoDataPreservingOr):
-            result = process.union_intervals(data)
+            result = process.union_intervals(data, by=self.by)
 
         # todo: the only difference between this function and handle_binary_logical_operator is the following lines
         #  - can we merge?
@@ -357,7 +357,7 @@ class Task:
                 IntervalType.NOT_APPLICABLE,
             ]
         ):
-            result_p_and_i = process.intersect_intervals([data_p, right])
+            result_p_and_i = process.intersect_intervals([data_p, right], by=self.by)
 
         result = process.concat_dfs([result_not_p, result_p_and_i])
 
