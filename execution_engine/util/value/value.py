@@ -184,7 +184,7 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
         return s
 
     @classmethod
-    def parse(cls, s: str, unit: UnitT) -> "ValueNumber":
+    def parse(cls, s: str, unit: UnitT | None = None) -> "ValueNumber":
         """
         Parse a string representation of a value.
         """

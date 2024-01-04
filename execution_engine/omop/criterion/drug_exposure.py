@@ -160,36 +160,49 @@ class DrugExposure(Criterion):
         c_end = self._get_datetime_column(self._table, "end")
         query = query.filter(
             and_(
-                c_start <= bindparam("observation_end_datetime"),
-                c_end >= bindparam("observation_start_datetime"),
+                c_start
+                <= bindparam("observation_end_datetime", type_=DateTimeWithTimeZone),
+                c_end
+                >= bindparam("observation_start_datetime", type_=DateTimeWithTimeZone),
             )
         )
 
         interval_starts = query.add_columns(
             (
                 func.date_trunc(
-                    "day",
-                    bindparam("observation_start_datetime", type_=DateTimeWithTimeZone),
-                )
-                + interval_length_seconds
-                * (
-                    func.floor(
-                        func.extract(
-                            "EPOCH",
-                            (
-                                drug_exposure.c.drug_exposure_start_datetime
-                                - func.date_trunc(
-                                    "day",
-                                    bindparam(
-                                        "observation_start_datetime",
-                                        type_=DateTimeWithTimeZone,
-                                    ),
-                                )
+                    "day",  # need to truncate the whole result again, otherwise DST changes will cause problems in the interval calculation
+                    func.date_trunc(
+                        "day",
+                        func.cast(
+                            bindparam(
+                                "observation_start_datetime", type_=DateTimeWithTimeZone
                             ),
-                        )
-                        / interval_length_seconds
+                            DateTimeWithTimeZone,
+                        ),
                     )
-                    * one_second
+                    + interval_length_seconds
+                    * (
+                        func.floor(
+                            func.extract(
+                                "EPOCH",
+                                (
+                                    drug_exposure.c.drug_exposure_start_datetime
+                                    - func.date_trunc(
+                                        "day",
+                                        func.cast(
+                                            bindparam(
+                                                "observation_start_datetime",
+                                                type_=DateTimeWithTimeZone,
+                                            ),
+                                            DateTimeWithTimeZone,
+                                        ),
+                                    )
+                                ),
+                            )
+                            / interval_length_seconds
+                        )
+                        * one_second
+                    ),
                 )
             ).label("interval_start"),
             drug_exposure.c.drug_exposure_start_datetime.label("start_datetime"),

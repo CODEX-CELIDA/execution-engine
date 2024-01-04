@@ -30,6 +30,7 @@ class TimeRange(BaseModel):
         """
         if not v.tzinfo:
             raise ValueError("Datetime object must be timezone-aware")
+
         return v
 
     @classmethod
@@ -118,6 +119,8 @@ class Timing(BaseModel):
         """
         if isinstance(v, int):
             return ValueCount(value=v)
+        if isinstance(v, str):
+            return ValueCount.parse(v)
         return v
 
     @validator("interval", pre=True)
