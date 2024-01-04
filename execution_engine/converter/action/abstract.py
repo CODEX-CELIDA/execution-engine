@@ -70,47 +70,66 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
         rep = timing.repeat
 
+        if timing.event is not None:
+            raise NotImplementedError("event has not been implemented")
+
         if rep is None:
             code = parse_code(timing.code)
             raise NotImplementedError(
                 f"Timing without repeat has not been implemented (code={code})"
             )
 
+        # Process BOUND
+        if (
+            rep.boundsPeriod is not None
+            or rep.boundsDuration is not None
+            or rep.boundsRange is not None
+        ):
+            raise NotImplementedError("Timing with bounds has not been implemented")
+
         # Process COUNT
-        if rep.boundsPeriod is not None or rep.boundsDuration is not None:
-            raise NotImplementedError(
-                "Timing with boundsPeriod or boundsDuration has not been implemented"
-            )
-
-        if rep.boundsRange is not None and rep.count is not None:
-            raise NotImplementedError("Must either use boundsRange or count, not both")
-
-        if rep.boundsRange is not None:
+        if rep.count is not None or rep.countMax is not None:
             count = ValueCount(
-                value_min=rep.boundsRange.low.value,
-                value_max=rep.boundsRange.high.value,
+                value_min=rep.count,
+                value_max=rep.countMax if rep.countMax is not None else None,
             )
-        elif rep.count is not None:
-            count = ValueCount(value=rep.count)
+        else:
+            count = None
 
         # Process DURATION
-        if rep.durationMax is not None:
+        if rep.duration is not None or rep.durationMax is not None:
             duration = ValueDuration(
                 value_min=rep.duration, value_max=rep.durationMax, unit=rep.durationUnit
             )
         else:
-            duration = ValueDuration(value=rep.duration, unit=rep.durationUnit)
+            duration = None
 
         # Process FREQUENCY
-        if rep.frequencyMax is not None:
+        if rep.frequency is not None or rep.frequencyMax is not None:
             frequency = ValueCount(value_min=rep.frequency, value_max=rep.frequencyMax)
         else:
-            frequency = ValueCount(value=rep.frequency, value_max=rep.frequencyMax)
+            frequency = None
 
         # Process INTERVAL
         if rep.periodMax is not None:
             raise NotImplementedError("periodMax has not been implemented")
-        interval = ValuePeriod(value=rep.period, unit=rep.periodUnit)
+
+        if rep.period is not None:
+            interval = ValuePeriod(value=rep.period, unit=rep.periodUnit)
+        else:
+            interval = None
+
+        if rep.dayOfWeek is not None:
+            raise NotImplementedError("dayOfWeek has not been implemented")
+
+        if rep.timeOfDay is not None:
+            raise NotImplementedError("timeOfDay has not been implemented")
+
+        if rep.when is not None:
+            raise NotImplementedError("when has not been implemented")
+
+        if rep.offset is not None:
+            raise NotImplementedError("offset has not been implemented")
 
         return Timing(
             count=count, duration=duration, frequency=frequency, interval=interval
