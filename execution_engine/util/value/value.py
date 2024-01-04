@@ -26,14 +26,27 @@ ValueT = TypeVar("ValueT")
 UnitT = TypeVar("UnitT")
 
 
-def check_int(cls: BaseModel, v: int | float) -> int:
+def check_int(cls: BaseModel, v: int | float | None) -> int | None:
     """
     Check that a value is an integer. Used as a validator for pydantic.
     """
+    if v is None:
+        return v
+
     if isinstance(v, float) and not v.is_integer():
         raise ValueError(f"Float value {v} not allowed for integer field")
-    if not isinstance(v, int):
+
+    if isinstance(v, int):
+        return v
+
+    try:
+        v = float(v)
+    except ValueError:
         raise ValueError(f"Value must be an integer, not {type(v)}")
+
+    if not v.is_integer():
+        raise ValueError(f"Float value {v} not allowed for integer field")
+
     return int(v)
 
 
