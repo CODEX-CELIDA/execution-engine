@@ -112,27 +112,23 @@ class TestTiming:
         assert timing.duration.value == 1.5
         assert timing.duration.unit == TimeUnit.HOUR
 
-    def test_repr_period_one(self):
+    def test_str_period_one(self):
         timing = Timing(
             count=5,
             duration=1.5 * TimeUnit.HOUR,
             frequency=10,
             interval=1 * TimeUnit.DAY,
         )
-        assert (
-            repr(timing) == "Timing(count=5, duration=1.5 HOUR, frequency=10 per DAY)"
-        )
+        assert str(timing) == "Timing(count=5, duration=1.5 h, frequency=10 per d)"
 
-    def test_repr_period_multiple(self):
+    def test_str_period_multiple(self):
         timing = Timing(
             count=5,
             duration=1.5 * TimeUnit.HOUR,
             frequency=10,
             interval=2 * TimeUnit.DAY,
         )
-        assert (
-            repr(timing) == "Timing(count=5, duration=1.5 HOUR, frequency=10 per 2 DAY)"
-        )
+        assert str(timing) == "Timing(count=5, duration=1.5 h, frequency=10 per 2 d)"
 
     def test_set_values_after_creation(self):
         timing = Timing(count=5)

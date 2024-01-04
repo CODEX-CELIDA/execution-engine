@@ -172,7 +172,7 @@ def create_interval_overlap_check_triggers(
     target: Table, connection: Connection, **kw: Any
 ) -> None:
     """
-    Create triggers for the recommendation_result_interval table.
+    Create triggers for the result_interval table.
     """
     connection.execute(
         text(

@@ -99,16 +99,16 @@ class TestValueNumber:
 
     def test_str(self, unit_concept):
         vn = ValueNumber(unit=unit_concept, value=5)
-        assert str(vn) == "Value == 5.0 Test Unit"
+        assert str(vn) == "=5.0 Test Unit"
 
         vn = ValueNumber(unit=unit_concept, value_min=1, value_max=10)
-        assert str(vn) == "1.0 <= Value <= 10.0 Test Unit"
+        assert str(vn) == "=between(1.0, 10.0) Test Unit"
 
         vn = ValueNumber(unit=unit_concept, value_min=1)
-        assert str(vn) == "Value >= 1.0 Test Unit"
+        assert str(vn) == ">=1.0 Test Unit"
 
         vn = ValueNumber(unit=unit_concept, value_max=10)
-        assert str(vn) == "Value <= 10.0 Test Unit"
+        assert str(vn) == "<=10.0 Test Unit"
 
     def test_str_unreachable(self, unit_concept, value_number_root_validator_disabled):
         vn = value_number_root_validator_disabled(unit=unit_concept)
@@ -117,7 +117,10 @@ class TestValueNumber:
 
     def test_repr(self, unit_concept):
         vn = ValueNumber(unit=unit_concept, value=5)
-        assert repr(vn) == "Value == 5.0 Test Unit"
+        assert (
+            repr(vn)
+            == """ValueNumber(unit=OMOP Concept: "Test Unit" (1) [test#unit], value=5.0, value_min=None, value_max=None)"""
+        )
 
     def test_to_sql(self, unit_concept, test_table):
         vn = ValueNumber(unit=unit_concept, value=5)
@@ -146,7 +149,7 @@ class TestValueNumber:
         )
 
         vn = ValueNumber(unit=unit_concept, value_max=10)
-        clauses = vn.to_sql(with_Unit=True)
+        clauses = vn.to_sql(with_unit=True)
         assert len(clauses.clauses) == 2
         assert (
             str(clauses)
@@ -404,19 +407,19 @@ class TestValueDuration:
     def test_str_with_value(self):
         # Assuming TimeUnit is defined and has a member 'HOUR'
         vt = ValueDuration(unit=TimeUnit.HOUR, value=10)
-        assert str(vt) == "Value == 10.0 HOUR"
+        assert str(vt) == "=10.0 h"
 
     def test_str_with_value_min_max(self):
         vt = ValueDuration(unit=TimeUnit.HOUR, value_min=5, value_max=15)
-        assert str(vt) == "5.0 <= Value <= 15.0 HOUR"
+        assert str(vt) == "=between(5.0, 15.0) h"
 
     def test_str_with_value_min(self):
         vt = ValueDuration(unit=TimeUnit.HOUR, value_min=5)
-        assert str(vt) == "Value >= 5.0 HOUR"
+        assert str(vt) == ">=5.0 h"
 
     def test_str_with_value_max(self):
         vt = ValueDuration(unit=TimeUnit.HOUR, value_max=15)
-        assert str(vt) == "Value <= 15.0 HOUR"
+        assert str(vt) == "<=15.0 h"
 
     def test_str_value_not_set(self):
         with pytest.raises(ValidationError):

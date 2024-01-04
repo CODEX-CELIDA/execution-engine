@@ -83,7 +83,8 @@ concept_heparin_ingredient = Concept(
 )
 
 """
-The following list of concepts are heparin drugs and all of them directly map to heparin as ingredient.
+The following list of concepts are heparin drugs and all of them directly map to heparin as ingredient (via ancestor,
+not relationship !)
 """
 concepts_heparin_other = [
     Concept(

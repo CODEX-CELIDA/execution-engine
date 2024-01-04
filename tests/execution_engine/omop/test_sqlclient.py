@@ -76,13 +76,13 @@ class TestSQLClient:
 
     def test_drug_vocabulary_to_ingredient(self, sql_client):
         for drug in concepts_heparin_other + [concept_heparin_ingredient]:
-            ingr = sql_client.drug_vocabulary_to_ingredient(
+            ingr = sql_client.drug_vocabulary_to_ingredient_via_ancestor(
                 drug.vocabulary_id, drug.concept_code
             )
             assert ingr == concept_heparin_ingredient
 
         for drug in [concept_enoxparin, concept_enoxparin_ingredient]:
-            ingr = sql_client.drug_vocabulary_to_ingredient(
+            ingr = sql_client.drug_vocabulary_to_ingredient_via_ancestor(
                 drug.vocabulary_id, drug.concept_code
             )
             assert ingr == concept_enoxparin_ingredient
