@@ -3,7 +3,7 @@ from typing import Self, TypedDict, cast
 
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
-from fhir.resources.dosage import Dosage
+from fhir.resources.dosage import Dosage as FHIRDosage
 from fhir.resources.extension import Extension
 
 from execution_engine.clients import omopdb
@@ -21,7 +21,7 @@ from execution_engine.omop.vocabulary import (
     VocabularyFactory,
     standard_vocabulary,
 )
-from execution_engine.util.enum import TimeUnit
+from execution_engine.util.types import Dosage
 from execution_engine.util.value import Value, ValueNumber
 
 
@@ -47,9 +47,7 @@ class DrugAdministrationAction(AbstractAction):
         name: str,
         exclude: bool,
         ingredient_concept: Concept,
-        dose: ValueNumber | None = None,
-        frequency: int | None = None,
-        interval: TimeUnit | None = None,
+        dose: Dosage | None = None,
         route: Concept | None = None,
         extensions: list[ExtensionType] | None = None,
     ) -> None:
@@ -59,8 +57,6 @@ class DrugAdministrationAction(AbstractAction):
         super().__init__(name=name, exclude=exclude)
         self._ingredient_concept = ingredient_concept
         self._dose = dose
-        self._frequency = frequency
-        self._interval = interval
         self._route = route
         self._extensions = extensions
 
@@ -166,7 +162,7 @@ class DrugAdministrationAction(AbstractAction):
         return df_drugs["drug_concept_id"].sort_values().tolist()
 
     @classmethod
-    def process_dosage(cls, dosage: Dosage) -> ValueNumber:
+    def process_dosage(cls, dosage: FHIRDosage) -> Dosage:
         """
         Processes the dosage of a drug administration action into a ValueNumber.
         """
@@ -188,7 +184,7 @@ class DrugAdministrationAction(AbstractAction):
         return Dosage(dose=dose, **timing.dict())
 
     @classmethod
-    def process_dosage_extensions(cls, dosage: Dosage) -> list[ExtensionType]:
+    def process_dosage_extensions(cls, dosage: FHIRDosage) -> list[ExtensionType]:
         """
         Processes extensions of dosage
 
@@ -225,7 +221,7 @@ class DrugAdministrationAction(AbstractAction):
         return extensions
 
     @classmethod
-    def process_route(cls, dosage: Dosage) -> Concept | None:
+    def process_route(cls, dosage: FHIRDosage) -> Concept | None:
         """
         Processes the route of a drug administration action into a ValueNumber.
         """

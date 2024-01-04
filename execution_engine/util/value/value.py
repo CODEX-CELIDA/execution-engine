@@ -101,14 +101,22 @@ class Value(GenericModel, ABC):
         Get the SQL representation of the value.
         """
 
-    def dict(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+    def dict(
+        self, *args: Any, include_meta: bool = False, **kwargs: Any
+    ) -> dict[str, Any]:
         """
-        Get the JSON representation of the value.
+        Get the dictionary representation of the value.
+
+        :param include_meta: Whether to include the class name in the dictionary.
+        :return: The dictionary representation of the value.
         """
-        return {
-            "class_name": self.__class__.__name__,
-            "data": super().dict(*args, **kwargs),
-        }
+        data = super().dict(*args, **kwargs)
+        if include_meta:
+            return {
+                "class_name": self.__class__.__name__,
+                "data": data,
+            }
+        return data
 
     def supports_units(self) -> bool:
         """

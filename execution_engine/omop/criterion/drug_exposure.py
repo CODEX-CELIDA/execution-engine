@@ -350,7 +350,9 @@ class DrugExposure(Criterion):
             "exclude": self._exclude,
             "category": self._category.value,
             "ingredient_concept": self._ingredient_concept.dict(),
-            "dose": self._dose.dict() if self._dose is not None else None,
+            "dose": self._dose.dict(include_meta=True)
+            if self._dose is not None
+            else None,
             "route": self._route.dict() if self._route is not None else None,
         }
 

@@ -303,6 +303,23 @@ class TestValueConcept:
 
         json_representation = value_concept.dict()
         assert json_representation == {
+            "value": {
+                "concept_class_id": "test",
+                "concept_code": "unit",
+                "concept_id": 1,
+                "concept_name": "Test Concept",
+                "domain_id": "units",
+                "invalid_reason": None,
+                "standard_concept": None,
+                "vocabulary_id": "test",
+            }
+        }
+
+    def test_dict_meta(self, test_concept):
+        value_concept = ValueConcept(value=test_concept)
+
+        json_representation = value_concept.dict(include_meta=True)
+        assert json_representation == {
             "class_name": "ValueConcept",
             "data": {
                 "value": {

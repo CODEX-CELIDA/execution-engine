@@ -173,6 +173,23 @@ class Timing(BaseModel):
             f"{self.__class__.__name__}(" + ", ".join(self.__str_components__()) + ")"
         )
 
+    def dict(
+        self, *args: Any, include_meta: bool = False, **kwargs: Any
+    ) -> dict[str, Any]:
+        """
+        Get the dictionary representation of the timing.
+
+        :param include_meta: Whether to include the class name in the dictionary.
+        :return: The dictionary representation of the value.
+        """
+        data = super().dict(*args, **kwargs)
+        if include_meta:
+            return {
+                "class_name": self.__class__.__name__,
+                "data": data,
+            }
+        return data
+
 
 class Dosage(Timing):
     """
