@@ -4,7 +4,7 @@ import pendulum
 import pytest
 
 from execution_engine.omop.concepts import Concept
-from execution_engine.util import ValueConcept, ValueNumber
+from execution_engine.util.value import ValueConcept, ValueNumber
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 
 

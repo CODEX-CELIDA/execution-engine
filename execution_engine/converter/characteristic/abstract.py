@@ -8,7 +8,7 @@ from execution_engine.converter.converter import CriterionConverter
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.vocabulary import standard_vocabulary
-from execution_engine.util import Value
+from execution_engine.util.value import Value
 
 
 class AbstractCharacteristic(CriterionConverter, ABC):

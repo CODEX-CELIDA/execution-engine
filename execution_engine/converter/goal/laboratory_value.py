@@ -7,7 +7,7 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.vocabulary import SNOMEDCT
-from execution_engine.util import Value
+from execution_engine.util.value import Value
 
 
 class LaboratoryValueGoal(Goal):

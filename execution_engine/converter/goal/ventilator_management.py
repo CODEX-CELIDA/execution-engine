@@ -15,7 +15,7 @@ from execution_engine.omop.criterion.custom.tidal_volume import (
 )
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.vocabulary import CODEXCELIDA, SNOMEDCT
-from execution_engine.util import Value
+from execution_engine.util.value import Value
 
 CUSTOM_GOALS: dict[Concept, Type] = {
     CODEXCELIDA.map["tvpibw"]: TidalVolumePerIdealBodyWeight,

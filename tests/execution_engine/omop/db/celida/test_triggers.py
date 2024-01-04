@@ -4,7 +4,7 @@ from sqlalchemy.exc import DBAPIError
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.db.celida.tables import ResultInterval
-from execution_engine.util import IntervalType as T
+from execution_engine.util.interval import IntervalType as T
 
 
 @pytest.mark.parametrize(

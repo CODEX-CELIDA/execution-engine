@@ -5,7 +5,7 @@ from execution_engine.omop.concepts import Concept, CustomConcept
 from execution_engine.omop.criterion.custom import (
     TidalVolumePerIdealBodyWeight as TVPIBW,
 )
-from execution_engine.util import ValueNumber
+from execution_engine.util.value import ValueNumber
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 from tests.functions import create_measurement
