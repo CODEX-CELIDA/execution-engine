@@ -110,6 +110,12 @@ class Value(GenericModel, ABC):
             "data": super().dict(*args, **kwargs),
         }
 
+    def supports_units(self) -> bool:
+        """
+        Returns true if this type of value supports units.
+        """
+        return hasattr(self, "unit")
+
 
 class ValueNumeric(Value, Generic[ValueT, UnitT]):
     """

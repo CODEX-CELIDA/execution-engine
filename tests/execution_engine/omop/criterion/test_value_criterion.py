@@ -362,9 +362,7 @@ class ValueCriterion(TestCriterion, ABC):
                     ],
                     "criterion_value": f">={VALUE_NUMERIC}",
                     "value_db": [VALUE_NUMERIC - 1, VALUE_NUMERIC, VALUE_NUMERIC + 1],
-                    "expected": {
-                        "2023-03-04"
-                    },  # because the first and second ones are valid and the current rule (for a single criterion) is : if any of the values is valid, the criterion is valid for that day ("partial coverage")
+                    "expected": {},  # because we test "all values valid per day"
                 },
                 {
                     "times": [  # multiple days
