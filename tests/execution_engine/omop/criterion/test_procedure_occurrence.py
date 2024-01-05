@@ -75,7 +75,7 @@ class TestProcedureOccurrence(Occurrence):
                 static=None,
             )
             self.insert_criterion(db_session, criterion, observation_window)
-            df = self.fetch_filtered_results(
+            df = self.fetch_full_day_result(
                 db_session,
                 pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,

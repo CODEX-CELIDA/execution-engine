@@ -136,7 +136,7 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_fixture,
     ):
         self.perform_test(
-            value_db=self.VALUE_NUMERIC,
+            values_db=self.VALUE_NUMERIC,
             person_visit=person_visit,
             db_session=db_session,
             criterion_execute_func=criterion_execute_func,
@@ -150,44 +150,55 @@ class ValueCriterion(TestCriterion, ABC):
         )
 
     @pytest.mark.parametrize(
-        "times", [["2023-03-04 06:00:00"]]
+        "times,values_db",
+        [
+            (  # same time
+                (
+                    ("2023-03-04 12:00:00+01:00"),
+                    ("2023-03-04 12:00:00+01:00"),
+                    ("2023-03-04 12:00:00+01:00"),
+                ),
+                (VALUE_NUMERIC + 1, VALUE_NUMERIC, VALUE_NUMERIC - 1),
+            ),
+        ],
     )  # time ranges used in the database entry
-    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
-    @pytest.mark.parametrize("criterion_concept_name", ["concept", "concept_no_match"])
-    @pytest.mark.parametrize(
-        "criterion_unit_concept_name", ["unit_concept", "unit_concept_no_match"]
-    )
     @pytest.mark.parametrize(
         "criterion_value",
         [
-            {"value": f"{VALUE_NUMERIC}", "match": True},
+            {"value": f">={VALUE_NUMERIC-1}", "match": True},
+            {"value": f">={VALUE_NUMERIC}", "match": False},
+            {"value": f"<={VALUE_NUMERIC +1}", "match": True},
+            {"value": f"{VALUE_NUMERIC}", "match": False},
+            {"value": f"{VALUE_NUMERIC-0.1}", "match": False},
+            {"value": f"{VALUE_NUMERIC-1}-{VALUE_NUMERIC+1}", "match": True},
+            {"value": f"{VALUE_NUMERIC+1}-{VALUE_NUMERIC+10}", "match": False},
+            {"value": f"-{VALUE_NUMERIC}--0.1", "match": False},
         ],
     )  # values used in the criterion
-    def test_value_numeric_concept_no_match(
+    def test_multiple_values_same_time(
         self,
         person_visit,
         db_session,
         criterion_execute_func,
         observation_window,
         times,
-        exclude,
-        criterion_concept_name,
-        criterion_unit_concept_name,
+        values_db,
         criterion_value,
         criterion_fixture,
     ):
         self.perform_test(
-            value_db=self.VALUE_NUMERIC,
+            values_db=values_db,
             person_visit=person_visit,
             db_session=db_session,
             criterion_execute_func=criterion_execute_func,
             observation_window=observation_window,
             times=times,
-            exclude=exclude,
-            criterion_concept=criterion_fixture[criterion_concept_name],
-            criterion_unit_concept=criterion_fixture[criterion_unit_concept_name],
+            exclude=False,
+            criterion_concept=criterion_fixture["concept"],
+            criterion_unit_concept=criterion_fixture["unit_concept"],
             criterion_value=criterion_value,
             criterion_fixture=criterion_fixture,
+            merge_intervals_before_writing=True,
         )
 
     @pytest.mark.parametrize(
@@ -214,7 +225,7 @@ class ValueCriterion(TestCriterion, ABC):
     ):
         with pytest.raises(ValueError):
             self.perform_test(
-                value_db=self.VALUE_NUMERIC,
+                values_db=self.VALUE_NUMERIC,
                 person_visit=person_visit,
                 db_session=db_session,
                 criterion_execute_func=criterion_execute_func,
@@ -264,7 +275,7 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_fixture,
     ):
         self.perform_test(
-            value_db=value_concept,
+            values_db=value_concept,
             person_visit=person_visit,
             db_session=db_session,
             criterion_execute_func=criterion_execute_func,
@@ -282,7 +293,7 @@ class ValueCriterion(TestCriterion, ABC):
 
     def perform_test(
         self,
-        value_db,
+        values_db,
         person_visit,
         db_session,
         criterion_execute_func,
@@ -293,12 +304,18 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_unit_concept,
         criterion_value,
         criterion_fixture,
+        merge_intervals_before_writing: bool = False,
     ):
         p, vo = person_visit[0]
 
+        if not isinstance(values_db, (list, tuple)):
+            values_db = [values_db] * len(times)
+
+        assert len(values_db) == len(times)
+
         times = [pendulum.parse(time) for time in times]
 
-        for time in times:
+        for value_db, time in zip(values_db, times):
             c = self.create_value(
                 visit_occurrence=vo,
                 concept_id=criterion_fixture["concept"].concept_id,
@@ -319,6 +336,9 @@ class ValueCriterion(TestCriterion, ABC):
         else:
             raise ValueError(f"Unknown value type: {type(criterion_value['value'])}")
 
+        if merge_intervals_before_writing:
+            self.merge_intervals_before_writing = True
+
         # run criterion against db
         df = criterion_execute_func(
             concept=criterion_concept, value=value, exclude=exclude
@@ -330,17 +350,12 @@ class ValueCriterion(TestCriterion, ABC):
             & (criterion_unit_concept == criterion_fixture["unit_concept"])
         )
 
+        self.merge_intervals_before_writing = False
+
         if criterion_matches:
             valid_dates = self.date_points(times)
         else:
             valid_dates = set()
-
-        # exclusion is now only performed when combining criteria into population/intervention/population_intervention
-        # if exclude:
-        #    valid_dates = self.invert_date_points(
-        #        time_range=observation_window,
-        #        subtract=valid_dates,
-        #    )
 
         assert set(df["valid_date"].dt.date) == valid_dates
 

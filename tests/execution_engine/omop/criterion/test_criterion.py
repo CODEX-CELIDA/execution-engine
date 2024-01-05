@@ -5,7 +5,7 @@ from typing import Iterable, Sequence
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Table, bindparam, select
+from sqlalchemy import Column, Date, Integer, MetaData, Table, select
 
 import execution_engine.omop.db.celida.tables as celida_tables
 from execution_engine.constants import CohortCategory
@@ -20,6 +20,7 @@ from execution_engine.omop.db.celida.views import (
 )
 from execution_engine.omop.db.omop.tables import Person
 from execution_engine.task import (  # noqa: F401     -- required for the mock.patch below
+    process,
     runner,
     task,
 )
@@ -54,12 +55,11 @@ def date_set(tc: Iterable):
 
 class TestCriterion:
     result_table = celida_tables.ResultInterval.__table__
-    result_view_partial_day = partial_day_coverage
-    result_view_full_day = full_day_coverage
     run_id = 1234
     criterion_id = 5678
     pi_pair_id = 9012
     recommendation_id = 3456
+    merge_intervals_before_writing: bool = False
 
     @pytest.fixture(autouse=True)
     def create_recommendation_run(self, db_session, observation_window) -> None:
@@ -250,18 +250,23 @@ class TestCriterion:
 
         query = criterion.create_query()
 
-        query = query.add_columns(
-            bindparam("run_id", self.run_id).label("run_id"),
-            bindparam("pi_pair_id", self.pi_pair_id).label("pi_pair_id"),
-            bindparam("criterion_id", self.criterion_id).label("criterion_id"),
-            bindparam("cohort_category", CohortCategory.POPULATION).label(
-                "cohort_category"
-            ),
+        result = pd.read_sql(
+            query, con=db_session.connection(), params=observation_window.dict()
+        )
+        result = process.merge_intervals_negative_dominant(result, by=["person_id"])
+
+        result = result.assign(
+            criterion_id=self.criterion_id,
+            pi_pair_id=self.pi_pair_id,
+            run_id=self.run_id,
+            cohort_category=CohortCategory.POPULATION,
         )
 
-        t_result = celida_tables.ResultInterval.__table__
-        query_insert = t_result.insert().from_select(query.selected_columns, query)
-        db_session.execute(query_insert, params=observation_window.dict())
+        db_session.execute(
+            celida_tables.ResultInterval.__table__.insert(),
+            result.to_dict(orient="records"),
+        )
+
         db_session.commit()
 
     def insert_criterion_combination(
@@ -287,20 +292,29 @@ class TestCriterion:
         task_runner = runner.SequentialTaskRunner(graph)
         task_runner.run(params)
 
-    def fetch_filtered_results(
+    def fetch_full_day_result(
         self,
         db_session,
         pi_pair_id: int | None,
         criterion_id: int | None,
         category: CohortCategory | None,
     ):
-        view = (
-            self.result_view_full_day
-            # if criterion_id is None
-            # else self.result_view_partial_day
+        df = self._fetch_result_view(
+            full_day_coverage, db_session, pi_pair_id, criterion_id, category
         )
-        df = self.fetch_result_view(
-            view, db_session, pi_pair_id, criterion_id, category
+        df["valid_date"] = pd.to_datetime(df["valid_date"])
+
+        return df
+
+    def fetch_partial_day_result(
+        self,
+        db_session,
+        pi_pair_id: int | None,
+        criterion_id: int | None,
+        category: CohortCategory | None,
+    ):
+        df = self._fetch_result_view(
+            partial_day_coverage, db_session, pi_pair_id, criterion_id, category
         )
         df["valid_date"] = pd.to_datetime(df["valid_date"])
 
@@ -313,11 +327,11 @@ class TestCriterion:
         criterion_id: int | None,
         category: CohortCategory | None,
     ):
-        return self.fetch_result_view(
+        return self._fetch_result_view(
             interval_result, db_session, pi_pair_id, criterion_id, category
         )
 
-    def fetch_result_view(
+    def _fetch_result_view(
         self,
         view,
         db_session,
@@ -367,7 +381,8 @@ class TestCriterion:
             )
 
             self.insert_criterion(db_session, criterion, observation_window)
-            df = self.fetch_filtered_results(
+
+            df = self.fetch_full_day_result(
                 db_session,
                 pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,
