@@ -122,7 +122,7 @@ class Task:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
                 # atomic expressions (i.e. criterion)
                 result = self.handle_criterion(
-                    bind_params, base_data, observation_window
+                    self.criterion, bind_params, base_data, observation_window
                 )
 
                 self.store_result_in_db(
@@ -176,8 +176,10 @@ class Task:
 
         return result
 
+    @classmethod
     def handle_criterion(
-        self,
+        cls,
+        criterion: Criterion,
         bind_params: dict,
         base_data: pd.DataFrame | None,
         observation_window: TimeRange,
@@ -185,19 +187,20 @@ class Task:
         """
         Handles a criterion by querying the database.
 
+        :param criterion: The criterion to handle.
         :param bind_params: The parameters.
         :param base_data: The result of the base criterion or None, if this is the base criterion.
         :param observation_window: The observation window.
         :return: A DataFrame with the result of the query.
         """
         engine = get_engine()
-        query = self.criterion.create_query()
+        query = criterion.create_query()
         result = engine.query(query, **bind_params)
 
-        result = self.criterion.process_result(result, base_data, observation_window)
+        result = criterion.process_result(result, base_data, observation_window)
 
         # merge overlapping/adjacent intervals to reduce the number of intervals
-        result = process.union_intervals([result], by=self.by)
+        result = process.union_intervals([result], by=cls.by)
 
         return result
 
@@ -399,8 +402,6 @@ class Task:
             result = process.mask_intervals(
                 result,
                 mask=base_data,
-                # interval_type_outside_mask=IntervalType.NOT_APPLICABLE,
-                # observation_window=observation_window,
             )
 
         pi_pair_id = bind_params.get("pi_pair_id", None)
