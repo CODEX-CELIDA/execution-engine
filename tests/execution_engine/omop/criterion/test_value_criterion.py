@@ -430,11 +430,4 @@ class ValueCriterion(TestCriterion, ABC):
             df_person = df.query(f"{vo.person_id} == person_id")
             valid_dates = self.date_points(tc["expected"])
 
-            # todo remove
-            # exclusion is now performed only when combining the criteria into population/intervention
-            # if exclude:
-            #    valid_dates = self.invert_date_points(
-            #        time_range=observation_window,
-            #        subtract=valid_dates,
-            #    )
             assert set(df_person["valid_date"].dt.date) == valid_dates

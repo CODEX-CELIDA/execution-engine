@@ -14,11 +14,6 @@ engine = create_engine(
     pool_pre_ping=True,
     connect_args={
         "options": "-csearch_path={}".format(config.omop.db_schema),
-        # "check_same_thread": False
-        # "keepalives": 1,
-        # "keepalives_idle": 30,
-        # "keepalives_interval": 10,
-        # "keepalives_count": 5,
     },
 )
 

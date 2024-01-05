@@ -120,17 +120,6 @@ class OMOPSQLClient:
             )
             cursor.close()
 
-        # @event.listens_for(self._engine, "before_cursor_execute")
-        # def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-        #    conn.info.setdefault("query_start_time", []).append(time.time())
-        #    logging.debug("Start Query: %s", statement)
-
-        # @event.listens_for(self._engine, "after_cursor_execute")
-        # def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-        #    total = time.time() - conn.info["query_start_time"].pop(-1)
-        #    logging.debug("Query Complete!")
-        #    logging.debug("Total Time: %f", total)
-
     def disable_triggers(self) -> None:
         """
         Disable triggers including foreign key checks.

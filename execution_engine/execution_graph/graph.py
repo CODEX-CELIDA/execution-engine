@@ -221,9 +221,6 @@ class ExecutionGraph(nx.DiGraph):
         def set_predecessors_store(
             expr: logic.Expr, graph: ExecutionGraph, hops_remaining: int
         ) -> None:
-            # expr.store_result = True
-            # expr.pi_pair_id = pi_pair_id
-
             self.nodes[expr]["store_result"] = True
             self.nodes[expr]["bind_params"] = bind_params
 

@@ -245,9 +245,6 @@ class TestInterval:
         )
 
     def test_interval_union(self):
-        # [Timestamp('2023-03-02 17:00:00+0000', tz='UTC'), Timestamp('2023-03-03 17:00:00+0000', tz='UTC'); NEGATIVE]
-        # [Timestamp('2023-02-28 23:00:00+0000', tz='UTC'),Timestamp('2023-03-02 22:59:59+0000', tz='UTC'); POSITIVE]
-
         interval1 = interval_datetime(
             Timestamp("2023-03-02 17:00:00+0000", tz="UTC"),
             Timestamp("2023-03-03 17:00:00+0000", tz="UTC"),
