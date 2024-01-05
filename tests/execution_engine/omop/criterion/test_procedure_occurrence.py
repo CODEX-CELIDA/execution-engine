@@ -253,3 +253,91 @@ class TestProcedureOccurrence(Occurrence):
         intervals = criterion_execute_func_timing(concept=concept, exclude=False)
 
         assert set(intervals) == expected_intervals
+
+    @pytest.mark.parametrize(
+        "time_ranges",
+        [
+            [
+                ("2023-02-28 12:00:00+01:00", "2023-03-02 12:00:00+01:00"),  # 48h
+                (
+                    "2023-03-25 12:00:00+01:00",
+                    "2023-03-27 12:00:00+02:00",
+                ),  # 47h - during DST change
+                ("2023-03-30 12:00:00+02:00", "2023-04-01 12:00:00+02:00"),  # 48h
+            ]
+        ],
+    )
+    @pytest.mark.parametrize(
+        "timing,expected_intervals",
+        [
+            (
+                Timing(
+                    duration=ValueDuration(value_min=16, unit=TimeUnit.HOUR),
+                    frequency=1,
+                    interval=1 * TimeUnit.DAY,
+                ),
+                {
+                    interval("2023-02-28 00:00:00+01:00", "2023-02-28 23:59:59+01:00"),
+                    interval("2023-03-01 00:00:00+01:00", "2023-03-01 23:59:59+01:00"),
+                    interval("2023-03-02 00:00:00+01:00", "2023-03-02 23:59:59+01:00"),
+                    interval("2023-03-25 00:00:00+01:00", "2023-03-25 23:59:59+01:00"),
+                    interval(
+                        "2023-03-26 00:00:00+01:00", "2023-03-26 23:59:59+02:00"
+                    ),  # DST change
+                    interval("2023-03-27 00:00:00+02:00", "2023-03-27 23:59:59+02:00"),
+                    interval("2023-03-30 00:00:00+02:00", "2023-03-30 23:59:59+02:00"),
+                    interval("2023-03-31 00:00:00+02:00", "2023-03-31 23:59:59+02:00"),
+                    interval("2023-04-01 00:00:00+02:00", "2023-04-01 23:59:59+02:00"),
+                },
+            ),
+        ],
+    )
+    def test_daylight_saving_time_handling(
+        self,
+        person_visit,
+        db_session,
+        concept,
+        criterion_execute_func,
+        observation_window,
+        base_table,
+        time_ranges,
+        timing,
+        expected_intervals,
+    ):
+        _, vo = person_visit[0]
+
+        def criterion_execute_func_timing(
+            concept: Concept,
+            exclude: bool,
+            value: ValueNumber | None = None,
+        ):
+            criterion = ProcedureOccurrence(
+                name="test",
+                exclude=exclude,
+                category=CohortCategory.POPULATION,
+                concept=concept,
+                value=value,
+                timing=timing,
+                static=None,
+            )
+            self.insert_criterion(db_session, criterion, observation_window)
+
+            df = self.fetch_interval_result(
+                db_session,
+                pi_pair_id=self.pi_pair_id,
+                criterion_id=self.criterion_id,
+                category=criterion.category,
+            )
+            df = df.query('interval_type=="POSITIVE"')
+
+            return process.df_to_intervals(
+                df[["interval_start", "interval_end", "interval_type"]]
+            )
+
+        time_ranges = [TimeRange.from_tuple(tr[:2]) for tr in time_ranges]
+        self.insert_occurrences(concept, db_session, vo, time_ranges)
+
+        # run criterion against db
+        intervals = criterion_execute_func_timing(concept=concept, exclude=False)
+
+        assert set(intervals) == expected_intervals

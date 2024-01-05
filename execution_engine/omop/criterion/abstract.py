@@ -7,7 +7,7 @@ from typing import Any, Dict, Type, TypedDict, cast
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import CTE, NUMERIC, Alias, ColumnElement, Date
+from sqlalchemy import CTE, Alias, ColumnElement, Date
 from sqlalchemy import Interval as SQLInterval
 from sqlalchemy import Table, and_, bindparam, case, func, literal_column, select
 from sqlalchemy.sql import Select, TableClause
@@ -44,7 +44,17 @@ Domain = TypedDict(
     },
 )
 
-SQL_ONE_SECOND = func.cast(concat(1, "second"), SQLInterval)
+SQL_ONE_SECOND = literal_column("interval '1 second'")
+SQL_ONE_HOUR = literal_column("interval '1 hour'")
+
+observation_start_datetime = func.cast(
+    bindparam("observation_start_datetime", type_=DateTimeWithTimeZone),
+    DateTimeWithTimeZone,
+)
+observation_end_datetime = func.cast(
+    bindparam("observation_end_datetime", type_=DateTimeWithTimeZone),
+    DateTimeWithTimeZone,
+)
 
 
 def column_interval_type(interval_type: IntervalType) -> ColumnElement:
@@ -345,10 +355,8 @@ class Criterion(AbstractCriterion):
         if self._static:
             # If this criterion is a static criterion, i.e. one whose value does not change over time,
             # then we add the observation range as the interval range
-            c_start = bindparam(
-                "observation_start_datetime", type_=DateTimeWithTimeZone
-            )
-            c_end = bindparam("observation_end_datetime", type_=DateTimeWithTimeZone)
+            c_start = observation_start_datetime
+            c_end = observation_end_datetime
         else:
             c_start = self._get_datetime_column(self._table, "start")
             c_end = self._get_datetime_column(self._table, "end")
@@ -457,8 +465,8 @@ class Criterion(AbstractCriterion):
         if isinstance(query, Select):
             query = query.filter(
                 and_(
-                    c_start <= bindparam("observation_end_datetime"),
-                    c_end >= bindparam("observation_start_datetime"),
+                    c_start <= observation_end_datetime,
+                    c_end >= observation_start_datetime,
                 )
             )
         else:
@@ -479,12 +487,8 @@ class Criterion(AbstractCriterion):
             # but we need to add the observation range as the valid range
 
             query = query.add_columns(
-                bindparam(
-                    "observation_start_datetime", type_=DateTimeWithTimeZone
-                ).label("valid_from"),
-                bindparam("observation_end_datetime", type_=DateTimeWithTimeZone).label(
-                    "valid_to"
-                ),
+                observation_start_datetime.label("valid_from"),
+                observation_end_datetime.label("valid_to"),
             )
 
             return query
@@ -500,8 +504,8 @@ class Criterion(AbstractCriterion):
         if isinstance(query, Select):
             query = query.filter(
                 and_(
-                    c_start <= bindparam("observation_end_datetime"),
-                    c_end >= bindparam("observation_start_datetime"),
+                    c_start <= observation_end_datetime,
+                    c_end >= observation_start_datetime,
                 )
             )
         else:
@@ -573,13 +577,13 @@ class Criterion(AbstractCriterion):
         query = query.add_columns(
             func.greatest(
                 c_valid_from,
-                bindparam("observation_start_datetime", type_=DateTimeWithTimeZone),
+                observation_start_datetime,
             ).label("valid_from")
         )
         query = query.add_columns(
             func.least(
                 c_valid_to,
-                bindparam("observation_end_datetime", type_=DateTimeWithTimeZone),
+                observation_end_datetime,
             ).label("valid_to")
         )
 
@@ -664,10 +668,11 @@ class Criterion(AbstractCriterion):
 
         This function computes interval starts by truncating the datetime to the start of the day
         and then adding multiples of the interval length in seconds to it. The result is labeled as 'interval_start'.
-        This approach is sensitive to daylight saving time (DST) changes.
+
+        Any differences in timezone between the observation start datetime and the datetime column are accounted for
+        by adjusting the interval start by the difference in hours between the two timezones.
 
         Note:
-        - The function includes a warning about potential issues with DST changes when not using date truncation.
         - The function dynamically adjusts for various interval types, not just days.
 
         :param query: The base SQLAlchemy query object to which the CTE is added.
@@ -675,56 +680,43 @@ class Criterion(AbstractCriterion):
         :param add_columns: Optional list of additional SQLAlchemy ColumnElements to be included in the CTE.
         :return: A SQLAlchemy CTE object named 'interval_starts'.
         """
-        interval_length_seconds = func.cast(
-            func.extract("EPOCH", interval), NUMERIC
-        ).label("interval_length_seconds")
-
         c_start = self._get_datetime_column(self._table, "start")
         c_end = self._get_datetime_column(self._table, "end")
 
+        c_timezone_hour_diff = (
+            (func.extract("timezone_hour", c_start) * SQL_ONE_HOUR)
+            - (func.extract("timezone_hour", observation_start_datetime) * SQL_ONE_HOUR)
+        ).label("timezone_hour_diff")
+
+        interval_length_seconds = func.extract("EPOCH", interval).label(
+            "interval_length_seconds"
+        )
+
+        observation_start_day = func.date_trunc(
+            "day",
+            observation_start_datetime,
+        )
+        diff_to_observation_start_day_sec = func.extract(
+            "EPOCH",
+            (c_start - observation_start_day),
+        )
+
         interval_starts = query.add_columns(
             (
-                # todo: warning: not using date trunc here will cause problems with DST changes - but on the other
-                # hand, using it is incorrect for other interval types than DAY
-                # func.date_trunc(
-                #    "day",  # need to truncate the whole result again, otherwise DST changes will cause problems in the interval calculation
-                func.date_trunc(
-                    "day",
-                    func.cast(
-                        bindparam(
-                            "observation_start_datetime", type_=DateTimeWithTimeZone
-                        ),
-                        DateTimeWithTimeZone,
-                    ),
-                )
+                observation_start_day
                 + interval_length_seconds
                 * (
-                    func.floor(
-                        func.extract(
-                            "EPOCH",
-                            (
-                                c_start
-                                - func.date_trunc(
-                                    "day",
-                                    func.cast(
-                                        bindparam(
-                                            "observation_start_datetime",
-                                            type_=DateTimeWithTimeZone,
-                                        ),
-                                        DateTimeWithTimeZone,
-                                    ),
-                                )
-                            ),
-                        )
-                        / interval_length_seconds
+                    func.floor(  # diff to observation start day in multiple of desired "observation interval"
+                        diff_to_observation_start_day_sec / interval_length_seconds
                     )
                     * SQL_ONE_SECOND
                 )
-                # )
+                - c_timezone_hour_diff
             ).label("interval_start"),
             c_start.label("start_datetime"),
             c_end.label("end_datetime"),
             (c_end - c_start).label("duration"),
+            c_timezone_hour_diff,
         )
 
         if add_columns is not None:
