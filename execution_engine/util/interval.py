@@ -89,6 +89,42 @@ class IntervalType(StrEnum):
 
     __bool_true = [POSITIVE, NO_DATA, NOT_APPLICABLE]
 
+    def __le__(self, other: Any) -> bool:
+        """
+        Less than or equal to.
+        """
+        raise TypeError(
+            "IntervalType does not support comparison operators because it's unclear "
+            "whether union or intersection priority should be used."
+        )
+
+    def __lt__(self, other: Any) -> bool:
+        """
+        Less than.
+        """
+        raise TypeError(
+            "IntervalType does not support comparison operators because it's unclear "
+            "whether union or intersection priority should be used."
+        )
+
+    def __ge__(self, other: Any) -> bool:
+        """
+        Greater than or equal to.
+        """
+        raise TypeError(
+            "IntervalType does not support comparison operators because it's unclear "
+            "whether union or intersection priority should be used."
+        )
+
+    def __gt__(self, other: Any) -> bool:
+        """
+        Greater than.
+        """
+        raise TypeError(
+            "IntervalType does not support comparison operators because it's unclear "
+            "whether union or intersection priority should be used."
+        )
+
     def __repr__(self) -> str:
         """
         Get the string representation of the category.
@@ -480,10 +516,7 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
                 right = self.right if upper == self.upper else other.right
 
             # Determine type based on intersection priority
-            type_priority = IntervalType.intersection_priority()
-            result_type = min(
-                (self.type, other.type), key=lambda t: type_priority.index(t)
-            )
+            result_type = self.type & other.type
             return self.__class__.from_atomic(left, lower, upper, right, result_type)
 
         else:
@@ -538,11 +571,37 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
             if a.type == b.type or a.type is None or b.type is None:
                 merged_intervals.append(self.__class__(a, b))
             else:
-                lower, upper = (a, b) if a.type < b.type else (b, a)
+                lower, upper = self.union_sort(a, b)
                 merged_intervals.append(lower - upper.replace(type_=lower.type))
                 merged_intervals.append(upper)
 
         return self.__class__(*merged_intervals)
+
+    @staticmethod
+    def union_sort(
+        a: "IntervalWithType", b: "IntervalWithType"
+    ) -> tuple["IntervalWithType", "IntervalWithType"]:
+        """
+        Order two intervals for union (lower priority first).
+        """
+        if a.type is None:
+            return a, b
+        elif b.type is None:
+            return b, a
+        return (a, b) if a.type != (a.type | b.type) else (b, a)
+
+    @staticmethod
+    def intersection_sort(
+        a: "IntervalWithType", b: "IntervalWithType"
+    ) -> tuple["IntervalWithType", "IntervalWithType"]:
+        """
+        Order two intervals for intersection (lower priority first).
+        """
+        if a.type is None:
+            return a, b
+        elif b.type is None:
+            return b, a
+        return (a, b) if a.type != (a.type & b.type) else (b, a)
 
     def complement(self, type_: IntervalTypeT | None = None) -> "IntervalWithType":
         """

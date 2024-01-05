@@ -86,6 +86,17 @@ def parse_graphic_intervals(graphics):
     return intervals
 
 
+def parse_intervals(s):
+    lines = [line.split("|")[1:-1] for line in s.split("\n") if line.strip() != ""]
+    data = "\n".join([line[0] for line in lines[1:]])
+    expected = "\n".join([line[1] for line in lines[1:]])
+
+    intervals = parse_graphic_intervals(data)
+    expected_intervals = parse_graphic_intervals(expected)
+
+    return intervals, IntInterval(*expected_intervals)
+
+
 def test_parse_graphic_intervals():
     graphic_intervals = """
     1---2---3---4
@@ -262,29 +273,39 @@ class TestInterval:
             T.NEGATIVE,
         )
 
-    def test_interval_union2(self):
-        def parse_intervals(s):
-            lines = [
-                line.split("|")[1:-1] for line in s.split("\n") if line.strip() != ""
-            ]
-            data = "\n".join([line[0] for line in lines[1:]])
-            expected = "\n".join([line[1] for line in lines[1:]])
+    def test_interval_union_changed_priority_order(self):
+        interval1 = interval_datetime(
+            Timestamp("2023-03-02 17:00:00+0000", tz="UTC"),
+            Timestamp("2023-03-03 17:00:00+0000", tz="UTC"),
+            T.NEGATIVE,
+        )
+        interval2 = interval_datetime(
+            Timestamp("2023-02-28 23:00:00+0000", tz="UTC"),
+            Timestamp("2023-03-02 22:59:59+0000", tz="UTC"),
+            T.POSITIVE,
+        )
+        with IntervalType.custom_union_priority_order(
+            IntervalType.intersection_priority()
+        ):
+            interval_union = interval1 | interval2
 
-            intervals = parse_graphic_intervals(data)
-            expected_intervals = parse_graphic_intervals(expected)
+        assert len(interval_union) == 2
+        assert interval_union[0] == interval_datetime(
+            Timestamp("2023-02-28 23:00:00+0000", tz="UTC"),
+            Timestamp("2023-03-02 16:59:59+0000", tz="UTC"),
+            T.POSITIVE,
+        )
+        assert interval_union[1] == interval_datetime(
+            Timestamp("2023-03-02 17:00:00+0000", tz="UTC"),
+            Timestamp("2023-03-03 17:00:00+0000", tz="UTC"),
+            T.NEGATIVE,
+        )
 
-            return intervals, IntInterval(*expected_intervals)
-
+    def test_interval_union_overlapping(self):
         def assert_intervals_equal(s):
             intervals, expected_intervals = parse_intervals(s)
             interval_union = intervals[0] | intervals[1]
             assert interval_union == expected_intervals
-
-        """
-        1---2---3---4   1---2---3---4   1---2---3---4
-        [-----------] P [-----------] N [---)   (---]
-            [---]     N 			  P     [---]
-        """
 
         data = """
         |  INTERVALS             | EXPECTED               |
@@ -302,12 +323,6 @@ class TestInterval:
         """
         assert_intervals_equal(data)
 
-        """
-        1---2---3---4   1---2---3---4   1---2---3---4
-        [-------]	  P [-------]     N [---)
-            [-------] N          ---] P     [-------]
-        """
-
         data = """
         |  INTERVALS             | EXPECTED               |
         | 1---2---3---4          | 1---2---3---4          |
@@ -324,12 +339,6 @@ class TestInterval:
         """
         assert_intervals_equal(data)
 
-        """
-        1---2-------4   1---2-------4   1---2-------4
-        [---]         P [---]         N [---)
-            [-------] N     (-------] P     [-------]
-        """
-
         data = """
         |  INTERVALS             | EXPECTED               |
         | 1---2-------4          | 1---2-------4          |
@@ -343,6 +352,65 @@ class TestInterval:
         | 1---2-------4          | 1---2-------4          |
         | [---]         NEGATIVE | [---)        NEGATIVE  |
         |     [-------] POSITIVE |     [-------] POSITIVE |
+        """
+        assert_intervals_equal(data)
+
+    def test_interval_union_overlapping_changed_priority_order(self):
+        def assert_intervals_equal(s):
+            intervals, expected_intervals = parse_intervals(s)
+
+            with IntervalType.custom_union_priority_order(
+                IntervalType.intersection_priority()
+            ):
+                interval_union = intervals[0] | intervals[1]
+
+            assert interval_union == expected_intervals
+
+        data = """
+        |  INTERVALS             | EXPECTED               |
+        | 1---2---3---4          | 1---2---3---4          |
+        | [-----------] POSITIVE | [---)   (---] POSITIVE |
+        |     [---]     NEGATIVE |     [---]     NEGATIVE |
+        """
+        assert_intervals_equal(data)
+
+        data = """
+        |  INTERVALS             | EXPECTED               |
+        | 1---2---3---4          | 1---2---3---4          |
+        | [-----------] NEGATIVE | [-----------] NEGATIVE |
+        |     [---]     POSITIVE |               POSITIVE |
+        """
+        assert_intervals_equal(data)
+
+        data = """
+        |  INTERVALS             | EXPECTED               |
+        | 1---2---3---4          | 1---2---3---4          |
+        | [-------]     POSITIVE | [---)         POSITIVE |
+        |     [-------] NEGATIVE |     [-------] NEGATIVE |
+        """
+        assert_intervals_equal(data)
+
+        data = """
+        |  INTERVALS             | EXPECTED               |
+        | 1---2---3---4          | 1---2---3---4          |
+        | [-------]     NEGATIVE | [-------]     NEGATIVE |
+        |     [-------] POSITIVE |         (---] POSITIVE |
+        """
+        assert_intervals_equal(data)
+
+        data = """
+        |  INTERVALS             | EXPECTED               |
+        | 1---2-------4          | 1---2-------4          |
+        | [---]         POSITIVE | [---)         POSITIVE |
+        |     [-------] NEGATIVE |     [-------] NEGATIVE |
+        """
+        assert_intervals_equal(data)
+
+        data = """
+        |  INTERVALS             | EXPECTED               |
+        | 1---2-------4          | 1---2-------4          |
+        | [---]         NEGATIVE | [---]        NEGATIVE  |
+        |     [-------] POSITIVE |     (-------] POSITIVE |
         """
         assert_intervals_equal(data)
 
