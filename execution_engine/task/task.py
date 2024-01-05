@@ -199,8 +199,10 @@ class Task:
 
         result = criterion.process_result(result, base_data, observation_window)
 
-        # merge overlapping/adjacent intervals to reduce the number of intervals
-        result = process.union_intervals([result], by=cls.by)
+        # merge overlapping/adjacent intervals to reduce the number of intervals - but NEGATIVE is dominant over
+        # POSITIVE here, i.e. if there is a NEGATIVE interval, the result is NEGATIVE, regardless of any POSITIVE
+        # intervals
+        result = process.merge_intervals_negative_dominant(result, by=cls.by)
 
         return result
 

@@ -293,6 +293,30 @@ def intersect_intervals(dfs: list[pd.DataFrame], by: list[str]) -> pd.DataFrame:
     return df
 
 
+def merge_intervals_negative_dominant(df: pd.DataFrame, by: list[str]) -> pd.DataFrame:
+    """
+    Merges the intervals in the DataFrame.
+
+    The difference between union_intervals and merge_intervals is that merge_intervals uses the intersection_priority
+    to determine the type of the merged intervals, whereas union_intervals uses the union_priority.
+
+    This means that merge_intervals merges overlapping intervals of type NEGATIVE and POSITIVE into a single interval
+    of type NEGATIVE, whereas union_intervals merges them into a single interval of type POSITIVE.
+
+    This function is used when combining intervals within the same criterion, e.g. when multiple measurement values
+    are available at the same time but with different types - if one of the values is NEGATIVE, the combined value
+    should be NEGATIVE as well. In contrast, union_intervals implements the logic for combining intervals across
+    criteria, e.g. when combining a measurement value with a lab value - if one of the values is POSITIVE, the
+    combined value should be POSITIVE, regardless of the type of the other value.
+
+    :param df: A DataFrames.
+    :param by: A list of column names to group by.
+    :return: A DataFrame with the merged intervals.
+    """
+    with IntervalType.custom_union_priority_order(IntervalType.intersection_priority()):
+        return _process_intervals([df], or_, by=by)
+
+
 def mask_intervals(
     df: pd.DataFrame,
     mask: pd.DataFrame,
