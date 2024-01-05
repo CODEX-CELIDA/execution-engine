@@ -63,14 +63,15 @@ class TestCriterion:
 
     @pytest.fixture(autouse=True)
     def create_recommendation_run(self, db_session, observation_window) -> None:
-        yield from celida_recommendation(
+        with celida_recommendation(
             db_session,
             observation_window,
             recommendation_id=self.recommendation_id,
             run_id=self.run_id,
             pi_pair_id=self.pi_pair_id,
             criterion_id=self.criterion_id,
-        )
+        ):
+            yield
 
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
@@ -152,6 +153,10 @@ class TestCriterion:
 
         try:
             yield
+            db_session.commit()
+        except Exception as e:
+            db_session.rollback()
+            raise e
         finally:
             db_session.query(celida_tables.ResultInterval).delete()
             db_session.commit()

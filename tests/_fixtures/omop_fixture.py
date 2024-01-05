@@ -99,11 +99,21 @@ def db_setup():
 @pytest.fixture
 def db_session(db_setup):
     session = db_setup()
-
-    yield session
-
-    session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
-    session.commit()
+    try:
+        yield session
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
+        session.execute(text('TRUNCATE TABLE "celida"."recommendation" CASCADE;'))
+        session.execute(text('TRUNCATE TABLE "celida"."execution_run" CASCADE;'))
+        session.execute(
+            text('TRUNCATE TABLE "celida"."population_intervention_pair" CASCADE;')
+        )
+        session.execute(text('TRUNCATE TABLE "celida"."criterion" CASCADE;'))
+        session.commit()
+        session.commit()
 
 
 @contextmanager
@@ -164,6 +174,9 @@ def celida_recommendation(
             "pi_pair_id": pi_pair_id,
             "criterion_id": criterion_id,
         }
+    except Exception as e:
+        db_session.rollback()
+        raise e
     finally:
         db_session.execute(text('TRUNCATE TABLE "celida"."recommendation" CASCADE;'))
         db_session.execute(text('TRUNCATE TABLE "celida"."execution_run" CASCADE;'))
