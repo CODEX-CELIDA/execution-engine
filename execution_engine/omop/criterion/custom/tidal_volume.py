@@ -103,9 +103,6 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
                     ),
                     else_=(47.75 + 0.91 * (measurement_ibw.c.value_as_number - 152.4)),
                 ).label(label),
-                # literal(OMOPConcepts.UNIT_KG.value).label(
-                #    "unit_concept_id"
-                # )
             )
             .join(person, person.c.person_id == measurement_ibw.c.person_id)
             .where(

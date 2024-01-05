@@ -17,6 +17,7 @@ from execution_engine.task.process import (
     union_intervals,
 )
 from execution_engine.util.interval import DateTimeInterval
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.interval import empty_interval_datetime, interval_datetime
 from execution_engine.util.types import TimeRange
@@ -39,6 +40,8 @@ def df_from_str(data_str):
     df = pd.read_csv(StringIO(data_str), sep="\t", dtype={"group1": str, "group2": int})
     df["interval_start"] = pd.to_datetime(df["interval_start"])
     df["interval_end"] = pd.to_datetime(df["interval_end"])
+    df["interval_type"] = df["interval_type"].apply(IntervalType)
+
     return df
 
 

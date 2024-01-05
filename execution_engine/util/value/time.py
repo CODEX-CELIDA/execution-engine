@@ -7,7 +7,13 @@ from sqlalchemy.sql.functions import concat, func
 
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.value import ucum_to_postgres
-from execution_engine.util.value.value import Value, ValueNumeric, check_int
+from execution_engine.util.value.value import (
+    Value,
+    ValueNumeric,
+    check_int,
+    check_unit_none,
+    check_value_min_max_none,
+)
 
 
 class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
@@ -17,7 +23,14 @@ class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
 
     value_min: None = None
     value_max: None = None
+
     _validate_value = validator("value", pre=True, allow_reuse=True)(check_int)
+    _validate_no_value_min = validator("value_min", pre=True, allow_reuse=True)(
+        check_value_min_max_none
+    )
+    _validate_no_value_max = validator("value_max", pre=True, allow_reuse=True)(
+        check_value_min_max_none
+    )
 
     def __str__(self) -> str:
         """
@@ -49,6 +62,7 @@ class ValueCount(ValueNumeric[NonNegativeInt, None]):
     _validate_value = validator("value", pre=True, allow_reuse=True)(check_int)
     _validate_value_min = validator("value_min", pre=True, allow_reuse=True)(check_int)
     _validate_value_max = validator("value_max", pre=True, allow_reuse=True)(check_int)
+    _validate_no_unit = validator("unit", pre=True, allow_reuse=True)(check_unit_none)
 
 
 class ValueDuration(ValueNumeric[float, TimeUnit]):

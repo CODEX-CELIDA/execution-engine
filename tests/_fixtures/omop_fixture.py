@@ -32,7 +32,6 @@ TIMEZONE = "Europe/Berlin"
 @contextmanager
 def disable_postgres_trigger(conn):
     conn.execute(text("SET session_replication_role = 'replica';"))
-    conn.commit()
 
     yield
 
@@ -101,10 +100,8 @@ def db_session(db_setup):
     session = db_setup()
     try:
         yield session
-    except Exception as e:
-        session.rollback()
-        raise e
     finally:
+        session.rollback()  # rollback in case of exceptions
         session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
         session.execute(text('TRUNCATE TABLE "celida"."recommendation" CASCADE;'))
         session.execute(text('TRUNCATE TABLE "celida"."execution_run" CASCADE;'))
@@ -174,10 +171,8 @@ def celida_recommendation(
             "pi_pair_id": pi_pair_id,
             "criterion_id": criterion_id,
         }
-    except Exception as e:
-        db_session.rollback()
-        raise e
     finally:
+        db_session.rollback()  # rollback in case of exceptions
         db_session.execute(text('TRUNCATE TABLE "celida"."recommendation" CASCADE;'))
         db_session.execute(text('TRUNCATE TABLE "celida"."execution_run" CASCADE;'))
         db_session.execute(

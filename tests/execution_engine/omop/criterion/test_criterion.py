@@ -134,7 +134,6 @@ class TestCriterion:
     @contextmanager
     def execute_base_criterion(cls, base_criterion, db_session, observation_window):
         query = base_criterion.create_query()
-        cls.register_criterion(base_criterion, db_session)
 
         # add base table patients to results table, so they can be used when combining statements (execution_map)
         query = add_result_insert(
@@ -154,10 +153,8 @@ class TestCriterion:
         try:
             yield
             db_session.commit()
-        except Exception as e:
-            db_session.rollback()
-            raise e
         finally:
+            db_session.rollback()  # rollback in case of exceptions
             db_session.query(celida_tables.ResultInterval).delete()
             db_session.commit()
 
@@ -220,9 +217,11 @@ class TestCriterion:
             db_session.commit()
 
     @pytest.fixture
-    def base_criterion(self):
+    def base_criterion(self, db_session):
         c = PatientsActiveDuringPeriod("TestActivePatients")
         c.id = -1
+        self.register_criterion(c, db_session)
+
         return c
 
     @pytest.fixture
@@ -253,7 +252,12 @@ class TestCriterion:
         result = pd.read_sql(
             query, con=db_session.connection(), params=observation_window.dict()
         )
-        result = process.merge_intervals_negative_dominant(result, by=["person_id"])
+
+        if self.merge_intervals_before_writing:
+            result = process.merge_intervals_negative_dominant(result, by=["person_id"])
+
+        if result.empty:
+            return
 
         result = result.assign(
             criterion_id=self.criterion_id,

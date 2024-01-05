@@ -50,6 +50,26 @@ def check_int(cls: BaseModel, v: int | float | None) -> int | None:
     return int(v)
 
 
+def check_unit_none(cls: BaseModel, v: None) -> None:
+    """
+    Check that a value is not supplied. Used as a validator for pydantic.
+    """
+    if v is not None:
+        raise ValueError("unit must be None.")
+
+    return v
+
+
+def check_value_min_max_none(cls: BaseModel, v: None) -> None:
+    """
+    Check that a value is not supplied. Used as a validator for pydantic.
+    """
+    if v is not None:
+        raise ValueError("value_min/value_max must be None.")
+
+    return v
+
+
 def get_precision(value: float | int) -> int:
     """
     Get the precision (i.e. the number of decimal places) of a float or int.
@@ -209,9 +229,9 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
         elif s.startswith("<="):
             value_max = float(s[2:])
         elif s.startswith(">"):
-            raise ValueError("ValueNumber does not support >.")
+            raise ValueError(f"{cls.__name__} does not support '>' (only '>=').")
         elif s.startswith("<"):
-            raise ValueError("ValueNumber does not support <.")
+            raise ValueError(f"{cls.__name__} does not support '<' (only '<=').")
         elif "--" in s:
             parts = s.split("--")
             value_min = float(parts[0])

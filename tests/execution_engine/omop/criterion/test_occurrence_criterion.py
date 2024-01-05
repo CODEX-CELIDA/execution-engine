@@ -1,8 +1,11 @@
 from abc import ABC
+from contextlib import contextmanager
 
 import pytest
 
+from execution_engine.util.interval import IntervalType, IntervalWithType
 from execution_engine.util.types import TimeRange
+from tests._fixtures.omop_fixture import disable_postgres_trigger
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 
 
@@ -217,13 +220,17 @@ class Occurrence(TestCriterion, ABC):
             test_cases
         ), "Number of test cases must match number of persons"
 
-        for test_case, vo in zip(test_cases, vos):
-            time_ranges = [TimeRange.from_tuple(tr) for tr in test_case["time_range"]]
+        # need to disable trigger for overlapping intervals to perform the test
+        with disable_postgres_trigger(db_session):
+            for test_case, vo in zip(test_cases, vos):
+                time_ranges = [
+                    TimeRange.from_tuple(tr) for tr in test_case["time_range"]
+                ]
 
-            self.insert_occurrences(concept, db_session, vo, time_ranges)
+                self.insert_occurrences(concept, db_session, vo, time_ranges)
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
+            # run criterion against db
+            df = criterion_execute_func(concept=concept, exclude=False)
 
         for test_case, vo in zip(test_cases, vos):
             assert set(
@@ -242,6 +249,34 @@ class Occurrence(TestCriterion, ABC):
 
         db_session.commit()
 
+    @staticmethod
+    def disable_trigger_for_overlapping_intervals(
+        time_ranges: list[TimeRange],
+    ) -> callable:
+        """
+        Create a context manager that disables the postgres trigger for overlapping intervals.
+
+        This is needed to perform the test, because the postgres trigger will prevent the insertion of overlapping
+        intervals. If intervals are not overlapping, a no-op context manager is returned.
+
+        :param time_ranges: The time ranges to check for overlapping intervals.
+        :return: A context manager that disables the postgres trigger for overlapping intervals.
+        """
+
+        @contextmanager
+        def dummy_context_manager(session):
+            yield
+
+        intervals = [tr.interval(type_=IntervalType.POSITIVE) for tr in time_ranges]
+
+        if not IntervalWithType.pairwise_disjoint(intervals):
+            # intervals are overlapping, need to disable trigger for overlapping intervals to perform the test
+            ctx = disable_postgres_trigger
+        else:
+            ctx = dummy_context_manager
+
+        return ctx
+
     def perform_test(
         self,
         person_visit,
@@ -257,10 +292,10 @@ class Occurrence(TestCriterion, ABC):
         time_ranges = [TimeRange.from_tuple(tr[:2]) for tr in time_ranges]
         filtered_time_ranges = [tr for tr, v in zip(time_ranges, valid_range) if v]
 
-        self.insert_occurrences(concept, db_session, vo, time_ranges)
+        with self.disable_trigger_for_overlapping_intervals(time_ranges)(db_session):
+            self.insert_occurrences(concept, db_session, vo, time_ranges)
+            df = criterion_execute_func(concept=concept, exclude=False)
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
         valid_daterange = self.date_ranges(filtered_time_ranges)
 
         assert (

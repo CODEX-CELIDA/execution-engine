@@ -3,6 +3,7 @@ import pytest
 
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import VisitOccurrence
+from tests._fixtures.omop_fixture import disable_postgres_trigger
 from tests._testdata.concepts import INPATIENT_VISIT, INTENSIVE_CARE
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit
@@ -350,8 +351,9 @@ class TestVisitOccurrence(TestCriterion):
 
         db_session.commit()
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
+        # need to disable postgres trigger to avoid constraint violation due to overlapping intervals in testdata
+        with disable_postgres_trigger(db_session):
+            df = criterion_execute_func(concept=concept, exclude=False)
 
         assert set(df["valid_date"].dt.date) == date_set(expected)
 
@@ -419,23 +421,25 @@ class TestVisitOccurrence(TestCriterion):
         criterion_execute_func,
         test_cases,
     ):
-        for tc, p in zip(test_cases, person):
-            for (
-                visit_start_datetime,
-                visit_end_datetime,
-            ) in tc["time_range"]:
-                vo = create_visit(
-                    person_id=p.person_id,
-                    visit_start_datetime=pendulum.parse(visit_start_datetime),
-                    visit_end_datetime=pendulum.parse(visit_end_datetime),
-                    visit_concept_id=INTENSIVE_CARE,
-                )
-                db_session.add(vo)
+        # need to disable postgres trigger to avoid constraint violation due to overlapping intervals in testdata
+        with disable_postgres_trigger(db_session):
+            for tc, p in zip(test_cases, person):
+                for (
+                    visit_start_datetime,
+                    visit_end_datetime,
+                ) in tc["time_range"]:
+                    vo = create_visit(
+                        person_id=p.person_id,
+                        visit_start_datetime=pendulum.parse(visit_start_datetime),
+                        visit_end_datetime=pendulum.parse(visit_end_datetime),
+                        visit_concept_id=INTENSIVE_CARE,
+                    )
+                    db_session.add(vo)
 
-        db_session.commit()
+            db_session.commit()
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
+            # run criterion against db
+            df = criterion_execute_func(concept=concept, exclude=False)
 
         for tc, p in zip(test_cases, person):
             assert set(

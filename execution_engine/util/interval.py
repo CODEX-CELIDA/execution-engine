@@ -1,8 +1,10 @@
 import datetime
+import itertools
 import warnings
 from collections import namedtuple
 from contextlib import contextmanager
 from enum import StrEnum
+from functools import reduce
 from typing import Any, Generic, Iterator, Protocol, TypeVar, cast
 
 from portion import CLOSED, Interval
@@ -489,6 +491,49 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
             raise ValueError("Cannot compute enclosure of a non-homogeneous interval")
 
         return super().enclosure
+
+    @classmethod
+    def union_all(cls, args: list["IntervalWithType"]) -> "IntervalWithType":
+        """
+        Return the union of a list of intervals.
+
+        :param args: a list of intervals.
+        :return: the union of the list of intervals.
+        """
+        if len(args) == 0:
+            return cls()
+
+        return reduce(lambda x, y: x | y, args)
+
+    @classmethod
+    def intersection_all(cls, args: list["IntervalWithType"]) -> "IntervalWithType":
+        """
+        Return the intersection of a list of intervals.
+
+        :param args: a list of intervals.
+        :return: the intersection of the list of intervals.
+        """
+        if len(args) == 0:
+            return cls()
+
+        return reduce(lambda x, y: x & y, args)
+
+    @classmethod
+    def pairwise_disjoint(cls, args: list["IntervalWithType"]) -> bool:
+        """
+        Check if a list of intervals are pairwise disjoint.
+
+        :param args: a list of intervals.
+        :return: True if the intervals are pairwise disjoint, False otherwise.
+        """
+        if len(args) <= 1:
+            return True
+
+        for a, b in itertools.combinations(args, 2):
+            if not (a & b).empty:
+                return False
+
+        return True
 
     def __and__(self, other: "IntervalWithType") -> "IntervalWithType":
         """
@@ -1002,48 +1047,3 @@ def empty_interval_datetime() -> DateTimeInterval:
     :return: The empty datetime interval.
     """
     return DateTimeInterval()
-
-
-if __name__ == "__main__":
-    interval1 = interval_int(1, 5, IntervalType.POSITIVE)
-    interval2 = interval_int(3, 7, IntervalType.NEGATIVE)
-    interval3 = interval_int(10, 15, IntervalType.NO_DATA)
-    interval4 = interval_int(5, 10, IntervalType.NOT_APPLICABLE)
-
-    # Non-overlapping union
-    union_result = interval1 | interval3
-    print("Non-overlapping Union:", union_result)
-
-    # Non-overlapping intersection
-    intersection_result = interval1 & interval3
-    print("Non-overlapping Intersection:", intersection_result)
-
-    # Overlapping union
-    union_result = interval1 | interval2
-    print("Overlapping Union:", union_result)
-
-    # Overlapping intersection
-    intersection_result = interval1 & interval2
-    print("Overlapping Intersection:", intersection_result)
-
-    # Adjacent intervals
-    adjacent_result = interval1 | interval4
-    print("Adjacent Intervals:", adjacent_result)
-
-    # Complex union
-    complex_union = interval1 | interval2 | interval3 | interval4
-    print("Complex Union:", complex_union)
-
-    # Complex intersection (expected to be empty)
-    complex_intersection = interval1 & interval2 & interval3 & interval4
-    print("Complex Intersection:", complex_intersection)
-
-    # Verify priority order in union
-    union_priority = interval2 | interval4  # NEGATIVE should win over NOT_APPLICABLE
-    print("Union Priority:", union_priority)
-
-    # Verify priority order in intersection
-    intersection_priority = (
-        interval1 & interval4
-    )  # POSITIVE should win over NOT_APPLICABLE
-    print("Intersection Priority:", intersection_priority)
