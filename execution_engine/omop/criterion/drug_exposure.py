@@ -1,20 +1,17 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import NUMERIC
-from sqlalchemy import Interval as SQLInterval
-from sqlalchemy import and_, bindparam, case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.sql import Select
-from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
+    SQL_ONE_SECOND,
     Criterion,
     column_interval_type,
     create_conditional_interval_column,
 )
-from execution_engine.omop.db.base import DateTimeWithTimeZone
 from execution_engine.omop.db.omop import tables as omop
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import IntervalType
@@ -131,14 +128,8 @@ class DrugExposure(Criterion):
         query = select(
             self._table.c.person_id,
         ).select_from(self._table)
-
-        query = self._sql_generate(query)
-        return query
-
-    def _sql_generate(self, query: Select) -> Select:
-        drug_exposure = self._table
-
         query = self._sql_filter_concept(query)
+        query = self._filter_datetime(query)
 
         if self._route is not None:
             # route is not implemented yet because it uses HemOnc codes in the standard vocabulary
@@ -147,80 +138,14 @@ class DrugExposure(Criterion):
             logging.warning("Route specified, but not implemented yet")
 
         # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
-        # todo: also this uses a hard-coded "1" for the interval
         interval = self._dose.interval.to_sql_interval()
-        interval_length_seconds = func.cast(
-            func.extract("EPOCH", interval), NUMERIC
-        ).label("interval_length_seconds")
-        one_second = func.cast(concat(1, "second"), SQLInterval)
 
-        # Filter only drug_exposures that are inbetween the start and end date of the cohort
-        # todo: move this into another function (duplicate code with super()._insert_datetime()
-        c_start = self._get_datetime_column(self._table)
-        c_end = self._get_datetime_column(self._table, "end")
-        query = query.filter(
-            and_(
-                c_start
-                <= bindparam("observation_end_datetime", type_=DateTimeWithTimeZone),
-                c_end
-                >= bindparam("observation_start_datetime", type_=DateTimeWithTimeZone),
-            )
+        interval_starts = self.cte_interval_starts(
+            query, interval, add_columns=[self._table.c.quantity.label("quantity")]
         )
-
-        interval_starts = query.add_columns(
-            (
-                func.date_trunc(
-                    "day",  # need to truncate the whole result again, otherwise DST changes will cause problems in the interval calculation
-                    func.date_trunc(
-                        "day",
-                        func.cast(
-                            bindparam(
-                                "observation_start_datetime", type_=DateTimeWithTimeZone
-                            ),
-                            DateTimeWithTimeZone,
-                        ),
-                    )
-                    + interval_length_seconds
-                    * (
-                        func.floor(
-                            func.extract(
-                                "EPOCH",
-                                (
-                                    drug_exposure.c.drug_exposure_start_datetime
-                                    - func.date_trunc(
-                                        "day",
-                                        func.cast(
-                                            bindparam(
-                                                "observation_start_datetime",
-                                                type_=DateTimeWithTimeZone,
-                                            ),
-                                            DateTimeWithTimeZone,
-                                        ),
-                                    )
-                                ),
-                            )
-                            / interval_length_seconds
-                        )
-                        * one_second
-                    ),
-                )
-            ).label("interval_start"),
-            drug_exposure.c.drug_exposure_start_datetime.label("start_datetime"),
-            drug_exposure.c.drug_exposure_end_datetime.label("end_datetime"),
-            drug_exposure.c.quantity.label("quantity"),
-        ).cte("interval_starts")
-
-        date_ranges = select(
-            interval_starts.c.person_id,
-            func.generate_series(
-                interval_starts.c.interval_start,
-                interval_starts.c.end_datetime,
-                interval,
-            ).label("interval_start"),
-            interval_starts.c.start_datetime,
-            interval_starts.c.end_datetime,
-            interval_starts.c.quantity,
-        ).cte("date_ranges")
+        date_ranges = self.cte_date_ranges(
+            interval_starts, interval, add_columns=[interval_starts.c.quantity]
+        )
 
         interval_quantities = (
             select(
@@ -289,7 +214,7 @@ class DrugExposure(Criterion):
             select(
                 interval_ratios.c.person_id,
                 interval_ratios.c.interval_start.label("interval_start"),
-                (interval_ratios.c.interval_start + interval - one_second).label(
+                (interval_ratios.c.interval_start + interval - SQL_ONE_SECOND).label(
                     "interval_end"
                 ),
                 conditional_interval_column.label("interval_type"),

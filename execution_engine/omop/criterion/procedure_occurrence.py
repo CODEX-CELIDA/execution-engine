@@ -1,10 +1,12 @@
 from typing import Any, Dict
 
-from sqlalchemy.sql import Select, extract
+from sqlalchemy import case, func, select
+from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
+    SQL_ONE_SECOND,
     column_interval_type,
     create_conditional_interval_column,
 )
@@ -48,25 +50,85 @@ class ProcedureOccurrence(ContinuousCriterion):
         """
         Get the SQL representation of the criterion.
         """
-
-        start_datetime = self._table.c["procedure_datetime"]
-        end_datetime = self._table.c["procedure_end_datetime"]
-
-        query = self._sql_header()
+        query = select(
+            self._table.c.person_id,
+        ).select_from(self._table)
         query = self._sql_filter_concept(query)
+        query = self._filter_datetime(query)
 
-        if self._timing is not None and self._timing.duration is not None:
+        c_start_datetime = self._table.c["procedure_datetime"]
+        c_end_datetime = self._table.c["procedure_end_datetime"]
+
+        if self._timing is not None:
+            frequency = self._timing.frequency
             duration = self._timing.duration
-            column = extract(duration.unit, end_datetime - start_datetime).label(
-                "duration"
-            )
-            conditional_column = create_conditional_interval_column(
-                duration.to_sql(table=None, column_name=column)
-            )
+
+            if self._timing.interval is not None:
+                assert (
+                    frequency is not None
+                ), "Frequency must be specified if interval is specified"
+                # an interval and a frequency are specified : the query is constructed such that
+                # it yields intervals of the specific length (in self._timing.interval) and checks that within each interval
+                # the frequency is satisfied
+
+                interval = self._timing.interval.to_sql_interval()
+                interval_starts = self.cte_interval_starts(query, interval)
+                date_ranges = self.cte_date_ranges(interval_starts, interval)
+
+                # if a duration is specified, we need to count the number of occurrences within each interval
+                if duration is not None:
+                    # make sure that the duration from the query is in the same time unit (e.g. h) as desired duration
+                    c_interval_count = func.sum(
+                        case(
+                            (duration.to_sql(column_name=date_ranges.c.duration), 1),
+                            else_=0,
+                        )
+                    ).label("interval_count")
+                else:
+                    c_interval_count = func.count().label("interval_count")
+
+                # interval_type is determined by the number of occurrences within each interval (w.r.t. the desired
+                # frequency)
+                conditional_interval_column = create_conditional_interval_column(
+                    condition=frequency.to_sql(column_name=c_interval_count)
+                )
+
+                query = (
+                    select(
+                        date_ranges.c.person_id,
+                        date_ranges.c.interval_start.label("interval_start"),
+                        (
+                            date_ranges.c.interval_start + interval - SQL_ONE_SECOND
+                        ).label("interval_end"),
+                        conditional_interval_column.label("interval_type"),
+                    )
+                    .select_from(date_ranges)
+                    .group_by(date_ranges.c.person_id, date_ranges.c.interval_start)
+                )
+            elif duration is not None:
+                c_duration = (c_end_datetime - c_start_datetime).label("duration")
+                conditional_column = create_conditional_interval_column(
+                    duration.to_sql(table=None, column_name=c_duration)
+                )
+
+                query = query.add_columns(
+                    conditional_column,
+                    c_start_datetime.label("interval_start"),
+                    c_end_datetime.label("interval_end"),
+                )
+            elif self._timing.count is not None:
+                raise NotImplementedError("Count timing not implemented yet")
+            else:
+                raise ValueError("Timing must have an interval, duration or count")
         else:
+            # no timing is given, so we just need to check that the procedure is performed
             conditional_column = column_interval_type(IntervalType.POSITIVE)
 
-        query = query.add_columns(conditional_column)
+            query = query.add_columns(
+                conditional_column,
+                c_start_datetime.label("interval_start"),
+                c_end_datetime.label("interval_end"),
+            )
 
         return query
 

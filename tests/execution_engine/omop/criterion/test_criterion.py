@@ -16,6 +16,7 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.celida.views import (
     full_day_coverage,
+    interval_result,
     partial_day_coverage,
 )
 from execution_engine.omop.db.omop.tables import Person
@@ -332,9 +333,33 @@ class TestCriterion:
             # if criterion_id is None
             # else self.result_view_partial_day
         )
-        stmt = select(view.c.person_id, view.c.valid_date).where(
-            view.c.run_id == self.run_id
+        df = self.fetch_result_view(
+            view, db_session, pi_pair_id, criterion_id, category
         )
+        df["valid_date"] = pd.to_datetime(df["valid_date"])
+
+        return df
+
+    def fetch_interval_result(
+        self,
+        db_session,
+        pi_pair_id: int | None,
+        criterion_id: int | None,
+        category: CohortCategory | None,
+    ):
+        return self.fetch_result_view(
+            interval_result, db_session, pi_pair_id, criterion_id, category
+        )
+
+    def fetch_result_view(
+        self,
+        view,
+        db_session,
+        pi_pair_id: int | None,
+        criterion_id: int | None,
+        category: CohortCategory | None,
+    ):
+        stmt = select(view).where(view.c.run_id == self.run_id)
 
         if criterion_id is not None:
             stmt = stmt.where(view.c.criterion_id == criterion_id)
@@ -354,7 +379,6 @@ class TestCriterion:
             db_session.connection(),
             params={"run_id": self.run_id},
         )
-        df["valid_date"] = pd.to_datetime(df["valid_date"])
 
         return df
 

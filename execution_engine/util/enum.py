@@ -1,6 +1,12 @@
 from enum import StrEnum
 from typing import Any
 
+from sqlalchemy import NUMERIC, ColumnElement
+from sqlalchemy import Interval as SQLInterval
+from sqlalchemy import func
+from sqlalchemy.sql.functions import concat
+
+from execution_engine.util.value import ucum_to_postgres
 from execution_engine.util.value.value import ValueNumeric
 
 
@@ -34,3 +40,21 @@ class TimeUnit(StrEnum):
             return ValueNumeric[int, TimeUnit](value=other, unit=self)
         else:
             return ValueNumeric[float, TimeUnit](value=other, unit=self)
+
+    def to_sql_interval(self) -> ColumnElement:
+        """
+        Get the SQL Interval representation of the value.
+
+        E.g. TimeUnit.DAY corresponds to SQL "INTERVAL '1 DAY'"
+        """
+        return func.cast(concat(1, ucum_to_postgres[self.value]), SQLInterval)
+
+    def to_sql_interval_length_seconds(self) -> ColumnElement:
+        """
+        Get the SQL Interval representation of the value in seconds.
+
+        E.g. ValuePeriod(value=1, unit=TimeUnit.DAY) corresponds to 86400 seconds.
+        """
+        return func.cast(func.extract("EPOCH", self.to_sql_interval()), NUMERIC).label(
+            "duration_seconds"
+        )

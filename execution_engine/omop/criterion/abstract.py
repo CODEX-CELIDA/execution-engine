@@ -7,20 +7,9 @@ from typing import Any, Dict, Type, TypedDict, cast
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import (
-    CTE,
-    Alias,
-    ColumnElement,
-    Date,
-    Table,
-    and_,
-    bindparam,
-    case,
-    func,
-    literal_column,
-    select,
-)
-from sqlalchemy.dialects.postgresql import INTERVAL
+from sqlalchemy import CTE, NUMERIC, Alias, ColumnElement, Date
+from sqlalchemy import Interval as SQLInterval
+from sqlalchemy import Table, and_, bindparam, case, func, literal_column, select
 from sqlalchemy.sql import Select, TableClause
 from sqlalchemy.sql.functions import concat
 
@@ -54,6 +43,8 @@ Domain = TypedDict(
         "static": bool,
     },
 )
+
+SQL_ONE_SECOND = func.cast(concat(1, "second"), SQLInterval)
 
 
 def column_interval_type(interval_type: IntervalType) -> ColumnElement:
@@ -449,6 +440,32 @@ class Criterion(AbstractCriterion):
 
         return table.c[f"{column_prefix}_datetime"]
 
+    def _filter_datetime(self, query: Select) -> Select:
+        """
+        Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.
+        """
+
+        if self._static:
+            # If this criterion is a static criterion, i.e. one whose value does not change over time,
+            # then we don't need to filter by datetime,
+            # but we need to add the observation range as the valid range
+            return query
+
+        c_start = self._get_datetime_column(self._table)
+        c_end = self._get_datetime_column(self._table, "end")
+
+        if isinstance(query, Select):
+            query = query.filter(
+                and_(
+                    c_start <= bindparam("observation_end_datetime"),
+                    c_end >= bindparam("observation_start_datetime"),
+                )
+            )
+        else:
+            raise ValueError("sql must be a Select")
+
+        return query
+
     def _insert_datetime(self, query: SelectInto) -> SelectInto:
         """
         Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.
@@ -578,7 +595,7 @@ class Criterion(AbstractCriterion):
                     func.date_trunc(
                         "day", literal_column("valid_to", type_=DateTimeWithTimeZone)
                     ),
-                    func.cast(concat(1, "day"), INTERVAL),
+                    func.cast(concat(1, "day"), SQLInterval),
                 )
                 .cast(Date)
                 .label("valid_date"),
@@ -634,3 +651,119 @@ class Criterion(AbstractCriterion):
         Return a description of the criterion.
         """
         raise NotImplementedError()
+
+    def cte_interval_starts(
+        self,
+        query: Select,
+        interval: ColumnElement,
+        add_columns: list[ColumnElement] | None = None,
+    ) -> CTE:
+        """
+        Creates a common table expression (CTE) that calculates the start of intervals
+        based on a given datetime column and interval duration.
+
+        This function computes interval starts by truncating the datetime to the start of the day
+        and then adding multiples of the interval length in seconds to it. The result is labeled as 'interval_start'.
+        This approach is sensitive to daylight saving time (DST) changes.
+
+        Note:
+        - The function includes a warning about potential issues with DST changes when not using date truncation.
+        - The function dynamically adjusts for various interval types, not just days.
+
+        :param query: The base SQLAlchemy query object to which the CTE is added.
+        :param interval: A SQLAlchemy ColumnElement representing the interval duration.
+        :param add_columns: Optional list of additional SQLAlchemy ColumnElements to be included in the CTE.
+        :return: A SQLAlchemy CTE object named 'interval_starts'.
+        """
+        interval_length_seconds = func.cast(
+            func.extract("EPOCH", interval), NUMERIC
+        ).label("interval_length_seconds")
+
+        c_start = self._get_datetime_column(self._table, "start")
+        c_end = self._get_datetime_column(self._table, "end")
+
+        interval_starts = query.add_columns(
+            (
+                # todo: warning: not using date trunc here will cause problems with DST changes - but on the other
+                # hand, using it is incorrect for other interval types than DAY
+                # func.date_trunc(
+                #    "day",  # need to truncate the whole result again, otherwise DST changes will cause problems in the interval calculation
+                func.date_trunc(
+                    "day",
+                    func.cast(
+                        bindparam(
+                            "observation_start_datetime", type_=DateTimeWithTimeZone
+                        ),
+                        DateTimeWithTimeZone,
+                    ),
+                )
+                + interval_length_seconds
+                * (
+                    func.floor(
+                        func.extract(
+                            "EPOCH",
+                            (
+                                c_start
+                                - func.date_trunc(
+                                    "day",
+                                    func.cast(
+                                        bindparam(
+                                            "observation_start_datetime",
+                                            type_=DateTimeWithTimeZone,
+                                        ),
+                                        DateTimeWithTimeZone,
+                                    ),
+                                )
+                            ),
+                        )
+                        / interval_length_seconds
+                    )
+                    * SQL_ONE_SECOND
+                )
+                # )
+            ).label("interval_start"),
+            c_start.label("start_datetime"),
+            c_end.label("end_datetime"),
+            (c_end - c_start).label("duration"),
+        )
+
+        if add_columns is not None:
+            interval_starts = interval_starts.add_columns(*add_columns)
+
+        return interval_starts.cte("interval_starts")
+
+    @staticmethod
+    def cte_date_ranges(
+        interval_starts: CTE,
+        interval: ColumnElement,
+        add_columns: list[ColumnElement] | None = None,
+    ) -> CTE:
+        """
+        Creates a common table expression (CTE) that generates date ranges for each interval start.
+
+        This function uses the 'generate_series' function to create a series of datetime values
+        starting from 'interval_start' to 'end_datetime' at intervals specified by the 'interval' parameter.
+        The generated series is labeled as 'interval_start'.
+
+        :param interval_starts: A SQLAlchemy CTE object that contains the starting points of intervals.
+        :param interval: A SQLAlchemy ColumnElement representing the interval duration.
+        :param add_columns: Optional list of additional SQLAlchemy ColumnElements to be included in the CTE.
+        :return: A SQLAlchemy CTE object named 'date_ranges'.
+        """
+
+        date_ranges = select(
+            interval_starts.c.person_id,
+            func.generate_series(
+                interval_starts.c.interval_start,
+                interval_starts.c.end_datetime,
+                interval,
+            ).label("interval_start"),
+            interval_starts.c.start_datetime,
+            interval_starts.c.end_datetime,
+            interval_starts.c.duration,
+        )
+
+        if add_columns is not None:
+            date_ranges = date_ranges.add_columns(*add_columns)
+
+        return date_ranges.cte("date_ranges")

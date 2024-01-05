@@ -135,13 +135,16 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
     value_min: ValueT | None = None
     value_max: ValueT | None = None
 
-    class Config:
-        """
-        Pydantic configuration.
-        """
-
-        use_enum_values = True
-        """ Use enum values instead of names (of e.g. TimeUnit, when converting to dict). """
+    # todo: disabled for because I need the TimeUnit enum in ValueDuration to call a function on it
+    #  (to_sql_interval_length_seconds). However it was previously enabled for export to dict() I believe. Is this
+    #  needed?
+    # class Config:
+    #     """
+    #     Pydantic configuration.
+    #     """
+    #
+    #     use_enum_values = True
+    #     """ Use enum values instead of names (of e.g. TimeUnit, when populating). """
 
     @root_validator  # type: ignore
     def validate_value(cls, values: dict) -> dict:
