@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 
 import pendulum
@@ -81,6 +82,20 @@ class TestDosage:
             dosage.interval.unit, TimeUnit
         )  # Ensure it's not returning the enum member
 
+    def test_serialization(self):
+        dosage = Dosage(
+            dose=ValueNumber(value=10, unit=concept_unit_mg),
+            count=5,
+            duration=None,
+            frequency=10,
+            interval=1 * TimeUnit.HOUR,
+        )
+
+        json_str = json.dumps(dosage.dict())
+        dict_from_str = json.loads(json_str)
+
+        assert Dosage(**dict_from_str) == dosage
+
 
 class TestTiming:
     def test_interval_must_be_set_for_frequency(self):
@@ -119,7 +134,7 @@ class TestTiming:
             frequency=10,
             interval=1 * TimeUnit.DAY,
         )
-        assert str(timing) == "Timing(count=5, duration=1.5 h, frequency=10 per d)"
+        assert str(timing) == "Timing(count=5, duration=1.5 HOUR, frequency=10 per DAY)"
 
     def test_str_period_multiple(self):
         timing = Timing(
@@ -128,7 +143,9 @@ class TestTiming:
             frequency=10,
             interval=2 * TimeUnit.DAY,
         )
-        assert str(timing) == "Timing(count=5, duration=1.5 h, frequency=10 per 2 d)"
+        assert (
+            str(timing) == "Timing(count=5, duration=1.5 HOUR, frequency=10 per 2 DAY)"
+        )
 
     def test_set_values_after_creation(self):
         timing = Timing(count=5)
@@ -146,5 +163,16 @@ class TestTiming:
         # we can't assign a frequency without an interval
         with pytest.raises(ValidationError):
             timing.frequency = 10
-        # timing.interval = 1 * TimeUnit.DAY
-        # assert timing.frequency == 10
+
+    def test_serialization(self):
+        timing = Timing(
+            count=">=5",
+            frequency=10,
+            interval=2 * TimeUnit.DAY,
+            duration=1.5 * TimeUnit.HOUR,
+        )
+
+        json_str = json.dumps(timing.dict())
+        dict_from_str = json.loads(json_str)
+
+        assert Timing(**dict_from_str) == timing

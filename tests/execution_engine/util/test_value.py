@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import Column, ColumnClause, MetaData, Table
@@ -8,6 +10,7 @@ from execution_engine.util.value import ValueConcept, ValueNumber
 from execution_engine.util.value.factory import value_factory
 from execution_engine.util.value.time import ValueDuration, ValuePeriod
 from execution_engine.util.value.value import get_precision
+from tests._fixtures.concept import concept_unit_mg
 
 
 def test_get_precision():
@@ -28,6 +31,18 @@ def test_get_precision():
     # Test the function for empty input
     with pytest.raises(TypeError):
         get_precision("")
+
+
+def assert_serialization(value):
+    json_str = json.dumps(value.dict())
+    dict_from_str = json.loads(json_str)
+
+    assert value.__class__(**dict_from_str) == value
+
+    json_str = json.dumps(value.dict(include_meta=True))
+    dict_from_str = json.loads(json_str)
+
+    assert value_factory(**dict_from_str) == value
 
 
 @pytest.fixture
@@ -263,12 +278,20 @@ class TestValueNumber:
     def test_value_number_parse_greater_than_not_supported(self, unit_concept):
         with pytest.raises(ValueError) as e:
             ValueNumber.parse(">2.5", unit_concept)
-        assert str(e.value) == "ValueNumber does not support >."
+        assert str(e.value) == "ValueNumber does not support '>' (only '>=')."
 
     def test_value_number_parse_less_than_not_supported(self, unit_concept):
         with pytest.raises(ValueError) as e:
             ValueNumber.parse("<10.0", unit_concept)
-        assert str(e.value) == "ValueNumber does not support <."
+        assert str(e.value) == "ValueNumber does not support '<' (only '<=')."
+
+    def test_serialization(self):
+        assert_serialization(
+            ValueNumber(value_min=1, value_max=10, unit=concept_unit_mg)
+        )
+        assert_serialization(ValueNumber(value_max=10, unit=concept_unit_mg))
+        assert_serialization(ValueNumber(value_min=1, unit=concept_unit_mg))
+        assert_serialization(ValueNumber(value=5, unit=concept_unit_mg))
 
 
 class TestValueConcept:
@@ -334,6 +357,9 @@ class TestValueConcept:
                 }
             },
         }
+
+    def test_serialization(self, test_concept):
+        assert_serialization(ValueConcept(value=test_concept))
 
 
 class TestValueFactory:
@@ -414,6 +440,10 @@ class TestValuePeriod:
         assert vtf.value == 3
         assert vtf.unit == TimeUnit.DAY
 
+    def test_serialization(self):
+        assert_serialization(ValuePeriod(unit=TimeUnit.DAY, value=3))
+        assert_serialization(ValuePeriod(unit=TimeUnit.WEEK, value=3.0))
+
 
 class TestValueDuration:
     def test_float_value_handling(self):
@@ -424,19 +454,19 @@ class TestValueDuration:
     def test_str_with_value(self):
         # Assuming TimeUnit is defined and has a member 'HOUR'
         vt = ValueDuration(unit=TimeUnit.HOUR, value=10)
-        assert str(vt) == "=10.0 h"
+        assert str(vt) == "=10.0 HOUR"
 
     def test_str_with_value_min_max(self):
         vt = ValueDuration(unit=TimeUnit.HOUR, value_min=5, value_max=15)
-        assert str(vt) == "=between(5.0, 15.0) h"
+        assert str(vt) == "=between(5.0, 15.0) HOUR"
 
     def test_str_with_value_min(self):
         vt = ValueDuration(unit=TimeUnit.HOUR, value_min=5)
-        assert str(vt) == ">=5.0 h"
+        assert str(vt) == ">=5.0 HOUR"
 
     def test_str_with_value_max(self):
         vt = ValueDuration(unit=TimeUnit.HOUR, value_max=15)
-        assert str(vt) == "<=15.0 h"
+        assert str(vt) == "<=15.0 HOUR"
 
     def test_str_value_not_set(self):
         with pytest.raises(ValidationError):
@@ -446,3 +476,12 @@ class TestValueDuration:
         vt = ValueDuration.parse(">=5", TimeUnit.DAY)
         assert vt.value_min == 5
         assert vt.unit == TimeUnit.DAY
+
+    def test_serialization(self):
+        assert_serialization(ValueDuration(unit=TimeUnit.HOUR, value_max=15))
+        assert_serialization(ValueDuration(unit=TimeUnit.MINUTE, value_min=5))
+        assert_serialization(
+            ValueDuration(unit=TimeUnit.DAY, value_min=5, value_max=15)
+        )
+        assert_serialization(ValueDuration(unit=TimeUnit.WEEK, value_max=15))
+        assert_serialization(ValueDuration(unit=TimeUnit.SECOND, value_min=5))
