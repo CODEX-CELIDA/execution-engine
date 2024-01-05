@@ -1,12 +1,11 @@
 import datetime
 from contextlib import contextmanager
 from typing import Iterable, Sequence
-from unittest import mock
 
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Table, bindparam, select, text
+from sqlalchemy import Column, Date, Integer, MetaData, Table, bindparam, select
 
 import execution_engine.omop.db.celida.tables as celida_tables
 from execution_engine.constants import CohortCategory
@@ -20,8 +19,6 @@ from execution_engine.omop.db.celida.views import (
     partial_day_coverage,
 )
 from execution_engine.omop.db.omop.tables import Person
-from execution_engine.omop.sqlclient import OMOPSQLClient
-from execution_engine.settings import config
 from execution_engine.task import (  # noqa: F401     -- required for the mock.patch below
     runner,
     task,
@@ -30,6 +27,7 @@ from execution_engine.util import cohort_logic
 from execution_engine.util.db import add_result_insert
 from execution_engine.util.types import TimeRange
 from execution_engine.util.value import ValueConcept, ValueNumber
+from tests._fixtures.omop_fixture import celida_recommendation
 from tests._testdata import concepts
 from tests.functions import create_visit
 
@@ -61,50 +59,18 @@ class TestCriterion:
     run_id = 1234
     criterion_id = 5678
     pi_pair_id = 9012
+    recommendation_id = 3456
 
     @pytest.fixture(autouse=True)
-    def disable_foreign_key_checks(self):
-        def get_engine_foreign_key_disabled():
-            return OMOPSQLClient(
-                **config.omop.dict(by_alias=True),
-                timezone=config.celida_ee_timezone,
-                disable_foreign_key_checks=True
-            )
-
-        with mock.patch(
-            "execution_engine.task.task.get_engine", new=get_engine_foreign_key_disabled
-        ):
-            yield
-
-    @pytest.fixture(autouse=True)
-    def create_recommendation_run(
-        self, db_session, observation_window: TimeRange
-    ) -> None:
-        db_session.execute(
-            text("SET session_replication_role = 'replica';")
-        )  # Disable foreign key checks
-
-        insert_query = celida_tables.ExecutionRun.__table__.insert().values(
+    def create_recommendation_run(self, db_session, observation_window) -> None:
+        yield from celida_recommendation(
+            db_session,
+            observation_window,
+            recommendation_id=self.recommendation_id,
             run_id=self.run_id,
-            observation_start_datetime=observation_window.start,
-            observation_end_datetime=observation_window.end,
-            run_datetime=datetime.datetime.now(),
-            recommendation_id=1,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=self.criterion_id,
         )
-
-        self.register_population_intervention_pair(
-            self.pi_pair_id, "Testcelida_tables.PopulationInterventionPair", db_session
-        )
-
-        db_session.execute(insert_query)
-        db_session.commit()
-
-        yield
-
-        db_session.query(celida_tables.ExecutionRun).delete()
-        db_session.query(celida_tables.PopulationInterventionPair).delete()
-
-        db_session.commit()
 
     @pytest.fixture
     def visit_datetime(self) -> TimeRange:
@@ -166,10 +132,6 @@ class TestCriterion:
     @classmethod
     @contextmanager
     def execute_base_criterion(cls, base_criterion, db_session, observation_window):
-        db_session.execute(
-            text("SET session_replication_role = 'replica';")
-        )  # Disable foreign key checks
-
         query = base_criterion.create_query()
         cls.register_criterion(base_criterion, db_session)
 
@@ -191,7 +153,6 @@ class TestCriterion:
         try:
             yield
         finally:
-            db_session.execute(text("SET session_replication_role = 'origin';"))
             db_session.query(celida_tables.ResultInterval).delete()
             db_session.commit()
 

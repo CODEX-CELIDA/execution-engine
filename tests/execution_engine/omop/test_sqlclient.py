@@ -18,7 +18,7 @@ class TestSQLClient:
         return OMOPSQLClient(
             **config.omop.dict(by_alias=True),
             timezone=config.celida_ee_timezone,
-            disable_foreign_key_checks=True
+            disable_triggers=True
         )
 
     def test_get_concept_info(self, sql_client):
