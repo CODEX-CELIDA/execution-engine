@@ -4,9 +4,11 @@ import pytest
 from pandas import Timestamp
 from portion import Bound, inf
 
+from execution_engine.util.interval import Atomic
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.interval import (
+    IntervalWithType,
     IntInterval,
     empty_interval_int,
     interval_datetime,
@@ -411,6 +413,32 @@ class TestInterval:
         """
         assert_intervals_equal(data)
 
+    def test_interval_union_edge_case(self):
+        # [[Timestamp('2023-03-02 14:00:01+0000', tz='UTC'),Timestamp('2023-03-02 19:00:00+0000', tz='UTC'); NEGATIVE],
+        #  [Timestamp('2023-03-02 13:00:01+0000', tz='UTC'),Timestamp('2023-03-02 14:00:00+0000', tz='UTC'); POSITIVE],
+        #  [Timestamp('2023-03-02 13:00:01+0000', tz='UTC'),Timestamp('2023-03-02 19:00:00+0000', tz='UTC'); NEGATIVE]]
+
+        interval1 = interval_datetime(
+            Timestamp("2023-03-02 14:00:01+0000", tz="UTC"),
+            Timestamp("2023-03-02 19:00:00+0000", tz="UTC"),
+            T.NEGATIVE,
+        )
+        interval2 = interval_datetime(
+            Timestamp("2023-03-02 13:00:01+0000", tz="UTC"),
+            Timestamp("2023-03-02 14:00:00+0000", tz="UTC"),
+            T.POSITIVE,
+        )
+        interval3 = interval_datetime(
+            Timestamp("2023-03-02 13:00:01+0000", tz="UTC"),
+            Timestamp("2023-03-02 19:00:00+0000", tz="UTC"),
+            T.NEGATIVE,
+        )
+
+        interval_union = interval1 | interval2 | interval3
+        interval_union_different_order = interval1 | interval3 | interval2
+
+        assert interval_union == interval_union_different_order
+
     def test_invert_interval(self):
         assert ~interval_int(1, 2, T.NEGATIVE) == interval_int(
             -inf, 0, T.NEGATIVE
@@ -645,3 +673,174 @@ class TestIntervalType:
 
         # Test that the map is restored
         self.test_bool()
+
+
+def parse_interval(s, default_type: IntervalType = IntervalType.POSITIVE):
+    m = re.match(r"(\[|\()([\-\d\.]+), ?([\d\-\-]+)(; (\S+))?(\]|\))", s)
+
+    left = Bound.CLOSED if m.group(1) == "[" else Bound.OPEN
+    lower = float(m.group(2))
+    upper = float(m.group(3))
+    if m.group(5) is not None:
+        type_ = {"P": T.POSITIVE, "N": T.NEGATIVE}[m.group(5)]
+    else:
+        type_ = default_type
+    right = Bound.CLOSED if m.group(6) == "]" else Bound.OPEN
+
+    return Atomic(left, lower, upper, right, type_)
+
+
+class TestMergeable:
+    _interval_class: IntervalWithType
+
+    @classmethod
+    def mergeable(cls, a: str, b: str):
+        a = parse_interval(a)
+        b = parse_interval(b)
+
+        assert cls._interval_class._mergeable(a, b) == cls._interval_class._mergeable(
+            b, a
+        )
+
+        if a.type != b.type:
+            aT = Atomic(a.left, a.lower, a.upper, a.right, b.type)
+            bT = Atomic(b.left, b.lower, b.upper, b.right, a.type)
+            assert cls._interval_class._mergeable(
+                a, b
+            ) == cls._interval_class._mergeable(aT, bT)
+            assert cls._interval_class._mergeable(
+                b, a
+            ) == cls._interval_class._mergeable(bT, aT)
+
+        return cls._interval_class._mergeable(a, b)
+
+    def parse_interval(self, s):
+        return self._interval_class.from_atomic(*parse_interval(s))
+
+
+class TestAbstractDiscreteIntervalWithType(TestMergeable):
+    _interval_class = IntInterval
+
+    def test_mergeable_same_type(self):
+        assert self.mergeable("[1, 2]", "[2, 3]")
+        assert self.mergeable("[1, 2]", "[2, 3)")
+        assert self.mergeable("[1, 2]", "(2, 3]")  # diff
+        assert self.mergeable("[1, 2]", "(2, 3)")  # diff
+
+        assert self.mergeable("[1, 2)", "[2, 3]")  # diff
+        assert self.mergeable("[1, 2)", "[2, 3)")  # diff
+        assert not self.mergeable("[1, 2)", "(2, 3]")
+        assert not self.mergeable("[1, 2)", "(2, 3)")
+
+        assert self.mergeable("[1, 2]", "[1, 3]")
+        assert self.mergeable("[1, 2]", "(1, 3)")
+
+        assert self.mergeable("[1, 2]", "[1, 2]")
+        assert self.mergeable("[1, 2]", "(1, 2)")
+
+        assert self.mergeable("[1, 2]", "[1, 1]")
+        assert self.mergeable("[1, 2]", "(1, 1)")
+
+        assert self.mergeable("[1, 2]", "[3, 4]")  # diff
+        assert not self.mergeable("[1, 2]", "(3, 4]")
+        assert not self.mergeable("[1, 2)", "[3, 4]")
+        assert not self.mergeable("[1, 2)", "(3, 4]")
+
+        assert not self.mergeable("[1, 2]", "[4, 5]")
+        assert not self.mergeable("[1, 2]", "(4, 5]")
+
+    def test_mergeable_different_type(self):
+        assert self.mergeable("[1, 2; P]", "[2, 3; N]")
+        assert self.mergeable("[1, 2; P]", "[2, 3; N)")
+        assert not self.mergeable("[1, 2; P]", "(2, 3; N]")
+        assert not self.mergeable("[1, 2; P]", "(2, 3; N)")
+
+        assert not self.mergeable("[1, 2; P)", "[2, 3; N]")
+        assert not self.mergeable("[1, 2; P)", "[2, 3; N)")
+        assert not self.mergeable("[1, 2; P)", "(2, 3; N]")
+        assert not self.mergeable("[1, 2; P)", "(2, 3; N)")
+
+        assert self.mergeable("[1, 2; P]", "[1, 3; N]")
+        assert self.mergeable("[1, 2; P]", "(1, 3; N)")
+
+        assert self.mergeable("[1, 2; P]", "[1, 2; N]")
+        assert self.mergeable("[1, 2; P]", "(1, 2; N)")
+
+        assert self.mergeable("[1, 2; P]", "[1, 1; N]")
+        assert self.mergeable("[1, 2; P]", "(1, 1; N)")
+
+        assert not self.mergeable("[1, 2; P]", "[3, 4; N]")
+        assert not self.mergeable("[1, 2; P]", "(3, 4; N]")
+        assert not self.mergeable("[1, 2; P)", "[3, 4; N]")
+        assert not self.mergeable("[1, 2; P)", "(3, 4; N]")
+        assert not self.mergeable("[1, 2; P]", "[4, 5; N]")
+        assert not self.mergeable("[1, 2; P]", "(4, 5; N]")
+
+    def test_union_edge_cases(self):
+        interval1 = self.parse_interval("[2, 7; N]")
+        interval2 = self.parse_interval("[1, 3; P]")
+        interval3 = self.parse_interval("[1, 7; N]")
+
+        interval_union = interval1 | interval2 | interval3
+        interval_union_different_order = interval1 | interval3 | interval2
+
+        assert interval_union == interval_union_different_order
+
+
+class TestIntervalWithType(TestMergeable):
+    _interval_class = IntervalWithType
+
+    def test_mergeable_same_type(self):
+        assert self.mergeable("[1, 2]", "[2, 3]")
+        assert self.mergeable("[1, 2]", "[2, 3)")
+        assert self.mergeable("[1, 2]", "(2, 3]")
+        assert self.mergeable("[1, 2]", "(2, 3)")
+
+        assert self.mergeable("[1, 2)", "[2, 3]")
+        assert self.mergeable("[1, 2)", "[2, 3)")
+        assert not self.mergeable("[1, 2)", "(2, 3]")
+        assert not self.mergeable("[1, 2)", "(2, 3)")
+
+        assert self.mergeable("[1, 2]", "[1, 3]")
+        assert self.mergeable("[1, 2]", "(1, 3)")
+
+        assert self.mergeable("[1, 2]", "[1, 2]")
+        assert self.mergeable("[1, 2]", "(1, 2)")
+
+        assert self.mergeable("[1, 2]", "[1, 1]")
+        assert self.mergeable("[1, 2]", "(1, 1)")
+
+        assert not self.mergeable("[1, 2]", "[3, 4]")
+        assert not self.mergeable("[1, 2]", "(3, 4]")
+        assert not self.mergeable("[1, 2)", "[3, 4]")
+        assert not self.mergeable("[1, 2)", "(3, 4]")
+
+        assert not self.mergeable("[1, 2]", "[4, 5]")
+        assert not self.mergeable("[1, 2]", "(4, 5]")
+
+    def test_mergeable_different_type(self):
+        assert self.mergeable("[1, 2; P]", "[2, 3; N]")
+        assert self.mergeable("[1, 2; P]", "[2, 3; N)")
+        assert not self.mergeable("[1, 2; P]", "(2, 3; N]")
+        assert not self.mergeable("[1, 2; P]", "(2, 3; N)")
+
+        assert not self.mergeable("[1, 2; P)", "[2, 3; N]")
+        assert not self.mergeable("[1, 2; P)", "[2, 3; N)")
+        assert not self.mergeable("[1, 2; P)", "(2, 3; N]")
+        assert not self.mergeable("[1, 2; P)", "(2, 3; N)")
+
+        assert self.mergeable("[1, 2; P]", "[1, 3; N]")
+        assert self.mergeable("[1, 2; P]", "(1, 3; N)")
+
+        assert self.mergeable("[1, 2; P]", "[1, 2; N]")
+        assert self.mergeable("[1, 2; P]", "(1, 2; N)")
+
+        assert self.mergeable("[1, 2; P]", "[1, 1; N]")
+        assert self.mergeable("[1, 2; P]", "(1, 1; N)")
+
+        assert not self.mergeable("[1, 2; P]", "[3, 4; N]")
+        assert not self.mergeable("[1, 2; P]", "(3, 4; N]")
+        assert not self.mergeable("[1, 2; P)", "[3, 4; N]")
+        assert not self.mergeable("[1, 2; P)", "(3, 4; N]")
+        assert not self.mergeable("[1, 2; P]", "[4, 5; N]")
+        assert not self.mergeable("[1, 2; P]", "(4, 5; N]")

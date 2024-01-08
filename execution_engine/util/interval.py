@@ -288,7 +288,7 @@ Atomic = namedtuple("Atomic", ["left", "lower", "upper", "right", "type"])
 
 class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
     """
-    This class represents an interval.
+    This class represents an interval wit type.
 
     An interval is an (automatically simplified) union of atomic intervals.
     It can be created with IntervalWithType.from_atomic(...) or by passing Interval
@@ -305,57 +305,175 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
         """
         self._intervals = list()
 
+        _intervals_to_merge = list()
+
         for interval in intervals:
             if isinstance(interval, Interval):
                 if not interval.empty:
-                    self._intervals.extend(interval._intervals)
+                    _intervals_to_merge.extend(interval._intervals)
             else:
                 raise TypeError("Parameters must be Interval instances")
 
-        if len(self._intervals) > 0:
+        def sort_indices(_intervals: list[Atomic]) -> list[int]:
+            # Sort the indices based on the values in the list
+            sorted_indices = sorted(
+                range(len(_intervals)),
+                key=lambda i: (_intervals[i].lower, _intervals[i].left is Bound.OPEN),
+            )
+            return sorted_indices
+
+        if len(_intervals_to_merge) > 0:
             # Sort intervals by lower bound, closed first.
-            self._intervals.sort(key=lambda i: (i.lower, i.left is Bound.OPEN))
+            # _intervals_to_merge.sort(key=lambda i: (i.lower, i.left is Bound.OPEN))
 
-            i = 0
             # Try to merge consecutive intervals
-            while i < len(self._intervals) - 1:
-                current = self._intervals[i]
-                successor = self._intervals[i + 1]
+            while len(_intervals_to_merge) > 1:
+                _intervals_to_merge.sort(key=lambda j: (j.lower, j.left is Bound.OPEN))
+                current = _intervals_to_merge.pop(0)
+                successor = _intervals_to_merge.pop(0)
 
-                if self.__class__._mergeable(current, successor):
-                    if current.lower == successor.lower:
-                        lower = current.lower
-                        left = (
-                            current.left
-                            if current.left == Bound.CLOSED
-                            else successor.left
-                        )
-
-                    else:
-                        lower = min(current.lower, successor.lower)
-                        left = (
-                            current.left if lower == current.lower else successor.left
-                        )
-
-                    if current.upper == successor.upper:
-                        upper = current.upper
-                        right = (
-                            current.right
-                            if current.right == Bound.CLOSED
-                            else successor.right
-                        )
-                    else:
-                        upper = max(current.upper, successor.upper)
-                        right = (
-                            current.right if upper == current.upper else successor.right
-                        )
-
-                    union = Atomic(left, lower, upper, right, current.type)
-                    self._intervals.pop(i)  # pop current
-                    self._intervals.pop(i)  # pop successor
-                    self._intervals.insert(i, union)
+                if not self.__class__._mergeable(current, successor):
+                    self._intervals.append(current)
+                    _intervals_to_merge.append(successor)
                 else:
-                    i = i + 1
+                    if current.type == successor.type:
+                        if current.lower == successor.lower:
+                            lower = current.lower
+                            left = (
+                                current.left
+                                if current.left == Bound.CLOSED
+                                else successor.left
+                            )
+
+                        else:
+                            lower = min(current.lower, successor.lower)
+                            left = (
+                                current.left
+                                if lower == current.lower
+                                else successor.left
+                            )
+
+                        if current.upper == successor.upper:
+                            upper = current.upper
+                            right = (
+                                current.right
+                                if current.right == Bound.CLOSED
+                                else successor.right
+                            )
+                        else:
+                            upper = max(current.upper, successor.upper)
+                            right = (
+                                current.right
+                                if upper == current.upper
+                                else successor.right
+                            )
+
+                        unions = [
+                            Atomic(
+                                *self._process_atomic(
+                                    left, lower, upper, right, current.type
+                                )
+                            )
+                        ]
+
+                    else:
+                        a, b = self.union_sort(current, successor)
+
+                        if b.lower > a.lower and b.upper < a.upper:
+                            # Case 1: b is completely within a
+                            unions = [
+                                Atomic(
+                                    *self._process_atomic(
+                                        a.left,
+                                        a.lower,
+                                        b.lower,
+                                        Bound.OPEN
+                                        if b.left is Bound.CLOSED
+                                        else Bound.CLOSED,
+                                        a.type,
+                                    )
+                                ),
+                                b,
+                                Atomic(
+                                    *self._process_atomic(
+                                        Bound.OPEN
+                                        if b.right is Bound.CLOSED
+                                        else Bound.CLOSED,
+                                        b.upper,
+                                        a.upper,
+                                        a.right,
+                                        a.type,
+                                    )
+                                ),
+                            ]
+                        elif a.lower >= b.lower and a.upper <= b.upper:
+                            # Case 2: a is completely within b
+                            unions = [b]
+                        else:
+                            # Case 3: a and b partially overlap
+                            unions = []
+
+                            # If b starts after a
+                            if b.lower > a.lower:
+                                unions.append(
+                                    Atomic(
+                                        *self._process_atomic(
+                                            a.left,
+                                            a.lower,
+                                            b.lower,
+                                            Bound.OPEN
+                                            if b.left is Bound.CLOSED
+                                            else Bound.CLOSED,
+                                            a.type,
+                                        )
+                                    )
+                                )
+
+                            unions.append(b)
+
+                            # If b ends before a
+                            if b.upper < a.upper:
+                                unions.append(
+                                    Atomic(
+                                        *self._process_atomic(
+                                            Bound.OPEN
+                                            if b.right is Bound.CLOSED
+                                            else Bound.CLOSED,
+                                            b.upper,
+                                            a.upper,
+                                            a.right,
+                                            a.type,
+                                        )
+                                    )
+                                )
+                    _intervals_to_merge.extend(unions)
+
+            # add intervals
+            self._intervals.extend(_intervals_to_merge)
+
+    @classmethod
+    def _process_atomic(
+        cls,
+        left: Bound,
+        lower: IntervalT,
+        upper: IntervalT,
+        right: Bound,
+        type_: IntervalTypeT | None = None,
+    ) -> Atomic:
+        """
+        Process an atomic interval.
+
+        This method is called by from_atomic to process the atomic interval
+        before it is added to the interval. It can be overriden to change the
+        behavior of from_atomic.
+
+        :param left: either CLOSED or OPEN.
+        :param lower: value of the lower bound.
+        :param upper: value of the upper bound.
+        :param right: either CLOSED or OPEN.
+        :param type_: the type of the interval.
+        """
+        return Atomic(left, lower, upper, right, type_)
 
     @classmethod
     def from_atomic(
@@ -375,6 +493,11 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
         :param right: either CLOSED or OPEN.
         :param type_: the type of the interval.
         """
+
+        left, lower, upper, right, type_ = cls._process_atomic(
+            left, lower, upper, right, type_
+        )
+
         left = left if lower not in [inf, -inf] else Bound.OPEN
         right = right if upper not in [inf, -inf] else Bound.OPEN
 
@@ -429,15 +552,14 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
         :param b: an atomic interval.
         :return: True if mergeable, False otherwise.
         """
-        if a.type != b.type:
-            return False
-
         if a.lower < b.lower or (a.lower == b.lower and a.left == Bound.CLOSED):
             first, second = a, b
         else:
             first, second = b, a
 
         if first.upper == second.lower:
+            if first.type != second.type:
+                return first.right == second.left == Bound.CLOSED
             return first.right == Bound.CLOSED or second.left == Bound.CLOSED
 
         return first.upper > second.lower
@@ -601,7 +723,12 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
 
         all_intervals = sorted(
             self._intervals + other._intervals,
-            key=lambda i: (i.lower, i.left == Bound.OPEN),
+            key=lambda i: (
+                i.lower,
+                i.left == Bound.OPEN,
+                i.upper,
+                i.right == Bound.OPEN,
+            ),
         )
         merged_intervals = []
 
@@ -908,7 +1035,7 @@ class AbstractDiscreteIntervalWithType(
     first. The only attribute/method that should be overriden is the `_step`
     class variable. This variable defines the step between two consecutive
     values of the discrete domain (e.g., 1 for integers).
-    If a meaningfull step cannot be provided (e.g., for characters), the
+    If a meaningful step cannot be provided (e.g., for characters), the
     _incr and _decr class methods can be overriden. They respectively return
     the next and previous value given the current one.
 
@@ -939,16 +1066,20 @@ class AbstractDiscreteIntervalWithType(
         return value - cls._step
 
     @classmethod
-    def from_atomic(
+    def _process_atomic(
         cls,
         left: Bound,
         lower: IntervalT,
         upper: IntervalT,
         right: Bound,
         type_: IntervalTypeT | None = None,
-    ) -> "AbstractDiscreteIntervalWithType":
+    ) -> Atomic:
         """
-        Create an Interval instance containing a single atomic interval.
+        Process an atomic interval.
+
+        This method is called by from_atomic to process the atomic interval
+        before it is added to the interval. It can be overriden to change the
+        behavior of from_atomic.
 
         :param left: either CLOSED or OPEN.
         :param lower: value of the lower bound.
@@ -963,14 +1094,10 @@ class AbstractDiscreteIntervalWithType(
         if right == Bound.OPEN and upper not in [-inf, inf]:
             right = Bound.CLOSED
             upper = cls._decr(upper)
-
-        return super().from_atomic(left, lower, upper, right, type_)
+        return Atomic(left, lower, upper, right, type_)
 
     @classmethod
     def _mergeable(cls, a: Atomic, b: Atomic) -> bool:
-        if a.type != b.type:
-            return False
-
         if a.upper <= b.upper:
             first, second = a, b
         else:
@@ -984,6 +1111,15 @@ class AbstractDiscreteIntervalWithType(
                 Bound.OPEN,
                 first.type,
             )
+
+        # if first.type != second.type:
+        #     first = Atomic(
+        #         first.left,
+        #         first.lower,
+        #         cls._decr(first.upper) if first.right == Bound.OPEN else first.upper,
+        #         Bound.CLOSED if first.right == Bound.OPEN else Bound.OPEN,
+        #         first.type,
+        #     )
 
         return super()._mergeable(first, second)
 
