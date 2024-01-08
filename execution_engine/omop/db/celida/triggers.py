@@ -18,7 +18,7 @@ BEGIN
         RAISE EXCEPTION 'Overlapping intervals detected.'
         USING DETAIL = format(
             'Existing row - person_id: %s, run_id: %s, pi_pair_id: %s, criterion_id: %s, cohort_category: %s, interval_start: %s, interval_end: %s;\n' ||
-            '         New row - person_id: %s, run_id: %s, pi_pair_id: %s, criterion_id: %s, cohort_category: %s, interval_start: %s, interval_end: %s',
+            '              New row - person_id: %s, run_id: %s, pi_pair_id: %s, criterion_id: %s, cohort_category: %s, interval_start: %s, interval_end: %s',
             conflicting_row.person_id, conflicting_row.run_id, conflicting_row.pi_pair_id, conflicting_row.criterion_id, conflicting_row.cohort_category, conflicting_row.interval_start, conflicting_row.interval_end,
             NEW.person_id, NEW.run_id, NEW.pi_pair_id, NEW.criterion_id, NEW.cohort_category, NEW.interval_start, NEW.interval_end
         );
