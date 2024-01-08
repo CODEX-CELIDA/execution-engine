@@ -1270,6 +1270,55 @@ class TestMergeIntervals:
 
         pd.testing.assert_frame_equal(result, expected_df)
 
+    def test_union_intervals_edge_case(self):
+        data1 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 15:00:00+00:00	POSITIVE
+        """
+        df2 = df_from_str(data2)
+
+        expected_data = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 15:00:00+00:00	POSITIVE
+        30833	2023-03-02 15:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        expected_df = df_from_str(expected_data)
+
+        result = union_intervals([df1, df2], by=["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+        data1 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        df2 = df_from_str(data2)
+
+        expected_data = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        expected_df = df_from_str(expected_data)
+
+        result = union_intervals([df1, df2], by=["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
 
 class TestIntersectIntervals:
     def test_intersect_intervals_empty_dataframe_list(self):
