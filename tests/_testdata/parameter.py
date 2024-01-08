@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from pydantic import BaseModel
 
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
@@ -17,6 +19,7 @@ class CriterionDefinition(BaseModel):
     unit_concept_id: int | None = None
     n_occurrences: list[int] | None = None
     occurrences_per_day: list[int] | None = None
+    datetime_offset: timedelta | None = None
 
 
 COVID19 = CriterionDefinition(
@@ -228,14 +231,30 @@ FiO2 = CriterionDefinition(
 )
 
 
-FiO2_30 = FiO2.copy(update={"name": "FiO2_30", "threshold": 30})
-FiO2_40 = FiO2.copy(update={"name": "FiO2_40", "threshold": 40})
-FiO2_50 = FiO2.copy(update={"name": "FiO2_50", "threshold": 50})
-FiO2_60 = FiO2.copy(update={"name": "FiO2_60", "threshold": 60})
-FiO2_70 = FiO2.copy(update={"name": "FiO2_70", "threshold": 70})
-FiO2_80 = FiO2.copy(update={"name": "FiO2_80", "threshold": 80})
-FiO2_90 = FiO2.copy(update={"name": "FiO2_90", "threshold": 90})
-FiO2_100 = FiO2.copy(update={"name": "FiO2_100", "threshold": 100})
+FiO2_30 = FiO2.copy(
+    update={"name": "FiO2_30", "threshold": 30, "datetime_offset": timedelta(hours=1)}
+)
+FiO2_40 = FiO2.copy(
+    update={"name": "FiO2_40", "threshold": 40, "datetime_offset": timedelta(hours=2)}
+)
+FiO2_50 = FiO2.copy(
+    update={"name": "FiO2_50", "threshold": 50, "datetime_offset": timedelta(hours=3)}
+)
+FiO2_60 = FiO2.copy(
+    update={"name": "FiO2_60", "threshold": 60, "datetime_offset": timedelta(hours=4)}
+)
+FiO2_70 = FiO2.copy(
+    update={"name": "FiO2_70", "threshold": 70, "datetime_offset": timedelta(hours=5)}
+)
+FiO2_80 = FiO2.copy(
+    update={"name": "FiO2_80", "threshold": 80, "datetime_offset": timedelta(hours=6)}
+)
+FiO2_90 = FiO2.copy(
+    update={"name": "FiO2_90", "threshold": 90, "datetime_offset": timedelta(hours=7)}
+)
+FiO2_100 = FiO2.copy(
+    update={"name": "FiO2_100", "threshold": 100, "datetime_offset": timedelta(hours=8)}
+)
 
 
 PEEP = CriterionDefinition(
@@ -245,11 +264,37 @@ PEEP = CriterionDefinition(
     unit_concept_id=concepts.UNIT_CM_H2O,
     concept_id=concepts.PEEP,
 )
-PEEP_5 = PEEP.copy(update={"name": "PEEP_5", "threshold": 5})
-PEEP_8 = PEEP.copy(update={"name": "PEEP_8", "threshold": 8})
-PEEP_10 = PEEP.copy(update={"name": "PEEP_10", "threshold": 10})
-PEEP_14 = PEEP.copy(update={"name": "PEEP_14", "threshold": 14})
-PEEP_18 = PEEP.copy(update={"name": "PEEP_18", "threshold": 18})
+PEEP_5 = PEEP.copy(
+    update={"name": "PEEP_5", "threshold": 5, "datetime_offset": timedelta(hours=1)}
+)
+PEEP_8 = PEEP.copy(
+    update={
+        "name": "PEEP_8",
+        "threshold": 8,
+        "datetime_offset": FiO2_50.datetime_offset,
+    }
+)
+PEEP_10 = PEEP.copy(
+    update={
+        "name": "PEEP_10",
+        "threshold": 10,
+        "datetime_offset": FiO2_60.datetime_offset,
+    }
+)
+PEEP_14 = PEEP.copy(
+    update={
+        "name": "PEEP_14",
+        "threshold": 14,
+        "datetime_offset": FiO2_80.datetime_offset,
+    }
+)
+PEEP_18 = PEEP.copy(
+    update={
+        "name": "PEEP_18",
+        "threshold": 18,
+        "datetime_offset": FiO2_100.datetime_offset,
+    }
+)
 
 
 OXYGENATION_INDEX = CriterionDefinition(

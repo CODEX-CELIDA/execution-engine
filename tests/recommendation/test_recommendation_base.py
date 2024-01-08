@@ -281,6 +281,8 @@ class TestRecommendationBase(ABC):
                 if not row[criterion_name]:
                     continue
 
+                time_offset = criterion.datetime_offset or datetime.timedelta()
+
                 add = {">": 1, "<": -1, "=": 0, "": 0}[comparator]
 
                 entry = {
@@ -292,17 +294,19 @@ class TestRecommendationBase(ABC):
                 }
 
                 if criterion.type == "condition":
-                    entry["start_datetime"] = visit_datetime.start
-                    entry["end_datetime"] = visit_datetime.end
+                    entry["start_datetime"] = visit_datetime.start + time_offset
+                    entry["end_datetime"] = visit_datetime.end + time_offset
                 elif criterion.type == "observation":
-                    entry["start_datetime"] = pendulum.parse(
-                        "2023-03-15 12:00:00+01:00"
+                    entry["start_datetime"] = (
+                        pendulum.parse("2023-03-15 12:00:00+01:00") + time_offset
                     )
                 elif criterion.type == "drug":
-                    entry["start_datetime"] = pendulum.parse(
-                        "2023-03-02 12:00:00+01:00"
+                    entry["start_datetime"] = (
+                        pendulum.parse("2023-03-02 12:00:00+01:00") + time_offset
                     )
-                    entry["end_datetime"] = pendulum.parse("2023-03-03 12:00:00+01:00")
+                    entry["end_datetime"] = (
+                        pendulum.parse("2023-03-03 12:00:00+01:00") + time_offset
+                    )
                     entry["quantity"] = (  # type: ignore
                         criterion.dosage_threshold
                         if criterion.dosage_threshold is not None
@@ -318,30 +322,32 @@ class TestRecommendationBase(ABC):
                         ]
                 # create_measurement(vo, concepts.LAB_APTT, datetime.datetime(2023,3,4, 18), 50, concepts.UNIT_SECOND)
                 elif criterion.type == "visit":
-                    entry["start_datetime"] = pendulum.parse(
-                        "2023-03-02 12:00:00+01:00"
+                    entry["start_datetime"] = (
+                        pendulum.parse("2023-03-02 12:00:00+01:00") + time_offset
                     )
                     entry["end_datetime"] = pendulum.parse("2023-03-18 12:00:00+01:00")
                 elif criterion.type == "measurement":
-                    entry["start_datetime"] = pendulum.parse(
-                        "2023-03-02 12:00:00+01:00"
+                    entry["start_datetime"] = (
+                        pendulum.parse("2023-03-02 12:00:00+01:00") + time_offset
                     )
                     assert criterion.threshold is not None
                     entry["value"] = criterion.threshold + add
                     entry["unit_concept_id"] = criterion.unit_concept_id
                 elif criterion.type == "procedure":
-                    entry["start_datetime"] = pendulum.parse(
-                        "2023-03-02 12:00:00+01:00"
+                    entry["start_datetime"] = (
+                        pendulum.parse("2023-03-02 12:00:00+01:00") + time_offset
                     )
                     if criterion.duration_threshold_hours is not None:
-                        entry["end_datetime"] = entry[
-                            "start_datetime"
-                        ] + datetime.timedelta(
-                            hours=criterion.duration_threshold_hours + add
+                        entry["end_datetime"] = (
+                            entry["start_datetime"]
+                            + datetime.timedelta(
+                                hours=criterion.duration_threshold_hours + add
+                            )
+                            + time_offset
                         )
                     else:
-                        entry["end_datetime"] = pendulum.parse(
-                            "2023-03-03 12:00:00+01:00"
+                        entry["end_datetime"] = (
+                            pendulum.parse("2023-03-03 12:00:00+01:00") + time_offset
                         )
                 else:
                     raise NotImplementedError(

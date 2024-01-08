@@ -2,7 +2,7 @@ import logging
 from enum import Enum, auto
 
 import pandas as pd
-from sqlalchemy.exc import DBAPIError, IntegrityError, SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
@@ -424,6 +424,10 @@ class Task:
                     ResultInterval.__table__.insert(),
                     result.to_dict(orient="records"),
                 )
+        except ProgrammingError as e:
+            # Handle programming errors (e.g., syntax errors)
+            logging.error(f"A programming error occurred in task {self.name()}: {e}")
+            raise
         except IntegrityError as e:
             # Handle integrity errors (e.g., constraint violations)
             logging.error(
