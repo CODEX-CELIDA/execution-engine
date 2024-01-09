@@ -1,62 +1,251 @@
-from typing import Any, Generic, Type, TypeVar
-
-import sympy
+from typing import Any
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 
-T = TypeVar("T", bound="CohortCategorized")
 
-
-class CohortCategorized(sympy.Basic, Generic[T]):
+class BaseExpr:
     """
-    A base class for cohort categorized symbolic objects.
+    Base class for expressions and symbols, defining common properties.
     """
 
-    category: CohortCategory
-
-    def __new__(cls: Type[T], *args: Any, **kwargs: Any) -> T:
+    @property
+    def is_Atom(self) -> bool:
         """
-        Create a new CohortCategorized object.
+        Check if the object is an atom (not divisible into smaller parts).
 
-        :param args: The arguments.
-        :param kwargs: The keyword arguments (must contain category).
-        :return: A new CohortCategorized object.
+        :return: True if atom, False otherwise. To be overridden in subclasses.
         """
-        obj = super().__new__(cls, *args)
-        if type(obj) is not cls:
-            # The sympy.And, sympy.Or classes return the original symbol if only one argument is given
-            return obj
+        raise NotImplementedError("is_Atom must be implemented by subclasses")
 
-        category = kwargs.get("category")
-        assert category is not None, "Category must be set"
-        assert isinstance(
-            category, CohortCategory
-        ), "Category must be a CohortCategory object"
+    @property
+    def is_Not(self) -> bool:
+        """
+        Check if the object is a Not type.
 
-        obj.category = category
-
-        return obj
+        :return: True if Not type, False otherwise. To be overridden in subclasses.
+        """
+        raise NotImplementedError("is_Not must be implemented by subclasses")
 
 
-class BooleanFunction(CohortCategorized, sympy.logic.boolalg.BooleanFunction):
+class Expr(BaseExpr):
     """
-    A BooleanFunction object represents a boolean function.
-    Extended to include a category attribute.
-
-    :param args: The arguments.
-    :param kwargs: The keyword arguments (must contain category).
+    Class for expressions that require a category.
     """
 
+    def __init__(self, *args: Any, category: CohortCategory):
+        """
+        Initialize an expression with given arguments and a mandatory category.
 
-class Expr(CohortCategorized, sympy.Expr):
-    """
-    An Expr object represents a symbolic expression.
-    Extended to include a category attribute.
+        :param args: Arguments for the expression.
+        :param category: Mandatory category of the expression.
+        """
+        self.args = args
+        self.category = category
 
-    :param args: The arguments.
-    :param kwargs: The keyword arguments (must contain category).
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}({', '.join(map(repr, self.args))}, category='{self.category}')"
+
+    @property
+    def is_Atom(self) -> bool:
+        """
+        Check if the expression is an atom. Returns False for general expressions.
+
+        :return: False for Expr.
+        """
+        return False
+
+    @property
+    def is_Not(self) -> bool:
+        """
+        Check if the expression is a Not type.
+
+        :return: True if Not type, False otherwise.
+        """
+        return isinstance(self, Not)
+
+
+class Symbol(BaseExpr):
     """
+    Class representing a symbolic variable.
+    """
+
+    criterion: Criterion
+
+    def __init__(self, name: str, criterion: Criterion) -> None:
+        """
+        Initialize a symbol with a name.
+
+        :param name: Name of the symbol.
+        """
+        self.args = ()
+        self.name = name
+        self.criterion = criterion
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if this symbol is equal to another symbol.
+
+        :param other: The other symbol.
+        :return: True if equal, False otherwise.
+        """
+        return (
+            isinstance(other, Symbol)
+            and self.name == other.name
+            and self.criterion == other.criterion
+        )
+
+    def __hash__(self) -> int:
+        """
+        Get the hash of this symbol.
+
+        :return: Hash of the symbol.
+        """
+        return hash((self.name, self.criterion))
+
+    @property
+    def category(self) -> CohortCategory:
+        """
+        Get the cohort category of the symbol.
+
+        :return: The cohort category.
+        """
+        return self.criterion.category
+
+    def __repr__(self) -> str:
+        """
+        Represent the symbol by its name.
+
+        :return: Name of the symbol.
+        """
+        return self.name
+
+    @property
+    def is_Atom(self) -> bool:
+        """
+        Check if the Symbol is an atom. Always returns True for Symbol.
+
+        :return: True as Symbol is always an atom.
+        """
+        return True
+
+    @property
+    def is_Not(self) -> bool:
+        """
+        Check if the Symbol is a Not type. Always returns False for Symbol.
+
+        :return: False as Symbol is never a Not type.
+        """
+        return False
+
+
+class BooleanFunction(Expr):
+    """
+    Base class for boolean functions like OR, AND, and NOT.
+    """
+
+    _repr_join_str: str | None = None
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if this operator is equal to another operator.
+
+        :param other: The other operator.
+        :return: True if equal, False otherwise.
+        """
+        return isinstance(other, self.__class__) and self.args == other.args
+
+    def __hash__(self) -> int:
+        """
+        Get the hash of this operator.
+
+        :return: Hash of the operator.
+        """
+        return hash((self.__class__, self.args))
+
+    @property
+    def is_Atom(self) -> bool:
+        """
+        Boolean functions are not atoms.
+
+        :return: False
+        """
+        return False
+
+    @property
+    def is_Not(self) -> bool:
+        """
+        Check if the BooleanFunction is a Not type.
+
+        :return: True if Not type, False otherwise.
+        """
+        return isinstance(self, Not)
+
+    def __repr__(self) -> str:
+        """
+        Represent the BooleanFunction in a readable format.
+        """
+        if self._repr_join_str is not None:
+            return f" {self._repr_join_str} ".join(map(repr, self.args))
+        else:
+            return super().__repr__()
+
+
+class Or(BooleanFunction):
+    """
+    Class representing a logical OR operation.
+    """
+
+    _repr_join_str = "|"
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> BaseExpr:
+        """
+        Create a new Or object.
+        """
+        if len(args) == 1 and isinstance(args[0], BaseExpr):
+            return args[0]
+
+        return super().__new__(cls)
+
+
+class And(BooleanFunction):
+    """
+    Class representing a logical AND operation.
+    """
+
+    _repr_join_str = "&"
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> BaseExpr:
+        """
+        Create a new Or object.
+        """
+        if len(args) == 1 and isinstance(args[0], BaseExpr):
+            return args[0]
+        return super().__new__(cls)
+
+
+class Not(BooleanFunction):
+    """
+    Class representing a logical NOT operation.
+    """
+
+    def __repr__(self) -> str:
+        """
+        Represent the NOT operation as a string.
+        """
+        return f"~{self.args[0]}"
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "Not":
+        """
+        Create a new Or object.
+        """
+        if len(args) != 1:
+            raise ValueError("Not takes exactly one argument")
+
+        return super().__new__(cls)
 
 
 class NonSimplifiableAnd(BooleanFunction):
@@ -73,11 +262,28 @@ class NonSimplifiableAnd(BooleanFunction):
     that.
     """
 
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if this operator is equal to another operator.
+
+        This always yields false to prevent combination of two NonSimplifiableAnd operators when merging a graph.
+        """
+        return False
+
+    def __hash__(self) -> int:
+        """
+        Get the hash of this operator.
+
+        Required because __eq__ yields always False -- and we need distinct hashes for distinct objects, as this
+        operator should not be merged.
+        """
+        return id(self)
+
     def __new__(cls, *args: Any, **kwargs: Any) -> "NonSimplifiableAnd":
         """
         Create a new NonSimplifiableAnd object.
         """
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls)
 
 
 # todo: can this be removed because IntervalWithType is now implemented? I would think so.
@@ -89,6 +295,12 @@ class NoDataPreservingAnd(BooleanFunction):
     and the And operator is that during handling of this operator, the negative intervals are added explicitly.
     """
 
+    def __new__(cls, *args: Any, **kwargs: Any) -> "NoDataPreservingAnd":
+        """
+        Create a new NoDataPreservingAnd object.
+        """
+        return super().__new__(cls)
+
 
 class NoDataPreservingOr(BooleanFunction):
     """
@@ -98,24 +310,24 @@ class NoDataPreservingOr(BooleanFunction):
     and the And operator is that during handling of this operator, the negative intervals are added explicitly.
     """
 
+    def __new__(cls, *args: Any, **kwargs: Any) -> "NoDataPreservingOr":
+        """
+        Create a new NoDataPreservingOr object.
+        """
+        return super().__new__(cls)
+
 
 class LeftDependentToggle(BooleanFunction):
     """
     A LeftDependentToggle object represents a logical AND operation if the left operand is positive,
     otherwise it returns NOT_APPLICABLE.
-
-    | left/right | NODATA   | POSITIVE | NEGATIVE |
-    |------------|----------|----------|----------|
-    | NODATA     | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE |
-    | POSITIVE   | NODATA | POSITIVE | NEGATIVE |
-    | NEGATIVE   | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE |
     """
 
-    def __new__(cls, left: Expr, right: Expr, **kwargs: Any) -> "LeftDependentToggle":
+    def __init__(self, left: BaseExpr, right: BaseExpr, **kwargs: Any) -> None:
         """
-        Create a new LeftDependentToggle object.
+        Initialize a LeftDependentToggle object.
         """
-        return Expr.__new__(cls, left, right, **kwargs)
+        super().__init__(left, right, **kwargs)
 
     @property
     def left(self) -> Expr:
@@ -126,61 +338,3 @@ class LeftDependentToggle(BooleanFunction):
     def right(self) -> Expr:
         """Returns the right operand"""
         return self.args[1]
-
-
-class And(BooleanFunction, sympy.And):
-    """
-    A And object represents a logical AND operation.
-    Extended to include a category attribute.
-    """
-
-
-class Or(BooleanFunction, sympy.Or):
-    """
-    A Or object represents a logical OR operation.
-    Extended to include a category attribute.
-    """
-
-
-class Not(BooleanFunction, sympy.Not):
-    """
-    A Not object represents a logical NOT operation.
-    Extended to include a category attribute.
-    """
-
-
-class Symbol(sympy.Symbol):
-    """
-    A Symbol object represents a symbol in a symbolic expression.
-    Extended to include a criterion and a category attribute.
-
-    :param name: The name of the symbol.
-    """
-
-    criterion: Criterion
-
-    def __new__(cls, name: str, **kwargs: Any) -> "Symbol":
-        """
-        Create a new Symbol object.
-
-        :param name: The name of the symbol.
-        :param kwargs: The keyword arguments (must contain criterion).
-        :return: A new Symbol object.
-        """
-        obj = super().__new__(cls, name)
-        obj.criterion = kwargs.get("criterion")
-        assert obj.criterion is not None, "Criterion must be set"
-        assert isinstance(
-            obj.criterion, Criterion
-        ), "Criterion must be a Criterion object"
-
-        return obj
-
-    @property
-    def category(self) -> CohortCategory:
-        """
-        Get the cohort category of the symbol.
-
-        :return: The cohort category.
-        """
-        return self.criterion.category
