@@ -75,9 +75,7 @@ class ExecutionGraph(nx.DiGraph):
 
         graph = cls()
         base_node = logic.Symbol(
-            name=base_criterion.unique_name(),
             criterion=base_criterion,
-            category=CohortCategory.BASE,
         )
         graph.add_node(
             base_node,
@@ -91,7 +89,7 @@ class ExecutionGraph(nx.DiGraph):
 
     def add_node(
         self,
-        node_for_adding: logic.Expr,
+        node_for_adding: logic.BaseExpr,
         category: CohortCategory,
         store_result: bool,
         bind_params: dict | None = None,
@@ -300,9 +298,7 @@ class ExecutionGraph(nx.DiGraph):
                 if isinstance(entry, CriterionCombination):
                     symbols.append(_traverse(entry))
                 else:
-                    s = logic.Symbol(
-                        entry.unique_name(), criterion=entry, category=entry.category
-                    )
+                    s = logic.Symbol(criterion=entry)
                     if entry.exclude:
                         s = logic.Not(s, category=entry.category)
                     symbols.append(s)
@@ -340,3 +336,66 @@ class ExecutionGraph(nx.DiGraph):
             return False
 
         return True
+
+
+def merge_graphs(graphs: list[ExecutionGraph]) -> ExecutionGraph:
+    """
+    Merges multiple directed graphs into a single graph, combining node attributes.
+
+    This function iterates over a list of NetworkX DiGraphs and merges them into a single DiGraph.
+    If a node is present in multiple graphs, its attributes are merged. Specifically, for the 'bind_params'
+    attribute, the function combines the values into a list if they are different, ensuring that all distinct
+    values from the different graphs are retained.
+
+    Parameters:
+    graphs (list[nx.DiGraph]): A list of NetworkX DiGraphs to be merged.
+
+    Returns:
+    nx.DiGraph: A new directed graph containing all nodes and edges from the input graphs.
+                Node attributes are merged where applicable.
+
+    Note:
+    - The function assumes that the 'bind_params' attribute in the nodes, if present, is a dictionary.
+    - Edge attributes are copied as-is without conflict resolution. If conflict resolution for edges is needed,
+      this function should be modified accordingly.
+
+    Example:
+    >>> graph1 = nx.DiGraph()
+    >>> graph1.add_node(1, bind_params={'param1': 'value1'})
+    >>> graph1.add_edge(1, 2)
+    >>> graph2 = nx.DiGraph()
+    >>> graph2.add_node(1, bind_params={'param1': 'value2'})
+    >>> graph2.add_edge(1, 2)
+    >>> merged_graph = merge_graphs([graph1, graph2])
+    >>> merged_graph.nodes[1]['bind_params']['param1']
+    ['value1', 'value2']
+    """
+    merged_graph = ExecutionGraph()
+
+    for graph in graphs:
+        for node, attrs in graph.nodes(data=True):
+            if node in merged_graph:
+                merged_attr = merged_graph.nodes[node]
+
+                for key in merged_attr["bind_params"]:
+                    if key in attrs["bind_params"]:
+                        if attrs["bind_params"][key] == merged_attr["bind_params"][key]:
+                            continue
+
+                        if not isinstance(merged_attr["bind_params"][key], list):
+                            merged_attr["bind_params"][key] = [
+                                merged_attr["bind_params"][key],
+                                attrs["bind_params"][key],
+                            ]
+                        else:
+                            merged_attr["bind_params"][key].append(
+                                attrs["bind_params"][key]
+                            )
+            else:
+                # Add new node with attributes
+                merged_graph.add_node(node, **attrs)
+
+        for edge in graph.edges(data=True):
+            merged_graph.add_edge(*edge[:2], **edge[2])
+
+    return merged_graph

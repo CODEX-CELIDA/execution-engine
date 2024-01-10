@@ -52,7 +52,7 @@ class Task:
     def __init__(
         self,
         expr: logic.Expr,
-        criterion: Criterion,
+        criterion: Criterion | None,
         bind_params: dict | None,
         store_result: bool = False,
     ) -> None:
@@ -121,6 +121,11 @@ class Task:
         try:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
                 # atomic expressions (i.e. criterion)
+
+                assert (
+                    self.criterion is not None
+                ), "criterion shall not be None for atomic expression"
+
                 result = self.handle_criterion(
                     self.criterion, bind_params, base_data, observation_window
                 )
@@ -407,7 +412,7 @@ class Task:
             )
 
         pi_pair_id = bind_params.get("pi_pair_id", None)
-        criterion_id = self.criterion.id if self.expr.is_Atom else None
+        criterion_id = self.criterion.id if self.expr.is_Atom else None  # type: ignore # when expr.is_Atom, criterion is not None
 
         if self.expr.is_Atom:
             assert pi_pair_id is None, "pi_pair_id shall be None for criterion"
@@ -458,6 +463,6 @@ class Task:
         Returns a string representation of the Task object.
         """
         if self.expr.is_Atom:
-            return f"Task({self.expr.name}, criterion={self.criterion}, category={self.expr.category})"
+            return f"Task(criterion={self.criterion}, category={self.expr.category})"
         else:
             return f"Task({self.expr}), category={self.expr.category})"

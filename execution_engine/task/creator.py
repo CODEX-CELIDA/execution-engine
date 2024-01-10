@@ -1,3 +1,5 @@
+from typing import cast
+
 import networkx as nx
 
 import execution_engine.util.cohort_logic as logic
@@ -21,7 +23,7 @@ class TaskCreator:
         """
 
         def node_to_task(expr: logic.Expr, attr: dict) -> Task:
-            criterion = expr.criterion if expr.is_Atom else None
+            criterion = cast(logic.Symbol, expr).criterion if expr.is_Atom else None
             store_result = attr.get("store_result", False)
             bind_params = attr.get("bind_params", {})
 

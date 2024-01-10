@@ -62,3 +62,18 @@ class Serializable(ABC):
         Create a combination from a JSON string.
         """
         return cls.from_dict(json.loads(data))
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if two objects are equal.
+        """
+        if not isinstance(other, self.__class__):
+            return False
+
+        return self.dict() == other.dict()
+
+    def __hash__(self) -> int:
+        """
+        Get the hash of the object.
+        """
+        return hash(self.json())

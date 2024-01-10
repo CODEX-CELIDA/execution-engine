@@ -173,6 +173,11 @@ class SequentialTaskRunner(TaskRunner):
             while len(self.completed_tasks) < len(self.tasks):
                 self.enqueue_ready_tasks()
 
+                if self.queue.empty() and not any(
+                    task.status == TaskStatus.RUNNING for task in self.tasks
+                ):
+                    raise TaskError("No runnable tasks available.")
+
                 while not self.queue.empty():
                     current_task = self.queue.get()
                     self.run_task(current_task, bind_params)

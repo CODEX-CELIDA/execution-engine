@@ -1,13 +1,28 @@
+from abc import ABC, abstractmethod
 from typing import Any
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 
 
-class BaseExpr:
+class BaseExpr(ABC):
     """
     Base class for expressions and symbols, defining common properties.
     """
+
+    @abstractmethod
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if this expression is equal to another expression.
+        """
+        raise NotImplementedError("__eq__ must be implemented by subclasses")
+
+    @abstractmethod
+    def __hash__(self) -> int:
+        """
+        Get the hash of this expression.
+        """
+        raise NotImplementedError("__hash__ must be implemented by subclasses")
 
     @property
     def is_Atom(self) -> bool:
@@ -49,6 +64,23 @@ class Expr(BaseExpr):
         """
         return f"{self.__class__.__name__}({', '.join(map(repr, self.args))}, category='{self.category}')"
 
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if this expression is equal to another expression.
+
+        :param other: The other expression.
+        :return: True if equal, False otherwise.
+        """
+        return isinstance(other, self.__class__) and hash(self) == hash(other)
+
+    def __hash__(self) -> int:
+        """
+        Get the hash of this expression.
+
+        :return: Hash of the expression.
+        """
+        return hash((self.__class__, self.args, self.category))
+
     @property
     def is_Atom(self) -> bool:
         """
@@ -75,14 +107,13 @@ class Symbol(BaseExpr):
 
     criterion: Criterion
 
-    def __init__(self, name: str, criterion: Criterion) -> None:
+    def __init__(self, criterion: Criterion) -> None:
         """
-        Initialize a symbol with a name.
+        Initialize a symbol.
 
-        :param name: Name of the symbol.
+        :param criterion: The criterion of the symbol.
         """
         self.args = ()
-        self.name = name
         self.criterion = criterion
 
     def __eq__(self, other: Any) -> bool:
@@ -92,11 +123,7 @@ class Symbol(BaseExpr):
         :param other: The other symbol.
         :return: True if equal, False otherwise.
         """
-        return (
-            isinstance(other, Symbol)
-            and self.name == other.name
-            and self.criterion == other.criterion
-        )
+        return isinstance(other, Symbol) and self.criterion == other.criterion
 
     def __hash__(self) -> int:
         """
@@ -104,7 +131,7 @@ class Symbol(BaseExpr):
 
         :return: Hash of the symbol.
         """
-        return hash((self.name, self.criterion))
+        return hash(self.criterion)
 
     @property
     def category(self) -> CohortCategory:
@@ -117,11 +144,11 @@ class Symbol(BaseExpr):
 
     def __repr__(self) -> str:
         """
-        Represent the symbol by its name.
+        Represent the symbol.
 
         :return: Name of the symbol.
         """
-        return self.name
+        return self.criterion.description()
 
     @property
     def is_Atom(self) -> bool:

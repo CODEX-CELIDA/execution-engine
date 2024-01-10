@@ -21,9 +21,9 @@ dummy_criterion = MockCriterion(
     category=CohortCategory.POPULATION,
 )
 x, y, z = (
-    Symbol("x", dummy_criterion),
-    Symbol("y", dummy_criterion),
-    Symbol("z", dummy_criterion),
+    Symbol(MockCriterion("x", False, CohortCategory.POPULATION)),
+    Symbol(MockCriterion("y", False, CohortCategory.POPULATION)),
+    Symbol(MockCriterion("z", False, CohortCategory.POPULATION)),
 )
 
 
