@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from execution_engine.omop.db.celida.tables import Comment
 from execution_engine.omop.db.omop.tables import Person
+from tests._fixtures.omop_fixture import disable_postgres_trigger
 
 
 @pytest.mark.recommendation
@@ -28,7 +29,9 @@ class TestAppEndpoints:
         )
         c = Comment(person_id=1, text="test comment", datetime=datetime.now())
         db_session.add_all([p, c])
-        db_session.commit()
+
+        with disable_postgres_trigger(db_session):
+            db_session.commit()
 
         with TestClient(app) as client:
             yield client

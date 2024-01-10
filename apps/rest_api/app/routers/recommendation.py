@@ -52,7 +52,6 @@ async def recommendation_criteria(
                 "unique_name": c.unique_name(),
                 "description": c.description(),
                 "cohort_category": c.category,
-                "concept_name": c.concept.concept_name.title(),
             }
         )
 
