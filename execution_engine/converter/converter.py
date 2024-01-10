@@ -1,4 +1,3 @@
-import warnings
 from abc import ABC, abstractmethod
 from typing import Tuple, Type
 
@@ -7,7 +6,6 @@ from fhir.resources.element import Element
 from fhir.resources.fhirtypes import Boolean
 from fhir.resources.quantity import Quantity
 from fhir.resources.range import Range
-from fhir.resources.timing import Timing
 
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.concepts import Concept
@@ -24,7 +22,7 @@ def select_value(
     """
     Selects the value of a characteristic by datatype.
     """
-    for datatype in ["CodeableConcept", "Quantity", "Range", "Boolean", "Timing"]:
+    for datatype in ["CodeableConcept", "Quantity", "Range", "Boolean"]:
         element_name = f"{value_prefix}{datatype}"
         value = getattr(root, element_name, None)
         if value is not None:
@@ -96,15 +94,6 @@ def parse_value(value_parent: Element, value_prefix: str) -> Value:
             unit=standard_vocabulary.get_standard_unit_concept(unit_code),
             value_min=value_or_none(value.low),
             value_max=value_or_none(value.high),
-        )
-    elif isinstance(value, Timing):
-        warnings.warn("Only parsing Timing.repeat.duration for now")
-        value_obj = ValueNumber(
-            value_min=value.repeat.duration,
-            value_max=value.repeat.durationMax,
-            unit=standard_vocabulary.get_standard_unit_concept(
-                value.repeat.durationUnit
-            ),
         )
     else:
         raise NotImplementedError(f"Value type {type(value)} not implemented")
