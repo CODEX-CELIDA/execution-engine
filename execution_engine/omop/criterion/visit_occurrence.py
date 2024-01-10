@@ -60,7 +60,7 @@ class ActivePatients(VisitOccurrence):
         """
         Get a human-readable description of the criterion.
         """
-        return f"{self.__class__.__name__}['{self._name}']()"
+        return f"{self.__class__.__name__}[]"
 
     def dict(self) -> dict[str, Any]:
         """

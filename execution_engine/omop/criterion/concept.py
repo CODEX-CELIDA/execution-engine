@@ -104,11 +104,11 @@ class ConceptCriterion(Criterion, ABC):
         """
         Get a human-readable description of the criterion.
         """
-        desc = f"{self.__class__.__name__}['{self._name}'](concept={self._concept.concept_name}"
+        desc = f"{self.__class__.__name__}[concept={self._concept.concept_name}"
 
         if self._value is not None:
             desc += f", value={str(self._value)}"
-        desc += ")"
+        desc += "]"
 
         return desc
 

@@ -258,13 +258,15 @@ class DrugExposure(Criterion):
         Get a human-readable description of the criterion.
         """
         route = self._route if hasattr(self, "_route") else None
-        return (
-            f"{self.__class__.__name__}['{self._name}']("
-            f"ingredient={self._ingredient_concept.concept_name}, "
-            f"dose={str(self._dose)}, "
-            f"route={route.concept_name if route is not None else None} "
-            f")"
-        )
+
+        parts = [f"ingredient={self._ingredient_concept.concept_name}"]
+        if self._dose is not None:
+            parts.append(f"dose={str(self._dose)}")
+
+        if route is not None:
+            parts.append(f"route={route.concept_name}")
+
+        return f"{self.__class__.__name__}[" + ", ".join(parts) + "]"
 
     def dict(self) -> dict[str, Any]:
         """

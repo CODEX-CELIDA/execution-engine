@@ -35,7 +35,7 @@ class MockCriterion(Criterion):
         pass
 
     def description(self) -> str:
-        return f"MockCriterion({self._name})"
+        return f"MockCriterion[{self._name}]"
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Self:
@@ -53,7 +53,7 @@ class MockCriterion(Criterion):
         }
 
     def __repr__(self) -> str:
-        return f"MockCriterion({self._name})"
+        return self.description()
 
     @property
     def concept(self) -> Concept:  # type: ignore

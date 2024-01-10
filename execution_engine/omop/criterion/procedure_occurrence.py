@@ -145,7 +145,12 @@ class ProcedureOccurrence(ContinuousCriterion):
         """
         Get a human-readable description of the criterion.
         """
-        return f"{self.__class__.__name__}['{self._name}'](concept={self._concept.concept_name}, value={str(self._value)}, timing={str(self._timing)})"
+
+        parts = [f"concept={self._concept.concept_name}"]
+        if self._timing is not None:
+            parts.append(f"dose={str(self._timing)}")
+
+        return f"{self.__class__.__name__}[" + ", ".join(parts) + "]"
 
     def dict(self) -> dict[str, Any]:
         """
