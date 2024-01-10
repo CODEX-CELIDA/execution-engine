@@ -176,7 +176,7 @@ def interval_result_view() -> Select:
             rri.c.pi_pair_id,
             pip.c.pi_pair_name,
             rri.c.criterion_id,
-            rc.c.criterion_name,
+            rc.c.criterion_description,
             rri.c.cohort_category,
             rri.c.interval_type,
             rri.c.interval_start,
