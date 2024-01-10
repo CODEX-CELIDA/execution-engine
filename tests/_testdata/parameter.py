@@ -265,7 +265,11 @@ PEEP = CriterionDefinition(
     concept_id=concepts.PEEP,
 )
 PEEP_5 = PEEP.copy(
-    update={"name": "PEEP_5", "threshold": 5, "datetime_offset": timedelta(hours=1)}
+    update={
+        "name": "PEEP_5",
+        "threshold": 5,
+        "datetime_offset": [FiO2_30.datetime_offset, FiO2_40.datetime_offset],
+    }
 )
 PEEP_8 = PEEP.copy(
     update={
@@ -278,14 +282,14 @@ PEEP_10 = PEEP.copy(
     update={
         "name": "PEEP_10",
         "threshold": 10,
-        "datetime_offset": FiO2_60.datetime_offset,
+        "datetime_offset": [FiO2_60.datetime_offset, FiO2_70.datetime_offset],
     }
 )
 PEEP_14 = PEEP.copy(
     update={
         "name": "PEEP_14",
         "threshold": 14,
-        "datetime_offset": FiO2_80.datetime_offset,
+        "datetime_offset": [FiO2_80.datetime_offset, FiO2_90.datetime_offset],
     }
 )
 PEEP_18 = PEEP.copy(
