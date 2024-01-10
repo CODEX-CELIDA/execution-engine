@@ -43,7 +43,7 @@ class TestExpr:
 class TestSymbol:
     def test_symbol_creation(self):
         symbol = Symbol(dummy_criterion)
-        assert str(symbol) == "MockCriterion(dummy_criterion)"
+        assert str(symbol) == "MockCriterion[dummy_criterion]"
         assert symbol.criterion == dummy_criterion
 
     def test_is_Atom_true(self):
@@ -76,7 +76,7 @@ class TestAnd:
         assert isinstance(and_expr, And)
 
         assert (
-            str(and_expr) == "MockCriterion(x) & MockCriterion(y) & ~MockCriterion(z)"
+            str(and_expr) == "MockCriterion[x] & MockCriterion[y] & ~MockCriterion[z]"
         )
         assert and_expr.args[0] == x
         assert and_expr.args[1] == y
@@ -101,7 +101,7 @@ class TestOr:
         )
         assert isinstance(or_expr, Or)
 
-        assert str(or_expr) == "MockCriterion(x) | MockCriterion(y) | ~MockCriterion(z)"
+        assert str(or_expr) == "MockCriterion[x] | MockCriterion[y] | ~MockCriterion[z]"
         assert or_expr.args[0] == x
         assert or_expr.args[1] == y
         assert or_expr.args[2] == Not(z, category=CohortCategory.POPULATION)
@@ -119,7 +119,7 @@ class TestNot:
     def test_not_creation(self):
         not_expr = Not(x, category=CohortCategory.POPULATION)
         assert isinstance(not_expr, Not)
-        assert str(not_expr) == "~MockCriterion(x)"
+        assert str(not_expr) == "~MockCriterion[x]"
         assert not_expr.args[0] == x
 
         assert not_expr.is_Not
