@@ -1,7 +1,6 @@
 from typing import Any, Type
 
 import networkx as nx
-from matplotlib import pyplot as plt
 
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
@@ -148,6 +147,11 @@ class ExecutionGraph(nx.DiGraph):
         """
         Plot the graph.
         """
+        try:
+            from matplotlib import pyplot as plt
+        except ImportError:
+            raise ImportError("Matplotlib required for plotting")
+
         plt.figure(figsize=(20, 20))
         pos = nx.kamada_kawai_layout(self)
 
