@@ -1,3 +1,5 @@
+import base64
+import json
 import logging
 from enum import Enum, auto
 
@@ -454,15 +456,39 @@ class Task:
 
     def name(self) -> str:
         """
-        Returns the name of the Task object.
+        Returns the (unique) name of the Task object.
+
+        Uniqueness is guaranteed by prepending the base64-encoded hash of the Task object.
         """
-        return str(self)
+        return f"[{self.id()}] {str(self)}"
+
+    def id(self) -> str:
+        """
+        Returns the id of the Task object.
+        """
+        hash_value = hash(self)
+
+        # Determine the number of bytes needed. Python's hash returns a value based on the platform's pointer size.
+        # It's 8 bytes for 64-bit systems and 4 bytes for 32-bit systems.
+        num_bytes = 8 if hash_value.bit_length() > 32 else 4
+
+        # Convert the hash to bytes. Specify 'big' for big-endian and 'signed=True' to handle negative values.
+        hash_bytes = hash_value.to_bytes(num_bytes, byteorder="big", signed=True)
+
+        # Base64 encode and return the result
+        return base64.b64encode(hash_bytes).decode()
+
+    def __hash__(self) -> int:
+        """
+        Returns the hash of the Task object.
+        """
+        return hash((self.expr, json.dumps(self.bind_params)))
 
     def __repr__(self) -> str:
         """
         Returns a string representation of the Task object.
         """
         if self.expr.is_Atom:
-            return f"Task(criterion={self.criterion}, category={self.expr.category})"
+            return f"Task(criterion={self.expr}, category={self.expr.category})"
         else:
             return f"Task({self.expr}), category={self.expr.category})"
