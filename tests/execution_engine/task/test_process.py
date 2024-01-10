@@ -1546,7 +1546,7 @@ class TestIntervalFilling:
     @staticmethod
     def assert_equal(data, expected):
         def to_df(data):
-            return pd.DataFrame(
+            df = pd.DataFrame(
                 data,
                 columns=[
                     "person_id",
@@ -1555,6 +1555,10 @@ class TestIntervalFilling:
                     "interval_type",
                 ],
             )
+            df["interval_start"] = pd.to_datetime(df["interval_start"])
+            df["interval_end"] = pd.to_datetime(df["interval_end"])
+
+            return df
 
         df_result = process.forward_fill(to_df(data))
         df_expected = to_df(expected)
@@ -1606,9 +1610,9 @@ class TestIntervalFilling:
         ]
 
         expected = [
-            (1, "2023-03-01 08:00:00", "2023-03-01 09:10:00", "POSITIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 09:09:59", "POSITIVE"),
             (1, "2023-03-01 09:10:00", "2023-03-01 10:00:00", "NEGATIVE"),
-            (2, "2023-03-01 11:00:00", "2023-03-01 14:00:00", "POSITIVE"),
+            (2, "2023-03-01 11:00:00", "2023-03-01 13:59:59", "POSITIVE"),
             (2, "2023-03-01 14:00:00", "2023-03-01 15:00:00", "NEGATIVE"),
         ]
 
@@ -1625,8 +1629,8 @@ class TestIntervalFilling:
         ]
 
         expected = [
-            (1, "2023-03-01 08:00:00", "2023-03-01 11:00:00", "POSITIVE"),
-            (1, "2023-03-01 11:00:00", "2023-03-01 12:00:00", "NEGATIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 10:59:59", "POSITIVE"),
+            (1, "2023-03-01 11:00:00", "2023-03-01 11:59:59", "NEGATIVE"),
             (1, "2023-03-01 12:00:00", "2023-03-01 15:00:00", "POSITIVE"),
         ]
         self.assert_equal(data, expected)
@@ -1643,10 +1647,10 @@ class TestIntervalFilling:
 
         expected = [
             (1, "2021-01-01 08:00:00", "2021-01-01 10:00:00", "POSITIVE"),
-            (2, "2021-01-02 10:00:00", "2021-01-02 10:30:00", "NEGATIVE"),
-            (2, "2021-01-02 10:30:00", "2021-01-02 11:30:00", "POSITIVE"),
+            (2, "2021-01-02 10:00:00", "2021-01-02 10:29:59", "NEGATIVE"),
+            (2, "2021-01-02 10:30:00", "2021-01-02 11:29:59", "POSITIVE"),
             (2, "2021-01-02 11:30:00", "2021-01-02 12:00:00", "NEGATIVE"),
-            (3, "2021-01-03 12:00:00", "2021-01-03 12:45:00", "POSITIVE"),
+            (3, "2021-01-03 12:00:00", "2021-01-03 12:44:59", "POSITIVE"),
             (3, "2021-01-03 12:45:00", "2021-01-03 13:00:00", "NEGATIVE"),
         ]
 

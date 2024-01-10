@@ -90,8 +90,8 @@ def forward_fill(df: pd.DataFrame) -> pd.DataFrame:
         >>> forward_fill(df)
         # Expected result:
         #    person_id     interval_start       interval_end      interval_type
-        # 0          1 2023-03-01 08:00:00 2023-03-01 11:00:00      POSITIVE
-        # 1          1 2023-03-01 11:00:00 2023-03-01 12:00:00      NEGATIVE
+        # 0          1 2023-03-01 08:00:00 2023-03-01 10:59:59      POSITIVE
+        # 1          1 2023-03-01 11:00:00 2023-03-01 11:59:59      NEGATIVE
         # 2          1 2023-03-01 12:00:00 2023-03-01 15:00:00      POSITIVE
     """
     by = ["person_id"]
@@ -104,9 +104,10 @@ def forward_fill(df: pd.DataFrame) -> pd.DataFrame:
 
         result = group[idx].copy()
 
-        result["interval_end"] = result["interval_start"].shift(
-            -1, fill_value=last_datetime
-        )
+        # remove one second from the interval_start (=new interval_end) to avoid overlapping intervals
+        result["interval_end"] = (
+            result["interval_start"] - pd.Timedelta(seconds=1)
+        ).shift(-1, fill_value=last_datetime)
 
         return result
 
