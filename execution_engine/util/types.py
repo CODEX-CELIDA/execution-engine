@@ -8,10 +8,13 @@ from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import (
     DateTimeInterval,
     IntervalType,
+    IntervalWithType,
     interval_datetime,
 )
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
+
+PersonIntervals = dict[int, IntervalWithType]
 
 
 class TimeRange(BaseModel):
