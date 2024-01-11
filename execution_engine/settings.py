@@ -29,6 +29,7 @@ class Settings(BaseSettings):  # type: ignore
     fhir_base_url: str
 
     celida_ee_timezone: str
+    celida_ee_parallel_task_runner: bool = False
 
     omop: OMOPSettings
 

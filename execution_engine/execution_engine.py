@@ -310,6 +310,7 @@ class ExecutionEngine:
         recommendation: cohort.Recommendation,
         start_datetime: datetime,
         end_datetime: datetime | None,
+        use_multiprocessing: bool = False,
     ) -> int:
         """Executes the Recommendation"""
         # todo: improve documentation
@@ -330,6 +331,7 @@ class ExecutionEngine:
             run_id=run_id,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            use_multiprocessing=use_multiprocessing,
         )
 
         return run_id
@@ -505,6 +507,7 @@ class ExecutionEngine:
         run_id: int,
         start_datetime: datetime,
         end_datetime: datetime,
+        use_multiprocessing: bool = False,
     ) -> None:
         """
         Executes the Recommendation and stores the results in the result tables.
@@ -537,11 +540,14 @@ class ExecutionEngine:
         #  then splitting by person might be necessary
         #  otherwise not needed intermediate results may be deleted after processing
 
-        # todo determine runner class
-        # runner_class = runner.ParallelTaskRunner if use_multiprocessing else runner.SequentialTaskRunner
+        runner_class = (
+            runner.ParallelTaskRunner
+            if use_multiprocessing
+            else runner.SequentialTaskRunner
+        )
 
         execution_graph = recommendation.execution_graph()
-        task_runner = runner.SequentialTaskRunner(execution_graph)
+        task_runner = runner_class(execution_graph)
         task_runner.run(bind_params)
 
     def insert_intervals(self, data: pd.DataFrame, con: sqlalchemy.Connection) -> None:
