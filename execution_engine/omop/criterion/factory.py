@@ -9,6 +9,7 @@ from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.observation import Observation
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
+from execution_engine.omop.criterion.visit_detail import VisitDetail
 from execution_engine.omop.criterion.visit_occurrence import (
     ActivePatients,
     PatientsActiveDuringPeriod,
@@ -29,6 +30,7 @@ class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
     "ActivePatients": ActivePatients,
     "PatientsActiveDuringPeriod": PatientsActiveDuringPeriod,
     "TidalVolumePerIdealBodyWeight": TidalVolumePerIdealBodyWeight,
+    "VisitDetail": VisitDetail,
 }
 
 

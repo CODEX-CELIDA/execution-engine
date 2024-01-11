@@ -30,6 +30,7 @@ class Settings(BaseSettings):  # type: ignore
 
     celida_ee_timezone: str
     celida_ee_parallel_task_runner: bool = False
+    celida_ee_episode_of_care_visit_detail: bool = False
 
     omop: OMOPSettings
 

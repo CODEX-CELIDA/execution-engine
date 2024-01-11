@@ -168,6 +168,10 @@ OMOP__SCHEMA=cds_cdm
 
 # Execution Engine Configuration
 CELIDA_EE_TIMEZONE=Europe/Berlin
+
+# Episode of Care Mapping Table
+# Set 1 to Use VISIT_DETAIL for episode of care mappings instead of VISIT_OCCURRENCE
+CELIDA_EE_EPISODE_OF_CARE_VISIT_DETAIL=1
 ```
 
 You can copy the supplied `sample.env` file to `.env` and adjust the variables according to your local setup.
