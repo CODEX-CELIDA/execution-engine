@@ -193,6 +193,16 @@ class OMOPSQLClient:
         """
         return pd.read_sql(sql, self._engine, params=kwargs)
 
+    def raw_query(
+        self, sql: Any, params: dict | None = None
+    ) -> sqlalchemy.engine.Result:
+        """
+        Run the given SQL query against the OMOP CDM database.
+        """
+        with self.session() as con:
+            data = con.execute(sql, params=params)
+        return data
+
     def compile_query(self, query: Select | Insert, params: dict | None = None) -> str:
         """
         Compile the given query against the OMOP CDM database.

@@ -3,7 +3,6 @@ import json
 import logging
 from enum import Enum, auto
 
-import pandas as pd
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
 import execution_engine.util.cohort_logic as logic
@@ -14,7 +13,7 @@ from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import config
 from execution_engine.task import process
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import TimeRange
+from execution_engine.util.types import PersonIntervals, TimeRange
 
 
 def get_engine() -> OMOPSQLClient:
@@ -47,9 +46,6 @@ class Task:
     """
     A Task object represents a task that needs to be run.
     """
-
-    """The columns to group by when merging or intersecting intervals."""
-    by = ["person_id"]
 
     def __init__(
         self,
@@ -95,10 +91,10 @@ class Task:
 
     def run(
         self,
-        data: list[pd.DataFrame],
-        base_data: pd.DataFrame | None,
+        data: list[PersonIntervals],
+        base_data: PersonIntervals | None,
         bind_params: dict,
-    ) -> pd.DataFrame:
+    ) -> PersonIntervals:
         """
         Runs the task.
 
@@ -132,11 +128,13 @@ class Task:
                     self.criterion, bind_params, base_data, observation_window
                 )
 
-                self.store_result_in_db(
-                    result, base_data, bind_params, observation_window
-                )
+                self.store_result_in_db(result, base_data, bind_params)
 
             else:
+                assert (
+                    base_data is not None
+                ), "base_data shall not be None for non-atomic expression"
+
                 # non-atomic expressions (i.e. logical operations on criteria)
                 if isinstance(self.expr, logic.Not):
                     result = self.handle_unary_logical_operator(
@@ -165,12 +163,7 @@ class Task:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
                 if self.store_result:
-                    self.store_result_in_db(
-                        result, base_data, bind_params, observation_window
-                    )
-
-            if set(process.df_dtypes.keys()) != set(result.columns):
-                raise TaskError("Invalid result columns.")
+                    self.store_result_in_db(result, base_data, bind_params)
 
         except TaskError as e:  # todo change to exception
             self.status = TaskStatus.FAILED
@@ -188,9 +181,9 @@ class Task:
         cls,
         criterion: Criterion,
         bind_params: dict,
-        base_data: pd.DataFrame | None,
+        base_data: PersonIntervals | None,
         observation_window: TimeRange,
-    ) -> pd.DataFrame:
+    ) -> PersonIntervals:
         """
         Handles a criterion by querying the database.
 
@@ -202,23 +195,25 @@ class Task:
         """
         engine = get_engine()
         query = criterion.create_query()
-        result = engine.query(query, **bind_params)
+        result = engine.raw_query(query, params=bind_params)
 
-        result = criterion.process_result(result, base_data, observation_window)
+        data = process.result_to_intervals(result)
+
+        data = criterion.process_data(data, base_data, observation_window)
 
         # merge overlapping/adjacent intervals to reduce the number of intervals - but NEGATIVE is dominant over
         # POSITIVE here, i.e. if there is a NEGATIVE interval, the result is NEGATIVE, regardless of any POSITIVE
         # intervals
-        result = process.merge_intervals_negative_dominant(result, by=cls.by)
+        data = process.merge_intervals_negative_dominant(data)
 
-        return result
+        return data
 
     def handle_unary_logical_operator(
         self,
-        data: list[pd.DataFrame],
-        base_data: pd.DataFrame,
+        data: list[PersonIntervals],
+        base_data: PersonIntervals,
         observation_window: TimeRange,
-    ) -> pd.DataFrame:
+    ) -> PersonIntervals:
         """
         Handles a unary logical operator (Not) by inverting the intervals of the dependency.
 
@@ -242,7 +237,9 @@ class Task:
 
         return result
 
-    def handle_binary_logical_operator(self, data: list[pd.DataFrame]) -> pd.DataFrame:
+    def handle_binary_logical_operator(
+        self, data: list[PersonIntervals]
+    ) -> PersonIntervals:
         """
         Handles a binary logical operator (And or Or) by merging or intersecting the intervals of the
 
@@ -255,9 +252,9 @@ class Task:
             return data[0]
 
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
-            result = process.intersect_intervals(data, by=self.by)
+            result = process.intersect_intervals(data)
         elif isinstance(self.expr, logic.Or):
-            result = process.union_intervals(data, by=self.by)
+            result = process.union_intervals(data)
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
 
@@ -265,10 +262,10 @@ class Task:
 
     def handle_no_data_preserving_operator(
         self,
-        data: list[pd.DataFrame],
-        base_data: pd.DataFrame,
+        data: list[PersonIntervals],
+        base_data: PersonIntervals,
         observation_window: TimeRange,
-    ) -> pd.DataFrame:
+    ) -> PersonIntervals:
         """
         Handles a NoDataPreservingAnd/Or operator.
 
@@ -288,30 +285,30 @@ class Task:
         ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
 
         if isinstance(self.expr, logic.NoDataPreservingAnd):
-            result = process.intersect_intervals(data, by=self.by)
+            result = process.intersect_intervals(data)
         elif isinstance(self.expr, logic.NoDataPreservingOr):
-            result = process.union_intervals(data, by=self.by)
+            result = process.union_intervals(data)
 
         # todo: the only difference between this function and handle_binary_logical_operator is the following lines
         #  - can we merge?
         result_negative = process.complementary_intervals(
             result,
-            reference_df=base_data,
+            reference=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
         )
 
-        result = process.concat_dfs([result, result_negative])
+        result = process.concat_intervals([result, result_negative])
 
         return result
 
     def handle_left_dependent_toggle(
         self,
-        left: pd.DataFrame,
-        right: pd.DataFrame,
-        base_data: pd.DataFrame,
+        left: PersonIntervals,
+        right: PersonIntervals,
+        base_data: PersonIntervals,
         observation_window: TimeRange,
-    ) -> pd.DataFrame:
+    ) -> PersonIntervals:
         """
         Handles a left dependent toggle by merging the intervals of the left dependency with the intervals of the
         right dependency according to the following rules:
@@ -348,12 +345,14 @@ class Task:
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
 
-        idx_p = left["interval_type"] == IntervalType.POSITIVE
-        data_p = left[idx_p]
+        data_p = {
+            person_id: interval.select_type(IntervalType.POSITIVE)
+            for person_id, interval in left.items()
+        }
 
         result_not_p = process.complementary_intervals(
             data_p,
-            reference_df=base_data,
+            reference=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NOT_APPLICABLE,
         )
@@ -369,28 +368,27 @@ class Task:
                 IntervalType.NOT_APPLICABLE,
             ]
         ):
-            result_p_and_i = process.intersect_intervals([data_p, right], by=self.by)
+            result_p_and_i = process.intersect_intervals([data_p, right])
 
-        result = process.concat_dfs([result_not_p, result_p_and_i])
+        result = process.concat_intervals([result_not_p, result_p_and_i])
 
         # fill remaining time with NEGATIVE
         result_no_data = process.complementary_intervals(
             result,
-            reference_df=base_data,
+            reference=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NEGATIVE,
         )
 
-        result = process.concat_dfs([result, result_no_data])
+        result = process.concat_intervals([result, result_no_data])
 
         return result
 
     def store_result_in_db(
         self,
-        result: pd.DataFrame,
-        base_data: pd.DataFrame | None,
+        result: PersonIntervals,
+        base_data: PersonIntervals | None,
         bind_params: dict,
-        observation_window: TimeRange,
     ) -> None:
         """
         Stores the result in the database.
@@ -419,17 +417,29 @@ class Task:
         if self.expr.is_Atom:
             assert pi_pair_id is None, "pi_pair_id shall be None for criterion"
 
-        result = result.assign(
+        params = dict(
             criterion_id=criterion_id,
             pi_pair_id=pi_pair_id,
             run_id=bind_params["run_id"],
             cohort_category=self.category,
         )
+
         try:
             with get_engine().begin() as conn:
                 conn.execute(
                     ResultInterval.__table__.insert(),
-                    result.to_dict(orient="records"),
+                    # result.to_dict(orient="records"),
+                    [
+                        {
+                            "person_id": person_id,
+                            "interval_start": interval.lower,
+                            "interval_end": interval.upper,
+                            "interval_type": interval.type,
+                            **params,
+                        }
+                        for person_id, intervals in result.items()
+                        for interval in intervals
+                    ],
                 )
         except ProgrammingError as e:
             # Handle programming errors (e.g., syntax errors)

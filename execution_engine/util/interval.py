@@ -810,6 +810,21 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
             ]
         )
 
+    def select_type(self, type_: IntervalTypeT) -> "IntervalWithType":
+        """
+        Return the interval with only the specified type.
+
+        :param type_: the type to select.
+        :return: the interval with only the specified type.
+        """
+        return self.__class__(
+            *[
+                Atomic(i.left, i.lower, i.upper, i.right, type_)
+                for i in self._intervals
+                if i.type == type_
+            ]
+        )
+
     def ffill(self) -> "IntervalWithType":
         """
         Forward fill the current interval.

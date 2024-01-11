@@ -1,7 +1,6 @@
 from operator import and_, or_
 from typing import Callable, cast
 
-import numpy as np
 from portion import Bound
 from sqlalchemy import CursorResult
 
@@ -14,20 +13,6 @@ from execution_engine.util.interval import (
 from execution_engine.util.interval import empty_interval_datetime as empty_interval
 from execution_engine.util.interval import interval_datetime as interval
 from execution_engine.util.types import PersonIntervals, TimeRange
-
-df_dtypes = {
-    "person_id": "int64",
-    "interval_start": "datetime64[ns, UTC]",
-    "interval_end": "datetime64[ns, UTC]",
-    "interval_type": "category",
-}
-
-dtype = [
-    ("person_id", np.int64),
-    ("interval_start", np.int64),
-    ("interval_end", np.int64),
-    ("interval_type", str),
-]
 
 
 def concat_intervals(data: list[PersonIntervals]) -> PersonIntervals:
