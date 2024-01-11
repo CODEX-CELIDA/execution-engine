@@ -28,6 +28,7 @@ class Settings(BaseSettings):  # type: ignore
     fhir_base_url: str
 
     celida_ee_timezone: str
+    celida_ee_episode_of_care_visit_detail: bool = False
 
     omop: OMOPSettings
 
