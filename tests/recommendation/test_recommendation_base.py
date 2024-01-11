@@ -250,10 +250,8 @@ class TestRecommendationBase(ABC):
             )
             df = df[~idx_invalid].copy()
 
-        # return df.iloc[1675:1676]
-
         if not run_slow_tests:
-            df = pd.concat([df.head(15), df.tail(15)]).drop_duplicates()
+            df = pd.concat([df.head(100), df.tail(100)]).drop_duplicates()
 
         return df
 
@@ -707,6 +705,7 @@ class TestRecommendationBase(ABC):
             recommendation,
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
+            use_multiprocessing=False,
         )
 
         def get_query(t, category):
