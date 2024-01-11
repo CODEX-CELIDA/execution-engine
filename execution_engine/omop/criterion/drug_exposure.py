@@ -17,7 +17,6 @@ from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.sql import SelectInto
 from execution_engine.util.types import Dosage
-from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.factory import value_factory
 
 __all__ = ["DrugExposure"]
@@ -291,7 +290,7 @@ class DrugExposure(Criterion):
 
         dose = value_factory(**data["dose"]) if data["dose"] is not None else None
 
-        assert dose is None or isinstance(dose, ValueNumber), "Dose must be a number"
+        assert dose is None or isinstance(dose, Dosage), "Dose must be a Dosage or None"
 
         return cls(
             name=data["name"],
