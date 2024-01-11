@@ -10,13 +10,12 @@ from pytz.tzinfo import DstTzInfo
 from execution_engine.task import process
 from execution_engine.task.process import (
     _interval_union,
-    _result_to_df,
-    df_to_intervals,
-    filter_dataframes_by_shared_column_values,
+    filter_dicts_by_common_keys,
     intersect_intervals,
     union_intervals,
 )
 from execution_engine.util.interval import DateTimeInterval
+from execution_engine.util.interval import DateTimeInterval as Interval
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.interval import empty_interval_datetime, interval_datetime
@@ -45,6 +44,69 @@ def df_from_str(data_str):
     return df
 
 
+def to_intervals(df: pd.DataFrame, by=["person_id"]):
+    return {key: df_to_intervals(group_df) for key, group_df in df.groupby(by=by)}
+
+
+def df_to_intervals(df: pd.DataFrame) -> list[Interval]:
+    """
+    Converts the DataFrame to intervals.
+
+    :param df: A DataFrame with columns "interval_start" and "interval_end".
+    :return: A list of intervals.
+    """
+
+    from execution_engine.util.interval import interval_datetime
+
+    return Interval(
+        *[
+            interval_datetime(start, end, type_)
+            for start, end, type_ in zip(
+                df["interval_start"], df["interval_end"], df["interval_type"]
+            )
+        ]
+    )
+
+
+def _result_to_df(
+    result: dict[tuple[str] | str, Interval], by: list[str]
+) -> pd.DataFrame:
+    """
+    Converts the result of the interval operations to a DataFrame.
+
+    :param result: The result of the interval operations.
+    :param by: A list of column names to group by.
+    :return: A DataFrame with the interval results.
+    """
+    records = []
+    for group_keys, intervals in result.items():
+        # Check if group_keys is a tuple or a single value and unpack accordingly
+        if isinstance(group_keys, tuple):
+            record_keys = dict(zip(by, group_keys))
+        else:
+            record_keys = {by[0]: group_keys}
+
+        for interv in intervals:
+            record = {
+                **record_keys,
+                "interval_start": interv.lower,
+                "interval_end": interv.upper,
+                "interval_type": interv.type,
+            }
+            records.append(record)
+
+    return pd.DataFrame(
+        records, columns=by + ["interval_start", "interval_end", "interval_type"]
+    )
+
+
+def unique_items(df: pd.DataFrame) -> set[tuple]:
+    """
+    Returns the unique items in the DataFrame.
+    """
+    return set(df.itertuples(index=False, name=None))
+
+
 one_hour = pd.Timedelta(hours=1)
 one_second = pd.Timedelta(seconds=1)
 
@@ -63,6 +125,7 @@ class TestIntervalUnion:
     def test_interval_union_single_datetime_interval(self):
         start_time = pendulum.parse("2020-01-01 00:00:00")
         end_time = pendulum.parse("2020-01-02 00:00:00")
+
         interv = interval_datetime(start_time, end_time, type_=T.POSITIVE)
         assert (
             _interval_union([interv]) == interv
@@ -183,7 +246,9 @@ class TestToIntervals:
     def test_to_intervals_empty_dataframe(self):
         df = pd.DataFrame(columns=["interval_start", "interval_end", "interval_type"])
         result = df_to_intervals(df)
-        assert result == [], "Failed: Empty DataFrame should return an empty list"
+        assert (
+            result == empty_interval_datetime()
+        ), "Failed: Empty DataFrame should return an empty list"
 
     def test_to_intervals_single_row(self):
         df = pd.DataFrame(
@@ -193,7 +258,7 @@ class TestToIntervals:
                 "interval_type": T.POSITIVE,
             }
         )
-        expected = [interval("2020-01-01T00:00:00", "2020-01-02T00:00:00")]
+        expected = interval("2020-01-01T00:00:00", "2020-01-02T00:00:00")
         result = df_to_intervals(df)
         assert result == expected, "Failed: Single row DataFrame not handled correctly"
 
@@ -209,10 +274,9 @@ class TestToIntervals:
                 "interval_type": [T.POSITIVE, T.POSITIVE],
             }
         )
-        expected = [
-            interval("2020-01-01T00:00:00", "2020-01-02T00:00:00", type_=T.POSITIVE),
-            interval("2020-01-03T00:00:00", "2020-01-04T00:00:00", type_=T.POSITIVE),
-        ]
+        expected = interval(
+            "2020-01-01T00:00:00", "2020-01-02T00:00:00", type_=T.POSITIVE
+        ) | interval("2020-01-03T00:00:00", "2020-01-04T00:00:00", type_=T.POSITIVE)
         result = df_to_intervals(df)
         assert (
             result == expected
@@ -397,6 +461,7 @@ class TestComplementIntervals:
         self, observation_window, empty_dataframe
     ):
         df = empty_dataframe.copy()
+
         reference_df = pd.DataFrame(
             {
                 "person_id": [1],
@@ -415,14 +480,14 @@ class TestComplementIntervals:
             }
         )
 
-        # workaround, see https://github.com/pandas-dev/pandas/issues/56733
-        expected_result[["interval_start", "interval_end"]] = expected_result[
-            ["interval_start", "interval_end"]
-        ].astype("datetime64[us, UTC]")
-
+        by = ["person_id"]
         result = process.complementary_intervals(
-            df, reference_df, observation_window, interval_type=T.NO_DATA
+            to_intervals(df, by=by),
+            to_intervals(reference_df, by=by),
+            observation_window,
+            interval_type=T.NO_DATA,
         )
+        result = _result_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
     def test_invert_intervals_single_row(
@@ -439,9 +504,14 @@ class TestComplementIntervals:
         )
         expected_result = empty_dataframe
 
+        by = ["person_id"]
         result = process.complementary_intervals(
-            df, reference_df, observation_window, interval_type=T.NO_DATA
+            to_intervals(df, by=by),
+            to_intervals(reference_df, by=by),
+            observation_window,
+            interval_type=T.NO_DATA,
         )
+        result = _result_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # longer than observation window
@@ -455,9 +525,14 @@ class TestComplementIntervals:
         )
         expected_result = empty_dataframe.copy()
 
+        by = ["person_id"]
         result = process.complementary_intervals(
-            df, reference_df, observation_window, interval_type=T.NO_DATA
+            to_intervals(df, by=by),
+            to_intervals(reference_df, by=by),
+            observation_window,
+            interval_type=T.NO_DATA,
         )
+        result = _result_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # starting at observation window start but ending before end
@@ -480,9 +555,15 @@ class TestComplementIntervals:
             ],
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
+
+        by = ["person_id"]
         result = process.complementary_intervals(
-            df, reference_df, observation_window, interval_type=T.NO_DATA
+            to_intervals(df, by=by),
+            to_intervals(reference_df, by=by),
+            observation_window,
+            interval_type=T.NO_DATA,
         )
+        result = _result_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # ending at observation window end but starting after start
@@ -505,9 +586,15 @@ class TestComplementIntervals:
             ],
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
+
+        by = ["person_id"]
         result = process.complementary_intervals(
-            df, reference_df, observation_window, interval_type=T.NO_DATA
+            to_intervals(df, by=by),
+            to_intervals(reference_df, by=by),
+            observation_window,
+            interval_type=T.NO_DATA,
         )
+        result = _result_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # in between
@@ -537,9 +624,14 @@ class TestComplementIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
 
+        by = ["person_id"]
         result = process.complementary_intervals(
-            df, reference_df, observation_window, interval_type=T.NO_DATA
+            to_intervals(df, by=by),
+            to_intervals(reference_df, by=by),
+            observation_window,
+            interval_type=T.NO_DATA,
         )
+        result = _result_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
     def test_multiple_persons(self, observation_window, reference_df):
@@ -575,9 +667,14 @@ class TestComplementIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
 
+        by = ["person_id"]
         result = process.complementary_intervals(
-            df, reference_df, observation_window, interval_type=T.NO_DATA
+            to_intervals(df, by=by),
+            to_intervals(reference_df, by=by),
+            observation_window,
+            interval_type=T.NO_DATA,
         )
+        result = _result_to_df(result, by=by)
 
         expected_data = [
             (
@@ -657,12 +754,10 @@ class TestInvertIntervals:
             }
         )
 
-        # workaround, see https://github.com/pandas-dev/pandas/issues/56733
-        expected_result[["interval_start", "interval_end"]] = expected_result[
-            ["interval_start", "interval_end"]
-        ].astype("datetime64[us, UTC]")
-
-        result = process.invert_intervals(df, reference_df, observation_window)
+        result = process.invert_intervals(
+            to_intervals(df), to_intervals(reference_df), observation_window
+        )
+        result = _result_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_result)
 
@@ -680,7 +775,10 @@ class TestInvertIntervals:
         )
         expected_result = df.assign(interval_type=T.NEGATIVE)
 
-        result = process.invert_intervals(df, reference_df, observation_window)
+        result = process.invert_intervals(
+            to_intervals(df), to_intervals(reference_df), observation_window
+        )
+        result = _result_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -697,7 +795,10 @@ class TestInvertIntervals:
         )
         expected_result = df.assign(interval_type=T.NEGATIVE)
 
-        result = process.invert_intervals(df, reference_df, observation_window)
+        result = process.invert_intervals(
+            to_intervals(df), to_intervals(reference_df), observation_window
+        )
+        result = _result_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -729,7 +830,10 @@ class TestInvertIntervals:
             ],
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
-        result = process.invert_intervals(df, reference_df, observation_window)
+        result = process.invert_intervals(
+            to_intervals(df), to_intervals(reference_df), observation_window
+        )
+        result = _result_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -761,7 +865,10 @@ class TestInvertIntervals:
             ],
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
-        result = process.invert_intervals(df, reference_df, observation_window)
+        result = process.invert_intervals(
+            to_intervals(df), to_intervals(reference_df), observation_window
+        )
+        result = _result_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -800,7 +907,10 @@ class TestInvertIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
 
-        result = process.invert_intervals(df, reference_df, observation_window)
+        result = process.invert_intervals(
+            to_intervals(df), to_intervals(reference_df), observation_window
+        )
+        result = _result_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -842,12 +952,6 @@ class TestInvertIntervals:
             (
                 1,
                 pd.to_datetime("2023-01-01 00:00:00+0000"),
-                pd.to_datetime("2023-01-01 12:00:00+0000"),
-                T.NEGATIVE,
-            ),
-            (
-                1,
-                pd.to_datetime("2023-01-01 06:00:00+0000"),
                 pd.to_datetime("2023-01-01 18:00:00+0000"),
                 T.NEGATIVE,
             ),
@@ -893,7 +997,10 @@ class TestInvertIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
 
-        result = process.invert_intervals(df, reference_df, observation_window)
+        result = process.invert_intervals(
+            to_intervals(df), to_intervals(reference_df), observation_window
+        )
+        result = _result_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -901,111 +1008,50 @@ class TestInvertIntervals:
         pd.testing.assert_frame_equal(result, expected_df)
 
 
-class TestFilterCommonItems:
-    def test_filter_common_items_empty_dataframe_list(self):
-        result = filter_dataframes_by_shared_column_values([], ["column1", "column2"])
-        assert (
-            result == []
-        ), "Failed: Empty list of DataFrames should return an empty list"
+class TestFilterCommonKeys:
+    def test_filter_common_items_empty_list(self):
+        result = filter_dicts_by_common_keys([])
+        assert result == [], "Failed: Empty list should return an empty list"
 
-    def test_filter_common_items_single_dataframe(self):
-        # supplying a single data frame should return the same data frame
-        df = pd.DataFrame({"column1": [1, 2], "column2": [3, 4]})
-        result = filter_dataframes_by_shared_column_values([df], ["column1", "column2"])
-        pd.testing.assert_frame_equal(result[0], df)
+    def test_filter_common_items_single_dict(self):
+        d = dict(column1=[1, 2], column2=[3, 4])
+        result = filter_dicts_by_common_keys([d])
+        assert result[0] == d
 
-    def test_filter_common_items_multiple_dataframes_common_items(self):
-        # compare two dataframes that have 2 common items and 2 different items
-        df1 = pd.DataFrame({"column1": [1, 2, 8, 9], "column2": [3, 4, 5, 8]})
-        df2 = pd.DataFrame({"column1": [1, 3, 8, 9], "column2": [3, 5, 6, 8]})
-        expected_df = pd.DataFrame({"column1": [1, 9], "column2": [3, 8]})
-        result = filter_dataframes_by_shared_column_values(
-            [df1, df2], ["column1", "column2"]
-        )
-        pd.testing.assert_frame_equal(result[0], expected_df)
-        pd.testing.assert_frame_equal(result[1], expected_df)
+    def test_filter_common_items_multiple_dicts_common_items(self):
+        d1 = dict(column1=[1, 2, 8, 9], column2=[3, 4, 5, 8])
+        d2 = dict(column1=[1, 3, 8, 9], column2=[3, 5, 6, 8])
 
-    def test_filter_common_items_multiple_dataframes_no_common_items(self):
-        # compare two dataframes that have no common items
-        df1 = pd.DataFrame({"column1": [1], "column2": [3]})
-        df2 = pd.DataFrame({"column1": [2], "column2": [4]})
-        result = filter_dataframes_by_shared_column_values(
-            [df1, df2], ["column1", "column2"]
-        )
-        assert all(
-            df.empty for df in result
-        ), "Failed: DataFrames with no common items should return empty DataFrames"
+        result = filter_dicts_by_common_keys([d1, d2])
+        assert d1 == result[0]
+        assert d2 == result[1]
 
-    def test_filter_common_items_invalid_columns(self):
-        # using an invalid column name should raise a KeyError
-        df1 = pd.DataFrame({"column1": [1, 2], "column2": [3, 4]})
-        df2 = pd.DataFrame({"column1": [1, 3], "column2": [3, 5]})
-        with pytest.raises(KeyError):
-            filter_dataframes_by_shared_column_values([df1, df2], ["invalid_column"])
+    def test_filter_common_items_multiple_dicts_no_common_items(self):
+        # compare two dicts that have no common keys
+        d1 = dict(column1=[1], column2=[3])
+        d2 = dict(column3=[2], column4=[4])
+        result = filter_dicts_by_common_keys([d1, d2])
+        assert result == [dict(), dict()]
 
     def test_filter_common_items(self):
-        # Create sample DataFrames
-        df1 = pd.DataFrame(
-            {
-                "A": [1, 2, 3],
-                "B": ["x", "y", "z"],
-                "C": ["a1", "a2", "a3"],
-            }
-        )
-        df2 = pd.DataFrame(
-            {
-                "A": [3, 4, 5],
-                "B": ["z", "z", "w"],
-                "C": ["b1", "b2", "b3"],
-            }
-        )
-        df3 = pd.DataFrame(
-            {
-                "A": [1, 3, 6],
-                "B": ["x", "z", "v"],
-                "C": ["c1", "c2", "c3"],
-            }
-        )
+        # Create sample dicts
+        d1 = dict(A=1, B=2, C=3)
+        d2 = dict(A=1, B=3, D=3)
+        d3 = dict(F=1, B=4, D=3)
 
         # Call the function
-        filtered_dfs = filter_dataframes_by_shared_column_values(
-            [df1, df2, df3], ["A", "B"]
-        )
+        result = filter_dicts_by_common_keys([d1, d2, d3])
 
-        # Define expected output
-        expected_df1 = pd.DataFrame(
-            {
-                "A": [3],
-                "B": ["z"],
-                "C": ["a3"],
-            }
-        )
-        expected_df2 = pd.DataFrame(
-            {
-                "A": [3],
-                "B": ["z"],
-                "C": ["b1"],
-            }
-        )
-        expected_df3 = pd.DataFrame(
-            {
-                "A": [3],
-                "B": ["z"],
-                "C": ["c2"],
-            }
-        )
-
-        # Assert
-        pd.testing.assert_frame_equal(filtered_dfs[0], expected_df1)
-        pd.testing.assert_frame_equal(filtered_dfs[1], expected_df2)
-        pd.testing.assert_frame_equal(filtered_dfs[2], expected_df3)
+        assert result[0] == dict(B=2)
+        assert result[1] == dict(B=3)
+        assert result[2] == dict(B=4)
 
 
 class TestMergeIntervals:
     def test_merge_intervals_empty_dataframe_list(self):
-        result = union_intervals([], by=["person_id"])
+        result = union_intervals([])
         assert (
-            result.empty
+            not result
         ), "Failed: Empty list of DataFrames should return an empty DataFrame"
 
     def test_merge_intervals_single_dataframe(self):
@@ -1030,7 +1076,8 @@ class TestMergeIntervals:
             }
         )
 
-        result = union_intervals([df], by=["person_id"])
+        result = union_intervals([to_intervals(df)])
+        result = _result_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1060,7 +1107,10 @@ class TestMergeIntervals:
             }
         )
 
-        result = union_intervals([df1, df2], by=["person_id"])
+        result = union_intervals(
+            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+        )
+        result = _result_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1083,7 +1133,10 @@ class TestMergeIntervals:
         )
         expected_df = pd.concat([df1, df2]).reset_index(drop=True)
 
-        result = union_intervals([df1, df2], by=["person_id"])
+        result = union_intervals(
+            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+        )
+        result = _result_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1116,7 +1169,13 @@ class TestMergeIntervals:
             }
         )
 
-        result = union_intervals([df1, df2], by=["group1", "group2"])
+        result = union_intervals(
+            [
+                to_intervals(df1, by=["group1", "group2"]),
+                to_intervals(df2, by=["group1", "group2"]),
+            ]
+        )
+        result = _result_to_df(result, ["group1", "group2"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1146,7 +1205,10 @@ class TestMergeIntervals:
             }
         )
 
-        result = union_intervals([df1, df2], by=["person_id"])
+        result = union_intervals(
+            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+        )
+        result = _result_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1199,7 +1261,13 @@ class TestMergeIntervals:
         }
         expected_df = pd.DataFrame(expected_data)
 
-        result_df = union_intervals([df1, df2], by=["person_id", "concept_id"])
+        result_df = union_intervals(
+            [
+                to_intervals(df1, by=["person_id", "concept_id"]),
+                to_intervals(df2, by=["person_id", "concept_id"]),
+            ]
+        )
+        result_df = _result_to_df(result_df, ["person_id", "concept_id"])
 
         pd.testing.assert_frame_equal(result_df, expected_df)
 
@@ -1247,8 +1315,8 @@ class TestMergeIntervals:
         group1	group2	interval_start	interval_end	interval_type
         A	1	2023-01-01 12:00:00	2023-01-03 05:00:00	POSITIVE
         A	1	2023-01-03 06:00:00	2023-01-04 12:00:00	POSITIVE
-        A	1	2023-01-04 22:00:00	2023-01-05 02:00:00	POSITIVE
         A	1	2023-01-04 18:00:00	2023-01-04 20:00:00	POSITIVE
+        A	1	2023-01-04 22:00:00	2023-01-05 02:00:00	POSITIVE
         A	1	2023-01-05 06:00:00	2023-01-05 23:59:00	POSITIVE
         A	2	2023-02-01 12:59:00	2023-02-01 12:59:01	POSITIVE
         A	2	2023-02-01 06:00:00	2023-02-01 06:00:00	POSITIVE
@@ -1266,7 +1334,14 @@ class TestMergeIntervals:
             .reset_index(drop=True)
         )
 
-        result = union_intervals([df1, df2, df3], by=["group1", "group2"])
+        result = union_intervals(
+            [
+                to_intervals(df1, by=["group1", "group2"]),
+                to_intervals(df2, by=["group1", "group2"]),
+                to_intervals(df3, by=["group1", "group2"]),
+            ]
+        )
+        result = _result_to_df(result, ["group1", "group2"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1291,7 +1366,10 @@ class TestMergeIntervals:
         """
         expected_df = df_from_str(expected_data)
 
-        result = union_intervals([df1, df2], by=["person_id"])
+        result = union_intervals(
+            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+        )
+        result = _result_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1315,16 +1393,19 @@ class TestMergeIntervals:
         """
         expected_df = df_from_str(expected_data)
 
-        result = union_intervals([df1, df2], by=["person_id"])
+        result = union_intervals(
+            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+        )
+        result = _result_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
 
 class TestIntersectIntervals:
     def test_intersect_intervals_empty_dataframe_list(self):
-        result = intersect_intervals([], by=["person_id"])
+        result = intersect_intervals([])
         assert (
-            result.empty
+            not result
         ), "Failed: Empty list of DataFrames should return an empty DataFrame"
 
     def test_intersect_intervals_single_dataframe(self):
@@ -1340,7 +1421,9 @@ class TestIntersectIntervals:
                 "interval_type": [T.POSITIVE, T.POSITIVE],
             }
         )
-        result = intersect_intervals([df], by=["person_id"])
+        by = ["person_id"]
+        result = intersect_intervals([to_intervals(df, by=by)])
+        result = _result_to_df(result, by=by)
         expected_df = df.copy()
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1370,7 +1453,11 @@ class TestIntersectIntervals:
             }
         )
 
-        result = intersect_intervals([df1, df2], by=["person_id"])
+        by = ["person_id"]
+        result = intersect_intervals(
+            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+        )
+        result = _result_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1395,7 +1482,11 @@ class TestIntersectIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"]
         )
 
-        result = intersect_intervals([df1, df2], by=["person_id"])
+        by = ["person_id"]
+        result = intersect_intervals(
+            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+        )
+        result = _result_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1428,7 +1519,11 @@ class TestIntersectIntervals:
             }
         )
 
-        result = intersect_intervals([df1, df2], by=["group1", "group2"])
+        by = ["group1", "group2"]
+        result = intersect_intervals(
+            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+        )
+        result = _result_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1460,7 +1555,11 @@ class TestIntersectIntervals:
         df2 = pd.DataFrame(data2)
 
         # Call the function
-        result_df = intersect_intervals([df1, df2], ["person_id", "concept_id"])
+        by = ["person_id", "concept_id"]
+        result = intersect_intervals(
+            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+        )
+        result = _result_to_df(result, by=by)
 
         # Define expected output
         expected_data = {
@@ -1473,7 +1572,7 @@ class TestIntersectIntervals:
         expected_df = pd.DataFrame(expected_data)
 
         # Assert
-        pd.testing.assert_frame_equal(result_df, expected_df)
+        pd.testing.assert_frame_equal(result, expected_df)
 
     def test_intersect_intervals_group_by_multiple_columns_complex_data(self):
         data1 = """
@@ -1537,7 +1636,15 @@ class TestIntersectIntervals:
         """
         expected_df = df_from_str(expected_data)
 
-        result = intersect_intervals([df1, df2, df3], ["group1", "group2"])
+        by = ["group1", "group2"]
+        result = intersect_intervals(
+            [
+                to_intervals(df1, by=by),
+                to_intervals(df2, by=by),
+                to_intervals(df3, by=by),
+            ]
+        )
+        result = _result_to_df(result, by=by).sort_values(by=by).reset_index(drop=True)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1560,10 +1667,11 @@ class TestIntervalFilling:
 
             return df
 
-        df_result = process.forward_fill(to_df(data))
+        result = process.forward_fill(to_intervals(to_df(data), by=["person_id"]))
+        df_result = _result_to_df(result, ["person_id"])
         df_expected = to_df(expected)
 
-        pd.testing.assert_frame_equal(df_result, df_expected)
+        pd.testing.assert_frame_equal(df_result, df_expected, check_dtype=False)
 
     def test_single_row(self):
         data = [

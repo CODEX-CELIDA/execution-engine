@@ -311,6 +311,8 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
             if isinstance(interval, Interval):
                 if not interval.empty:
                     _intervals_to_merge.extend(interval._intervals)
+            elif isinstance(interval, Atomic):
+                _intervals_to_merge.append(interval)
             else:
                 raise TypeError("Parameters must be Interval instances")
 
@@ -531,16 +533,37 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
         :param ignore_inf: whether to ignore inf values.
         :return: a new Interval instance with the specified attributes replaced.
         """
-        replace = super().replace(left, lower, upper, right, ignore_inf=ignore_inf)
+
+        if not self.atomic and (
+            left is not None
+            or right is not None
+            or lower is not None
+            or upper is not None
+        ):
+            raise ValueError(
+                "Cannot replace left/right bound or lower/upper of a non-atomic interval"
+            )
+
+        left_new = self.left if left is None else left
+        right_new = self.right if right is None else right
+        lower_new = self.lower if lower is None else lower
+        upper_new = self.upper if upper is None else upper
+        type_new = self.type if type_ is None else type_
+
+        if self.atomic:
+            return self.__class__.from_atomic(
+                left_new, lower_new, upper_new, right_new, type_new
+            )
+
         if type_ is not None:
             return self.__class__(
                 *[
                     self.__class__.from_atomic(*interval[:-1], type_)  # type: ignore # this is not "too many arguments"
-                    for interval in replace._intervals
+                    for interval in self._intervals
                 ]
             )
 
-        return replace
+        return self
 
     @classmethod
     def _mergeable(cls, a: Atomic, b: Atomic) -> bool:
@@ -774,6 +797,73 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
         elif b.type is None:
             return b, a
         return (a, b) if a.type != (a.type & b.type) else (b, a)
+
+    def invert_type(self) -> "IntervalWithType":
+        """
+        Return inverted type of the current interval.
+        """
+
+        return self.__class__(
+            *[
+                Atomic(i.left, i.lower, i.upper, i.right, ~i.type)
+                for i in self._intervals
+            ]
+        )
+
+    def select_type(self, type_: IntervalTypeT) -> "IntervalWithType":
+        """
+        Return the interval with only the specified type.
+
+        :param type_: the type to select.
+        :return: the interval with only the specified type.
+        """
+        return self.__class__(
+            *[
+                Atomic(i.left, i.lower, i.upper, i.right, type_)
+                for i in self._intervals
+                if i.type == type_
+            ]
+        )
+
+    def ffill(self) -> "IntervalWithType":
+        """
+        Forward fill the current interval.
+
+        :return: the forward filled interval.
+        """
+
+        all_intervals = sorted(
+            self._intervals,
+            key=lambda i: (
+                i.lower,
+                i.left == Bound.OPEN,
+            ),
+        )
+
+        filled_intervals = []
+
+        for i in range(len(all_intervals) - 1):
+            cur_interval = all_intervals[i]
+            next_interval = all_intervals[i + 1]
+
+            if cur_interval.upper >= next_interval.lower:
+                filled_intervals.append(cur_interval)
+            else:
+                filled_intervals.append(
+                    Atomic(
+                        cur_interval.left,
+                        cur_interval.lower,
+                        next_interval.lower,
+                        Bound.OPEN
+                        if next_interval.left == Bound.CLOSED
+                        else Bound.CLOSED,
+                        cur_interval.type,
+                    )
+                )
+
+        filled_intervals.append(all_intervals[-1])
+
+        return self.__class__(*filled_intervals)
 
     def complement(self, type_: IntervalTypeT | None = None) -> "IntervalWithType":
         """

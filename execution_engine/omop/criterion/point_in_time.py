@@ -10,7 +10,7 @@ from execution_engine.omop.criterion.abstract import (
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.task import process
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import TimeRange
+from execution_engine.util.types import PersonIntervals, TimeRange
 
 
 class PointInTimeCriterion(ConceptCriterion):
@@ -71,28 +71,30 @@ class PointInTimeCriterion(ConceptCriterion):
 
         return query
 
-    def process_result(
-        self, df: pd.DataFrame, base_data: pd.DataFrame, observation_window: TimeRange
-    ) -> pd.DataFrame:
+    def process_data(
+        self,
+        data: PersonIntervals,
+        base_data: pd.DataFrame,
+        observation_window: TimeRange,
+    ) -> PersonIntervals:
         """
         Process the result of the SQL query.
 
         Forward fill all intervals and in insert NO_DATA intervals for missing time in observation_window.
 
-        :param df: The result of the SQL query.
+        :param data: The result of the SQL query.
         :param base_data: The base data.
         :param observation_window: The observation window.
         :return: A processed DataFrame.
         """
-        df = process.forward_fill(df)
+        data = process.forward_fill(data)
 
         no_data_intervals = process.complementary_intervals(
-            df,
-            reference_df=base_data,
+            data,
+            reference=base_data,
             observation_window=observation_window,
             interval_type=IntervalType.NO_DATA,
         )
-        df = pd.concat([df, no_data_intervals])
-        df.sort_values(by=["person_id", "interval_start"], inplace=True)
+        data = process.concat_intervals([data, no_data_intervals])
 
-        return df
+        return data
