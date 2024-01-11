@@ -16,9 +16,9 @@ from tests._fixtures.concept import (
     concept_heparin_ingredient,
     concept_unit_mg,
 )
-from tests._fixtures.mock import MockCriterion
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_condition, create_drug_exposure, create_procedure
+from tests.mocks.criterion import MockCriterion
 
 
 class TestCriterionCombination(TestCriterion):

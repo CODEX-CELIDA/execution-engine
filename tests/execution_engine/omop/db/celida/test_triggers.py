@@ -5,6 +5,7 @@ from sqlalchemy.exc import DBAPIError
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.db.celida.tables import ResultInterval
+from execution_engine.omop.db.omop.schema import SCHEMA_NAME as OMOP_SCHEMA_NAME
 from execution_engine.omop.db.omop.tables import Person
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.types import TimeRange
@@ -27,7 +28,7 @@ def person(db_session):
 
     yield person
 
-    db_session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
+    db_session.execute(text(f'TRUNCATE TABLE "{OMOP_SCHEMA_NAME}"."person" CASCADE;'))
     db_session.commit()
 
 

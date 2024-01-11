@@ -15,7 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from execution_engine.omop.db.base import Base, metadata
-from execution_engine.omop.db.omop import SCHEMA_NAME
+from execution_engine.omop.db.omop.schema import SCHEMA_NAME
 
 t_cohort = Table(
     "cohort",

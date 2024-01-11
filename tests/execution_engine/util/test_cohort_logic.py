@@ -12,7 +12,7 @@ from execution_engine.util.cohort_logic import (
     Or,
     Symbol,
 )
-from tests._fixtures.mock import MockCriterion
+from tests.mocks.criterion import MockCriterion
 
 dummy_criterion = MockCriterion(
     name="dummy_criterion",

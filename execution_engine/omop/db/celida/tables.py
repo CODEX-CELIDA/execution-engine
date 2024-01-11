@@ -17,12 +17,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.db.base import Base
-from execution_engine.omop.db.celida import SCHEMA_NAME
+from execution_engine.omop.db.celida.schema import SCHEMA_NAME
 from execution_engine.omop.db.celida.triggers import (
     create_trigger_interval_overlap_check_sql,
     trigger_interval_overlap_check_function_sql,
 )
-from execution_engine.omop.db.omop import SCHEMA_NAME as OMOP_SCHEMA_NAME
+from execution_engine.omop.db.omop.schema import SCHEMA_NAME as OMOP_SCHEMA_NAME
 from execution_engine.util.interval import IntervalType
 
 IntervalTypeEnum = Enum(IntervalType, name="interval_type", schema=SCHEMA_NAME)
@@ -100,6 +100,7 @@ class ExecutionRun(Base):  # noqa: D101
     observation_start_datetime: Mapped[datetime]
     observation_end_datetime: Mapped[datetime]
     run_datetime: Mapped[datetime]
+    engine_version: Mapped[str]
 
     recommendation: Mapped["Recommendation"] = relationship(
         primaryjoin="ExecutionRun.recommendation_id == Recommendation.recommendation_id",

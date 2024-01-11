@@ -3,6 +3,7 @@ from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 
 from execution_engine.omop.db.base import Base
+from execution_engine.omop.db.celida.schema import SCHEMA_NAME
 from execution_engine.omop.db.celida.tables import (
     Criterion,
     ExecutionRun,
@@ -84,10 +85,7 @@ def view_interval_coverage() -> Select:
 
 
 interval_coverage = view(
-    "interval_coverage",
-    Base.metadata,
-    view_interval_coverage(),
-    schema="celida",
+    "interval_coverage", Base.metadata, view_interval_coverage(), schema=SCHEMA_NAME
 )
 
 
@@ -191,22 +189,16 @@ def interval_result_view() -> Select:
 
 
 full_day_coverage = view(
-    "full_day_coverage",
-    Base.metadata,
-    view_full_day_coverage(),
-    schema="celida",
+    "full_day_coverage", Base.metadata, view_full_day_coverage(), schema=SCHEMA_NAME
 )
 
 partial_day_coverage = view(
     "partial_day_coverage",
     Base.metadata,
     view_partial_day_coverage(),
-    schema="celida",
+    schema=SCHEMA_NAME,
 )
 
 interval_result = view(
-    "interval_result",
-    Base.metadata,
-    interval_result_view(),
-    schema="celida",
+    "interval_result", Base.metadata, interval_result_view(), schema=SCHEMA_NAME
 )

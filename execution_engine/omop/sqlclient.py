@@ -70,7 +70,8 @@ class OMOPSQLClient:
         host: str,
         port: int,
         database: str,
-        schema: str,
+        data_schema: str,
+        result_schema: str,
         timezone: str = "Europe/Berlin",
         disable_triggers: bool = False,
     ) -> None:
@@ -78,12 +79,14 @@ class OMOPSQLClient:
 
         self._timezone = timezone
 
-        self._schema = schema
+        self._data_schema = data_schema
+        self._result_schema = result_schema
+
         connection_string = f"postgresql+psycopg://{quote(user)}:{quote(password)}@{host}:{port}/{database}"
 
         self._engine = sqlalchemy.create_engine(
             connection_string,
-            connect_args={"options": "-csearch_path={}".format(schema)},
+            connect_args={"options": "-csearch_path={}".format(self._data_schema)},
             future=True,
         )
 
@@ -148,15 +151,16 @@ class OMOPSQLClient:
 
         return logger
 
-    def _init_tables(self, schema: str = "celida") -> None:
+    def _init_tables(
+        self,
+    ) -> None:
         """
         Initialize the result schema.
         """
         with self.begin() as con:
-            if not con.dialect.has_schema(con, self._schema):
-                con.execute(sqlalchemy.schema.CreateSchema(self._schema))
-            if not con.dialect.has_schema(con, schema):
-                con.execute(sqlalchemy.schema.CreateSchema(schema))
+            for schema in [self._data_schema, self._result_schema]:
+                if not con.dialect.has_schema(con, schema):
+                    con.execute(sqlalchemy.schema.CreateSchema(schema))
 
             self._metadata.create_all(bind=con)
 

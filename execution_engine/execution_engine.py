@@ -11,7 +11,7 @@ from fhir.resources.evidencevariable import (
 )
 from sqlalchemy import and_, insert, select
 
-from execution_engine import fhir
+from execution_engine import __version__, fhir
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
@@ -490,6 +490,7 @@ class ExecutionEngine:
                     observation_start_datetime=start_datetime,
                     observation_end_datetime=end_datetime,
                     run_datetime=datetime.now(),
+                    engine_version=__version__,
                 )
                 .returning(result_db.ExecutionRun.run_id)
             )

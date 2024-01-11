@@ -10,16 +10,6 @@ import sqlalchemy
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm.session import sessionmaker
 
-from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
-    Base,
-    metadata,
-)
-from execution_engine.omop.db.celida.tables import (
-    Criterion,
-    ExecutionRun,
-    PopulationInterventionPair,
-    Recommendation,
-)
 from execution_engine.util.types import TimeRange
 
 logging.basicConfig()
@@ -42,6 +32,13 @@ def disable_postgres_trigger(conn):
 @pytest.fixture(scope="session")
 def db_setup():
     """Database Session for SQLAlchemy."""
+    # late import to prevent settings object being initialized before the test (and thus using the wrong settings)
+    from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
+        Base,
+        metadata,
+    )
+    from execution_engine.omop.db.celida.schema import SCHEMA_NAME as CELIDA_SCHEMA_NAME
+    from execution_engine.omop.db.omop.schema import SCHEMA_NAME as OMOP_SCHEMA_NAME
 
     pg_user = os.environ["OMOP__USER"]
     pg_password = os.environ["OMOP__PASSWORD"]
@@ -65,10 +62,10 @@ def db_setup():
         cursor.close()
 
     with engine.connect() as con:
-        if not con.dialect.has_schema(con, "celida"):
-            con.execute(sqlalchemy.schema.CreateSchema("celida"))
-        if not con.dialect.has_schema(con, "cds_cdm"):
-            con.execute(sqlalchemy.schema.CreateSchema("cds_cdm"))
+        if not con.dialect.has_schema(con, CELIDA_SCHEMA_NAME):
+            con.execute(sqlalchemy.schema.CreateSchema(CELIDA_SCHEMA_NAME))
+        if not con.dialect.has_schema(con, OMOP_SCHEMA_NAME):
+            con.execute(sqlalchemy.schema.CreateSchema(OMOP_SCHEMA_NAME))
 
         with disable_postgres_trigger(con):
             metadata.create_all(con)
@@ -88,7 +85,9 @@ def db_setup():
                 for c in df.columns:
                     if "_date" in c:
                         df[c] = pd.to_datetime(df[c])
-                df.to_sql(table, con, schema="cds_cdm", if_exists="append", index=False)
+                df.to_sql(
+                    table, con, schema=OMOP_SCHEMA_NAME, if_exists="append", index=False
+                )
 
             con.commit()
 
@@ -97,18 +96,30 @@ def db_setup():
 
 @pytest.fixture
 def db_session(db_setup):
+    # late import to prevent settings object being initialized before the test (and thus using the wrong settings)
+    from execution_engine.omop.db.celida.schema import SCHEMA_NAME as CELIDA_SCHEMA_NAME
+    from execution_engine.omop.db.omop.schema import SCHEMA_NAME as OMOP_SCHEMA_NAME
+
     session = db_setup()
     try:
         yield session
     finally:
         session.rollback()  # rollback in case of exceptions
-        session.execute(text('TRUNCATE TABLE "cds_cdm"."person" CASCADE;'))
-        session.execute(text('TRUNCATE TABLE "celida"."recommendation" CASCADE;'))
-        session.execute(text('TRUNCATE TABLE "celida"."execution_run" CASCADE;'))
+        session.execute(text(f'TRUNCATE TABLE "{OMOP_SCHEMA_NAME}"."person" CASCADE;'))
         session.execute(
-            text('TRUNCATE TABLE "celida"."population_intervention_pair" CASCADE;')
+            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."recommendation" CASCADE;')
         )
-        session.execute(text('TRUNCATE TABLE "celida"."criterion" CASCADE;'))
+        session.execute(
+            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."execution_run" CASCADE;')
+        )
+        session.execute(
+            text(
+                f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."population_intervention_pair" CASCADE;'
+            )
+        )
+        session.execute(
+            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."criterion" CASCADE;')
+        )
         session.commit()
         session.commit()
 
@@ -122,6 +133,20 @@ def celida_recommendation(
     pi_pair_id=56,
     criterion_id=78,
 ):
+    # late import to prevent settings object being initialized before the test (and thus using the wrong settings)
+    import execution_engine
+    from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
+        Base,
+        metadata,
+    )
+    from execution_engine.omop.db.celida.schema import SCHEMA_NAME as CELIDA_SCHEMA_NAME
+    from execution_engine.omop.db.celida.tables import (
+        Criterion,
+        ExecutionRun,
+        PopulationInterventionPair,
+        Recommendation,
+    )
+
     try:
         recommendation = Recommendation(
             recommendation_id=recommendation_id,
@@ -142,6 +167,7 @@ def celida_recommendation(
             observation_end_datetime=observation_window.end,
             run_datetime=datetime.datetime.now(),
             recommendation_id=recommendation_id,
+            engine_version=execution_engine.__version__,
         )
         db_session.add(run)
         db_session.commit()
@@ -173,10 +199,18 @@ def celida_recommendation(
         }
     finally:
         db_session.rollback()  # rollback in case of exceptions
-        db_session.execute(text('TRUNCATE TABLE "celida"."recommendation" CASCADE;'))
-        db_session.execute(text('TRUNCATE TABLE "celida"."execution_run" CASCADE;'))
         db_session.execute(
-            text('TRUNCATE TABLE "celida"."population_intervention_pair" CASCADE;')
+            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."recommendation" CASCADE;')
         )
-        db_session.execute(text('TRUNCATE TABLE "celida"."criterion" CASCADE;'))
+        db_session.execute(
+            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."execution_run" CASCADE;')
+        )
+        db_session.execute(
+            text(
+                f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."population_intervention_pair" CASCADE;'
+            )
+        )
+        db_session.execute(
+            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."criterion" CASCADE;')
+        )
         db_session.commit()

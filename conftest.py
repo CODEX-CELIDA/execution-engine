@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from pytest_postgresql.janitor import DatabaseJanitor
 
+# add each module in _fixtures as a pytest plugin (i.e. fixture)
 pytest_plugins = [
     fixture_file.replace("/", ".").replace(".py", "")
     for fixture_file in glob("tests/_fixtures/[!__]*.py", recursive=True)
@@ -56,7 +57,6 @@ def init_postgres(config):  # type: ignore
     os.environ["OMOP__HOST"] = getvalue("postgresql_host")
     os.environ["OMOP__PORT"] = str(getvalue("postgresql_port"))
     os.environ["OMOP__DATABASE"] = getvalue("postgresql_dbname")
-    os.environ["OMOP__SCHEMA"] = "cds_cdm"
 
     janitor = postgres_janitor()
 
