@@ -19,7 +19,7 @@ from execution_engine.util.interval import DateTimeInterval as Interval
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.interval import empty_interval_datetime, interval_datetime
-from execution_engine.util.types import TimeRange
+from execution_engine.util.types import PersonIntervals, TimeRange
 
 # todo: test interval inversion
 # todo: test interval and
@@ -44,11 +44,7 @@ def df_from_str(data_str):
     return df
 
 
-def to_intervals(df: pd.DataFrame, by=["person_id"]):
-    return {key: df_to_intervals(group_df) for key, group_df in df.groupby(by=by)}
-
-
-def df_to_intervals(df: pd.DataFrame) -> list[Interval]:
+def _to_intervals(df: pd.DataFrame) -> Interval:
     """
     Converts the DataFrame to intervals.
 
@@ -68,9 +64,11 @@ def df_to_intervals(df: pd.DataFrame) -> list[Interval]:
     )
 
 
-def _result_to_df(
-    result: dict[tuple[str] | str, Interval], by: list[str]
-) -> pd.DataFrame:
+def df_to_intervals(df: pd.DataFrame, by=["person_id"]):
+    return {key: _to_intervals(group_df) for key, group_df in df.groupby(by=by)}
+
+
+def intervals_to_df(result: PersonIntervals, by: list[str]) -> pd.DataFrame:
     """
     Converts the result of the interval operations to a DataFrame.
 
@@ -245,7 +243,7 @@ class TestIntervalUnion:
 class TestToIntervals:
     def test_to_intervals_empty_dataframe(self):
         df = pd.DataFrame(columns=["interval_start", "interval_end", "interval_type"])
-        result = df_to_intervals(df)
+        result = _to_intervals(df)
         assert (
             result == empty_interval_datetime()
         ), "Failed: Empty DataFrame should return an empty list"
@@ -259,7 +257,7 @@ class TestToIntervals:
             }
         )
         expected = interval("2020-01-01T00:00:00", "2020-01-02T00:00:00")
-        result = df_to_intervals(df)
+        result = _to_intervals(df)
         assert result == expected, "Failed: Single row DataFrame not handled correctly"
 
     def test_to_intervals_multiple_rows(self):
@@ -277,7 +275,7 @@ class TestToIntervals:
         expected = interval(
             "2020-01-01T00:00:00", "2020-01-02T00:00:00", type_=T.POSITIVE
         ) | interval("2020-01-03T00:00:00", "2020-01-04T00:00:00", type_=T.POSITIVE)
-        result = df_to_intervals(df)
+        result = _to_intervals(df)
         assert (
             result == expected
         ), "Failed: Multiple rows DataFrame not handled correctly"
@@ -287,20 +285,20 @@ class TestToIntervals:
             {"start": ["2020-01-01T00:00:00"], "end": ["2020-01-02T00:00:00"]}
         )
         with pytest.raises(KeyError):
-            df_to_intervals(
+            _to_intervals(
                 df
             ), "Failed: DataFrame with invalid structure should raise KeyError"
 
 
 class TestResultToDf:
     def test_result_to_df_empty(self):
-        assert _result_to_df(
+        assert intervals_to_df(
             {}, ["person_id"]
         ).empty, "Failed: Empty result should return empty DataFrame"
 
     def test_result_to_df_single_group(self):
         result = {("group1",): [interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")]}
-        df = _result_to_df(result, ["person_id"])
+        df = intervals_to_df(result, ["person_id"])
         assert (
             len(df) == 1 and df.iloc[0]["person_id"] == "group1"
         ), "Failed: Single group not handled correctly"
@@ -310,7 +308,7 @@ class TestResultToDf:
             ("group1",): [interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")],
             ("group2",): [interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")],
         }
-        df = _result_to_df(result, ["person_id"])
+        df = intervals_to_df(result, ["person_id"])
         assert len(df) == 2 and set(df["person_id"]) == {
             "group1",
             "group2",
@@ -322,7 +320,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00+01:00", "2020-01-02 00:00:00+00:00")
             ]
         }
-        df = _result_to_df(result, ["person_id"])
+        df = intervals_to_df(result, ["person_id"])
         assert (
             df["interval_start"].dt.tz.offset == 3600
             and df["interval_end"].dt.tz.offset == 0
@@ -334,7 +332,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")
             ]
         }
-        df = _result_to_df(result, ["person_id", "subgroup"])
+        df = intervals_to_df(result, ["person_id", "subgroup"])
         assert all(
             df.columns
             == [
@@ -352,7 +350,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00+01:00", "2020-01-02 00:00:00+01:00")
             ]
         }
-        df = _result_to_df(result, ["person_id"])
+        df = intervals_to_df(result, ["person_id"])
         assert (
             df["interval_start"].dt.tz.offset == 3600
             and df["interval_end"].dt.tz.offset == 3600
@@ -393,7 +391,7 @@ class TestResultToDf:
         }
         expected_df = pd.DataFrame(expected_data)
 
-        result_df = _result_to_df(result, by)
+        result_df = intervals_to_df(result, by)
 
         pd.testing.assert_frame_equal(result_df, expected_df)
 
@@ -436,7 +434,7 @@ class TestResultToDf:
         }
         expected_df = pd.DataFrame(expected_data)
 
-        result_df = _result_to_df(result, by)
+        result_df = intervals_to_df(result, by)
 
         pd.testing.assert_frame_equal(result_df, expected_df)
 
@@ -482,12 +480,12 @@ class TestComplementIntervals:
 
         by = ["person_id"]
         result = process.complementary_intervals(
-            to_intervals(df, by=by),
-            to_intervals(reference_df, by=by),
+            df_to_intervals(df, by=by),
+            df_to_intervals(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
     def test_invert_intervals_single_row(
@@ -506,12 +504,12 @@ class TestComplementIntervals:
 
         by = ["person_id"]
         result = process.complementary_intervals(
-            to_intervals(df, by=by),
-            to_intervals(reference_df, by=by),
+            df_to_intervals(df, by=by),
+            df_to_intervals(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # longer than observation window
@@ -527,12 +525,12 @@ class TestComplementIntervals:
 
         by = ["person_id"]
         result = process.complementary_intervals(
-            to_intervals(df, by=by),
-            to_intervals(reference_df, by=by),
+            df_to_intervals(df, by=by),
+            df_to_intervals(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # starting at observation window start but ending before end
@@ -558,12 +556,12 @@ class TestComplementIntervals:
 
         by = ["person_id"]
         result = process.complementary_intervals(
-            to_intervals(df, by=by),
-            to_intervals(reference_df, by=by),
+            df_to_intervals(df, by=by),
+            df_to_intervals(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # ending at observation window end but starting after start
@@ -589,12 +587,12 @@ class TestComplementIntervals:
 
         by = ["person_id"]
         result = process.complementary_intervals(
-            to_intervals(df, by=by),
-            to_intervals(reference_df, by=by),
+            df_to_intervals(df, by=by),
+            df_to_intervals(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # in between
@@ -626,12 +624,12 @@ class TestComplementIntervals:
 
         by = ["person_id"]
         result = process.complementary_intervals(
-            to_intervals(df, by=by),
-            to_intervals(reference_df, by=by),
+            df_to_intervals(df, by=by),
+            df_to_intervals(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
     def test_multiple_persons(self, observation_window, reference_df):
@@ -669,12 +667,12 @@ class TestComplementIntervals:
 
         by = ["person_id"]
         result = process.complementary_intervals(
-            to_intervals(df, by=by),
-            to_intervals(reference_df, by=by),
+            df_to_intervals(df, by=by),
+            df_to_intervals(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
 
         expected_data = [
             (
@@ -755,9 +753,9 @@ class TestInvertIntervals:
         )
 
         result = process.invert_intervals(
-            to_intervals(df), to_intervals(reference_df), observation_window
+            df_to_intervals(df), df_to_intervals(reference_df), observation_window
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_result)
 
@@ -776,9 +774,9 @@ class TestInvertIntervals:
         expected_result = df.assign(interval_type=T.NEGATIVE)
 
         result = process.invert_intervals(
-            to_intervals(df), to_intervals(reference_df), observation_window
+            df_to_intervals(df), df_to_intervals(reference_df), observation_window
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -796,9 +794,9 @@ class TestInvertIntervals:
         expected_result = df.assign(interval_type=T.NEGATIVE)
 
         result = process.invert_intervals(
-            to_intervals(df), to_intervals(reference_df), observation_window
+            df_to_intervals(df), df_to_intervals(reference_df), observation_window
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -831,9 +829,9 @@ class TestInvertIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
         result = process.invert_intervals(
-            to_intervals(df), to_intervals(reference_df), observation_window
+            df_to_intervals(df), df_to_intervals(reference_df), observation_window
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -866,9 +864,9 @@ class TestInvertIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
         result = process.invert_intervals(
-            to_intervals(df), to_intervals(reference_df), observation_window
+            df_to_intervals(df), df_to_intervals(reference_df), observation_window
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -908,9 +906,9 @@ class TestInvertIntervals:
         )
 
         result = process.invert_intervals(
-            to_intervals(df), to_intervals(reference_df), observation_window
+            df_to_intervals(df), df_to_intervals(reference_df), observation_window
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -998,9 +996,9 @@ class TestInvertIntervals:
         )
 
         result = process.invert_intervals(
-            to_intervals(df), to_intervals(reference_df), observation_window
+            df_to_intervals(df), df_to_intervals(reference_df), observation_window
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -1076,8 +1074,8 @@ class TestMergeIntervals:
             }
         )
 
-        result = union_intervals([to_intervals(df)])
-        result = _result_to_df(result, ["person_id"])
+        result = union_intervals([df_to_intervals(df)])
+        result = intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1108,9 +1106,12 @@ class TestMergeIntervals:
         )
 
         result = union_intervals(
-            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+            [
+                df_to_intervals(df1, by=["person_id"]),
+                df_to_intervals(df2, by=["person_id"]),
+            ]
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1134,9 +1135,12 @@ class TestMergeIntervals:
         expected_df = pd.concat([df1, df2]).reset_index(drop=True)
 
         result = union_intervals(
-            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+            [
+                df_to_intervals(df1, by=["person_id"]),
+                df_to_intervals(df2, by=["person_id"]),
+            ]
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1171,11 +1175,11 @@ class TestMergeIntervals:
 
         result = union_intervals(
             [
-                to_intervals(df1, by=["group1", "group2"]),
-                to_intervals(df2, by=["group1", "group2"]),
+                df_to_intervals(df1, by=["group1", "group2"]),
+                df_to_intervals(df2, by=["group1", "group2"]),
             ]
         )
-        result = _result_to_df(result, ["group1", "group2"])
+        result = intervals_to_df(result, ["group1", "group2"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1206,9 +1210,12 @@ class TestMergeIntervals:
         )
 
         result = union_intervals(
-            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+            [
+                df_to_intervals(df1, by=["person_id"]),
+                df_to_intervals(df2, by=["person_id"]),
+            ]
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1263,11 +1270,11 @@ class TestMergeIntervals:
 
         result_df = union_intervals(
             [
-                to_intervals(df1, by=["person_id", "concept_id"]),
-                to_intervals(df2, by=["person_id", "concept_id"]),
+                df_to_intervals(df1, by=["person_id", "concept_id"]),
+                df_to_intervals(df2, by=["person_id", "concept_id"]),
             ]
         )
-        result_df = _result_to_df(result_df, ["person_id", "concept_id"])
+        result_df = intervals_to_df(result_df, ["person_id", "concept_id"])
 
         pd.testing.assert_frame_equal(result_df, expected_df)
 
@@ -1336,12 +1343,12 @@ class TestMergeIntervals:
 
         result = union_intervals(
             [
-                to_intervals(df1, by=["group1", "group2"]),
-                to_intervals(df2, by=["group1", "group2"]),
-                to_intervals(df3, by=["group1", "group2"]),
+                df_to_intervals(df1, by=["group1", "group2"]),
+                df_to_intervals(df2, by=["group1", "group2"]),
+                df_to_intervals(df3, by=["group1", "group2"]),
             ]
         )
-        result = _result_to_df(result, ["group1", "group2"])
+        result = intervals_to_df(result, ["group1", "group2"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1367,9 +1374,12 @@ class TestMergeIntervals:
         expected_df = df_from_str(expected_data)
 
         result = union_intervals(
-            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+            [
+                df_to_intervals(df1, by=["person_id"]),
+                df_to_intervals(df2, by=["person_id"]),
+            ]
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1394,9 +1404,12 @@ class TestMergeIntervals:
         expected_df = df_from_str(expected_data)
 
         result = union_intervals(
-            [to_intervals(df1, by=["person_id"]), to_intervals(df2, by=["person_id"])]
+            [
+                df_to_intervals(df1, by=["person_id"]),
+                df_to_intervals(df2, by=["person_id"]),
+            ]
         )
-        result = _result_to_df(result, ["person_id"])
+        result = intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1422,8 +1435,8 @@ class TestIntersectIntervals:
             }
         )
         by = ["person_id"]
-        result = intersect_intervals([to_intervals(df, by=by)])
-        result = _result_to_df(result, by=by)
+        result = intersect_intervals([df_to_intervals(df, by=by)])
+        result = intervals_to_df(result, by=by)
         expected_df = df.copy()
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1455,9 +1468,9 @@ class TestIntersectIntervals:
 
         by = ["person_id"]
         result = intersect_intervals(
-            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+            [df_to_intervals(df1, by=by), df_to_intervals(df2, by=by)]
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1484,9 +1497,9 @@ class TestIntersectIntervals:
 
         by = ["person_id"]
         result = intersect_intervals(
-            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+            [df_to_intervals(df1, by=by), df_to_intervals(df2, by=by)]
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1521,9 +1534,9 @@ class TestIntersectIntervals:
 
         by = ["group1", "group2"]
         result = intersect_intervals(
-            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+            [df_to_intervals(df1, by=by), df_to_intervals(df2, by=by)]
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1557,9 +1570,9 @@ class TestIntersectIntervals:
         # Call the function
         by = ["person_id", "concept_id"]
         result = intersect_intervals(
-            [to_intervals(df1, by=by), to_intervals(df2, by=by)]
+            [df_to_intervals(df1, by=by), df_to_intervals(df2, by=by)]
         )
-        result = _result_to_df(result, by=by)
+        result = intervals_to_df(result, by=by)
 
         # Define expected output
         expected_data = {
@@ -1639,12 +1652,14 @@ class TestIntersectIntervals:
         by = ["group1", "group2"]
         result = intersect_intervals(
             [
-                to_intervals(df1, by=by),
-                to_intervals(df2, by=by),
-                to_intervals(df3, by=by),
+                df_to_intervals(df1, by=by),
+                df_to_intervals(df2, by=by),
+                df_to_intervals(df3, by=by),
             ]
         )
-        result = _result_to_df(result, by=by).sort_values(by=by).reset_index(drop=True)
+        result = (
+            intervals_to_df(result, by=by).sort_values(by=by).reset_index(drop=True)
+        )
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1667,8 +1682,8 @@ class TestIntervalFilling:
 
             return df
 
-        result = process.forward_fill(to_intervals(to_df(data), by=["person_id"]))
-        df_result = _result_to_df(result, ["person_id"])
+        result = process.forward_fill(df_to_intervals(to_df(data), by=["person_id"]))
+        df_result = intervals_to_df(result, ["person_id"])
         df_expected = to_df(expected)
 
         pd.testing.assert_frame_equal(df_result, df_expected, check_dtype=False)

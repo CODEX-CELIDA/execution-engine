@@ -197,14 +197,15 @@ class Task:
         query = criterion.create_query()
         result = engine.raw_query(query, params=bind_params)
 
-        data = process.result_to_intervals(result)
-
-        data = criterion.process_data(data, base_data, observation_window)
-
         # merge overlapping/adjacent intervals to reduce the number of intervals - but NEGATIVE is dominant over
         # POSITIVE here, i.e. if there is a NEGATIVE interval, the result is NEGATIVE, regardless of any POSITIVE
-        # intervals
-        data = process.merge_intervals_negative_dominant(data)
+        # intervals at the same time
+        with IntervalType.custom_union_priority_order(
+            IntervalType.intersection_priority()
+        ):
+            data = process.result_to_intervals(result)
+
+        data = criterion.process_data(data, base_data, observation_window)
 
         return data
 

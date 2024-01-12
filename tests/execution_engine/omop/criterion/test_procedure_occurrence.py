@@ -3,13 +3,12 @@ import pytest
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
-from execution_engine.task import process
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.types import TimeRange, Timing
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.time import ValueDuration
 from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence
-from tests.execution_engine.task.test_process import interval
+from tests.execution_engine.task.test_process import _to_intervals, interval
 from tests.functions import create_procedure
 
 
@@ -242,7 +241,7 @@ class TestProcedureOccurrence(Occurrence):
             )
             df = df.query('interval_type=="POSITIVE"')
 
-            return process.df_to_intervals(
+            return _to_intervals(
                 df[["interval_start", "interval_end", "interval_type"]]
             )
 
@@ -330,7 +329,7 @@ class TestProcedureOccurrence(Occurrence):
             )
             df = df.query('interval_type=="POSITIVE"')
 
-            return process.df_to_intervals(
+            return _to_intervals(
                 df[["interval_start", "interval_end", "interval_type"]]
             )
 

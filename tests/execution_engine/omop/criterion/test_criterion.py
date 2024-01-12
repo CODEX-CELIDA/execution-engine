@@ -26,10 +26,12 @@ from execution_engine.task import (  # noqa: F401     -- required for the mock.p
 )
 from execution_engine.util import cohort_logic
 from execution_engine.util.db import add_result_insert
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import TimeRange
 from execution_engine.util.value import ValueConcept, ValueNumber
 from tests._fixtures.omop_fixture import celida_recommendation
 from tests._testdata import concepts
+from tests.execution_engine.task.test_process import intervals_to_df
 from tests.functions import create_visit
 
 
@@ -59,7 +61,6 @@ class TestCriterion:
     criterion_id = 5678
     pi_pair_id = 9012
     recommendation_id = 3456
-    merge_intervals_before_writing: bool = False
 
     @pytest.fixture(autouse=True)
     def create_recommendation_run(self, db_session, observation_window) -> None:
@@ -249,17 +250,27 @@ class TestCriterion:
 
         query = criterion.create_query()
 
-        result = pd.read_sql(
-            query, con=db_session.connection(), params=observation_window.dict()
+        result = db_session.connection().execute(
+            query, parameters=observation_window.dict()
         )
 
-        if self.merge_intervals_before_writing:
-            result = process.merge_intervals_negative_dominant(result, by=["person_id"])
+        # merge overlapping/adjacent intervals to reduce the number of intervals - but NEGATIVE is dominant over
+        # POSITIVE here, i.e. if there is a NEGATIVE interval, the result is NEGATIVE, regardless of any POSITIVE
+        # intervals at the same time
+        with IntervalType.custom_union_priority_order(
+            IntervalType.intersection_priority()
+        ):
+            data = process.result_to_intervals(result)
+        # result = pd.read_sql(
+        #     query, con=db_session.connection(), params=observation_window.dict()
+        # )
 
-        if result.empty:
+        data = intervals_to_df(data, by=["person_id"])
+
+        if data.empty:
             return
 
-        result = result.assign(
+        data = data.assign(
             criterion_id=self.criterion_id,
             pi_pair_id=self.pi_pair_id,
             run_id=self.run_id,
@@ -268,7 +279,7 @@ class TestCriterion:
 
         db_session.execute(
             celida_tables.ResultInterval.__table__.insert(),
-            result.to_dict(orient="records"),
+            data.to_dict(orient="records"),
         )
 
         db_session.commit()

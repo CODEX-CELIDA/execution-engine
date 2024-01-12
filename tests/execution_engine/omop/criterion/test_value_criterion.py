@@ -198,7 +198,6 @@ class ValueCriterion(TestCriterion, ABC):
             criterion_unit_concept=criterion_fixture["unit_concept"],
             criterion_value=criterion_value,
             criterion_fixture=criterion_fixture,
-            merge_intervals_before_writing=True,
         )
 
     @pytest.mark.parametrize(
@@ -304,7 +303,6 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_unit_concept,
         criterion_value,
         criterion_fixture,
-        merge_intervals_before_writing: bool = False,
     ):
         p, vo = person_visit[0]
 
@@ -336,9 +334,6 @@ class ValueCriterion(TestCriterion, ABC):
         else:
             raise ValueError(f"Unknown value type: {type(criterion_value['value'])}")
 
-        if merge_intervals_before_writing:
-            self.merge_intervals_before_writing = True
-
         # run criterion against db
         df = criterion_execute_func(
             concept=criterion_concept, value=value, exclude=exclude
@@ -349,8 +344,6 @@ class ValueCriterion(TestCriterion, ABC):
             & (criterion_concept == criterion_fixture["concept"])
             & (criterion_unit_concept == criterion_fixture["unit_concept"])
         )
-
-        self.merge_intervals_before_writing = False
 
         if criterion_matches:
             valid_dates = self.date_points(times)

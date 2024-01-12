@@ -242,6 +242,7 @@ def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     return result
 
 
+# todo: remove function? not used anywhere, because the context manager has to be used for result_to_intervals now
 def merge_intervals_negative_dominant(data: PersonIntervals) -> PersonIntervals:
     """
     Merges the intervals in the DataFrame.
