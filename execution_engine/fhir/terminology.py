@@ -72,6 +72,10 @@ class FHIRTerminologyClient:
                 headers={"ACCEPT": "application/fhir+json"},
                 timeout=10,
             )
+        except requests.ConnectionError:
+            raise FHIRTerminologyServerException(
+                f"Error getting value set {url}: Connection error"
+            )
         except requests.ReadTimeout:
             raise FHIRTerminologyServerException(
                 f"Error getting value set {url}: Request timed out"

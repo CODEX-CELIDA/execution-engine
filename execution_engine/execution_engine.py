@@ -70,6 +70,7 @@ class ExecutionEngine:
         self.setup_logging(verbose)
         self._fhir = fhir_client
         self._db = omopdb
+        self._db.init()
 
     @staticmethod
     def setup_logging(verbose: bool = False) -> None:

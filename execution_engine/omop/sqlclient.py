@@ -99,10 +99,14 @@ class OMOPSQLClient:
         self._metadata.bind = self._engine
 
         self._setup_events()
-        self._init_tables()
-
         self._vocabulary_logger = self._setup_logger("vocabulary")
         self._query_logger = self._setup_logger("query")
+
+    def init(self) -> None:
+        """
+        Initialize the schema / tables.
+        """
+        self._init_tables()
 
     def _setup_events(self) -> None:
         """
