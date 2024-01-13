@@ -448,6 +448,7 @@ class Criterion(AbstractCriterion):
 
         return table.c[f"{column_prefix}_datetime"]
 
+    # todo: is this function used anywhere?
     def _filter_datetime(self, query: Select) -> Select:
         """
         Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.

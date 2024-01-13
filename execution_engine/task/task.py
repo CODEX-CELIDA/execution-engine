@@ -358,6 +358,7 @@ class Task:
             interval_type=IntervalType.NOT_APPLICABLE,
         )
 
+        # todo: as of Jan-13, this is the actual intersection priority order, so we can remove this ctx mgr
         # P&I is handled differently than the usual intersection priority order of IntervalType, which is
         # NEGATIVE > POSITIVE > NO_DATA > NOT_APPLICABLE, => POSITIVE & NO_DATA = POSITIVE
         # Here, we need: NEGATIVE > NO_DATA > POSITIVE > NOT_APPLICABLE, so that POSITIVE & NO_DATA = NO_DATA

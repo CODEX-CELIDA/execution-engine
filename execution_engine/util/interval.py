@@ -70,15 +70,25 @@ class IntervalType(StrEnum):
 
     __union_priority_order: list[str] = [POSITIVE, NO_DATA, NOT_APPLICABLE, NEGATIVE]
 
+    # until Jan 13:
     # POSITIVE has higher priority than NO_DATA, as in measurements we return NO_DATA intervals for all intervals
     # inbetween measurements (and outside), and these are &-ed with the POSITIVE intervals for e.g. conditions.
     # previously, NO_DATA was higher priority than POSITIVE because in POPULATION_INTERVENTION, when the POPULATION is
-    # POSITIVE but the INTERVENTION isNO_DATA, the result _should_ be NO_DATA (but is currently POSITIVE) - this is now
+    # POSITIVE but the INTERVENTION is NO_DATA, the result _should_ be NO_DATA (but is currently POSITIVE) - this is now
     # handled in the LeftDependentToggle handler in task.py
+
+    # from Jan 13:
+    # Now we have a problem in 36a PEEP: When the conditions (e.g. COVID 19) are POSITIVE but the measurement of FiO2
+    # is NO_DATA, the population is considered POSITIVE, although it should be NO_DATA
+    # conversely in rec35 tidal volume we have two measurements: tidal volume and pplateau. If tidal volume is NO_DATA
+    # but pplateau is POSITIVE, should the intervention be positive or no_data? Currently, it is POSITIVE, but I can
+    # argue that it should be NO_DATA as we cannot decide whether the intervention is fulfilled or not.
+    #  ==> set the order of NO_DATA to higher than POSITIVE.
+
     __intersection_priority_order: list[str] = [
         NEGATIVE,
-        POSITIVE,
         NO_DATA,
+        POSITIVE,
         NOT_APPLICABLE,
     ]
 

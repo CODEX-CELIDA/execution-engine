@@ -150,7 +150,10 @@ def view_partial_day_coverage() -> Select:
         .distinct()
         .where(
             ResultInterval.interval_type.in_(
-                [IntervalType.POSITIVE, IntervalType.NO_DATA]
+                [
+                    IntervalType.POSITIVE,
+                    # IntervalType.NO_DATA # Jan-13: removed because NO_DATA should not count as positive anymore
+                ]
             )
         )
     )
