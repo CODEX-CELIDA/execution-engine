@@ -67,10 +67,15 @@ class ExecutionEngine:
     # todo: improve documentation
 
     def __init__(self, verbose: bool = False) -> None:
+        # late import to allow pytest to set env variables first
+        from execution_engine.settings import config
+
         self.setup_logging(verbose)
         self._fhir = fhir_client
         self._db = omopdb
         self._db.init()
+
+        self._config = config
 
     @staticmethod
     def setup_logging(verbose: bool = False) -> None:
@@ -311,7 +316,6 @@ class ExecutionEngine:
         recommendation: cohort.Recommendation,
         start_datetime: datetime,
         end_datetime: datetime | None,
-        use_multiprocessing: bool = False,
     ) -> int:
         """Executes the Recommendation"""
         # todo: improve documentation
@@ -332,7 +336,8 @@ class ExecutionEngine:
             run_id=run_id,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
-            use_multiprocessing=use_multiprocessing,
+            use_multiprocessing=self._config.celida_ee_multiprocessing_use,
+            multiprocessing_pool_size=self._config.celida_ee_multiprocessing_pool_size,
         )
 
         return run_id
@@ -509,6 +514,7 @@ class ExecutionEngine:
         start_datetime: datetime,
         end_datetime: datetime,
         use_multiprocessing: bool = False,
+        multiprocessing_pool_size: int = 2,
     ) -> None:
         """
         Executes the Recommendation and stores the results in the result tables.
@@ -535,20 +541,20 @@ class ExecutionEngine:
             "observation_end_datetime": end_datetime,
         }
 
-        # observation_window = TimeRange(start=start_datetime, end=end_datetime)
-
         # todo: warning: current implementation might run into memory problems ->
         #  then splitting by person might be necessary
         #  otherwise not needed intermediate results may be deleted after processing
 
-        runner_class = (
-            runner.ParallelTaskRunner
-            if use_multiprocessing
-            else runner.SequentialTaskRunner
-        )
-
         execution_graph = recommendation.execution_graph()
-        task_runner = runner_class(execution_graph)
+        task_runner: runner.TaskRunner
+
+        if use_multiprocessing:
+            task_runner = runner.ParallelTaskRunner(
+                execution_graph, num_workers=multiprocessing_pool_size
+            )
+        else:
+            task_runner = runner.SequentialTaskRunner(execution_graph)
+
         task_runner.run(bind_params)
 
     def insert_intervals(self, data: pd.DataFrame, con: sqlalchemy.Connection) -> None:
