@@ -551,7 +551,7 @@ class TestRecommendationBase(ABC):
 
         for c in unique_criteria:
             if c not in df.columns:
-                df[c] = MISSING_DATA_TYPE[getattr(parameter, "COVID19").type]
+                df[c] = MISSING_DATA_TYPE[getattr(parameter, c).type]
 
         df = self._modify_criteria_hook(df)
 
