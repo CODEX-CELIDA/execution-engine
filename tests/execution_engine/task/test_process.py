@@ -111,7 +111,14 @@ one_second = pd.Timedelta(seconds=1)
 
 @pytest.fixture
 def empty_dataframe():
-    return pd.DataFrame(columns=process.df_dtypes.keys())
+    df_dtypes = {
+        "person_id": "int64",
+        "interval_start": "datetime64[ns, UTC]",
+        "interval_end": "datetime64[ns, UTC]",
+        "interval_type": "category",
+    }
+
+    return pd.DataFrame(columns=df_dtypes.keys())
 
 
 class TestIntervalUnion:
@@ -713,10 +720,6 @@ class TestInvertIntervals:
     @pytest.fixture
     def observation_window(self):
         return TimeRange(start="2023-01-01 01:00:00Z", end="2023-01-03 16:00:00Z")
-
-    @pytest.fixture
-    def empty_dataframe(self):
-        return pd.DataFrame(columns=process.df_dtypes.keys())
 
     @pytest.fixture
     def reference_df(self, observation_window):

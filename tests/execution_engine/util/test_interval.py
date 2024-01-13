@@ -135,11 +135,11 @@ class TestInterval:
             (T.NEGATIVE, T.POSITIVE, T.NEGATIVE),
             (T.NEGATIVE, T.NO_DATA, T.NEGATIVE),
             (T.NEGATIVE, T.NOT_APPLICABLE, T.NEGATIVE),
-            (T.POSITIVE, T.POSITIVE, T.POSITIVE),
-            (T.POSITIVE, T.NO_DATA, T.POSITIVE),
-            (T.POSITIVE, T.NOT_APPLICABLE, T.POSITIVE),
             (T.NO_DATA, T.NO_DATA, T.NO_DATA),
+            (T.POSITIVE, T.NO_DATA, T.NO_DATA),
             (T.NO_DATA, T.NOT_APPLICABLE, T.NO_DATA),
+            (T.POSITIVE, T.POSITIVE, T.POSITIVE),
+            (T.POSITIVE, T.NOT_APPLICABLE, T.POSITIVE),
             (T.NOT_APPLICABLE, T.NOT_APPLICABLE, T.NOT_APPLICABLE),
         ],
     )
@@ -483,8 +483,8 @@ class TestIntervalType:
     def test_intersection_priority(self):
         assert IntervalType.intersection_priority() == [
             IntervalType.NEGATIVE,
-            IntervalType.POSITIVE,
             IntervalType.NO_DATA,
+            IntervalType.POSITIVE,
             IntervalType.NOT_APPLICABLE,
         ]
 
@@ -530,8 +530,8 @@ class TestIntervalType:
             ]
         assert IntervalType.intersection_priority() == [
             IntervalType.NEGATIVE,
-            IntervalType.POSITIVE,
             IntervalType.NO_DATA,
+            IntervalType.POSITIVE,
             IntervalType.NOT_APPLICABLE,
         ]
 
@@ -630,22 +630,21 @@ class TestIntervalType:
             IntervalType.NOT_APPLICABLE & IntervalType.NEGATIVE == IntervalType.NEGATIVE
         )
 
+        # NO_DATA & others
+        assert (
+            IntervalType.NO_DATA & IntervalType.NOT_APPLICABLE == IntervalType.NO_DATA
+        )
+        assert IntervalType.POSITIVE & IntervalType.NO_DATA == IntervalType.NO_DATA
+        assert (
+            IntervalType.NOT_APPLICABLE & IntervalType.NO_DATA == IntervalType.NO_DATA
+        )
+
         # POSITIVE & others
-        assert IntervalType.POSITIVE & IntervalType.NO_DATA == IntervalType.POSITIVE
-        assert IntervalType.NO_DATA & IntervalType.POSITIVE == IntervalType.POSITIVE
         assert (
             IntervalType.POSITIVE & IntervalType.NOT_APPLICABLE == IntervalType.POSITIVE
         )
         assert (
             IntervalType.NOT_APPLICABLE & IntervalType.POSITIVE == IntervalType.POSITIVE
-        )
-
-        # NO_DATA & others
-        assert (
-            IntervalType.NO_DATA & IntervalType.NOT_APPLICABLE == IntervalType.NO_DATA
-        )
-        assert (
-            IntervalType.NOT_APPLICABLE & IntervalType.NO_DATA == IntervalType.NO_DATA
         )
 
         # same types
