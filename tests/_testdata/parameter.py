@@ -39,13 +39,13 @@ HIT2 = CriterionDefinition(
 )
 HEPARIN_ALLERGY = CriterionDefinition(
     name="HEPARIN_ALLERGY",
-    type="observation",
+    type="condition",  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
     static=True,
     concept_id=concepts.ALLERGY_HEPARIN,
 )
 HEPARINOID_ALLERGY = CriterionDefinition(
     name="HEPARINOID_ALLERGY",
-    type="observation",
+    type="condition",  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
     static=True,
     concept_id=concepts.ALLERGY_HEPARINOID,
 )
