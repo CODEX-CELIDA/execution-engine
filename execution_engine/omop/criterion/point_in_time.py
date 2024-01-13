@@ -6,6 +6,8 @@ from sqlalchemy import CTE, ColumnElement, Select, select
 from execution_engine.omop.criterion.abstract import (
     column_interval_type,
     create_conditional_interval_column,
+    observation_end_datetime,
+    observation_start_datetime,
 )
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.task import process
@@ -43,17 +45,22 @@ class PointInTimeCriterion(ConceptCriterion):
         Get the SQL representation of the criterion.
         """
 
-        # todo: handle self._static variables - these should be backfilled within the observation range ?
-
         if self._OMOP_VALUE_REQUIRED:
             assert self._value is not None, "Value is required for this criterion"
 
-        datetime_col = self._get_datetime_column(self._table, "start")
+        if self._static:
+            # If this criterion is a static criterion, i.e. one whose value does not change over time,
+            # then we add the observation range as the interval range
+            c_start = observation_start_datetime
+            c_end = observation_end_datetime
+        else:
+            datetime_col = self._get_datetime_column(self._table, "start")
+            c_start, c_end = datetime_col, datetime_col
 
         cte = select(
             self._table.c.person_id,
-            datetime_col.label("interval_start"),
-            datetime_col.label("interval_end"),
+            c_start.label("interval_start"),
+            c_end.label("interval_end"),
             self._table.c.value_as_concept_id,
             self._table.c.value_as_number,
             self._table.c.unit_concept_id,
