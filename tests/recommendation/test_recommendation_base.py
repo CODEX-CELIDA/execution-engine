@@ -508,6 +508,9 @@ class TestRecommendationBase(ABC):
         names = [c[0] for c in self.extract_criteria(population_intervention)]
         return list(dict.fromkeys(names))  # order preserving
 
+    def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
+        return df
+
     @pytest.fixture
     def criteria_extended(
         self,
@@ -550,6 +553,8 @@ class TestRecommendationBase(ABC):
             if c not in df.columns:
                 df[c] = MISSING_DATA_TYPE[getattr(parameter, "COVID19").type]
 
+        df = self._modify_criteria_hook(df)
+
         for group_name, group in population_intervention.items():
             df[f"p_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["population"])
@@ -557,6 +562,8 @@ class TestRecommendationBase(ABC):
             df[f"i_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["intervention"])
             )
+
+            # todo: as of Jan-13, this is the actual intersection priority order, so we can remove this ctx mgr
             # P&I is handled differently than the usual intersection priority order of IntervalType, which is
             # NEGATIVE > POSITIVE > NO_DATA > NOT_APPLICABLE, => POSITIVE & NO_DATA = POSITIVE
             # Here, we need: NEGATIVE > NO_DATA > POSITIVE > NOT_APPLICABLE, so that POSITIVE & NO_DATA = NO_DATA
@@ -705,7 +712,6 @@ class TestRecommendationBase(ABC):
             recommendation,
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
-            use_multiprocessing=False,
         )
 
         def get_query(t, category):

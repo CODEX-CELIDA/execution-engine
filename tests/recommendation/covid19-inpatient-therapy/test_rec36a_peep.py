@@ -5,6 +5,7 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     Base,
     metadata,
 )
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import TimeRange
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 
@@ -64,6 +65,17 @@ class TestRecommendation36aPeep(TestRecommendationBase):
     @pytest.fixture
     def invalid_combinations(self) -> str:
         return "(PEEP_18 & PEEP_14) | (PEEP_18 & PEEP_10) | (PEEP_18 & PEEP_8) | (PEEP_18 & PEEP_5) | (PEEP_14 & PEEP_10) | (PEEP_14 & PEEP_8) | (PEEP_14 & PEEP_5) | (PEEP_10 & PEEP_8) | (PEEP_10 & PEEP_5) | (PEEP_8 & PEEP_5)"
+
+    def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
+        # NO_DATA FiO2 cols need to be set to "NEGATIVE", if any other FiO2 col is POSITIVE
+        cols = [c for c in df.columns if c.startswith("FiO2_")]
+        idx_any_positive = (df[cols] == IntervalType.POSITIVE).any(axis=1)
+
+        for c in cols:
+            idx_no_data = df[c] == IntervalType.NO_DATA
+            df.loc[idx_any_positive & idx_no_data, c] = IntervalType.NEGATIVE
+
+        return df
 
     def test_recommendation_36a_peep(
         self,
