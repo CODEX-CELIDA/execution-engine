@@ -3,6 +3,7 @@ from datetime import timedelta
 from pydantic import BaseModel
 
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
+from execution_engine.util.interval import IntervalType
 from tests._testdata import concepts
 
 
@@ -20,6 +21,7 @@ class CriterionDefinition(BaseModel):
     n_occurrences: list[int] | None = None
     occurrences_per_day: list[int] | None = None
     datetime_offset: timedelta | None = None
+    missing_data_type: IntervalType | None = None
 
 
 COVID19 = CriterionDefinition(
@@ -39,15 +41,17 @@ HIT2 = CriterionDefinition(
 )
 HEPARIN_ALLERGY = CriterionDefinition(
     name="HEPARIN_ALLERGY",
-    type="condition",  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
+    type="observation",
     static=True,
     concept_id=concepts.ALLERGY_HEPARIN,
+    missing_data_type=IntervalType.NEGATIVE,  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
 )
 HEPARINOID_ALLERGY = CriterionDefinition(
     name="HEPARINOID_ALLERGY",
-    type="condition",  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
+    type="observation",
     static=True,
     concept_id=concepts.ALLERGY_HEPARINOID,
+    missing_data_type=IntervalType.NEGATIVE,  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
 )
 THROMBOCYTOPENIA = CriterionDefinition(
     name="THROMBOCYTOPENIA",
