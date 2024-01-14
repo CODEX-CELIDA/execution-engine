@@ -269,8 +269,8 @@ class Not(BooleanFunction):
         """
         Create a new Or object.
         """
-        if len(args) != 1:
-            raise ValueError("Not takes exactly one argument")
+        if len(args) > 1:
+            raise ValueError("Not can only have one argument")
 
         return super().__new__(cls)
 

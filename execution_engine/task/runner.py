@@ -14,11 +14,10 @@ from typing import (
     TypeVar,
 )
 
-import pandas as pd
-
 from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.task.creator import TaskCreator
 from execution_engine.task.task import Task, TaskError, TaskStatus
+from execution_engine.util.types import PersonIntervals
 
 T = TypeVar("T")
 
@@ -67,6 +66,7 @@ class TaskRunner(ABC):
         """
         Enqueues tasks that are ready to run based on their dependencies and completion status.
         """
+
         for task in self.tasks:
             if (
                 task.name() not in self.completed_tasks
@@ -74,8 +74,15 @@ class TaskRunner(ABC):
                 and task.name() not in self.enqueued_tasks
             ):
                 logging.info(f"Enqueuing task {task.name()}")
-                self.queue.put(task)
-                self.enqueued_tasks.add(task.name())
+
+                try:
+                    self.queue.put(task)
+                except Exception as ex:
+                    logging.error(f"Error enqueuing task {task.name()}: {ex}")
+                    raise ex
+
+                with self.lock:
+                    self.enqueued_tasks.add(task.name())
 
     @abstractmethod
     def run(self, bind_params: dict) -> None:
@@ -145,7 +152,7 @@ class SequentialTaskRunner(TaskRunner):
     def __init__(self, execution_graph: ExecutionGraph):
         super().__init__(execution_graph)
 
-        self._shared_results: dict[str, pd.DataFrame] = {}
+        self._shared_results: dict[str, PersonIntervals] = {}
         self._queue: queue.Queue = queue.Queue()
 
     @property
@@ -190,6 +197,9 @@ class SequentialTaskRunner(TaskRunner):
                 with self.lock:
                     # Update the set of completed tasks
                     self.completed_tasks = set(self.shared_results.keys())
+                    logging.info(
+                        f"Completed {len(self.completed_tasks)} of {len(self.tasks)} tasks"
+                    )
 
         except TaskError as e:
             logging.error(f"An error occurred: {e}")
@@ -200,10 +210,16 @@ class SequentialTaskRunner(TaskRunner):
 class ParallelTaskRunner(TaskRunner):
     """
     Runs a list of tasks in parallel.
+
+    :param num_workers: The number of worker processes to use. If -1, the number of CPUs is used.
     """
 
     def __init__(self, execution_graph: ExecutionGraph, num_workers: int = 4):
         super().__init__(execution_graph)
+
+        if num_workers == -1:
+            num_workers = multiprocessing.cpu_count()
+
         self.num_workers = num_workers
         self.manager = multiprocessing.Manager()
         self._shared_results = self.manager.dict()
@@ -246,8 +262,12 @@ class ParallelTaskRunner(TaskRunner):
                     task = self.queue.get(timeout=0.1)
                 except queue.Empty:
                     continue  # Go back to check stop_event
+                except Exception as ex:
+                    logging.error(f"Error getting task from queue: {ex}")
+                    self.stop_event.set()
+                    continue
 
-                logging.info(f"Got task {task}")
+                logging.info(f"Got task {task.name()}")
 
                 try:
                     self.run_task(task, bind_params)
@@ -257,7 +277,7 @@ class ParallelTaskRunner(TaskRunner):
                             f"Task {task.name()} failed with status {task.status}"
                         )
 
-                    logging.info(f"Finished task {task}")
+                    logging.info(f"Finished task {task.name()}")
                 except TaskError as ex:
                     logging.error(ex)
                     self.stop_event.set()
@@ -281,6 +301,7 @@ class ParallelTaskRunner(TaskRunner):
                 with self.lock:
                     # Update the set of completed tasks
                     self.completed_tasks = set(self.shared_results.keys())
+
         except Exception as e:
             logging.error(f"An error occurred: {e}")
         finally:

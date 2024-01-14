@@ -478,7 +478,7 @@ class Task:
         """
         Returns the id of the Task object.
         """
-        hash_value = hash(self)
+        hash_value = hash((str(self.expr), json.dumps(self.bind_params)))
 
         # Determine the number of bytes needed. Python's hash returns a value based on the platform's pointer size.
         # It's 8 bytes for 64-bit systems and 4 bytes for 32-bit systems.
