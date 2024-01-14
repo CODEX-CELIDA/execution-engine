@@ -60,7 +60,9 @@ class TestAppEndpoints:
             "person_id": 1,
             "datetime": datetime.now(),
         }
-        response = client.post("/comments/", data=CommentCreate(**comment_data).json())
+        response = client.post(
+            "/comments/", content=CommentCreate(**comment_data).json()
+        )
         assert response.status_code == status.HTTP_200_OK
         # Further assertions can be done on the response content
 
