@@ -481,10 +481,15 @@ class TestRecommendationBase(ABC):
                 else:
                     raise NotImplementedError(f"Unknown criterion type {row['type']}")
 
+                self._insert_criteria_hook(person_entries, entry, row)
+
                 person_entries.append(entry)
 
             db_session.add_all(person_entries)
             db_session.commit()
+
+    def _insert_criteria_hook(self, person_entries, entry, row):
+        pass
 
     @staticmethod
     def extract_criteria(population_intervention) -> list[tuple[str, str]]:
@@ -579,9 +584,14 @@ class TestRecommendationBase(ABC):
                     IntervalType.NOT_APPLICABLE,
                 ]
             ):
-                df[f"p_i_{group_name}"] = elementwise_and(
-                    df[f"p_{group_name}"], df[f"i_{group_name}"]
-                )
+                if "population_intervention" in group:
+                    df[f"p_i_{group_name}"] = combine_dataframe_via_logical_expression(
+                        df, remove_comparators(group["population_intervention"])
+                    )
+                else:
+                    df[f"p_i_{group_name}"] = elementwise_and(
+                        df[f"p_{group_name}"], df[f"i_{group_name}"]
+                    )
 
         df["p"] = reduce(
             elementwise_or,
