@@ -7,6 +7,7 @@ from enum import StrEnum
 from functools import reduce
 from typing import Any, Generic, Iterator, Protocol, TypeVar, cast
 
+import numpy as np
 from portion import CLOSED, Interval
 from portion.const import Bound, inf
 
@@ -101,41 +102,95 @@ class IntervalType(StrEnum):
 
     __bool_true = [POSITIVE, NO_DATA, NOT_APPLICABLE]
 
+    __order: list[str] | None = None
+
     def __le__(self, other: Any) -> bool:
         """
         Less than or equal to.
         """
-        raise TypeError(
-            "IntervalType does not support comparison operators because it's unclear "
-            "whether union or intersection priority should be used."
-        )
+
+        self.assert_order_set()
+
+        if other == np.inf:
+            return True
+        elif other == -np.inf:
+            return False
+
+        return self.__order.index(self) <= self.__order.index(other)  # type: ignore # __order is not None (asserted above)
 
     def __lt__(self, other: Any) -> bool:
         """
         Less than.
         """
-        raise TypeError(
-            "IntervalType does not support comparison operators because it's unclear "
-            "whether union or intersection priority should be used."
-        )
+        self.assert_order_set()
+
+        if other == np.inf:
+            return True
+        elif other == -np.inf:
+            return False
+
+        return self.__order.index(self) < self.__order.index(other)  # type: ignore # __order is not None (asserted above)
 
     def __ge__(self, other: Any) -> bool:
         """
         Greater than or equal to.
         """
-        raise TypeError(
-            "IntervalType does not support comparison operators because it's unclear "
-            "whether union or intersection priority should be used."
-        )
+        self.assert_order_set()
+
+        if other == np.inf:
+            return False
+        elif other == -np.inf:
+            return True
+
+        return self.__order.index(self) >= self.__order.index(other)  # type: ignore # __order is not None (asserted above)
 
     def __gt__(self, other: Any) -> bool:
         """
         Greater than.
         """
-        raise TypeError(
-            "IntervalType does not support comparison operators because it's unclear "
-            "whether union or intersection priority should be used."
-        )
+        self.assert_order_set()
+
+        if other == np.inf:
+            return False
+        elif other == -np.inf:
+            return True
+
+        return self.__order.index(self) > self.__order.index(other)  # type: ignore # __order is not None (asserted above)
+
+    def assert_order_set(self) -> None:
+        """
+        Assert that the order is set.
+        """
+        if self.__order is None:
+            raise TypeError(
+                "Order of IntervalType is not set. Use IntervalType.union_order() or "
+                "IntervalType.intersection_order() to set the order."
+            )
+
+    @classmethod
+    @contextmanager
+    def union_order(cls) -> Iterator:
+        """
+        Set the priority order to that of union.
+        """
+        cls.__order = cls.__union_priority_order[::-1]  # type: ignore # mypy thinks expr is str
+
+        try:
+            yield
+        finally:
+            cls.__order = None
+
+    @classmethod
+    @contextmanager
+    def intersection_order(cls) -> Iterator:
+        """
+        Set the priority order to that of intersection.
+        """
+        cls.__order = cls.__intersection_priority_order  # type: ignore # mypy thinks expr is str
+        try:
+            yield
+        finally:
+            cls.__order = None
 
     def __repr__(self) -> str:
         """

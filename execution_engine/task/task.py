@@ -1,8 +1,10 @@
 import base64
+import datetime
 import json
 import logging
 from enum import Enum, auto
 
+import pytz
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
 import execution_engine.util.cohort_logic as logic
@@ -11,7 +13,7 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import config
-from execution_engine.task import process
+from execution_engine.task import process_rect as process
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
@@ -346,10 +348,11 @@ class Task:
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
 
-        data_p = {
-            person_id: interval.select_type(IntervalType.POSITIVE)
-            for person_id, interval in left.items()
-        }
+        # data_p = {
+        #     person_id: [interval for interval in intervals if interval.type == IntervalType.POSITIVE] #interval.select_type(IntervalType.POSITIVE)
+        #     for person_id, intervals in left.items()
+        # }
+        data_p = process.select_type(left, IntervalType.POSITIVE)
 
         result_not_p = process.complementary_intervals(
             data_p,
@@ -430,12 +433,15 @@ class Task:
             with get_engine().begin() as conn:
                 conn.execute(
                     ResultInterval.__table__.insert(),
-                    # result.to_dict(orient="records"),
                     [
                         {
                             "person_id": person_id,
-                            "interval_start": interval.lower,
-                            "interval_end": interval.upper,
+                            "interval_start": datetime.datetime.fromtimestamp(
+                                interval.lower, pytz.utc
+                            ),
+                            "interval_end": datetime.datetime.fromtimestamp(
+                                interval.upper, pytz.utc
+                            ),
                             "interval_type": interval.type,
                             **params,
                         }

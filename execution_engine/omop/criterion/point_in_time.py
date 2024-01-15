@@ -10,7 +10,7 @@ from execution_engine.omop.criterion.abstract import (
     observation_start_datetime,
 )
 from execution_engine.omop.criterion.concept import ConceptCriterion
-from execution_engine.task import process
+from execution_engine.task import process_rect as process
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
