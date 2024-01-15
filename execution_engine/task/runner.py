@@ -62,10 +62,14 @@ class TaskRunner(ABC):
 
         logging.info(f"Scheduling {len(self.tasks)} tasks")
 
-    def enqueue_ready_tasks(self) -> None:
+    def enqueue_ready_tasks(self) -> int:
         """
         Enqueues tasks that are ready to run based on their dependencies and completion status.
+
+        :return: The number of tasks enqueued.
         """
+
+        n_enqueued = 0
 
         for task in self.tasks:
             if (
@@ -83,6 +87,9 @@ class TaskRunner(ABC):
 
                 with self.lock:
                     self.enqueued_tasks.add(task.name())
+                    n_enqueued += 1
+
+        return n_enqueued
 
     @abstractmethod
     def run(self, bind_params: dict) -> None:
@@ -250,7 +257,7 @@ class ParallelTaskRunner(TaskRunner):
         :return: None.
         """
 
-        def task_executor() -> None:
+        def task_executor_worker() -> None:
             """
             A worker process that executes tasks from a queue.
 
@@ -287,7 +294,7 @@ class ParallelTaskRunner(TaskRunner):
 
             logging.info("Worker process stopped.")
 
-        self.start_workers(task_executor)
+        self.start_workers(task_executor_worker)
 
         try:
             while len(self.completed_tasks) < len(self.tasks):
@@ -295,6 +302,14 @@ class ParallelTaskRunner(TaskRunner):
                     raise TaskError("Task execution failed.")
 
                 self.enqueue_ready_tasks()
+
+                if self.completed_tasks == self.enqueued_tasks and len(
+                    self.completed_tasks
+                ) < len(self.tasks):
+                    logging.info(
+                        f"# Completed tasks: {len(self.completed_tasks)}, # Tasks: {len(self.tasks)}, # Enqueued tasks: {len(self.enqueued_tasks)}"
+                    )
+                    raise TaskError("No runnable tasks available.")
 
                 time.sleep(0.1)
 
@@ -304,6 +319,7 @@ class ParallelTaskRunner(TaskRunner):
 
         except Exception as e:
             logging.error(f"An error occurred: {e}")
+            raise TaskError(str(e))
         finally:
             self.stop_workers()
 
@@ -320,7 +336,8 @@ class ParallelTaskRunner(TaskRunner):
         self.stop_event.clear()
 
         self.workers = [
-            multiprocessing.Process(target=func) for _ in range(self.num_workers)
+            multiprocessing.Process(target=func)
+            for worker_index in range(self.num_workers)
         ]
         for w in self.workers:
             w.start()

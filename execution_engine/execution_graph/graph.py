@@ -1,4 +1,4 @@
-from typing import Any, Type
+from typing import Any, Type, cast
 
 import networkx as nx
 
@@ -295,19 +295,24 @@ class ExecutionGraph(nx.DiGraph):
             Traverse the criterion combination and creates a collection of logical conjunctions from it.
             """
             conjunction = conjunction_from_combination(comb)
-            symbols: list[logic.Expr | logic.Symbol] = []
+            components: list[logic.Expr | logic.Symbol] = []
             s: logic.Expr | logic.Symbol
 
             for entry in comb:
                 if isinstance(entry, CriterionCombination):
-                    symbols.append(_traverse(entry))
+                    components.append(_traverse(entry))
                 else:
-                    s = logic.Symbol(criterion=entry)
+                    # Remove the exclude criterion from the symbol, as it is handled by the Not operator
+                    s = logic.Symbol(
+                        criterion=cast(Criterion, entry.clear_exclude(inplace=False))
+                    )
+
                     if entry.exclude:
                         s = logic.Not(s, category=entry.category)
-                    symbols.append(s)
 
-            c = conjunction(*symbols, category=comb.category)
+                    components.append(s)
+
+            c = conjunction(*components, category=comb.category)
 
             if comb.exclude:
                 c = logic.Not(c, category=comb.category)

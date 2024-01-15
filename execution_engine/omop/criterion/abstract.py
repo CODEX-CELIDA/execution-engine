@@ -167,6 +167,20 @@ class AbstractCriterion(Serializable, ABC):
         """
         return self.name
 
+    def clear_exclude(self, inplace: bool = False) -> "AbstractCriterion":
+        """
+        Clear the exclude flag.
+
+        :param inplace: If True, the exclude flag is cleared in place. Otherwise, a copy of the criterion is returned
+            with the exclude flag cleared.
+        :return: The criterion with the exclude flag cleared.
+        """
+
+        if not self.exclude:
+            return self
+        else:
+            return self.invert_exclude(inplace=inplace)
+
     # todo: this unique name should not be used anymore. it was a workaround in sympy to prevent
     #       that different criteria are considered equal just on the basis of the name. we should
     #       replace sympy by an own implementation of Symbol etc. anyway. these should be compared

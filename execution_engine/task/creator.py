@@ -44,4 +44,13 @@ class TaskCreator:
             predecessors = [tasks[pred] for pred in graph.predecessors(node)]
             task.dependencies = predecessors
 
-        return list(tasks.values())
+        flattened_tasks = list(tasks.values())
+
+        assert (
+            len(set(flattened_tasks))
+            == len(flattened_tasks)
+            == len(graph.nodes)
+            == len(set([task.name() for task in flattened_tasks]))
+        ), "Duplicate tasks found during task creation."
+
+        return flattened_tasks
