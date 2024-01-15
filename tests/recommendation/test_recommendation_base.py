@@ -641,7 +641,20 @@ class TestRecommendationBase(ABC):
             .to_dict()
         )
 
-        type_missing_data = {k: MISSING_DATA_TYPE[v] for k, v in types.items()}
+        types_missing_data = {}
+        for parameter_name, parameter_type in types.items():
+            if hasattr(parameter, parameter_name):
+                criterion_def = getattr(parameter, parameter_name)
+            else:
+                criterion_def = None
+
+            if (
+                criterion_def is not None
+                and criterion_def.missing_data_type is not None
+            ):
+                types_missing_data[parameter_name] = criterion_def.missing_data_type
+            else:
+                types_missing_data[parameter_name] = MISSING_DATA_TYPE[parameter_type]
 
         # Create a new dataframe with one row for each date (ignoring time) between start_datetime and end_datetime
         df_expanded = pd.concat(
@@ -703,7 +716,7 @@ class TestRecommendationBase(ABC):
         for column in merged_df.columns[2:]:
             idx = merged_df[column]
             merged_df[column] = merged_df[column].astype(object)
-            merged_df.loc[~idx, column] = type_missing_data[column]
+            merged_df.loc[~idx, column] = types_missing_data[column]
             merged_df.loc[idx, column] = IntervalType.POSITIVE
 
         return merged_df
