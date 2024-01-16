@@ -601,9 +601,11 @@ class TestRecommendationBase(ABC):
                 if c.startswith("p_") and not c.startswith("p_i_")
             ],
         )
+
         df["i"] = reduce(
             elementwise_or, [df[c] for c in df.columns if c.startswith("i_")]
         )
+
         df["p_i"] = reduce(
             elementwise_or, [df[c] for c in df.columns if c.startswith("p_i_")]
         )
@@ -614,9 +616,11 @@ class TestRecommendationBase(ABC):
         # criterion is valid
         df = pd.merge(df_base, df, on=["person_id", "date"], how="left", validate="1:1")
         df = df.set_index(["person_id", "date"])
-        df = df.apply(
-            lambda x: elementwise_mask(x, df["BASE"], fill_value=IntervalType.NEGATIVE)
-        )
+
+        mask = df["BASE"].astype(bool)
+        fill_value = np.repeat(np.array(IntervalType.NEGATIVE, dtype=object), len(df))
+        df = df.apply(lambda x: np.where(mask, x, fill_value))
+
         df = df.drop(columns="BASE")
 
         return df.reset_index()
@@ -633,6 +637,8 @@ class TestRecommendationBase(ABC):
 
         # Set end_datetime equal to start_datetime if it's NaT
         df["end_datetime"].fillna(df["start_datetime"], inplace=True)
+        df["start_datetime"] = pd.to_datetime(df["start_datetime"], utc=True)
+        df["end_datetime"] = pd.to_datetime(df["end_datetime"], utc=True)
 
         types = (
             df[["concept", "type"]]
@@ -656,68 +662,51 @@ class TestRecommendationBase(ABC):
             else:
                 types_missing_data[parameter_name] = MISSING_DATA_TYPE[parameter_type]
 
-        # Create a new dataframe with one row for each date (ignoring time) between start_datetime and end_datetime
-        df_expanded = pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        "person_id": row["person_id"],
-                        "date": pd.date_range(
-                            row["start_datetime"].date(),
-                            row["end_datetime"].date(),
-                            freq="D",
-                        ),
-                        "concept": row["concept"],
-                    },
-                    columns=["person_id", "date", "concept"],
-                )
-                for _, row in df.iterrows()
-            ],
-            ignore_index=True,
+        # Vectorized expansion of DataFrame
+        df["key"] = 1  # Create a key for merging
+        date_range = pd.date_range(
+            observation_window.start.date(), observation_window.end.date(), freq="D"
         )
+        dates_df = pd.DataFrame({"date": date_range, "key": 1})
+        df_expanded = df.merge(dates_df, on="key").drop("key", axis=1)
+        df_expanded = df_expanded[
+            df_expanded["date"].between(
+                df_expanded["start_datetime"].dt.date,
+                df_expanded["end_datetime"].dt.date,
+            )
+        ]
 
-        # Pivot the expanded dataframe to have one column for each unique concept
+        df_expanded.drop(["start_datetime", "end_datetime"], axis=1, inplace=True)
+
+        # Pivot operation (remains the same if already efficient)
         df_pivot = df_expanded.pivot_table(
             index=["person_id", "date"], columns="concept", aggfunc=len, fill_value=0
         )
 
-        # Reset index and column names
-        df_pivot = df_pivot.reset_index()
+        # Flatten the multi-level column index
+        df_pivot.columns = [col[1] for col in df_pivot.columns.values]
+
+        # Reset index to make 'person_id' and 'date' regular columns
+        df_pivot.reset_index(inplace=True)
+
         df_pivot.columns.name = None
-        df_pivot.columns = ["person_id", "date"] + [col for col in df_pivot.columns[2:]]
 
-        # Fill the new concept columns with True where the condition is met
-        df_pivot[df_pivot.columns[2:]] = df_pivot[df_pivot.columns[2:]].map(
-            lambda x: x > 0
-        )
+        # Efficiently map and fill missing values
+        df_pivot.iloc[:, 2:] = df_pivot.iloc[:, 2:].gt(0)
 
-        # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date
-        # and observation_end_date
-        unique_person_ids = df["person_id"].unique()
-        date_range = pd.date_range(
-            observation_window.start.date(), observation_window.end.date(), freq="D"
-        )
+        # Efficient merge with an auxiliary DataFrame
         aux_df = pd.DataFrame(
-            {
-                "person_id": np.repeat(unique_person_ids, len(date_range)),
-                "date": np.tile(date_range, len(unique_person_ids)),
-            }
+            itertools.product(df["person_id"].unique(), date_range),
+            columns=["person_id", "date"],
         )
-
-        # Merge the auxiliary DataFrame with the pivoted DataFrame
         merged_df = pd.merge(aux_df, df_pivot, on=["person_id", "date"], how="left")
 
-        # Fill missing values with False
-        merged_df[merged_df.columns[2:]] = merged_df[merged_df.columns[2:]].fillna(
-            False
-        )
+        idx = merged_df[merged_df.columns[2:]].fillna(False).astype(bool)
 
-        # Fill missing values with the missing data type
+        # Apply types_missing_data
         for column in merged_df.columns[2:]:
-            idx = merged_df[column]
-            merged_df[column] = merged_df[column].astype(object)
-            merged_df.loc[~idx, column] = types_missing_data[column]
-            merged_df.loc[idx, column] = IntervalType.POSITIVE
+            merged_df.loc[idx[column], column] = IntervalType.POSITIVE
+            merged_df.loc[~idx[column], column] = types_missing_data[column]
 
         return merged_df
 
