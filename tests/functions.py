@@ -1,9 +1,11 @@
 import datetime
 import itertools
 import re
+from io import StringIO
 
 import pandas as pd
 import pendulum
+from pytz.tzinfo import DstTzInfo
 
 from execution_engine.omop.db.omop.tables import (
     ConditionOccurrence,
@@ -14,10 +16,11 @@ from execution_engine.omop.db.omop.tables import (
     VisitDetail,
     VisitOccurrence,
 )
-from execution_engine.util.interval import DateTimeInterval
-from execution_engine.util.interval import DateTimeInterval as Interval
-from execution_engine.util.interval import IntervalType as T
-from execution_engine.util.interval import interval_datetime
+from execution_engine.util.interval import (
+    DateTimeInterval,
+    IntervalType,
+    interval_datetime,
+)
 from execution_engine.util.types import PersonIntervals
 from tests._testdata import concepts
 
@@ -238,11 +241,9 @@ def get_fraction_per_day(
     return fractions
 
 
-def df_to_intervals(df: pd.DataFrame, by=["person_id"]):
-    return {key: _to_intervals(group_df) for key, group_df in df.groupby(by=by)}
-
-
-def intervals_to_df(result: PersonIntervals, by: list[str]) -> pd.DataFrame:
+def intervals_to_df(
+    result: PersonIntervals, by: list[str], normalize_func: callable
+) -> pd.DataFrame:
     """
     Converts the result of the interval operations to a DataFrame.
 
@@ -259,6 +260,8 @@ def intervals_to_df(result: PersonIntervals, by: list[str]) -> pd.DataFrame:
             record_keys = {by[0]: group_keys}
 
         for interv in intervals:
+            interv = normalize_func(interv)
+
             record = {
                 **record_keys,
                 "interval_start": interv.lower,
@@ -272,7 +275,13 @@ def intervals_to_df(result: PersonIntervals, by: list[str]) -> pd.DataFrame:
     )
 
 
-def _to_intervals(df: pd.DataFrame) -> Interval:
+def df_to_person_intervals(df: pd.DataFrame, by=["person_id"]) -> PersonIntervals:
+    return {
+        key: df_to_datetime_interval(group_df) for key, group_df in df.groupby(by=by)
+    }
+
+
+def df_to_datetime_interval(df: pd.DataFrame) -> DateTimeInterval:
     """
     Converts the DataFrame to intervals.
 
@@ -282,7 +291,7 @@ def _to_intervals(df: pd.DataFrame) -> Interval:
 
     from execution_engine.util.interval import interval_datetime
 
-    return Interval(
+    return DateTimeInterval(
         *[
             interval_datetime(start, end, type_)
             for start, end, type_ in zip(
@@ -292,5 +301,19 @@ def _to_intervals(df: pd.DataFrame) -> Interval:
     )
 
 
-def interval(start: str, end: str, type_=T.POSITIVE) -> DateTimeInterval:
+def interval(start: str, end: str, type_=IntervalType.POSITIVE) -> DateTimeInterval:
     return interval_datetime(pendulum.parse(start), pendulum.parse(end), type_=type_)
+
+
+def parse_dt(s: str, tz: DstTzInfo) -> datetime.datetime:
+    return tz.localize(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S"))
+
+
+def df_from_str(data_str):
+    data_str = "\n".join(line.strip() for line in data_str.strip().split("\n"))
+    df = pd.read_csv(StringIO(data_str), sep="\t", dtype={"group1": str, "group2": int})
+    df["interval_start"] = pd.to_datetime(df["interval_start"], utc=True)
+    df["interval_end"] = pd.to_datetime(df["interval_end"], utc=True)
+    df["interval_type"] = df["interval_type"].apply(IntervalType)
+
+    return df

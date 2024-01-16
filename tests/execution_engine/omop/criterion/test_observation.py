@@ -66,7 +66,6 @@ class TestObservation(ValueCriterion):
     def create_value(
         self, visit_occurrence, concept_id, datetime, value, unit_concept_id
     ):
-
         value_as_concept_id = value.concept_id if isinstance(value, Concept) else None
         value_as_number = value if isinstance(value, float | int) else None
         value_as_string = value if isinstance(value, str) else None

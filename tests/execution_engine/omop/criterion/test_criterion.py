@@ -31,9 +31,14 @@ from execution_engine.util.types import TimeRange
 from execution_engine.util.value import ValueConcept, ValueNumber
 from tests._fixtures.omop_fixture import celida_recommendation
 from tests._testdata import concepts
-from tests.functions import create_visit, intervals_to_df
+from tests.functions import create_visit
+from tests.functions import intervals_to_df as intervals_to_df_orig
 
 process = get_processing_module()
+
+
+def intervals_to_df(result, by=None):
+    return intervals_to_df_orig(result, by, process.normalize_interval)
 
 
 def to_table(name: str) -> Table:
@@ -262,8 +267,6 @@ class TestCriterion:
             IntervalType.intersection_priority()
         ):
             data = process.result_to_intervals(result)
-
-        data = {k: [process.normalize_interval(i) for i in data[k]] for k in data}
 
         data = intervals_to_df(data, by=["person_id"])
 

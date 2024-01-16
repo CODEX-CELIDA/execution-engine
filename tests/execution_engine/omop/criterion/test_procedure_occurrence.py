@@ -8,7 +8,7 @@ from execution_engine.util.types import TimeRange, Timing
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.time import ValueDuration
 from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence
-from tests.functions import _to_intervals, create_procedure, interval
+from tests.functions import create_procedure, df_to_datetime_interval, interval
 
 
 class TestProcedureOccurrence(Occurrence):
@@ -250,7 +250,7 @@ class TestProcedureOccurrence(Occurrence):
             )
             df = df.query('interval_type=="POSITIVE"')
 
-            return _to_intervals(
+            return df_to_datetime_interval(
                 df[["interval_start", "interval_end", "interval_type"]]
             )
 
@@ -343,7 +343,7 @@ class TestProcedureOccurrence(Occurrence):
             )
             df = df.query('interval_type=="POSITIVE"')
 
-            return _to_intervals(
+            return df_to_datetime_interval(
                 df[["interval_start", "interval_end", "interval_type"]]
             )
 
