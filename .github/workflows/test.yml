@@ -95,9 +95,7 @@ jobs:
             --postgresql-user=$OMOP__USER \
             --postgresql-password=$OMOP__PASSWORD \
             --run-slow-tests \
-            --run-recommendation-tests \
-            tests/recommendation/sepsis-treatment/test_sepsis_m1_tidal_volume.py \
-            tests/recommendation/covid19-inpatient-therapy/test_rec35_tidal_volume.py
+            --run-recommendation-tests
 
       - name: Coverage
         uses: codecov/codecov-action@v3
