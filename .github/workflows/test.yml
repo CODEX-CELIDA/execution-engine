@@ -72,7 +72,6 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          mv sample.env .env
 
       - name: Test with pytest
         env:
@@ -84,7 +83,11 @@ jobs:
           OMOP__HOST: localhost
           OMOP__PORT: 5432
           OMOP__DATABASE: ${{ env.POSTGRES_DB }}
-          OMOP__SCHEMA: cds_cdm
+          OMOP__DATA_SCHEMA: cds_cdm
+          OMOP__RESULT_SCHEMA: celida
+          CELIDA_EE_EPISODE_OF_CARE_VISIT_DETAIL: 0
+          CELIDA_EE_MULTIPROCESSING_USE: 0
+          CELIDA_EE_MULTIPROCESSING_POOL_SIZE: -1
         run: |
            pytest \
             --color=yes \
