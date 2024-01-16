@@ -139,7 +139,7 @@ class AbstractCriterion(Serializable, ABC):
         """
         Copy the criterion.
         """
-        return copy.deepcopy(self)
+        return copy.copy(self)
 
     def invert_exclude(self, inplace: bool = False) -> "AbstractCriterion":
         """
