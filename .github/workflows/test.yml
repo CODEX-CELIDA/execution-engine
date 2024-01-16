@@ -73,6 +73,9 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      - name: Build Cython extension
+        run: python setup.py build_ext --inplace
+
       - name: Test with pytest
         env:
           FHIR_BASE_URL: http://localhost:8000/fhir
