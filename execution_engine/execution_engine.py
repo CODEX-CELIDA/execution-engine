@@ -549,9 +549,6 @@ class ExecutionEngine:
         task_runner: runner.TaskRunner
 
         if use_multiprocessing:
-            logging.info(
-                f"Using multiprocessing with {multiprocessing_pool_size} workers."
-            )
             task_runner = runner.ParallelTaskRunner(
                 execution_graph, num_workers=multiprocessing_pool_size
             )

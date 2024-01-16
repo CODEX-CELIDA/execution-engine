@@ -3,9 +3,10 @@ from collections import namedtuple
 cimport numpy as np
 import numpy as np
 
+from execution_engine.task.process import Interval
 from execution_engine.util.interval import IntervalType
 
-Interval = namedtuple("Interval", ["lower", "upper", "type"])
+#Interval = namedtuple("Interval", ["lower", "upper", "type"])
 
 DEF SCHAR_MIN = -128
 DEF SCHAR_MAX = 127

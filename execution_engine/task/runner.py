@@ -227,6 +227,8 @@ class ParallelTaskRunner(TaskRunner):
         if num_workers == -1:
             num_workers = multiprocessing.cpu_count()
 
+        logging.info(f"Using multiprocessing with {num_workers} workers.")
+
         self.num_workers = num_workers
         self.manager = multiprocessing.Manager()
         self._shared_results = self.manager.dict()
