@@ -1,10 +1,8 @@
 import base64
-import datetime
 import json
 import logging
 from enum import Enum, auto
 
-import pytz
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
 import execution_engine.util.cohort_logic as logic
@@ -438,17 +436,16 @@ class Task:
                     [
                         {
                             "person_id": person_id,
-                            "interval_start": datetime.datetime.fromtimestamp(
-                                interval.lower, pytz.utc
-                            ),
-                            "interval_end": datetime.datetime.fromtimestamp(
-                                interval.upper, pytz.utc
-                            ),
-                            "interval_type": interval.type,
+                            "interval_start": normalized_interval.lower,
+                            "interval_end": normalized_interval.upper,
+                            "interval_type": normalized_interval.type,
                             **params,
                         }
                         for person_id, intervals in result.items()
                         for interval in intervals
+                        for normalized_interval in [
+                            process.normalize_interval(interval)
+                        ]
                     ],
                 )
         except ProgrammingError as e:

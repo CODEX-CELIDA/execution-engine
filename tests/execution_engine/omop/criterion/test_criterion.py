@@ -20,10 +20,10 @@ from execution_engine.omop.db.celida.views import (
 )
 from execution_engine.omop.db.omop.tables import Person
 from execution_engine.task import (  # noqa: F401     -- required for the mock.patch below
-    process,
     runner,
     task,
 )
+from execution_engine.task.process import get_processing_module
 from execution_engine.util import cohort_logic
 from execution_engine.util.db import add_result_insert
 from execution_engine.util.interval import IntervalType
@@ -32,6 +32,8 @@ from execution_engine.util.value import ValueConcept, ValueNumber
 from tests._fixtures.omop_fixture import celida_recommendation
 from tests._testdata import concepts
 from tests.functions import create_visit, intervals_to_df
+
+process = get_processing_module()
 
 
 def to_table(name: str) -> Table:
@@ -260,9 +262,8 @@ class TestCriterion:
             IntervalType.intersection_priority()
         ):
             data = process.result_to_intervals(result)
-        # result = pd.read_sql(
-        #     query, con=db_session.connection(), params=observation_window.dict()
-        # )
+
+        data = {k: [process.normalize_interval(i) for i in data[k]] for k in data}
 
         data = intervals_to_df(data, by=["person_id"])
 

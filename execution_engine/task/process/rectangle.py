@@ -3,6 +3,7 @@ import logging
 from typing import Callable
 
 import numpy as np
+import pytz
 from sqlalchemy import CursorResult
 
 from execution_engine.util.interval import IntervalType, interval_datetime
@@ -25,6 +26,20 @@ except ImportError:
     )
 
 PersonIntervals = dict[int, list[Interval]]
+
+
+def normalize_interval(interval: Interval) -> Interval:
+    """
+    Normalizes the interval for storage in database.
+
+    :param interval: The interval to normalize.
+    :return: A tuple with the normalized interval.
+    """
+    return Interval(
+        datetime.datetime.fromtimestamp(interval.lower, pytz.utc),
+        datetime.datetime.fromtimestamp(interval.upper, pytz.utc),
+        interval.type,
+    )
 
 
 # ok

@@ -1,9 +1,11 @@
+import datetime
 from operator import and_, or_
 from typing import Callable, cast
 
 from portion import Bound
 from sqlalchemy import CursorResult
 
+from execution_engine.task.process import Interval
 from execution_engine.util.interval import (
     Atomic,
     DateTimeInterval,
@@ -15,6 +17,19 @@ from execution_engine.util.interval import interval_datetime as interval
 from execution_engine.util.types import TimeRange
 
 PersonIntervals = dict[int, IntervalWithType]
+
+
+def normalize_interval(
+    interval: DateTimeInterval,
+) -> tuple[datetime.datetime, datetime.datetime, IntervalType]:
+    """
+    Normalizes the interval for storage in database.
+
+    :param interval: The interval to normalize.
+    :return: A tuple with the normalized interval.
+    """
+
+    return Interval(interval.lower, interval.upper, interval.type)
 
 
 def concat_intervals(data: list[PersonIntervals]) -> PersonIntervals:
