@@ -11,10 +11,18 @@ from execution_engine.util.types import TimeRange
 from . import Interval
 
 try:
-    from .rectangle_cython import intersect_rects, union_rects
+    from .rectangle_cython import (
+        intersect_interval_lists,
+        union_interval_lists,
+        union_rects,
+    )
 except ImportError:
     logging.info("Cython rectangle module not found, using python module")
-    from .rectangle_python import intersect_rects, union_rects
+    from .rectangle_python import (
+        intersect_interval_lists,
+        union_interval_lists,
+        union_rects,
+    )
 
 PersonIntervals = dict[int, list[Interval]]
 
@@ -258,7 +266,7 @@ def complementary_intervals(
         result[key] = (
             # take the least of the intersection of the observation window to retain the type of the
             #   original interval
-            _intersect_interval_lists(
+            intersect_interval_lists(
                 complement_intervals(data[key], type_=interval_type),
                 [observation_window_mask],
             )
@@ -334,7 +342,7 @@ def _process_intervals(
 
     for arr in data:
         if not len(arr):
-            if operator == _intersect_interval_lists:
+            if operator == intersect_interval_lists:
                 # if the operation is intersection, an empty dataframe means that the result is empty
                 return dict()
             else:
@@ -358,7 +366,7 @@ def union_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     :param data: A list of dict of intervals.
     :return: A dict with the unioned intervals.
     """
-    return _process_intervals(data, _union_interval_lists)
+    return _process_intervals(data, union_interval_lists)
 
 
 def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
@@ -370,25 +378,7 @@ def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     """
     data = filter_dicts_by_common_keys(data)
 
-    result = _process_intervals(data, _intersect_interval_lists)
-
-    return result
-
-
-def _intersect_interval_lists(
-    left: list[Interval], right: list[Interval]
-) -> list[Interval]:
-    return union_rects(
-        [item for x in left for y in right for item in intersect_rects([x, y])]
-    )
-
-
-def _union_interval_lists(
-    left: list[Interval], right: list[Interval]
-) -> list[Interval]:
-    processed = [item for x in left for y in right for item in union_rects([x, y])]
-
-    result = union_rects(processed)
+    result = _process_intervals(data, intersect_interval_lists)
 
     return result
 
@@ -423,7 +413,7 @@ def mask_intervals(
     result = {}
     for person_id in data:
         # intersect every interval in data with every interval in mask
-        result[person_id] = _intersect_interval_lists(
+        result[person_id] = intersect_interval_lists(
             data[person_id], person_mask[person_id]
         )
 

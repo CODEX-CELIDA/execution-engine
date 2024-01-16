@@ -136,3 +136,33 @@ def intervals_to_events(
         events,
         key=lambda i: (i[0]),
     )
+
+
+def intersect_interval_lists(
+    left: list[Interval], right: list[Interval]
+) -> list[Interval]:
+    """
+    Intersects each interval in the left list with each interval in the right list.
+
+    :param left: The left list.
+    :param right: The right list.
+    :return: The list of intersections.
+    """
+    return union_rects(
+        [item for x in left for y in right for item in intersect_rects([x, y])]
+    )
+
+
+def union_interval_lists(left: list[Interval], right: list[Interval]) -> list[Interval]:
+    """
+    Unions each interval in the left list with each interval in the right list.
+
+    :param left: The left list.
+    :param right: The right list.
+    :return: The list of unions.
+    """
+    processed = [item for x in left for y in right for item in union_rects([x, y])]
+
+    result = union_rects(processed)
+
+    return result
