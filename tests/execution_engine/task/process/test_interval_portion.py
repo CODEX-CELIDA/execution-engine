@@ -7,19 +7,14 @@ import pytest
 import pytz
 from pytz.tzinfo import DstTzInfo
 
-from execution_engine.task import process_rect as process
-from execution_engine.task.process_rect import Interval
-from execution_engine.util.interval import DateTimeInterval
+from execution_engine.task.process import get_processing_module
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.interval import empty_interval_datetime, interval_datetime
-from execution_engine.util.types import PersonIntervals, TimeRange
+from execution_engine.util.types import TimeRange
+from tests.functions import _to_intervals, df_to_intervals, interval, intervals_to_df
 
-
-def interval(start: str, end: str, type_=T.POSITIVE) -> DateTimeInterval:
-    return Interval(
-        pendulum.parse(start).timestamp(), pendulum.parse(end).timestamp(), type_
-    )
+process = get_processing_module("interval_portion")
 
 
 def parse_dt(s: str, tz: DstTzInfo) -> datetime.datetime:
@@ -29,65 +24,11 @@ def parse_dt(s: str, tz: DstTzInfo) -> datetime.datetime:
 def df_from_str(data_str):
     data_str = "\n".join(line.strip() for line in data_str.strip().split("\n"))
     df = pd.read_csv(StringIO(data_str), sep="\t", dtype={"group1": str, "group2": int})
-    df["interval_start"] = pd.to_datetime(df["interval_start"], utc=True)
-    df["interval_end"] = pd.to_datetime(df["interval_end"], utc=True)
+    df["interval_start"] = pd.to_datetime(df["interval_start"])
+    df["interval_end"] = pd.to_datetime(df["interval_end"])
     df["interval_type"] = df["interval_type"].apply(IntervalType)
 
     return df
-
-
-def _to_intervals(df: pd.DataFrame) -> Interval:
-    """
-    Converts the DataFrame to intervals.
-
-    :param df: A DataFrame with columns "interval_start" and "interval_end".
-    :return: A list of intervals.
-    """
-
-    return [
-        Interval(start.timestamp(), end.timestamp(), type_)
-        for start, end, type_ in zip(
-            df["interval_start"], df["interval_end"], df["interval_type"]
-        )
-    ]
-
-
-def df_to_intervals(df: pd.DataFrame, by=["person_id"]):
-    return {key: _to_intervals(group_df) for key, group_df in df.groupby(by=by)}
-
-
-def intervals_to_df(result: PersonIntervals, by: list[str]) -> pd.DataFrame:
-    """
-    Converts the result of the interval operations to a DataFrame.
-
-    :param result: The result of the interval operations.
-    :param by: A list of column names to group by.
-    :return: A DataFrame with the interval results.
-    """
-    records = []
-    for group_keys, intervals in result.items():
-        # Check if group_keys is a tuple or a single value and unpack accordingly
-        if isinstance(group_keys, tuple):
-            record_keys = dict(zip(by, group_keys))
-        else:
-            record_keys = {by[0]: group_keys}
-
-        for interv in intervals:
-            record = {
-                **record_keys,
-                "interval_start": datetime.datetime.fromtimestamp(
-                    interv.lower, tz=pytz.utc
-                ),
-                "interval_end": datetime.datetime.fromtimestamp(
-                    interv.upper, tz=pytz.utc
-                ),
-                "interval_type": interv.type,
-            }
-            records.append(record)
-
-    return pd.DataFrame(
-        records, columns=by + ["interval_start", "interval_end", "interval_type"]
-    )
 
 
 def unique_items(df: pd.DataFrame) -> set[tuple]:
@@ -113,7 +54,6 @@ def empty_dataframe():
     return pd.DataFrame(columns=df_dtypes.keys())
 
 
-@pytest.mark.skip
 class TestIntervalUnion:
     def test_interval_union_empty_datetime(self):
         assert (
@@ -121,8 +61,8 @@ class TestIntervalUnion:
         ), "Failed: Empty list should return an empty interval"
 
     def test_interval_union_single_datetime_interval(self):
-        start_time = pendulum.parse("2020-01-01 00:00:00+00:00")
-        end_time = pendulum.parse("2020-01-02 00:00:00+00:00")
+        start_time = pendulum.parse("2020-01-01 00:00:00")
+        end_time = pendulum.parse("2020-01-02 00:00:00")
 
         interv = interval_datetime(start_time, end_time, type_=T.POSITIVE)
         assert (
@@ -131,79 +71,45 @@ class TestIntervalUnion:
 
     def test_interval_union_non_overlapping_datetime_intervals(self):
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00",
-                "2020-01-01 12:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00",
-                "2020-01-01 23:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
+            interval("2020-01-01 00:00:00", "2020-01-01 12:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
         expected = interval(
-            "2020-01-01 00:00:00+00:00", "2020-01-01 12:00:00+00:00", type_=T.POSITIVE
-        ) | interval(
-            "2020-01-01 13:00:00+00:00", "2020-01-01 23:00:00+00:00", type_=T.POSITIVE
-        )
+            "2020-01-01 00:00:00", "2020-01-01 12:00:00", type_=T.POSITIVE
+        ) | interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE)
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Non-overlapping intervals not handled correctly"
 
     def test_interval_union_overlapping_datetime_intervals(self):
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00",
-                "2020-01-01 15:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00",
-                "2020-01-01 23:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
+            interval("2020-01-01 00:00:00", "2020-01-01 15:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
         expected = interval(
-            "2020-01-01 00:00:00+00:00", "2020-01-01 23:00:00+00:00", type_=T.POSITIVE
+            "2020-01-01 00:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE
         )
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
 
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00",
-                "2020-01-01 13:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00",
-                "2020-01-01 23:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
+            interval("2020-01-01 00:00:00", "2020-01-01 13:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
         expected = interval(
-            "2020-01-01 00:00:00+00:00", "2020-01-01 23:00:00+00:00", type_=T.POSITIVE
+            "2020-01-01 00:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE
         )
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
 
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00",
-                "2023-01-01 12:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00",
-                "2020-01-01 23:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
+            interval("2020-01-01 00:00:00", "2023-01-01 12:00:00", type_=T.POSITIVE),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00", type_=T.POSITIVE),
         ]
         expected = interval(
-            "2020-01-01 00:00:00+00:00", "2023-01-01 12:00:00+00:00", type_=T.POSITIVE
+            "2020-01-01 00:00:00", "2023-01-01 12:00:00", type_=T.POSITIVE
         )
         assert (
             process._interval_union(intervals) == expected
@@ -211,80 +117,64 @@ class TestIntervalUnion:
 
     def test_interval_union_adjacent_datetime_intervals(self):
         intervals = [
-            interval("2020-01-01 00:00:00+00:00", "2020-01-01 12:59:59+00:00"),
-            interval("2020-01-01 13:00:00+00:00", "2020-01-01 23:00:00+00:00"),
+            interval("2020-01-01 00:00:00", "2020-01-01 12:59:59"),
+            interval("2020-01-01 13:00:00", "2020-01-01 23:00:00"),
         ]
-        expected = interval("2020-01-01 00:00:00+00:00", "2020-01-01 23:00:00+00:00")
+        expected = interval("2020-01-01 00:00:00", "2020-01-01 23:00:00")
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Adjacent intervals not handled correctly"
 
     def test_interval_union_mixed_datetime_intervals(self):
         intervals = [
-            interval("2020-01-01 00:00:00+00:00", "2020-01-01 12:59:59+00:00"),
-            interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:58+00:00"),
-            interval("2020-01-01 16:00:00+00:00", "2020-01-01 23:00:00+00:00"),
+            interval("2020-01-01 00:00:00", "2020-01-01 12:59:59"),
+            interval("2020-01-01 13:00:00", "2020-01-01 15:59:58"),
+            interval("2020-01-01 16:00:00", "2020-01-01 23:00:00"),
         ]
-        expected = interval(
-            "2020-01-01 00:00:00+00:00", "2020-01-01 15:59:58+00:00"
-        ) | interval("2020-01-01 16:00:00+00:00", "2020-01-01 23:00:00+00:00")
+        expected = interval("2020-01-01 00:00:00", "2020-01-01 15:59:58") | interval(
+            "2020-01-01 16:00:00", "2020-01-01 23:00:00"
+        )
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
 
     def test_interval_union_timezones(self):
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00+00:00", "2020-01-01 12:59:59+00:00+00:00"
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00+00:00", "2020-01-01 15:59:58+00:00+00:00"
-            ),
+            interval("2020-01-01 00:00:00+00:00", "2020-01-01 12:59:59+00:00"),
+            interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:58+00:00"),
         ]
-        expected = interval("2020-01-01 00:00:00+00:00", "2020-01-01 15:59:58+00:00")
+        expected = interval("2020-01-01 00:00:00", "2020-01-01 15:59:58")
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Timezones not handled correctly"
 
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00+00:00", "2020-01-01 12:59:59+01:00+00:00"
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00+00:00", "2020-01-01 15:59:59+00:00+00:00"
-            ),
+            interval("2020-01-01 00:00:00+00:00", "2020-01-01 12:59:59+01:00"),
+            interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:59+00:00"),
         ]
-        expected = interval(
-            "2020-01-01 00:00:00+00:00", "2020-01-01 11:59:59+00:00"
-        ) | interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:59+00:00")
+        expected = interval("2020-01-01 00:00:00", "2020-01-01 11:59:59") | interval(
+            "2020-01-01 13:00:00", "2020-01-01 15:59:59"
+        )
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
 
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00+00:00", "2020-01-01 13:59:58+01:00+00:00"
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00+00:00", "2020-01-01 15:59:59+00:00+00:00"
-            ),
+            interval("2020-01-01 00:00:00+00:00", "2020-01-01 13:59:58+01:00"),
+            interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:59+00:00"),
         ]
-        expected = interval(
-            "2020-01-01 00:00:00+00:00", "2020-01-01 12:59:58+00:00"
-        ) | interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:59+00:00")
+        expected = interval("2020-01-01 00:00:00", "2020-01-01 12:59:58") | interval(
+            "2020-01-01 13:00:00", "2020-01-01 15:59:59"
+        )
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
 
         intervals = [
-            interval(
-                "2020-01-01 00:00:00+00:00+00:00", "2020-01-01 13:59:59+01:00+00:00"
-            ),
-            interval(
-                "2020-01-01 13:00:00+00:00+00:00", "2020-01-01 15:59:58+00:00+00:00"
-            ),
+            interval("2020-01-01 00:00:00+00:00", "2020-01-01 13:59:59+01:00"),
+            interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:58+00:00"),
         ]
-        expected = interval("2020-01-01 00:00:00+00:00", "2020-01-01 15:59:58+00:00")
+        expected = interval("2020-01-01 00:00:00", "2020-01-01 15:59:58")
         assert (
             process._interval_union(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
@@ -294,19 +184,19 @@ class TestToIntervals:
     def test_to_intervals_empty_dataframe(self):
         df = pd.DataFrame(columns=["interval_start", "interval_end", "interval_type"])
         result = _to_intervals(df)
-        assert result == [], "Failed: Empty DataFrame should return an empty list"
+        assert (
+            result == empty_interval_datetime()
+        ), "Failed: Empty DataFrame should return an empty list"
 
     def test_to_intervals_single_row(self):
         df = pd.DataFrame(
             {
-                "interval_start": pd.to_datetime(
-                    ["2020-01-01T00:00:00+00:00"], utc=True
-                ),
-                "interval_end": pd.to_datetime(["2020-01-02T00:00:00+00:00"], utc=True),
+                "interval_start": pd.to_datetime(["2020-01-01T00:00:00"], utc=True),
+                "interval_end": pd.to_datetime(["2020-01-02T00:00:00"], utc=True),
                 "interval_type": T.POSITIVE,
             }
         )
-        expected = [interval("2020-01-01T00:00:00+00:00", "2020-01-02T00:00:00+00:00")]
+        expected = interval("2020-01-01T00:00:00", "2020-01-02T00:00:00")
         result = _to_intervals(df)
         assert result == expected, "Failed: Single row DataFrame not handled correctly"
 
@@ -314,26 +204,17 @@ class TestToIntervals:
         df = pd.DataFrame(
             {
                 "interval_start": pd.to_datetime(
-                    ["2020-01-01T00:00:00+00:00", "2020-01-03T00:00:00+00:00"], utc=True
+                    ["2020-01-01T00:00:00", "2020-01-03T00:00:00"], utc=True
                 ),
                 "interval_end": pd.to_datetime(
-                    ["2020-01-02T00:00:00+00:00", "2020-01-04T00:00:00+00:00"], utc=True
+                    ["2020-01-02T00:00:00", "2020-01-04T00:00:00"], utc=True
                 ),
                 "interval_type": [T.POSITIVE, T.POSITIVE],
             }
         )
-        expected = [
-            interval(
-                "2020-01-01T00:00:00+00:00",
-                "2020-01-02T00:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
-            interval(
-                "2020-01-03T00:00:00+00:00",
-                "2020-01-04T00:00:00+00:00",
-                type_=T.POSITIVE,
-            ),
-        ]
+        expected = interval(
+            "2020-01-01T00:00:00", "2020-01-02T00:00:00", type_=T.POSITIVE
+        ) | interval("2020-01-03T00:00:00", "2020-01-04T00:00:00", type_=T.POSITIVE)
         result = _to_intervals(df)
         assert (
             result == expected
@@ -341,10 +222,7 @@ class TestToIntervals:
 
     def test_to_intervals_invalid_structure(self):
         df = pd.DataFrame(
-            {
-                "start": ["2020-01-01T00:00:00+00:00"],
-                "end": ["2020-01-02T00:00:00+00:00"],
-            }
+            {"start": ["2020-01-01T00:00:00"], "end": ["2020-01-02T00:00:00"]}
         )
         with pytest.raises(KeyError):
             _to_intervals(
@@ -359,11 +237,7 @@ class TestResultToDf:
         ).empty, "Failed: Empty result should return empty DataFrame"
 
     def test_result_to_df_single_group(self):
-        result = {
-            ("group1",): [
-                interval("2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00")
-            ]
-        }
+        result = {("group1",): [interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")]}
         df = intervals_to_df(result, ["person_id"])
         assert (
             len(df) == 1 and df.iloc[0]["person_id"] == "group1"
@@ -371,12 +245,8 @@ class TestResultToDf:
 
     def test_result_to_df_multiple_groups(self):
         result = {
-            ("group1",): [
-                interval("2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00")
-            ],
-            ("group2",): [
-                interval("2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00")
-            ],
+            ("group1",): [interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")],
+            ("group2",): [interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")],
         }
         df = intervals_to_df(result, ["person_id"])
         assert len(df) == 2 and set(df["person_id"]) == {
@@ -392,14 +262,14 @@ class TestResultToDf:
         }
         df = intervals_to_df(result, ["person_id"])
         assert (
-            df["interval_start"].dt.tz == pytz.utc
-            and df["interval_end"].dt.tz == pytz.utc
+            df["interval_start"].dt.tz.offset == 3600
+            and df["interval_end"].dt.tz.offset == 0
         ), "Failed: Timezones not handled correctly"
 
     def test_result_to_df_group_keys_as_tuples(self):
         result = {
             ("group1", "subgroup1"): [
-                interval("2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00")
+                interval("2020-01-01 00:00:00", "2020-01-02 00:00:00")
             ]
         }
         df = intervals_to_df(result, ["person_id", "subgroup"])
@@ -422,8 +292,8 @@ class TestResultToDf:
         }
         df = intervals_to_df(result, ["person_id"])
         assert (
-            df["interval_start"].dt.tz == pytz.utc
-            and df["interval_end"].dt.tz == pytz.utc
+            df["interval_start"].dt.tz.offset == 3600
+            and df["interval_end"].dt.tz.offset == 3600
         )
 
     def test_result_to_df_single_key(self):
@@ -434,13 +304,13 @@ class TestResultToDf:
         result = {
             1: [
                 interval_datetime(
-                    parse_dt("2021-01-01 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-01 02:00:00", tz=tz_end).timestamp(),
+                    parse_dt("2021-01-01 00:00:00", tz=tz_start),
+                    parse_dt("2021-01-01 02:00:00", tz=tz_end),
                     type_=T.POSITIVE,
                 ),
                 interval_datetime(
-                    parse_dt("2021-01-02 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-02 02:00:00", tz=tz_end).timestamp(),
+                    parse_dt("2021-01-02 00:00:00", tz=tz_start),
+                    parse_dt("2021-01-02 02:00:00", tz=tz_end),
                     type_=T.POSITIVE,
                 ),
             ]
@@ -450,12 +320,12 @@ class TestResultToDf:
         expected_data = {
             "person_id": [1, 1],
             "interval_start": [
-                pd.Timestamp("2021-01-01 00:00:00", tz=tz_start).tz_convert("UTC"),
-                pd.Timestamp("2021-01-02 00:00:00", tz=tz_start).tz_convert("UTC"),
+                pd.Timestamp("2021-01-01 00:00:00", tz=tz_start),
+                pd.Timestamp("2021-01-02 00:00:00", tz=tz_start),
             ],
             "interval_end": [
-                pd.Timestamp("2021-01-01 02:00:00", tz=tz_end).tz_convert("UTC"),
-                pd.Timestamp("2021-01-02 02:00:00", tz=tz_end).tz_convert("UTC"),
+                pd.Timestamp("2021-01-01 02:00:00", tz=tz_end),
+                pd.Timestamp("2021-01-02 02:00:00", tz=tz_end),
             ],
             "interval_type": [T.POSITIVE, T.POSITIVE],
         }
@@ -474,15 +344,15 @@ class TestResultToDf:
         result = {
             (1, "A"): [
                 interval_datetime(
-                    parse_dt("2021-01-01 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-01 02:00:00", tz=tz_end).timestamp(),
+                    parse_dt("2021-01-01 00:00:00", tz=tz_start),
+                    parse_dt("2021-01-01 02:00:00", tz=tz_end),
                     type_=T.POSITIVE,
                 )
             ],
             (2, "B"): [
                 interval_datetime(
-                    parse_dt("2021-01-02 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-02 02:00:00", tz=tz_end).timestamp(),
+                    parse_dt("2021-01-02 00:00:00", tz=tz_start),
+                    parse_dt("2021-01-02 02:00:00", tz=tz_end),
                     type_=T.POSITIVE,
                 )
             ],
@@ -493,12 +363,12 @@ class TestResultToDf:
             "person_id": [1, 2],
             "concept_id": ["A", "B"],
             "interval_start": [
-                pd.Timestamp("2021-01-01 00:00:00", tz=tz_start).tz_convert("UTC"),
-                pd.Timestamp("2021-01-02 00:00:00", tz=tz_start).tz_convert("UTC"),
+                pd.Timestamp("2021-01-01 00:00:00", tz=tz_start),
+                pd.Timestamp("2021-01-02 00:00:00", tz=tz_start),
             ],
             "interval_end": [
-                pd.Timestamp("2021-01-01 02:00:00", tz=tz_end).tz_convert("UTC"),
-                pd.Timestamp("2021-01-02 02:00:00", tz=tz_end).tz_convert("UTC"),
+                pd.Timestamp("2021-01-01 02:00:00", tz=tz_end),
+                pd.Timestamp("2021-01-02 02:00:00", tz=tz_end),
             ],
             "interval_type": [T.POSITIVE, T.POSITIVE],
         }
@@ -558,7 +428,7 @@ class TestComplementIntervals:
         result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
-    def test_complement_intervals_single_row(
+    def test_invert_intervals_single_row(
         self, observation_window, empty_dataframe, reference_df
     ):
         # exactly the same as observation window
@@ -702,9 +572,7 @@ class TestComplementIntervals:
         result = intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
-    def test_complementary_intervals_multiple_persons(
-        self, observation_window, reference_df
-    ):
+    def test_multiple_persons(self, observation_window, reference_df):
         data = [
             (
                 1,
@@ -1125,10 +993,10 @@ class TestMergeIntervals:
             {
                 "person_id": ["A", "A"],
                 "interval_start": pd.to_datetime(
-                    ["2020-01-01 12:00:00+00:00", "2020-01-02 12:00:00+00:00"]
+                    ["2020-01-01 12:00:00", "2020-01-02 12:00:00"]
                 ),
                 "interval_end": pd.to_datetime(
-                    ["2020-01-02 18:00:00+00:00", "2020-01-03 18:00:00+00:00"]
+                    ["2020-01-02 18:00:00", "2020-01-03 18:00:00"]
                 ),
                 "interval_type": [T.POSITIVE, T.POSITIVE],
             }
@@ -1136,8 +1004,8 @@ class TestMergeIntervals:
         expected_df = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-03 18:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 18:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1151,24 +1019,24 @@ class TestMergeIntervals:
         df1 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-05 18:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-05 18:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         df2 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-04 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-06 12:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-04 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-06 12:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         expected_df = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-06 12:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-06 12:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1187,16 +1055,16 @@ class TestMergeIntervals:
         df1 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-03 13:30:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 13:30:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         df2 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-03 13:31:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-04 18:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-03 13:31:00"]),
+                "interval_end": pd.to_datetime(["2020-01-04 18:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1217,8 +1085,8 @@ class TestMergeIntervals:
             {
                 "group1": ["A"],
                 "group2": ["B"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-02 12:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-02 12:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1226,8 +1094,8 @@ class TestMergeIntervals:
             {
                 "group1": ["A"],
                 "group2": ["B"],
-                "interval_start": pd.to_datetime(["2020-01-02 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-03 12:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-02 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 12:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1235,8 +1103,8 @@ class TestMergeIntervals:
             {
                 "group1": ["A"],
                 "group2": ["B"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-03 12:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 12:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1255,24 +1123,24 @@ class TestMergeIntervals:
         df1 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-03 13:30:59+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 13:30:59"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         df2 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-03 13:31:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-04 18:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-03 13:31:00"]),
+                "interval_end": pd.to_datetime(["2020-01-04 18:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         expected_df = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-04 18:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-04 18:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1494,10 +1362,10 @@ class TestIntersectIntervals:
             {
                 "person_id": ["A", "A"],
                 "interval_start": pd.to_datetime(
-                    ["2020-01-01 08:00:00+00:00", "2020-01-02 09:00:00+00:00"]
+                    ["2020-01-01 08:00:00", "2020-01-02 09:00:00"]
                 ),
                 "interval_end": pd.to_datetime(
-                    ["2020-01-01 10:00:00+00:00", "2020-01-02 11:00:00+00:00"]
+                    ["2020-01-01 10:00:00", "2020-01-02 11:00:00"]
                 ),
                 "interval_type": [T.POSITIVE, T.POSITIVE],
             }
@@ -1512,24 +1380,24 @@ class TestIntersectIntervals:
         df1 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 08:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 10:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 08:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 10:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         df2 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 09:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 11:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 09:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 11:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         expected_df = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 09:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 10:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 09:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 10:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1546,16 +1414,16 @@ class TestIntersectIntervals:
         df1 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 08:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 09:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 08:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 09:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
         df2 = pd.DataFrame(
             {
                 "person_id": ["A"],
-                "interval_start": pd.to_datetime(["2020-01-01 10:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 11:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 10:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 11:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1576,8 +1444,8 @@ class TestIntersectIntervals:
             {
                 "group1": ["A"],
                 "group2": ["B"],
-                "interval_start": pd.to_datetime(["2020-01-01 08:00:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 09:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 08:00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 09:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1585,8 +1453,8 @@ class TestIntersectIntervals:
             {
                 "group1": ["A"],
                 "group2": ["B"],
-                "interval_start": pd.to_datetime(["2020-01-01 08:30:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 09:30:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 08:30:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 09:30:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1594,8 +1462,8 @@ class TestIntersectIntervals:
             {
                 "group1": ["A"],
                 "group2": ["B"],
-                "interval_start": pd.to_datetime(["2020-01-01 08:30:00+00:00"]),
-                "interval_end": pd.to_datetime(["2020-01-01 09:00:00+00:00"]),
+                "interval_start": pd.to_datetime(["2020-01-01 08:30:00"]),
+                "interval_end": pd.to_datetime(["2020-01-01 09:00:00"]),
                 "interval_type": [T.POSITIVE],
             }
         )
@@ -1758,11 +1626,11 @@ class TestIntervalFilling:
 
     def test_single_row(self):
         data = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 08:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 08:00:00", "POSITIVE"),
         ]
 
         expected = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 08:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 08:00:00", "POSITIVE"),
         ]
 
         self.assert_equal(data, expected)
@@ -1775,74 +1643,74 @@ class TestIntervalFilling:
 
     def test_single_type_per_person(self):
         data = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 08:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 09:00:00+00:00", "2023-03-01 09:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 09:10:00+00:00", "2023-03-01 10:00:00+00:00", "POSITIVE"),
-            (2, "2023-03-01 11:00:00+00:00", "2023-03-01 11:00:00+00:00", "POSITIVE"),
-            (2, "2023-03-01 12:00:00+00:00", "2023-03-01 13:00:00+00:00", "POSITIVE"),
-            (2, "2023-03-01 14:00:00+00:00", "2023-03-01 15:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 08:00:00", "POSITIVE"),
+            (1, "2023-03-01 09:00:00", "2023-03-01 09:00:00", "POSITIVE"),
+            (1, "2023-03-01 09:10:00", "2023-03-01 10:00:00", "POSITIVE"),
+            (2, "2023-03-01 11:00:00", "2023-03-01 11:00:00", "POSITIVE"),
+            (2, "2023-03-01 12:00:00", "2023-03-01 13:00:00", "POSITIVE"),
+            (2, "2023-03-01 14:00:00", "2023-03-01 15:00:00", "POSITIVE"),
         ]
 
         expected = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 10:00:00+00:00", "POSITIVE"),
-            (2, "2023-03-01 11:00:00+00:00", "2023-03-01 15:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 10:00:00", "POSITIVE"),
+            (2, "2023-03-01 11:00:00", "2023-03-01 15:00:00", "POSITIVE"),
         ]
 
         self.assert_equal(data, expected)
 
     def test_last_row_different(self):
         data = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 08:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 09:00:00+00:00", "2023-03-01 09:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 09:10:00+00:00", "2023-03-01 10:00:00+00:00", "NEGATIVE"),
-            (2, "2023-03-01 11:00:00+00:00", "2023-03-01 11:00:00+00:00", "POSITIVE"),
-            (2, "2023-03-01 12:00:00+00:00", "2023-03-01 13:00:00+00:00", "POSITIVE"),
-            (2, "2023-03-01 14:00:00+00:00", "2023-03-01 15:00:00+00:00", "NEGATIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 08:00:00", "POSITIVE"),
+            (1, "2023-03-01 09:00:00", "2023-03-01 09:00:00", "POSITIVE"),
+            (1, "2023-03-01 09:10:00", "2023-03-01 10:00:00", "NEGATIVE"),
+            (2, "2023-03-01 11:00:00", "2023-03-01 11:00:00", "POSITIVE"),
+            (2, "2023-03-01 12:00:00", "2023-03-01 13:00:00", "POSITIVE"),
+            (2, "2023-03-01 14:00:00", "2023-03-01 15:00:00", "NEGATIVE"),
         ]
 
         expected = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 09:09:59+00:00", "POSITIVE"),
-            (1, "2023-03-01 09:10:00+00:00", "2023-03-01 10:00:00+00:00", "NEGATIVE"),
-            (2, "2023-03-01 11:00:00+00:00", "2023-03-01 13:59:59+00:00", "POSITIVE"),
-            (2, "2023-03-01 14:00:00+00:00", "2023-03-01 15:00:00+00:00", "NEGATIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 09:09:59", "POSITIVE"),
+            (1, "2023-03-01 09:10:00", "2023-03-01 10:00:00", "NEGATIVE"),
+            (2, "2023-03-01 11:00:00", "2023-03-01 13:59:59", "POSITIVE"),
+            (2, "2023-03-01 14:00:00", "2023-03-01 15:00:00", "NEGATIVE"),
         ]
 
         self.assert_equal(data, expected)
 
     def test_forward_fill(self):
         data = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 08:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 09:00:00+00:00", "2023-03-01 09:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 09:10:00+00:00", "2023-03-01 10:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 11:00:00+00:00", "2023-03-01 11:00:00+00:00", "NEGATIVE"),
-            (1, "2023-03-01 12:00:00+00:00", "2023-03-01 13:00:00+00:00", "POSITIVE"),
-            (1, "2023-03-01 14:00:00+00:00", "2023-03-01 15:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 08:00:00", "POSITIVE"),
+            (1, "2023-03-01 09:00:00", "2023-03-01 09:00:00", "POSITIVE"),
+            (1, "2023-03-01 09:10:00", "2023-03-01 10:00:00", "POSITIVE"),
+            (1, "2023-03-01 11:00:00", "2023-03-01 11:00:00", "NEGATIVE"),
+            (1, "2023-03-01 12:00:00", "2023-03-01 13:00:00", "POSITIVE"),
+            (1, "2023-03-01 14:00:00", "2023-03-01 15:00:00", "POSITIVE"),
         ]
 
         expected = [
-            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 10:59:59+00:00", "POSITIVE"),
-            (1, "2023-03-01 11:00:00+00:00", "2023-03-01 11:59:59+00:00", "NEGATIVE"),
-            (1, "2023-03-01 12:00:00+00:00", "2023-03-01 15:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 08:00:00", "2023-03-01 10:59:59", "POSITIVE"),
+            (1, "2023-03-01 11:00:00", "2023-03-01 11:59:59", "NEGATIVE"),
+            (1, "2023-03-01 12:00:00", "2023-03-01 15:00:00", "POSITIVE"),
         ]
         self.assert_equal(data, expected)
 
         data = [
-            (1, "2021-01-01 08:00:00+00:00", "2021-01-01 09:00:00+00:00", "POSITIVE"),
-            (1, "2021-01-01 09:00:00+00:00", "2021-01-01 10:00:00+00:00", "POSITIVE"),
-            (2, "2021-01-02 10:00:00+00:00", "2021-01-02 10:15:00+00:00", "NEGATIVE"),
-            (2, "2021-01-02 10:30:00+00:00", "2021-01-02 11:00:00+00:00", "POSITIVE"),
-            (2, "2021-01-02 11:30:00+00:00", "2021-01-02 12:00:00+00:00", "NEGATIVE"),
-            (3, "2021-01-03 12:00:00+00:00", "2021-01-03 12:30:00+00:00", "POSITIVE"),
-            (3, "2021-01-03 12:45:00+00:00", "2021-01-03 13:00:00+00:00", "NEGATIVE"),
+            (1, "2021-01-01 08:00:00", "2021-01-01 09:00:00", "POSITIVE"),
+            (1, "2021-01-01 09:00:00", "2021-01-01 10:00:00", "POSITIVE"),
+            (2, "2021-01-02 10:00:00", "2021-01-02 10:15:00", "NEGATIVE"),
+            (2, "2021-01-02 10:30:00", "2021-01-02 11:00:00", "POSITIVE"),
+            (2, "2021-01-02 11:30:00", "2021-01-02 12:00:00", "NEGATIVE"),
+            (3, "2021-01-03 12:00:00", "2021-01-03 12:30:00", "POSITIVE"),
+            (3, "2021-01-03 12:45:00", "2021-01-03 13:00:00", "NEGATIVE"),
         ]
 
         expected = [
-            (1, "2021-01-01 08:00:00+00:00", "2021-01-01 10:00:00+00:00", "POSITIVE"),
-            (2, "2021-01-02 10:00:00+00:00", "2021-01-02 10:29:59+00:00", "NEGATIVE"),
-            (2, "2021-01-02 10:30:00+00:00", "2021-01-02 11:29:59+00:00", "POSITIVE"),
-            (2, "2021-01-02 11:30:00+00:00", "2021-01-02 12:00:00+00:00", "NEGATIVE"),
-            (3, "2021-01-03 12:00:00+00:00", "2021-01-03 12:44:59+00:00", "POSITIVE"),
-            (3, "2021-01-03 12:45:00+00:00", "2021-01-03 13:00:00+00:00", "NEGATIVE"),
+            (1, "2021-01-01 08:00:00", "2021-01-01 10:00:00", "POSITIVE"),
+            (2, "2021-01-02 10:00:00", "2021-01-02 10:29:59", "NEGATIVE"),
+            (2, "2021-01-02 10:30:00", "2021-01-02 11:29:59", "POSITIVE"),
+            (2, "2021-01-02 11:30:00", "2021-01-02 12:00:00", "NEGATIVE"),
+            (3, "2021-01-03 12:00:00", "2021-01-03 12:44:59", "POSITIVE"),
+            (3, "2021-01-03 12:45:00", "2021-01-03 13:00:00", "NEGATIVE"),
         ]
 
         self.assert_equal(data, expected)

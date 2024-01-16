@@ -31,8 +31,7 @@ from execution_engine.util.types import TimeRange
 from execution_engine.util.value import ValueConcept, ValueNumber
 from tests._fixtures.omop_fixture import celida_recommendation
 from tests._testdata import concepts
-from tests.execution_engine.task.test_process import intervals_to_df
-from tests.functions import create_visit
+from tests.functions import create_visit, intervals_to_df
 
 
 def to_table(name: str) -> Table:

@@ -11,7 +11,6 @@ import pytest
 import sympy
 from numpy import typing as npt
 from sqlalchemy import select
-from tqdm import tqdm
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
@@ -264,11 +263,7 @@ class TestRecommendationBase(ABC):
     ):
         entries = []
 
-        for person_id, row in tqdm(
-            person_combinations.iterrows(),
-            total=len(person_combinations),
-            desc="Generating criteria",
-        ):
+        for person_id, row in person_combinations.iterrows():
             for criterion_name, comparator in self.extract_criteria(
                 population_intervention
             ):
@@ -415,11 +410,7 @@ class TestRecommendationBase(ABC):
 
     @pytest.fixture
     def insert_criteria(self, db_session, criteria, visit_datetime):
-        for person_id, g in tqdm(
-            criteria.groupby("person_id"),
-            total=criteria["person_id"].nunique(),
-            desc="Inserting criteria",
-        ):
+        for person_id, g in criteria.groupby("person_id"):
             p = Person(
                 person_id=person_id,
                 gender_concept_id=concepts.GENDER_FEMALE,

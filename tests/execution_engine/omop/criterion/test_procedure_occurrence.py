@@ -8,8 +8,7 @@ from execution_engine.util.types import TimeRange, Timing
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.time import ValueDuration
 from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence
-from tests.execution_engine.task.test_process import _to_intervals, interval
-from tests.functions import create_procedure
+from tests.functions import _to_intervals, create_procedure, interval
 
 
 class TestProcedureOccurrence(Occurrence):

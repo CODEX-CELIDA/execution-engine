@@ -3,6 +3,7 @@ import itertools
 import re
 
 import pandas as pd
+import pendulum
 
 from execution_engine.omop.db.omop.tables import (
     ConditionOccurrence,
@@ -13,6 +14,11 @@ from execution_engine.omop.db.omop.tables import (
     VisitDetail,
     VisitOccurrence,
 )
+from execution_engine.util.interval import DateTimeInterval
+from execution_engine.util.interval import DateTimeInterval as Interval
+from execution_engine.util.interval import IntervalType as T
+from execution_engine.util.interval import interval_datetime
+from execution_engine.util.types import PersonIntervals
 from tests._testdata import concepts
 
 
@@ -230,3 +236,61 @@ def get_fraction_per_day(
     assert abs(sum(fractions.values()) - 1.0) < 0.00001, "Fractions do not sum up to 1"
 
     return fractions
+
+
+def df_to_intervals(df: pd.DataFrame, by=["person_id"]):
+    return {key: _to_intervals(group_df) for key, group_df in df.groupby(by=by)}
+
+
+def intervals_to_df(result: PersonIntervals, by: list[str]) -> pd.DataFrame:
+    """
+    Converts the result of the interval operations to a DataFrame.
+
+    :param result: The result of the interval operations.
+    :param by: A list of column names to group by.
+    :return: A DataFrame with the interval results.
+    """
+    records = []
+    for group_keys, intervals in result.items():
+        # Check if group_keys is a tuple or a single value and unpack accordingly
+        if isinstance(group_keys, tuple):
+            record_keys = dict(zip(by, group_keys))
+        else:
+            record_keys = {by[0]: group_keys}
+
+        for interv in intervals:
+            record = {
+                **record_keys,
+                "interval_start": interv.lower,
+                "interval_end": interv.upper,
+                "interval_type": interv.type,
+            }
+            records.append(record)
+
+    return pd.DataFrame(
+        records, columns=by + ["interval_start", "interval_end", "interval_type"]
+    )
+
+
+def _to_intervals(df: pd.DataFrame) -> Interval:
+    """
+    Converts the DataFrame to intervals.
+
+    :param df: A DataFrame with columns "interval_start" and "interval_end".
+    :return: A list of intervals.
+    """
+
+    from execution_engine.util.interval import interval_datetime
+
+    return Interval(
+        *[
+            interval_datetime(start, end, type_)
+            for start, end, type_ in zip(
+                df["interval_start"], df["interval_end"], df["interval_type"]
+            )
+        ]
+    )
+
+
+def interval(start: str, end: str, type_=T.POSITIVE) -> DateTimeInterval:
+    return interval_datetime(pendulum.parse(start), pendulum.parse(end), type_=type_)

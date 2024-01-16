@@ -12,7 +12,9 @@ from execution_engine.util.interval import (
 )
 from execution_engine.util.interval import empty_interval_datetime as empty_interval
 from execution_engine.util.interval import interval_datetime as interval
-from execution_engine.util.types import PersonIntervals, TimeRange
+from execution_engine.util.types import TimeRange
+
+PersonIntervals = dict[int, IntervalWithType]
 
 
 def concat_intervals(data: list[PersonIntervals]) -> PersonIntervals:

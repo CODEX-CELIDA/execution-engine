@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from typing import Any, NamedTuple
+from typing import Any
 
 import pendulum
 from pydantic import BaseModel, root_validator, validator
@@ -13,7 +13,7 @@ from execution_engine.util.interval import (
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 
-PersonIntervals = dict[int, list[NamedTuple]]
+PersonIntervals = dict[int, Any]
 
 
 class TimeRange(BaseModel):

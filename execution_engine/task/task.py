@@ -13,9 +13,11 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import config
-from execution_engine.task import process_rect as process
+from execution_engine.task.process import get_processing_module
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
+
+process = get_processing_module()
 
 
 def get_engine() -> OMOPSQLClient:
