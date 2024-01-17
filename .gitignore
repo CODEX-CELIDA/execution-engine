@@ -76,7 +76,7 @@ docs/_build
 .ipynb_checkpoints/
 notebooks/
 log/
-xtest.py
+test.py
 .Rhistory
 *.sqlite
 
