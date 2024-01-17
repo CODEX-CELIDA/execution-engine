@@ -54,6 +54,8 @@ class ActivePatients(VisitOccurrence):
             == OMOPConcepts.VISIT_TYPE_STILL_PATIENT.value
         )
 
+        query = self._filter_datetime(query)
+
         return query
 
     def description(self) -> str:
@@ -80,3 +82,13 @@ class PatientsActiveDuringPeriod(ActivePatients):
     """
     Select Patients who were hospitalized during a given period
     """
+
+    def _create_query(self) -> Select:
+        """
+        Get the SQL representation of the criterion.
+        """
+        query = self._sql_header()
+
+        query = self._filter_datetime(query)
+
+        return query
