@@ -127,6 +127,12 @@ class ResultInterval(Base):  # noqa: D101
             "interval_start",
             "interval_end",
         ),
+        Index(
+            "ix_rec_result_int_category_run_id_person_id",
+            "cohort_category",
+            "run_id",
+            "person_id",
+        ),
         {"schema": SCHEMA_NAME},
     )
 

@@ -6,11 +6,13 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Table,
     Text,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -1238,7 +1240,23 @@ class DrugExposure(Base):  # noqa: D101
 
 class Measurement(Base):  # noqa: D101
     __tablename__ = "measurement"
-    __table_args__ = {"schema": SCHEMA_NAME}
+    __table_args__ = (
+        Index(
+            "idx_meas_person_concept_datetime",
+            "person_id",
+            "measurement_concept_id",
+            func.desc("measurement_datetime"),
+        ),
+        Index(
+            "idx_meas_concept_datetime",
+            "measurement_concept_id",
+            "measurement_datetime",
+        ),
+        Index(
+            "idx_meas_person_datetime", "person_id", func.desc("measurement_datetime")
+        ),
+        {"schema": SCHEMA_NAME},
+    )
 
     measurement_id: Mapped[int] = mapped_column(
         primary_key=True,

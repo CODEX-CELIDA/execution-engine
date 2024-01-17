@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import and_, bindparam, event, func, select
+from sqlalchemy import and_, bindparam, event, func, select, text
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql import Insert, Select
@@ -107,6 +107,7 @@ class OMOPSQLClient:
         Initialize the schema / tables.
         """
         self._init_tables()
+        self._disable_interval_check_trigger()
 
     def _setup_events(self) -> None:
         """
@@ -138,6 +139,32 @@ class OMOPSQLClient:
         Enable triggers including foreign key checks.
         """
         event.remove(self._engine, "connect", _enable_database_triggers)
+
+    def _disable_interval_check_trigger(self) -> None:
+        """
+        Disable the overlapping interval check trigger.
+        """
+        with self.begin() as con:
+            con.execute(
+                text(
+                    "ALTER TABLE {schema}.result_interval DISABLE TRIGGER trigger_result_interval_before_insert".format(
+                        schema=self._result_schema
+                    )
+                )
+            )
+
+    def _enable_interval_check_trigger(self) -> None:
+        """
+        Enable the overlapping interval check trigger.
+        """
+        with self.begin() as con:
+            con.execute(
+                text(
+                    "ALTER TABLE {schema}.result_interval ENABLE TRIGGER trigger_result_interval_before_insert".format(
+                        schema=self._result_schema
+                    )
+                )
+            )
 
     @staticmethod
     def _setup_logger(name: str) -> logging.Logger:
