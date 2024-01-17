@@ -53,6 +53,10 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
         if row.interval_end < row.interval_start:
             # skip intervals with negative duration
             continue
+        if row.interval_start is None:
+            raise ValueError("Interval start is None")
+        if row.interval_end is None:
+            raise ValueError("Interval end is None")
 
         interval = Interval(
             row.interval_start.timestamp(),

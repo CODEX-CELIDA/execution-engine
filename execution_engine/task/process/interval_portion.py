@@ -169,6 +169,14 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
     person_interval = {}
 
     for row in result:
+        if row.interval_end < row.interval_start:
+            # skip intervals with negative duration
+            continue
+        if row.interval_start is None:
+            raise ValueError("Interval start is None")
+        if row.interval_end is None:
+            raise ValueError("Interval end is None")
+
         if row.person_id not in person_interval:
             person_interval[row.person_id] = [
                 Atomic(
