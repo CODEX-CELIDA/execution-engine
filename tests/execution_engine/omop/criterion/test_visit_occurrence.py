@@ -279,7 +279,7 @@ class TestVisitOccurrence(TestCriterion):
                 [
                     (("2023-02-01 00:00:00", "2023-03-01 02:00:00"), INTENSIVE_CARE),
                 ],
-                {"2023-03-01"},
+                {},
             ),
             (  # before observation window (previous day)
                 [
@@ -295,7 +295,7 @@ class TestVisitOccurrence(TestCriterion):
                         INTENSIVE_CARE,
                     ),
                 ],
-                {"2023-03-31"},
+                {},
             ),
             (  # after observation window (next day)
                 [
@@ -336,6 +336,7 @@ class TestVisitOccurrence(TestCriterion):
         criterion_execute_func,
         visit_datetimes,
         expected,
+        observation_window,
     ):
         for (
             visit_start_datetime,
@@ -353,7 +354,11 @@ class TestVisitOccurrence(TestCriterion):
 
         # need to disable postgres trigger to avoid constraint violation due to overlapping intervals in testdata
         with disable_postgres_trigger(db_session):
-            df = criterion_execute_func(concept=concept, exclude=False)
+            # execute base criterion because its results (the BASE person_ids) are used as filter in the criterion
+            with self.execute_base_criterion(
+                base_criterion, db_session, observation_window
+            ):
+                df = criterion_execute_func(concept=concept, exclude=False)
 
         assert set(df["valid_date"].dt.date) == date_set(expected)
 
@@ -438,8 +443,11 @@ class TestVisitOccurrence(TestCriterion):
 
             db_session.commit()
 
-            # run criterion against db
-            df = criterion_execute_func(concept=concept, exclude=False)
+            with self.execute_base_criterion(
+                base_criterion, db_session, observation_window
+            ):
+                # run criterion against db
+                df = criterion_execute_func(concept=concept, exclude=False)
 
         for tc, p in zip(test_cases, person):
             assert set(

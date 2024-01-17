@@ -35,6 +35,11 @@ class TestActivePatientsDuringPeriod(TestCriterion):
     ):
         person = person[0]
 
+        from execution_engine.clients import omopdb
+
+        # used to check for overlapping intervals
+        omopdb.enable_interval_check_trigger()
+
         def count_day_entries(visit_datetimes: list[tuple[str, str]]) -> int:
             """
             Insert visit_occurrence entries into the database for a given person, then apply the base_criterion to

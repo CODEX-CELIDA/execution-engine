@@ -110,7 +110,9 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
 
     def clean_measurements(self, db_session):
         db_session.query(Measurement).delete()
-        db_session.query(ResultInterval).delete()
+        db_session.query(ResultInterval).filter(
+            ResultInterval.criterion_id == self.criterion_id
+        ).delete()
         db_session.commit()
 
     @pytest.mark.parametrize(

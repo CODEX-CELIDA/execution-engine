@@ -107,7 +107,7 @@ class OMOPSQLClient:
         Initialize the schema / tables.
         """
         self._init_tables()
-        self._disable_interval_check_trigger()
+        self.disable_interval_check_trigger()
 
     def _setup_events(self) -> None:
         """
@@ -140,7 +140,7 @@ class OMOPSQLClient:
         """
         event.remove(self._engine, "connect", _enable_database_triggers)
 
-    def _disable_interval_check_trigger(self) -> None:
+    def disable_interval_check_trigger(self) -> None:
         """
         Disable the overlapping interval check trigger.
         """
@@ -153,7 +153,7 @@ class OMOPSQLClient:
                 )
             )
 
-    def _enable_interval_check_trigger(self) -> None:
+    def enable_interval_check_trigger(self) -> None:
         """
         Enable the overlapping interval check trigger.
         """

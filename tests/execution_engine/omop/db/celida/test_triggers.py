@@ -102,6 +102,11 @@ def test_trigger_interval_overlap_check(db_session, intervals, error_expected, p
     Tests that the trigger interval overlap check works as expected.
     """
 
+    from execution_engine.clients import omopdb
+
+    # used to check for overlapping intervals
+    omopdb.enable_interval_check_trigger()
+
     def insert_intervals(rec):
         for interval in intervals:
             db_session.execute(
