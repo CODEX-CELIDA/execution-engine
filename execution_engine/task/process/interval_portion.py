@@ -198,6 +198,17 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
     )  # person_intervals is a dict of person_id -> DateTimeInterval
 
 
+def select_type(intervals: PersonIntervals, type_: IntervalType) -> PersonIntervals:
+    """
+    Selects the intervals of the given type.
+
+    :param intervals: The intervals.
+    :param type_: The type.
+    :return: The intervals of the given type.
+    """
+    return {person_id: ival.select_type(type_) for person_id, ival in intervals.items()}
+
+
 def _process_intervals(
     data: list[PersonIntervals], operator: Callable
 ) -> PersonIntervals:
@@ -259,30 +270,6 @@ def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     return result
 
 
-# todo: remove function? not used anywhere, because the context manager has to be used for result_to_intervals now
-def merge_intervals_negative_dominant(data: PersonIntervals) -> PersonIntervals:
-    """
-    Merges the intervals in the DataFrame.
-
-    The difference between union_intervals and merge_intervals is that merge_intervals uses the intersection_priority
-    to determine the type of the merged intervals, whereas union_intervals uses the union_priority.
-
-    This means that merge_intervals merges overlapping intervals of type NEGATIVE and POSITIVE into a single interval
-    of type NEGATIVE, whereas union_intervals merges them into a single interval of type POSITIVE.
-
-    This function is used when combining intervals within the same criterion, e.g. when multiple measurement values
-    are available at the same time but with different types - if one of the values is NEGATIVE, the combined value
-    should be NEGATIVE as well. In contrast, union_intervals implements the logic for combining intervals across
-    criteria, e.g. when combining a measurement value with a lab value - if one of the values is POSITIVE, the
-    combined value should be POSITIVE, regardless of the type of the other value.
-
-    :param data: A DataFrames.
-    :return: A DataFrame with the merged intervals.
-    """
-    with IntervalType.custom_union_priority_order(IntervalType.intersection_priority()):
-        return _process_intervals([data], or_)
-
-
 def mask_intervals(
     data: PersonIntervals,
     mask: PersonIntervals,
@@ -301,13 +288,6 @@ def mask_intervals(
         person_id: intervals.replace(type_=IntervalType.least_intersection_priority())
         for person_id, intervals in mask.items()
     }
-    # for person_id, group in mask.groupby(by=["person_id"]):
-    #     # set to the least priority to retain type of original interval
-    #     # todo: can this be made more efficient?
-    #     group = group.assign(interval_type=IntervalType.least_intersection_priority())
-    #     person_mask[person_id[0]] = _interval_union(
-    #         df_to_intervals(group[["interval_start", "interval_end", "interval_type"]])
-    #     )
 
     result = {}
     for person_id in data:
