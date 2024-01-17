@@ -116,11 +116,6 @@ class CriterionConverter(ABC):
         # todo: is exclude still required?
         self._exclude = exclude
 
-        # todo: we should also make sure that actions, goals etc. that are referenced multiple times are not instantiated
-        #       into multiple classes (but rather that the criterion is only executed once eventually)
-        #       this could easily be performed by implementing the __eq__ method for criteria and comparing the
-        #       dict() representations of the criteria
-
     @classmethod
     @abstractmethod
     def from_fhir(cls, fhir_definition: Element) -> "CriterionConverter":

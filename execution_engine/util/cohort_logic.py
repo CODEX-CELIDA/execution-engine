@@ -313,7 +313,7 @@ class NonSimplifiableAnd(BooleanFunction):
         return super().__new__(cls)
 
 
-# todo: can this be removed because IntervalWithType is now implemented? I would think so.
+# todo: can we rename to more meaningful name?
 class NoDataPreservingAnd(BooleanFunction):
     """
     A And object represents a logical AND operation.

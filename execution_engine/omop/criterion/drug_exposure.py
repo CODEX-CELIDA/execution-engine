@@ -217,8 +217,6 @@ class DrugExposure(Criterion):
                     "interval_end"
                 ),
                 conditional_interval_column.label("interval_type"),
-                # c_interval_quantity,
-                # c_interval_count,
             )
             .select_from(interval_ratios)
             .where(interval_ratios.c.ratio > 0)

@@ -61,8 +61,10 @@ from execution_engine.task import runner
 
 class ExecutionEngine:
     """
-    The Execution Engine is responsible for reading recommendations in CPG-on-EBM-on-FHIR format
-    and creating an Recommendation object from them."""
+    The Execution Engine is responsible for reading recommendations in CPG-on-EBM-on-FHIR format, creating
+    corresponding Criterion objects from then and executing them on the OMOP database to yield a cohort of patients
+    that match the criteria (and the combination of criteria).
+    """
 
     # todo: improve documentation
 
@@ -317,7 +319,12 @@ class ExecutionEngine:
         start_datetime: datetime,
         end_datetime: datetime | None,
     ) -> int:
-        """Executes the Recommendation"""
+        """
+        Executes a recommendation and stores the results in the result database.
+
+        :param recommendation: The Recommendation object (loaded from Exectu.
+
+        """
         # todo: improve documentation
 
         if end_datetime is None:

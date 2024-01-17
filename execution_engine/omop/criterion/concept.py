@@ -21,7 +21,6 @@ STATIC_CLINICAL_CONCEPTS = [
     int(OMOPConcepts.BODY_WEIGHT.value),
     int(OMOPConcepts.BODY_HEIGHT.value),
 ]  # type: list[int]
-# TODO: weight can change over time - need to use the latest
 # TODO: Only use weight etc from the current encounter/visit!
 
 

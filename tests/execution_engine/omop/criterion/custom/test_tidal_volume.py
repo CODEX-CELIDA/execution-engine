@@ -246,7 +246,7 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
         t_height, t_tv = pendulum.parse(times["height"]), pendulum.parse(times["tv"])
         if t_tv < t_height:
             # if tv is before height, we don't have a height measurement for the tv
-            # todo: or should we consider height as "static"
+            # todo: or should we consider height as "static"? (i.e. the height at the time of the first measurement)
             expected = []
 
         self.insert_values(

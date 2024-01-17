@@ -262,7 +262,6 @@ class ExecutionGraph(nx.DiGraph):
         :param comb: The criterion combination.
         :return: The expression.
         """
-        # todo: update docstring
 
         def conjunction_from_combination(
             comb: CriterionCombination,
@@ -271,8 +270,8 @@ class ExecutionGraph(nx.DiGraph):
             Convert the criterion's operator into a logical conjunction (And or Or)
             """
             if comb.raw_name == "root":
-                # todo: this is a hack to make the root node an non-simplifiable Or node - otherwise, using the
-                #   sympy.Or,the root node would be simplified to the criterion if there is only one criterion.
+                # This is a hack to make the root node an non-simplifiable And node - otherwise, using the
+                #   logic.And, the root node would be simplified to the criterion if there is only one criterion.
                 #   The problem is that we need a non-criterion sink node of the intervention and population in order
                 #   to store the results to the database without the criterion_id (as the result of the whole
                 #   intervention or population of this population/intervention pair).

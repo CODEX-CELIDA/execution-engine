@@ -181,10 +181,7 @@ class AbstractCriterion(Serializable, ABC):
         else:
             return self.invert_exclude(inplace=inplace)
 
-    # todo: this unique name should not be used anymore. it was a workaround in sympy to prevent
-    #       that different criteria are considered equal just on the basis of the name. we should
-    #       replace sympy by an own implementation of Symbol etc. anyway. these should be compared
-    #       based on the dict() representation of the criteria (--> implement __eq__ for criterion)
+    # todo: remove function? I don't think it is really needed anymore.
     def unique_name(self) -> str:
         """
         Get a unique name for the criterion.
@@ -404,37 +401,6 @@ class Criterion(AbstractCriterion):
         """
         raise NotImplementedError()
 
-    # todo: remove me
-    def DEPRECATEDsql_generate(self, base_table: TableClause) -> Select:
-        """
-        Get the SQL representation of the criterion.
-        """
-
-        self.set_base_table(base_table)
-
-        query = self._sql_header()
-        # query = self._sql_generate(query)
-        query = self._insert_datetime(query)
-        query = self._select_per_day(query)
-
-        query.description = self.description()
-
-        return query
-
-    def set_base_table(self, base_table: Table) -> None:
-        """
-        Set the base table for the criterion.
-
-        The base table is the table that does a first selection of patients in order
-        not to always select all patients in the different criteria.
-        This could be the currently active patients.
-        """
-        """assert isinstance(
-            base_table, Table
-        ), f"base_table must be a Table, not {type(base_table)}"
-        self._base_table = base_table"""
-        raise NotImplementedError("implement me - we are not using base table anymore")
-
     def _get_datetime_column(
         self, table: TableClause | CTE | Alias, type_: str = "start"
     ) -> sqlalchemy.Column:
@@ -462,7 +428,6 @@ class Criterion(AbstractCriterion):
 
         return table.c[f"{column_prefix}_datetime"]
 
-    # todo: is this function used anywhere?
     def _filter_datetime(self, query: Select) -> Select:
         """
         Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.

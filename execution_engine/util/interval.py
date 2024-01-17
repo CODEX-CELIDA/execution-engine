@@ -391,7 +391,6 @@ class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
 
         if len(_intervals_to_merge) > 0:
             # Sort intervals by lower bound, closed first.
-            # _intervals_to_merge.sort(key=lambda i: (i.lower, i.left is Bound.OPEN))
 
             # Try to merge consecutive intervals
             while len(_intervals_to_merge) > 1:
@@ -1266,15 +1265,6 @@ class AbstractDiscreteIntervalWithType(
                 Bound.OPEN,
                 first.type,
             )
-
-        # if first.type != second.type:
-        #     first = Atomic(
-        #         first.left,
-        #         first.lower,
-        #         cls._decr(first.upper) if first.right == Bound.OPEN else first.upper,
-        #         Bound.CLOSED if first.right == Bound.OPEN else Bound.OPEN,
-        #         first.type,
-        #     )
 
         return super()._mergeable(first, second)
 

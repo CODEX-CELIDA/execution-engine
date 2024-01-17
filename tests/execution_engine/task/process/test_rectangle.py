@@ -1660,14 +1660,6 @@ class TestUnionIntervals:
         assert result == expected_intervals
 
     def test_union_intervals_no_data_negative(self):
-        # {30748: [[datetime.datetime(2023, 2, 26, 7, 0),datetime.datetime(2023, 3, 2, 12, 59, 59); NO_DATA],
-        #   [datetime.datetime(2023, 3, 2, 13, 0),datetime.datetime(2023, 3, 2, 14, 0); POSITIVE],
-        #   [datetime.datetime(2023, 3, 2, 14, 0, 1),datetime.datetime(2023, 4, 3, 23, 0); NO_DATA]]}
-
-        # {30748: [[datetime.datetime(2023, 2, 26, 7, 0),datetime.datetime(2023, 3, 2, 12, 59, 59); NO_DATA],
-        #   [datetime.datetime(2023, 3, 2, 13, 0),datetime.datetime(2023, 3, 2, 14, 0); NEGATIVE],
-        #   [datetime.datetime(2023, 3, 2, 14, 0, 1),datetime.datetime(2023, 4, 3, 23, 0); NO_DATA]]}
-
         data1 = """
         person_id	interval_start	interval_end	interval_type
         30748	2023-02-26 07:00:00+00:00	2023-03-02 12:59:59+00:00	NO_DATA

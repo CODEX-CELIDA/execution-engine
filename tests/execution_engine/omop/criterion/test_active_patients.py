@@ -61,8 +61,8 @@ class TestActivePatientsDuringPeriod(TestCriterion):
                     result = db_session.execute(stmt)
                     count = [dict(row._mapping) for row in result]
             finally:
-                db_session.rollback()  # rollback to avoid constraint violation
                 # cleanup
+                db_session.rollback()  # rollback to avoid constraint violation
                 db_session.query(VisitOccurrence).delete()
                 db_session.commit()
 

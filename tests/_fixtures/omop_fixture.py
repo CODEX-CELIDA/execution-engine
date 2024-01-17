@@ -121,8 +121,6 @@ def db_session(db_setup):
             session.execute(
                 text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."criterion" CASCADE;')
             )
-        # should autocommit because of session.begin
-        # session.commit()
 
 
 @contextmanager

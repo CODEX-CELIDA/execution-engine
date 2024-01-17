@@ -414,10 +414,6 @@ class TestInterval:
         assert_intervals_equal(data)
 
     def test_interval_union_edge_case(self):
-        # [[Timestamp('2023-03-02 14:00:01+0000', tz='UTC'),Timestamp('2023-03-02 19:00:00+0000', tz='UTC'); NEGATIVE],
-        #  [Timestamp('2023-03-02 13:00:01+0000', tz='UTC'),Timestamp('2023-03-02 14:00:00+0000', tz='UTC'); POSITIVE],
-        #  [Timestamp('2023-03-02 13:00:01+0000', tz='UTC'),Timestamp('2023-03-02 19:00:00+0000', tz='UTC'); NEGATIVE]]
-
         interval1 = interval_datetime(
             Timestamp("2023-03-02 14:00:01+0000", tz="UTC"),
             Timestamp("2023-03-02 19:00:00+0000", tz="UTC"),
