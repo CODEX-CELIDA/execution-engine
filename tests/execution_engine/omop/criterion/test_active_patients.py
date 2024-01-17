@@ -137,16 +137,10 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             assert count_day_entries(contained_overlap) == 9
 
         # in the next two cases, the visit either ends on the day the observation window starts or the day before.
-        # in the first case, one day is counted, because partial_day_coverage is calculated per day between
-        # observation_start_datetime and observation_end_datetime and no intersection with the observation_datetime is
-        # performed on the single criterion level. likewise, for the latter case, no row is returned.
-        # likewise for the following two test cases after the observation_window_end
-        # calculated
-
         before_observation_window_same_day = [
             ("2023-02-01 00:00:00", "2023-03-01 02:00:00"),
         ]
-        assert count_day_entries(before_observation_window_same_day) == 1
+        assert count_day_entries(before_observation_window_same_day) == 0
 
         before_observation_window_previous_day = [
             ("2023-02-01 00:00:00", "2023-02-27 02:00:00"),
@@ -157,7 +151,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         after_observation_window_same_day = [
             ("2023-03-31 23:59:00+02:00", "2023-04-01 02:00:00"),
         ]
-        assert count_day_entries(after_observation_window_same_day) == 1
+        assert count_day_entries(after_observation_window_same_day) == 0
 
         after_observation_window_next_day = [
             (

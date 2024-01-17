@@ -257,7 +257,7 @@ class TestCriterion:
         query = criterion.create_query()
 
         result = db_session.connection().execute(
-            query, parameters=observation_window.dict()
+            query, parameters=observation_window.dict() | {"run_id": self.run_id}
         )
 
         # merge overlapping/adjacent intervals to reduce the number of intervals - but NEGATIVE is dominant over
