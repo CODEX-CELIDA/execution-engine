@@ -50,11 +50,16 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
     person_interval = {}
 
     for row in result:
+        if row.interval_end < row.interval_start:
+            # skip intervals with negative duration
+            continue
+
         interval = Interval(
             row.interval_start.timestamp(),
             row.interval_end.timestamp(),
             row.interval_type,
         )
+
         if row.person_id not in person_interval:
             person_interval[row.person_id] = [interval]
         else:

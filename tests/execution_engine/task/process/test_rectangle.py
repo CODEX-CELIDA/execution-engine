@@ -886,6 +886,14 @@ class TestFilterCommonKeys:
 
 
 class TestUnionRect:
+    def test_union_rect_negative_duration(self):
+        intervals = [
+            Interval(lower=5, upper=3, type=T.POSITIVE),
+        ]
+        with pytest.raises(ValueError):
+            # we don't expect this to work at all
+            process.union_rects(intervals)
+
     def test_union_rect(self):
         intervals = [
             Interval(lower=1, upper=2, type=T.POSITIVE),
