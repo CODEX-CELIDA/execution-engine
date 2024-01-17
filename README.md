@@ -85,6 +85,10 @@ in the `OMOP__RESULT_SCHEMA` environment variable).
 Use the `interval_result`, `interval_coverage` and `full_day_coverage` views of the `celida` schema to analyse the
 results of the cohort definition execution.
 
+> [!WARNING]
+> In contrast to the OMOP CDM 5.4 specification, the OMOP CDM database used for the execution engine
+> **must** implement all `*_datetime` fields as `TIMESTAMP WITH TIME ZONE NOT NULL`.
+
 
 ## Configuration
 
