@@ -18,5 +18,7 @@ class ContinuousCriterion(ConceptCriterion):
         query = self._sql_header()
         query = self._sql_filter_concept(query)
         query = query.add_columns(column_interval_type(IntervalType.POSITIVE))
+        query = self._filter_datetime(query)
+        query = self._filter_base_persons(query)
 
         return query

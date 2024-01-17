@@ -59,7 +59,7 @@ class PointInTimeCriterion(ConceptCriterion):
             datetime_col = self._get_datetime_column(self._table, "start")
             c_start, c_end = datetime_col, datetime_col
 
-        cte = select(
+        query = select(
             self._table.c.person_id,
             c_start.label("interval_start"),
             c_end.label("interval_end"),
@@ -67,7 +67,11 @@ class PointInTimeCriterion(ConceptCriterion):
             self._table.c.value_as_number,
             self._table.c.unit_concept_id,
         )
-        cte = self._sql_filter_concept(cte).cte("measurements")
+
+        query = self._filter_datetime(query)
+        query = self._filter_base_persons(query)
+
+        cte = self._sql_filter_concept(query).cte("measurements")
 
         conditional_column = self._sql_interval_type_column(cte)
 

@@ -7,7 +7,7 @@ from typing import Any, Dict, Type, TypedDict, cast
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import CTE, Alias, ColumnElement, Date
+from sqlalchemy import CTE, Alias, ColumnElement, Date, Integer
 from sqlalchemy import Interval as SQLInterval
 from sqlalchemy import Table, and_, bindparam, case, func, literal_column, select
 from sqlalchemy.sql import Select, TableClause
@@ -55,6 +55,8 @@ observation_end_datetime = func.cast(
     bindparam("observation_end_datetime", type_=DateTimeWithTimeZone),
     DateTimeWithTimeZone,
 )
+
+run_id = bindparam("run_id", type_=Integer()).label("run_id")
 
 
 def column_interval_type(interval_type: IntervalType) -> ColumnElement:
@@ -266,6 +268,16 @@ class Criterion(AbstractCriterion):
         },
     }
 
+    _filter_by_person_id_called: bool = False
+    """
+    Flag to indicate whether the filter_by_person_id function has been called.
+    """
+
+    _filter_datetime_called: bool = False
+    """
+    Flag to indicate whether the filter_datetime function has been called.
+    """
+
     def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
         super().__init__(name=name, exclude=exclude, category=category)
 
@@ -314,6 +326,9 @@ class Criterion(AbstractCriterion):
         Get the SQL Select query for data required by this criterion.
         """
 
+        self._filter_by_person_id_called = False
+        self._filter_datetime_called = False
+
         if self._OMOP_VALUE_REQUIRED and (
             not hasattr(self, "_value") or self._value is None
         ):
@@ -325,6 +340,16 @@ class Criterion(AbstractCriterion):
 
         query.description = self.description()
 
+        if self.category != CohortCategory.BASE:
+            if not self._filter_by_person_id_called:
+                raise ValueError(
+                    "The filter_by_person_id function must be called while creating the query"
+                )
+            if not self._filter_datetime_called:
+                raise ValueError(
+                    "The filter_datetime function must be called while creating the query"
+                )
+
         assert (
             len(query.selected_columns) == 4
         ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
@@ -333,6 +358,43 @@ class Criterion(AbstractCriterion):
         assert set([c.name for c in query.selected_columns]) == set(
             ["person_id", "interval_start", "interval_end", "interval_type"]
         ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
+
+        return query
+
+    @staticmethod
+    def base_query() -> Select:
+        """
+        Get the query for the base criterion.
+
+        The query returns a list of all persons that were selected by the base criterion in this execution run.
+        """
+        return (
+            select(ResultInterval.person_id)
+            .where(
+                and_(
+                    ResultInterval.cohort_category == CohortCategory.BASE,
+                    ResultInterval.run_id == run_id,
+                )
+            )
+            .distinct()
+        )
+
+    def _filter_base_persons(
+        self, query: Select, c_person_id: ColumnElement | None = None
+    ) -> Select:
+        """
+        Filter the query by those persons that are in the BASE select (base criterion).
+
+        :param query: The query to filter.
+        :return: The filtered query.
+        """
+
+        if c_person_id is None:
+            c_person_id = self._table.c.person_id
+
+        self._filter_by_person_id_called = True
+
+        query = query.filter(c_person_id.in_(self.base_query()))
 
         return query
 
@@ -404,7 +466,10 @@ class Criterion(AbstractCriterion):
     def _get_datetime_column(
         self, table: TableClause | CTE | Alias, type_: str = "start"
     ) -> sqlalchemy.Column:
-        table_element = table.element if isinstance(table, Alias) else table
+        table_element = table
+
+        while isinstance(table_element, Alias):
+            table_element = table.element
 
         if isinstance(table_element, CTE):
             table = table.element
@@ -432,6 +497,7 @@ class Criterion(AbstractCriterion):
         """
         Insert a WHERE clause into the query to select only entries between the observation start and end datetimes.
         """
+        self._filter_datetime_called = True
 
         if self._static:
             # If this criterion is a static criterion, i.e. one whose value does not change over time,

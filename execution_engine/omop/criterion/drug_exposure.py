@@ -129,6 +129,7 @@ class DrugExposure(Criterion):
         ).select_from(self._table)
         query = self._sql_filter_concept(query)
         query = self._filter_datetime(query)
+        query = self._filter_base_persons(query)
 
         if self._route is not None:
             # route is not implemented yet because it uses HemOnc codes in the standard vocabulary

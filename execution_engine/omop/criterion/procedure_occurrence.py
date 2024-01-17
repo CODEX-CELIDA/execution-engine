@@ -55,6 +55,7 @@ class ProcedureOccurrence(ContinuousCriterion):
         ).select_from(self._table)
         query = self._sql_filter_concept(query)
         query = self._filter_datetime(query)
+        query = self._filter_base_persons(query)
 
         c_start_datetime = self._table.c["procedure_datetime"]
         c_end_datetime = self._table.c["procedure_end_datetime"]
