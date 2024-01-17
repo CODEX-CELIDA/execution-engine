@@ -159,6 +159,8 @@ class SequentialTaskRunner(TaskRunner):
     def __init__(self, execution_graph: ExecutionGraph):
         super().__init__(execution_graph)
 
+        logging.info("Using sequential task runner.")
+
         self._shared_results: dict[str, PersonIntervals] = {}
         self._queue: queue.Queue = queue.Queue()
 
@@ -227,7 +229,7 @@ class ParallelTaskRunner(TaskRunner):
         if num_workers == -1:
             num_workers = multiprocessing.cpu_count()
 
-        logging.info(f"Using multiprocessing with {num_workers} workers.")
+        logging.info(f"Using parallel task runner with {num_workers} workers.")
 
         self.num_workers = num_workers
         self.manager = multiprocessing.Manager()

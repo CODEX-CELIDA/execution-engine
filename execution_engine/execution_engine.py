@@ -564,7 +564,6 @@ class ExecutionEngine:
                 execution_graph, num_workers=multiprocessing_pool_size
             )
         else:
-            logging.info("Using sequential execution.")
             task_runner = runner.SequentialTaskRunner(execution_graph)
 
         task_runner.run(bind_params)
