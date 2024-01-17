@@ -563,26 +563,14 @@ class TestRecommendationBase(ABC):
                 df, remove_comparators(group["intervention"])
             )
 
-            # todo: as of Jan-13, this is the actual intersection priority order, so we can remove this ctx mgr
-            # P&I is handled differently than the usual intersection priority order of IntervalType, which is
-            # NEGATIVE > POSITIVE > NO_DATA > NOT_APPLICABLE, => POSITIVE & NO_DATA = POSITIVE
-            # Here, we need: NEGATIVE > NO_DATA > POSITIVE > NOT_APPLICABLE, so that POSITIVE & NO_DATA = NO_DATA
-            with IntervalType.custom_intersection_priority_order(
-                order=[
-                    IntervalType.NEGATIVE,
-                    IntervalType.NO_DATA,
-                    IntervalType.POSITIVE,
-                    IntervalType.NOT_APPLICABLE,
-                ]
-            ):
-                if "population_intervention" in group:
-                    df[f"p_i_{group_name}"] = combine_dataframe_via_logical_expression(
-                        df, remove_comparators(group["population_intervention"])
-                    )
-                else:
-                    df[f"p_i_{group_name}"] = elementwise_and(
-                        df[f"p_{group_name}"], df[f"i_{group_name}"]
-                    )
+            if "population_intervention" in group:
+                df[f"p_i_{group_name}"] = combine_dataframe_via_logical_expression(
+                    df, remove_comparators(group["population_intervention"])
+                )
+            else:
+                df[f"p_i_{group_name}"] = elementwise_and(
+                    df[f"p_{group_name}"], df[f"i_{group_name}"]
+                )
 
         df["p"] = reduce(
             elementwise_or,

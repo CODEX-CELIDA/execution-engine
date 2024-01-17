@@ -167,7 +167,7 @@ class Task:
                 if self.store_result:
                     self.store_result_in_db(result, base_data, bind_params)
 
-        except TaskError as e:  # todo change to exception
+        except Exception as e:
             self.status = TaskStatus.FAILED
             exception_type = type(e).__name__  # Get the type of the exception
             raise TaskError(
@@ -348,10 +348,6 @@ class Task:
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
 
-        # data_p = {
-        #     person_id: [interval for interval in intervals if interval.type == IntervalType.POSITIVE] #interval.select_type(IntervalType.POSITIVE)
-        #     for person_id, intervals in left.items()
-        # }
         data_p = process.select_type(left, IntervalType.POSITIVE)
 
         result_not_p = process.complementary_intervals(
@@ -361,19 +357,7 @@ class Task:
             interval_type=IntervalType.NOT_APPLICABLE,
         )
 
-        # todo: as of Jan-13, this is the actual intersection priority order, so we can remove this ctx mgr
-        # P&I is handled differently than the usual intersection priority order of IntervalType, which is
-        # NEGATIVE > POSITIVE > NO_DATA > NOT_APPLICABLE, => POSITIVE & NO_DATA = POSITIVE
-        # Here, we need: NEGATIVE > NO_DATA > POSITIVE > NOT_APPLICABLE, so that POSITIVE & NO_DATA = NO_DATA
-        with IntervalType.custom_intersection_priority_order(
-            order=[
-                IntervalType.NEGATIVE,
-                IntervalType.NO_DATA,
-                IntervalType.POSITIVE,
-                IntervalType.NOT_APPLICABLE,
-            ]
-        ):
-            result_p_and_i = process.intersect_intervals([data_p, right])
+        result_p_and_i = process.intersect_intervals([data_p, right])
 
         result = process.concat_intervals([result_not_p, result_p_and_i])
 
@@ -404,8 +388,6 @@ class Task:
         :param observation_window: The observation window.
         :return: None.
         """
-        # todo do we want to assign here (i.e. instead of outside the task somehow or at least as params to the statement)
-
         if len(result) == 0:
             return
 
