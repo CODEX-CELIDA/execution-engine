@@ -61,7 +61,7 @@ def db_setup():
         )
         cursor.close()
 
-    with engine.connect() as con:
+    with engine.begin() as con:
         if not con.dialect.has_schema(con, CELIDA_SCHEMA_NAME):
             con.execute(sqlalchemy.schema.CreateSchema(CELIDA_SCHEMA_NAME))
         if not con.dialect.has_schema(con, OMOP_SCHEMA_NAME):
@@ -89,8 +89,6 @@ def db_setup():
                     table, con, schema=OMOP_SCHEMA_NAME, if_exists="append", index=False
                 )
 
-            con.commit()
-
     yield sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -105,23 +103,26 @@ def db_session(db_setup):
         yield session
     finally:
         session.rollback()  # rollback in case of exceptions
-        session.execute(text(f'TRUNCATE TABLE "{OMOP_SCHEMA_NAME}"."person" CASCADE;'))
-        session.execute(
-            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."recommendation" CASCADE;')
-        )
-        session.execute(
-            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."execution_run" CASCADE;')
-        )
-        session.execute(
-            text(
-                f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."population_intervention_pair" CASCADE;'
+        with session.begin():
+            session.execute(
+                text(f'TRUNCATE TABLE "{OMOP_SCHEMA_NAME}"."person" CASCADE;')
             )
-        )
-        session.execute(
-            text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."criterion" CASCADE;')
-        )
-        session.commit()
-        session.commit()
+            session.execute(
+                text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."recommendation" CASCADE;')
+            )
+            session.execute(
+                text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."execution_run" CASCADE;')
+            )
+            session.execute(
+                text(
+                    f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."population_intervention_pair" CASCADE;'
+                )
+            )
+            session.execute(
+                text(f'TRUNCATE TABLE "{CELIDA_SCHEMA_NAME}"."criterion" CASCADE;')
+            )
+        # should autocommit because of session.begin
+        # session.commit()
 
 
 @contextmanager

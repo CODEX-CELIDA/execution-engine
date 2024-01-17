@@ -16,6 +16,10 @@ from sqlalchemy.sql import Select
 
 import execution_engine.omop.db.omop.tables as omop_tables
 from execution_engine.constants import OMOPConcepts
+from execution_engine.omop.criterion.abstract import (
+    observation_end_datetime,
+    observation_start_datetime,
+)
 from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
 from execution_engine.util.value import ValueNumber
 
@@ -67,11 +71,22 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
                 value_as_number,
                 value_as_concept_id,
                 unit_concept_id,
-                sql_ibw.c.measurement_datetime,
+                sql_ibw.c.measurement_datetime.label(
+                    "measurement_body_height_datetime"
+                ),
             )
             .distinct(m.c.person_id, m.c.measurement_datetime)
             .select_from(m)
             .join(sql_ibw, onclause=true(), isouter=True)
+            .where(
+                and_(
+                    m.c.measurement_concept_id
+                    == OMOPConcepts.TIDAL_VOLUME_ON_VENTILATOR.value,
+                    m.c.measurement_datetime.between(
+                        observation_start_datetime, observation_end_datetime
+                    ),
+                )
+            )
         )
 
         return query.cte("measurement_tvibw")
@@ -110,11 +125,11 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
                     measurement_ibw.c.measurement_concept_id
                     == OMOPConcepts.BODY_HEIGHT.value,
                     measurement_ibw.c.measurement_datetime
-                    < tbl_measurement.c.measurement_datetime,
+                    <= tbl_measurement.c.measurement_datetime,
                     measurement_ibw.c.person_id == tbl_measurement.c.person_id,
                 )
             )
-            .order_by(tbl_measurement.c.measurement_datetime.desc())
+            .order_by(measurement_ibw.c.measurement_datetime.desc())
             .limit(1)
             .subquery()
             .lateral()
