@@ -8,6 +8,7 @@ from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.observation import Observation
+from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.criterion.visit_detail import VisitDetail
 from execution_engine.omop.criterion.visit_occurrence import (
@@ -31,6 +32,7 @@ class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
     "PatientsActiveDuringPeriod": PatientsActiveDuringPeriod,
     "TidalVolumePerIdealBodyWeight": TidalVolumePerIdealBodyWeight,
     "VisitDetail": VisitDetail,
+    "PointInTimeCriterion": PointInTimeCriterion,
 }
 
 

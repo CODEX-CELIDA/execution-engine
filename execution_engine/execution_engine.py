@@ -332,6 +332,10 @@ class ExecutionEngine:
         # fixme: set start_datetime and end_datetime as class variables
         # fixme: potentially also register run_id as class variable
 
+        logging.info(
+            f"Executing recommendation {recommendation.url} (execution engine version={__version__})."
+        )
+
         with self._db.begin():
             self.register_recommendation(recommendation)
             run_id = self.register_run(

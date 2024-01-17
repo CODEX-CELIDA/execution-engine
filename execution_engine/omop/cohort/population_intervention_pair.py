@@ -75,9 +75,6 @@ class PopulationInterventionPair(Serializable):
             assert isinstance(
                 criteria, CriterionCombination
             ), f"Invalid criteria - expected CriterionCombination, got {type(criteria)}"
-            assert (
-                criteria.category == CohortCategory.BASE
-            ), f"Invalid criteria - expected category {CohortCategory.BASE}, got {criteria.category}"
 
         if category == CohortCategory.POPULATION:
             self._population = criteria
