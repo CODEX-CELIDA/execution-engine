@@ -12,7 +12,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
-    func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -1245,7 +1245,7 @@ class Measurement(Base):  # noqa: D101
             "idx_meas_person_concept_datetime",
             "person_id",
             "measurement_concept_id",
-            func.desc("measurement_datetime"),
+            text("measurement_datetime desc"),  # todo: should be desc
         ),
         Index(
             "idx_meas_concept_datetime",
@@ -1253,7 +1253,9 @@ class Measurement(Base):  # noqa: D101
             "measurement_datetime",
         ),
         Index(
-            "idx_meas_person_datetime", "person_id", func.desc("measurement_datetime")
+            "idx_meas_person_datetime",
+            "person_id",
+            text("measurement_datetime desc"),  # todo: should be desc
         ),
         {"schema": SCHEMA_NAME},
     )
