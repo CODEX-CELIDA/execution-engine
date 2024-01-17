@@ -12,6 +12,15 @@ from sqlalchemy.sql import Insert, Select
 from execution_engine.omop.db import (  # noqa: F401 -- do not remove (cdm, result) - needed for metadata to work
     base,
 )
+from execution_engine.omop.db.celida import (  # noqa: F401 # required for metadata initiate all tables, views and triggers
+    tables as celida_tables,
+)
+from execution_engine.omop.db.celida import (  # noqa: F401 # required for metadata initiate all tables, views and triggers
+    triggers as celida_triggers,
+)
+from execution_engine.omop.db.celida import (  # noqa: F401 # required for metadata initiate all tables, views and triggers
+    views as celida_views,
+)
 from execution_engine.omop.db.omop import tables as omop
 
 from .concepts import Concept
