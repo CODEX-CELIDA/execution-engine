@@ -126,16 +126,20 @@ class Task:
                     self.criterion is not None
                 ), "criterion shall not be None for atomic expression"
 
+                logging.debug(f"Running criterion - '{self.name()}'")
                 result = self.handle_criterion(
                     self.criterion, bind_params, base_data, observation_window
                 )
 
+                logging.debug(f"Storing results - '{self.name()}'")
                 self.store_result_in_db(result, base_data, bind_params)
 
             else:
                 assert (
                     base_data is not None
                 ), "base_data shall not be None for non-atomic expression"
+
+                logging.debug(f"Running dependencies - '{self.name()}'")
 
                 # non-atomic expressions (i.e. logical operations on criteria)
                 if isinstance(self.expr, logic.Not):
@@ -165,6 +169,7 @@ class Task:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
                 if self.store_result:
+                    logging.debug(f"Storing results - '{self.name()}'")
                     self.store_result_in_db(result, base_data, bind_params)
 
         except Exception as e:
@@ -197,16 +202,21 @@ class Task:
         """
         engine = get_engine()
         query = criterion.create_query()
+        engine.log_query(query, params=bind_params)
+
+        logging.debug(f"Running query - '{criterion.description()}'")
         result = engine.raw_query(query, params=bind_params)
 
         # merge overlapping/adjacent intervals to reduce the number of intervals - but NEGATIVE is dominant over
         # POSITIVE here, i.e. if there is a NEGATIVE interval, the result is NEGATIVE, regardless of any POSITIVE
         # intervals at the same time
+        logging.debug(f"Merging intervals - '{criterion.description()}'")
         with IntervalType.custom_union_priority_order(
             IntervalType.intersection_priority()
         ):
             data = process.result_to_intervals(result)
 
+        logging.debug(f"Processing data - '{criterion.description()}'")
         data = criterion.process_data(data, base_data, observation_window)
 
         return data
