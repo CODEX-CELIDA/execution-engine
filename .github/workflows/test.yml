@@ -37,8 +37,7 @@ jobs:
       recommendation-server:
         image: glichtner/celida-recommendation-server:main
         env:
-          GH_RELEASE_BASE: https://github.com/CODEX-CELIDA/celida-recommendations/releases
-          PACKAGE_NAME_TEMPLATE: recommendations.celida.codex.netzwerk-universitaetsmedizin.de-{version}.tgz
+          GH_REPOSITORY: https://github.com/CODEX-CELIDA/celida-recommendations
         options: >-
             --health-cmd "curl -f -s  http://localhost:80/health || exit 1"
             --health-interval 30s
