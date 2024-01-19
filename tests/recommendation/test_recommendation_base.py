@@ -694,6 +694,7 @@ class TestRecommendationBase(ABC):
         recommendation_url: str,
         observation_window: TimeRange,
         criteria_extended: pd.DataFrame,
+        recommendation_package_version: str,
     ) -> None:
         from execution_engine.clients import omopdb
         from execution_engine.execution_engine import ExecutionEngine
@@ -701,7 +702,11 @@ class TestRecommendationBase(ABC):
         e = ExecutionEngine(verbose=False)
 
         print(recommendation_url)
-        recommendation = e.load_recommendation(recommendation_url, force_reload=False)
+        recommendation = e.load_recommendation(
+            recommendation_url,
+            recommendation_package_version=recommendation_package_version,
+            force_reload=False,
+        )
 
         e.execute(
             recommendation,

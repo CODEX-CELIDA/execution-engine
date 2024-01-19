@@ -19,7 +19,10 @@ from .util import get_coding, get_extension
 class Recommendation:
     """CPG-on-EBM-on-FHIR Recommendation."""
 
-    def __init__(self, url: str, fhir_connector: FHIRClient) -> None:
+    def __init__(
+        self, url: str, package_version: str, fhir_connector: FHIRClient
+    ) -> None:
+        self._package_version = package_version
         self.fhir = fhir_connector
 
         self._recommendation: PlanDefinition | None = None
@@ -76,6 +79,14 @@ class Recommendation:
         return self._recommendation.version
 
     @property
+    def package_version(self) -> str:
+        """Package Version of the recommendation."""
+        if self._recommendation is None:
+            raise ValueError("Recommendation not loaded.")
+
+        return self._package_version
+
+    @property
     def description(self) -> str:
         """
         Return the description of the recommendation.
@@ -102,7 +113,11 @@ class Recommendation:
         self._recommendation = self.fetch_recommendation(url)
 
         for rec_action in self._recommendation.action:
-            rec_plan = RecommendationPlan(rec_action.definitionCanonical, self.fhir)
+            rec_plan = RecommendationPlan(
+                rec_action.definitionCanonical,
+                package_version=self._package_version,
+                fhir_connector=self.fhir,
+            )
             self._recommendation_plans.append(rec_plan)
 
         logging.info("Recommendation loaded.")
@@ -119,7 +134,9 @@ class Recommendation:
         :param canonical_url: Canonical URL of the recommendation
         :return: FHIR PlanDefinition
         """
-        rec = self.fhir.fetch_resource("PlanDefinition", canonical_url)
+        rec = self.fhir.fetch_resource(
+            "PlanDefinition", canonical_url, self._package_version
+        )
         cc = get_coding(rec.type, CS_PLAN_DEFINITION_TYPE)
 
         if cc.code == "eca-rule":
@@ -134,7 +151,9 @@ class Recommendation:
                 ext.valueCanonical is not None
             ), "partOf extension has no valueCanonical"
 
-            rec = self.fhir.fetch_resource("PlanDefinition", ext.valueCanonical)
+            rec = self.fhir.fetch_resource(
+                "PlanDefinition", ext.valueCanonical, self._package_version
+            )
             cc = get_coding(rec.type, CS_PLAN_DEFINITION_TYPE)
 
         if cc.code != "workflow-definition":
@@ -159,16 +178,20 @@ class RecommendationPlan:
             self,
             action_def: PlanDefinitionAction,
             goals: list[PlanDefinitionGoal],
+            package_version: str,
             fhir_connector: FHIRClient,
         ) -> None:
             """Create a new action from a FHIR PlanDefinition.action."""
             self._action: PlanDefinitionAction = action_def
             self._activity: ActivityDefinition | None = None
+            self._package_version = package_version
 
             # an action must not necessarily contain an activity definition (e.g. ventilator management)
             if action_def.definitionCanonical is not None:
                 self._activity = fhir_connector.fetch_resource(
-                    "ActivityDefinition", action_def.definitionCanonical
+                    "ActivityDefinition",
+                    action_def.definitionCanonical,
+                    self._package_version,
                 )
 
             if action_def.goalId is None:
@@ -191,8 +214,11 @@ class RecommendationPlan:
             """Get the goals for this action."""
             return self._goals
 
-    def __init__(self, canonical_url: str, fhir_connector: FHIRClient):
+    def __init__(
+        self, canonical_url: str, package_version: str, fhir_connector: FHIRClient
+    ):
         self.canonical_url = canonical_url
+        self._package_version = package_version
         self.fhir = fhir_connector
 
         self._recommendation: PlanDefinition | None = None
@@ -209,13 +235,18 @@ class RecommendationPlan:
 
         plan_def = self.fetch_recommendation_plan(self.canonical_url)
 
-        ev = self.fhir.fetch_resource("EvidenceVariable", plan_def.subjectCanonical)
+        ev = self.fhir.fetch_resource(
+            "EvidenceVariable", plan_def.subjectCanonical, self._package_version
+        )
 
         self._recommendation = plan_def
         self._population = ev
         self._actions = [
             RecommendationPlan.Action(
-                action, goals=plan_def.goal, fhir_connector=self.fhir
+                action,
+                goals=plan_def.goal,
+                package_version=self._package_version,
+                fhir_connector=self.fhir,
             )
             for action in plan_def.action
         ]
@@ -235,7 +266,9 @@ class RecommendationPlan:
         :param canonical_url: Canonical URL of the recommendation
         :return: FHIR PlanDefinition
         """
-        rec = self.fhir.fetch_resource("PlanDefinition", canonical_url)
+        rec = self.fhir.fetch_resource(
+            "PlanDefinition", canonical_url, self._package_version
+        )
         cc = get_coding(rec.type, CS_PLAN_DEFINITION_TYPE)
 
         if cc.code != "eca-rule":

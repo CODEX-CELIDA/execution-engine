@@ -10,7 +10,7 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
-from execution_engine.settings import config
+from execution_engine.settings import get_config
 from execution_engine.task.process import get_processing_module
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
@@ -23,7 +23,8 @@ def get_engine() -> OMOPSQLClient:
     Returns a OMOPSQLClient object.
     """
     return OMOPSQLClient(
-        **config.omop.dict(by_alias=True), timezone=config.celida_ee_timezone
+        **get_config().omop.dict(by_alias=True),
+        timezone=get_config().celida_ee_timezone,
     )
 
 

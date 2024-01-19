@@ -2,7 +2,7 @@ import pytest
 
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.omop.vocabulary import SNOMEDCT
-from execution_engine.settings import config
+from execution_engine.settings import get_config
 from tests._fixtures.concept import (
     concept_covid19,
     concept_enoxparin,
@@ -16,8 +16,8 @@ class TestSQLClient:
     @pytest.fixture
     def sql_client(self, db_setup):
         return OMOPSQLClient(
-            **config.omop.dict(by_alias=True),
-            timezone=config.celida_ee_timezone,
+            **get_config().omop.dict(by_alias=True),
+            timezone=get_config().celida_ee_timezone,
             disable_triggers=True
         )
 

@@ -44,6 +44,7 @@ class Recommendation(Base):  # noqa: D101
         String(255), nullable=False, index=True
     )
     recommendation_version: Mapped[str]
+    recommendation_package_version: Mapped[str]
     recommendation_hash: Mapped[str] = mapped_column(
         String(64), index=True, unique=True
     )

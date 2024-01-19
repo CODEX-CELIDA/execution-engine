@@ -70,14 +70,14 @@ class ExecutionEngine:
 
     def __init__(self, verbose: bool = False) -> None:
         # late import to allow pytest to set env variables first
-        from execution_engine.settings import config
+        from execution_engine.settings import get_config
 
         self.setup_logging(verbose)
         self._fhir = fhir_client
         self._db = omopdb
         self._db.init()
 
-        self._config = config
+        self._config = get_config()
 
     @staticmethod
     def setup_logging(verbose: bool = False) -> None:
@@ -234,7 +234,10 @@ class ExecutionEngine:
         )
 
     def load_recommendation(
-        self, recommendation_url: str, force_reload: bool = False
+        self,
+        recommendation_url: str,
+        recommendation_package_version: str = "latest",
+        force_reload: bool = False,
     ) -> cohort.Recommendation:
         """
         Processes a single recommendation and creates a Recommendation object from it.
@@ -254,20 +257,28 @@ class ExecutionEngine:
             * Goal 1..* -> CriterionCombination / Criterion
 
         :param recommendation_url: The canonical URL of the recommendation.
+        :param recommendation_package_version: The version of the recommendation.
         :param force_reload: If True, the recommendation is recreated from the FHIR source even if it is already
                              stored in the database.
         :return: The Recommendation object.
         """
 
         if not force_reload:
-            recommendation = self.load_recommendation_from_database(recommendation_url)
+            recommendation = self.load_recommendation_from_database(
+                recommendation_url, recommendation_package_version
+            )
             if recommendation is not None:
                 logging.info(
-                    f"Loaded recommendation {recommendation_url} (version={recommendation.version}) from database."
+                    f"Loaded recommendation {recommendation_url} (version={recommendation.version}, "
+                    f"package version={recommendation_package_version}) from database."
                 )
                 return recommendation
 
-        rec = fhir.Recommendation(recommendation_url, self._fhir)
+        rec = fhir.Recommendation(
+            recommendation_url,
+            package_version=recommendation_package_version,
+            fhir_connector=self._fhir,
+        )
 
         pi_pairs: list[PopulationInterventionPair] = []
 
@@ -307,6 +318,7 @@ class ExecutionEngine:
             title=rec.title,
             version=rec.version,
             description=rec.description,
+            package_version=rec.package_version,
         )
 
         self.register_recommendation(recommendation)
@@ -354,11 +366,21 @@ class ExecutionEngine:
         return run_id
 
     def load_recommendation_from_database(
-        self, url: str, version: str | None = None
+        self, url: str, version: str | None = None, package_version: str | None = None
     ) -> cohort.Recommendation | None:
         """
-        Loads a recommendation from the database. If version is None, the latest created recommendation is returned.
+        Loads a recommendation from the database.
+
+        :param url: The canonical URL of the recommendation.
+        :param version: The version of the recommendation. If version is None, the latest created recommendation is
+            returned.
+        :param package_version: The version of the recommendation package.
+        :return: The Recommendation object or None if the recommendation is not found.
         """
+
+        if package_version is not None and version is not None:
+            raise ValueError("Only one of version and package_version can be set.")
+
         rec_table = result_db.Recommendation
 
         query = (
@@ -368,6 +390,8 @@ class ExecutionEngine:
         )
         if version is not None:
             query.where(rec_table.recommendation_version == version)
+        elif package_version is not None:
+            query.where(rec_table.recommendation_package_version == package_version)
 
         with self._db.connect() as con:
             rec_db = con.execute(query).fetchone()
@@ -409,6 +433,7 @@ class ExecutionEngine:
                         recommendation_title=recommendation.title,
                         recommendation_url=recommendation.url,
                         recommendation_version=recommendation.version,
+                        recommendation_package_version=recommendation.package_version,
                         recommendation_hash=rec_hash,
                         recommendation_json=rec_json,
                         create_datetime=datetime.now(),

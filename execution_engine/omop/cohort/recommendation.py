@@ -49,6 +49,7 @@ class Recommendation(Serializable):
         version: str,
         description: str,
         recommendation_id: int | None = None,
+        package_version: str | None = None,
     ) -> None:
         self._pi_pairs: list[cohort.PopulationInterventionPair] = pi_pairs
         self._base_criterion: Criterion = base_criterion
@@ -57,6 +58,7 @@ class Recommendation(Serializable):
         self._url: str = url
         self._version: str = version
         self._description: str = description
+        self._package_version: str | None = package_version
         # The id is used in the recommendation_id field in the result tables.
         self._id = recommendation_id
 
@@ -86,7 +88,14 @@ class Recommendation(Serializable):
         """
         Get the version of the recommendation.
         """
-        return self._version
+        return self._version  #
+
+    @property
+    def package_version(self) -> str | None:
+        """
+        Get the version of the recommendation package.
+        """
+        return self._package_version
 
     @property
     def description(self) -> str:
@@ -246,6 +255,7 @@ class Recommendation(Serializable):
             "recommendation_title": self._title,
             "recommendation_url": self._url,
             "recommendation_version": self._version,
+            "recommendation_package_version": self._package_version,
             "recommendation_description": self._description,
         }
 
@@ -270,5 +280,6 @@ class Recommendation(Serializable):
             url=data["recommendation_url"],
             version=data["recommendation_version"],
             description=data["recommendation_description"],
+            package_version=data["recommendation_package_version"],
             recommendation_id=data["id"] if "id" in data else None,
         )

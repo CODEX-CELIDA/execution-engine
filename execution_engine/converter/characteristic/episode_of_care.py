@@ -8,7 +8,7 @@ from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.visit_detail import VisitDetail
 from execution_engine.omop.criterion.visit_occurrence import VisitOccurrence
 from execution_engine.omop.vocabulary import LOINC
-from execution_engine.settings import config
+from execution_engine.settings import get_config
 
 
 class EpisodeOfCareCharacteristic(AbstractCodeableConceptCharacteristic):
@@ -19,7 +19,7 @@ class EpisodeOfCareCharacteristic(AbstractCodeableConceptCharacteristic):
     _criterion_class = cast(
         Type[ConceptCriterion],
         VisitOccurrence
-        if not config.celida_ee_episode_of_care_visit_detail
+        if not get_config().celida_ee_episode_of_care_visit_detail
         else VisitDetail,
     )
     _concept_value_static = False

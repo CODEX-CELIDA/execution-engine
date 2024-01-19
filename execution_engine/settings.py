@@ -45,4 +45,25 @@ class Settings(BaseSettings):  # type: ignore
         env_nested_delimiter = "__"
 
 
-config = Settings()
+_current_config = None
+
+
+def get_config() -> Settings:
+    """
+    Returns the current configuration.
+    """
+    global _current_config
+
+    if _current_config is None:
+        _current_config = Settings()
+
+    return _current_config
+
+
+def set_config(config: Settings) -> None:
+    """
+    Sets the current configuration.
+    """
+    global _current_config
+
+    _current_config = config
