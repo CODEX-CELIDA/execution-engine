@@ -153,6 +153,7 @@ def celida_recommendation(
             recommendation_title="my_title",
             recommendation_url="https://example.com",
             recommendation_version="1.0",
+            recommendation_package_version="1.0",
             recommendation_hash=hash("my_recommendation"),
             recommendation_json="{}".encode(),
             create_datetime=datetime.datetime.now(),
