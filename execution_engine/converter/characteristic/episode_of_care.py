@@ -19,7 +19,7 @@ class EpisodeOfCareCharacteristic(AbstractCodeableConceptCharacteristic):
     _criterion_class = cast(
         Type[ConceptCriterion],
         VisitOccurrence
-        if not get_config().celida_ee_episode_of_care_visit_detail
+        if not get_config().episode_of_care_visit_detail
         else VisitDetail,
     )
     _concept_value_static = False

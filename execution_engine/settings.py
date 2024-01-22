@@ -1,3 +1,6 @@
+import os
+from typing import Any
+
 from pydantic import BaseModel, BaseSettings, Field
 
 
@@ -28,10 +31,10 @@ class Settings(BaseSettings):  # type: ignore
     fhir_terminology_server_url: str = "http://tx.fhir.org/r4"
     fhir_base_url: str
 
-    celida_ee_timezone: str
-    celida_ee_multiprocessing_use: bool = False
-    celida_ee_episode_of_care_visit_detail: bool = False
-    celida_ee_multiprocessing_pool_size: int = 1
+    timezone: str
+    multiprocessing_use: bool = False
+    episode_of_care_visit_detail: bool = False
+    multiprocessing_pool_size: int = -1
 
     omop: OMOPSettings
 
@@ -40,9 +43,10 @@ class Settings(BaseSettings):  # type: ignore
         Configuration for the settings.
         """
 
-        env_file = ".env"
+        env_file = os.environ.get("ENV_FILE", ".env")
         env_file_encoding = "utf-8"
         env_nested_delimiter = "__"
+        env_prefix = "celida_ee_"
 
 
 _current_config = None
@@ -60,10 +64,17 @@ def get_config() -> Settings:
     return _current_config
 
 
-def set_config(config: Settings) -> None:
+def update_config(**kwargs: Any) -> None:
     """
-    Sets the current configuration.
+    Sets the current configuration with validation.
     """
     global _current_config
 
-    _current_config = config
+    if _current_config is None:
+        _current_config = Settings()
+
+    current_config_dict = _current_config.dict()
+
+    updated_config_dict = {**current_config_dict, **kwargs}
+
+    _current_config = Settings.parse_obj(updated_config_dict)

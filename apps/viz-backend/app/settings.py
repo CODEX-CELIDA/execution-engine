@@ -25,7 +25,7 @@ class OMOPSettings(BaseModel):
 class Settings(BaseSettings):  # type: ignore
     """Application settings."""
 
-    celida_ee_timezone: str
+    timezone: str
 
     omop: OMOPSettings
 
@@ -37,6 +37,7 @@ class Settings(BaseSettings):  # type: ignore
         env_file = "../.env"
         env_file_encoding = "utf-8"
         env_nested_delimiter = "__"
+        env_prefix = "celida_ee_"
 
 
 config = Settings()

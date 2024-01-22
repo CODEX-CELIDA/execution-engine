@@ -17,7 +17,7 @@ class TestSQLClient:
     def sql_client(self, db_setup):
         return OMOPSQLClient(
             **get_config().omop.dict(by_alias=True),
-            timezone=get_config().celida_ee_timezone,
+            timezone=get_config().timezone,
             disable_triggers=True
         )
 

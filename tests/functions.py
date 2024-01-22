@@ -2,6 +2,7 @@ import datetime
 import itertools
 import re
 from io import StringIO
+from typing import Callable
 
 import pandas as pd
 import pendulum
@@ -242,7 +243,7 @@ def get_fraction_per_day(
 
 
 def intervals_to_df(
-    result: PersonIntervals, by: list[str], normalize_func: callable
+    result: PersonIntervals, by: list[str], normalize_func: Callable
 ) -> pd.DataFrame:
     """
     Converts the result of the interval operations to a DataFrame.
@@ -275,7 +276,9 @@ def intervals_to_df(
     )
 
 
-def df_to_person_intervals(df: pd.DataFrame, by=["person_id"]) -> PersonIntervals:
+def df_to_person_intervals(
+    df: pd.DataFrame, by: list[str] = ["person_id"]
+) -> PersonIntervals:
     return {
         key: df_to_datetime_interval(group_df) for key, group_df in df.groupby(by=by)
     }
@@ -301,7 +304,9 @@ def df_to_datetime_interval(df: pd.DataFrame) -> DateTimeInterval:
     )
 
 
-def interval(start: str, end: str, type_=IntervalType.POSITIVE) -> DateTimeInterval:
+def interval(
+    start: str, end: str, type_: IntervalType = IntervalType.POSITIVE
+) -> DateTimeInterval:
     return interval_datetime(pendulum.parse(start), pendulum.parse(end), type_=type_)
 
 
@@ -309,7 +314,7 @@ def parse_dt(s: str, tz: DstTzInfo) -> datetime.datetime:
     return tz.localize(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S"))
 
 
-def df_from_str(data_str):
+def df_from_str(data_str: str) -> pd.DataFrame:
     data_str = "\n".join(line.strip() for line in data_str.strip().split("\n"))
     df = pd.read_csv(StringIO(data_str), sep="\t", dtype={"group1": str, "group2": int})
     df["interval_start"] = pd.to_datetime(df["interval_start"], utc=True)

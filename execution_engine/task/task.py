@@ -24,7 +24,7 @@ def get_engine() -> OMOPSQLClient:
     """
     return OMOPSQLClient(
         **get_config().omop.dict(by_alias=True),
-        timezone=get_config().celida_ee_timezone,
+        timezone=get_config().timezone,
     )
 
 

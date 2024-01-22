@@ -359,8 +359,8 @@ class ExecutionEngine:
             run_id=run_id,
             start_datetime=start_datetime,
             end_datetime=end_datetime,
-            use_multiprocessing=self._config.celida_ee_multiprocessing_use,
-            multiprocessing_pool_size=self._config.celida_ee_multiprocessing_pool_size,
+            use_multiprocessing=self._config.multiprocessing_use,
+            multiprocessing_pool_size=self._config.multiprocessing_pool_size,
         )
 
         return run_id
