@@ -32,12 +32,40 @@ Note:
     - The time range for execution is hardcoded and may need adjustments as per requirements.
     - The execution_engine package expects a couple of environment variables to be set (see README.md).
 """
-
 import logging
+import os
+import sys
 
 import pendulum
+from sqlalchemy import text
 
+current_dir = os.path.dirname(__file__)
+parent_dir = os.path.dirname(current_dir)
+
+sys.path.insert(0, parent_dir)
+
+from execution_engine.clients import omopdb
 from execution_engine.execution_engine import ExecutionEngine
+from execution_engine.settings import update_config
+
+# enable multiprocessing with all available cores
+update_config(multiprocessing_use=True, multiprocessing_pool_size=-1)
+
+# Optional: Truncate all tables before execution
+with omopdb.begin() as con:
+    con.execute(
+        text(
+            "TRUNCATE TABLE "
+            "   celida.comment, "
+            "   celida.recommendation, "
+            "   celida.criterion, "
+            "   celida.execution_run, "
+            "   celida.result_interval, "
+            "   celida.recommendation, "
+            "   celida.population_intervention_pair "
+            "RESTART IDENTITY"
+        )
+    )
 
 base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
 
@@ -57,8 +85,6 @@ end_datetime = pendulum.parse("2023-05-31 23:59:59+01:00")
 e = ExecutionEngine()
 logging.getLogger().setLevel(logging.DEBUG)
 
-logger = logging.getLogger("query")
-logger.addHandler(logging.StreamHandler())
 
 for recommendation_url in urls:
     print(recommendation_url)
