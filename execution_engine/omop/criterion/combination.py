@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, Union
+from typing import Any, Dict, Iterator, Sequence, Union, cast
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import AbstractCriterion, Criterion
@@ -21,7 +21,6 @@ class CriterionCombination(AbstractCriterion):
         EXACTLY = "EXACTLY"
 
         def __init__(self, operator: str, threshold: int | None = None):
-
             assert operator in [
                 "AND",
                 "OR",
@@ -55,14 +54,27 @@ class CriterionCombination(AbstractCriterion):
             return self.operator == other.operator and self.threshold == other.threshold
 
     def __init__(
-        self, name: str, exclude: bool, operator: Operator, category: CohortCategory
+        self,
+        name: str,
+        exclude: bool,
+        operator: Operator,
+        category: CohortCategory,
+        criteria: Sequence[Union[Criterion, "CriterionCombination"]] | None = None,
     ):
         """
         Initialize the criterion combination.
         """
         super().__init__(name=name, exclude=exclude, category=category)
         self._operator = operator
-        self._criteria: list[Criterion | CriterionCombination] = []
+
+        self._criteria: list[Union[Criterion, CriterionCombination]]
+
+        if criteria is None:
+            self._criteria = []
+        else:
+            self._criteria = cast(
+                list[Union[Criterion, "CriterionCombination"]], criteria
+            )
 
     def add(self, criterion: Union[Criterion, "CriterionCombination"]) -> None:
         """
@@ -82,6 +94,13 @@ class CriterionCombination(AbstractCriterion):
         Get the name of the criterion combination.
         """
         return f"CriterionCombination({self.operator.operator}).{self.category.value}.{self._name}(exclude={self._exclude})"
+
+    @property
+    def raw_name(self) -> str:
+        """
+        Get the name of the criterion combination.
+        """
+        return self._name
 
     @property
     def operator(self) -> "CriterionCombination.Operator":
@@ -130,6 +149,24 @@ class CriterionCombination(AbstractCriterion):
                 for criterion in self._criteria
             ],
         }
+
+    def __invert__(self) -> "CriterionCombination":
+        """
+        Invert the criterion combination.
+        """
+        return CriterionCombination(
+            name=self._name,
+            exclude=not self._exclude,
+            operator=self._operator,
+            category=self._category,
+            criteria=self._criteria,
+        )
+
+    def invert(self) -> "CriterionCombination":
+        """
+        Invert the criterion combination.
+        """
+        return ~self
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CriterionCombination":

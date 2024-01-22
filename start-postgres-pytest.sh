@@ -18,5 +18,5 @@ if [ "$(docker ps -a -f name=^/${CONTAINER_NAME}$ --format '{{.Names}}')" == $CO
     fi
 else
     echo "Creating and starting a new container"
-    docker run --name $CONTAINER_NAME -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD -e POSTGRES_USER=$POSTGRES_USER -p $POSTGRES_PORT:5432 -d postgres
+    docker run --name $CONTAINER_NAME -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD -e POSTGRES_USER=$POSTGRES_USER -p $POSTGRES_PORT:5432 -d postgres --restart=always
 fi

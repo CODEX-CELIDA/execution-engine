@@ -37,8 +37,7 @@ jobs:
       recommendation-server:
         image: glichtner/celida-recommendation-server:main
         env:
-          GH_RELEASE_BASE: https://github.com/CODEX-CELIDA/celida-recommendations/releases
-          PACKAGE_NAME_TEMPLATE: recommendations.celida.codex.netzwerk-universitaetsmedizin.de-{version}.tgz
+          GH_REPOSITORY: https://github.com/CODEX-CELIDA/celida-recommendations
         options: >-
             --health-cmd "curl -f -s  http://localhost:80/health || exit 1"
             --health-interval 30s
@@ -72,28 +71,34 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          mv sample.env .env
+
+      - name: Build Cython extension
+        run: python setup.py build_ext --inplace
 
       - name: Test with pytest
         env:
-          FHIR_BASE_URL: http://localhost:8000/fhir
-          FHIR_TERMINOLOGY_SERVER_URL: http://tx.fhir.org/r4
+          CELIDA_EE_FHIR_BASE_URL: http://localhost:8000/fhir
+          CELIDA_EE_FHIR_TERMINOLOGY_SERVER_URL: http://tx.fhir.org/r4
           CELIDA_EE_TIMEZONE: Europe/Berlin
-          OMOP__USER: ${{ env.POSTGRES_USER }}
-          OMOP__PASSWORD: ${{ env.POSTGRES_PASSWORD }}
-          OMOP__HOST: localhost
-          OMOP__PORT: 5432
-          OMOP__DATABASE: ${{ env.POSTGRES_DB }}
-          OMOP__SCHEMA: cds_cdm
+          CELIDA_EE_OMOP__USER: ${{ env.POSTGRES_USER }}
+          CELIDA_EE_OMOP__PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          CELIDA_EE_OMOP__HOST: localhost
+          CELIDA_EE_OMOP__PORT: 5432
+          CELIDA_EE_OMOP__DATABASE: ${{ env.POSTGRES_DB }}
+          CELIDA_EE_OMOP__DATA_SCHEMA: cds_cdm
+          CELIDA_EE_OMOP__RESULT_SCHEMA: celida
+          CELIDA_EE_EPISODE_OF_CARE_VISIT_DETAIL: 0
+          CELIDA_EE_MULTIPROCESSING_USE: 0
+          CELIDA_EE_MULTIPROCESSING_POOL_SIZE: -1
         run: |
            pytest \
             --color=yes \
             --cov=execution_engine \
             --cov-report=xml \
-            --postgresql-host=$OMOP__HOST \
-            --postgresql-port=$OMOP__PORT \
-            --postgresql-user=$OMOP__USER \
-            --postgresql-password=$OMOP__PASSWORD \
+            --postgresql-host=$CELIDA_EE_OMOP__HOST \
+            --postgresql-port=$CELIDA_EE_OMOP__PORT \
+            --postgresql-user=$CELIDA_EE_OMOP__USER \
+            --postgresql-password=$CELIDA_EE_OMOP__PASSWORD \
             --run-slow-tests \
             --run-recommendation-tests
 

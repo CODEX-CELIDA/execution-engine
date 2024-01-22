@@ -1,3 +1,5 @@
+from typing import TypedDict
+
 import pendulum
 import pytest
 
@@ -5,10 +7,29 @@ from execution_engine.omop.concepts import Concept, CustomConcept
 from execution_engine.omop.criterion.custom import (
     TidalVolumePerIdealBodyWeight as TVPIBW,
 )
-from execution_engine.util import ValueNumber
+from execution_engine.omop.db.celida.tables import ResultInterval
+from execution_engine.omop.db.omop.tables import Measurement
+from execution_engine.util.value import ValueNumber
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 from tests.functions import create_measurement
+
+
+class HeightMeasurement(TypedDict):
+    time: str
+    value: float
+
+
+class TidalVolumeMeasurement(TypedDict):
+    time: str
+    value: float
+
+
+class OtherMeasurement(TypedDict):
+    time: str
+    value: float
+    concept_id: int
+    unit_concept_id: int
 
 
 class TestTidalVolumePerIdealBodyWeight(TestCriterion):
@@ -40,11 +61,65 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
             unit_concept_id=unit_concept_id,
         )
 
+    def insert_values(
+        self,
+        db_session,
+        vo,
+        heights: list[HeightMeasurement] | None = None,
+        tvs: list[TidalVolumeMeasurement] | None = None,
+        other: list[OtherMeasurement] | None = None,
+    ):
+        if heights is None:
+            heights = []
+        if tvs is None:
+            tvs = []
+        if other is None:
+            other = []
+
+        for height in heights:
+            v_height = self.create_value(
+                visit_occurrence=vo,
+                concept_id=concepts.BODY_HEIGHT,
+                datetime=pendulum.parse(height["time"]),
+                value=height["value"],
+                unit_concept_id=concepts.UNIT_CM,
+            )
+            db_session.add(v_height)
+
+        for tv in tvs:
+            v_tv = self.create_value(
+                visit_occurrence=vo,
+                concept_id=concepts.TIDAL_VOLUME,
+                datetime=pendulum.parse(tv["time"]),
+                value=tv["value"],
+                unit_concept_id=concepts.UNIT_ML,
+            )
+            db_session.add(v_tv)
+
+        for o in other:
+            v_other = self.create_value(
+                visit_occurrence=vo,
+                concept_id=o["concept_id"],
+                datetime=pendulum.parse(o["time"]),
+                value=o["value"],
+                unit_concept_id=o["unit_concept_id"],
+            )
+            db_session.add(v_other)
+
+        db_session.commit()
+
+    def clean_measurements(self, db_session):
+        db_session.query(Measurement).delete()
+        db_session.query(ResultInterval).filter(
+            ResultInterval.criterion_id == self.criterion_id
+        ).delete()
+        db_session.commit()
+
     @pytest.mark.parametrize(
         "times",
         [  # datetime for body height / tidal volume (in that order)
-            {"height": "2023-03-04 18:00:00+01:00", "tv": "2023-03-04 19:00:00+01:00"},
-            {"height": "2023-03-04 18:00:00+01:00", "tv": "2023-03-04 17:00:00+01:00"},
+            {"height": "2023-03-04 06:00:00+01:00", "tv": "2023-03-04 07:00:00+01:00"},
+            {"height": "2023-03-04 06:00:00+01:00", "tv": "2023-03-04 05:00:00+01:00"},
         ],
         ids=["height before tv", "tv before height"],
     )
@@ -170,22 +245,18 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
         }[gender]
         db_session.add(p)
 
-        v_height = self.create_value(
-            visit_occurrence=vo,
-            concept_id=concepts.BODY_HEIGHT,
-            datetime=pendulum.parse(times["height"]),
-            value=values["height"](gender),
-            unit_concept_id=concepts.UNIT_CM,
+        t_height, t_tv = pendulum.parse(times["height"]), pendulum.parse(times["tv"])
+        if t_tv < t_height:
+            # if tv is before height, we don't have a height measurement for the tv
+            # todo: or should we consider height as "static"? (i.e. the height at the time of the first measurement)
+            expected = []
+
+        self.insert_values(
+            heights=[{"time": times["height"], "value": values["height"](gender)}],
+            tvs=[{"time": times["tv"], "value": values["tv"]}],
+            vo=vo,
+            db_session=db_session,
         )
-        v_tv = self.create_value(
-            visit_occurrence=vo,
-            concept_id=concepts.TIDAL_VOLUME,
-            datetime=pendulum.parse(times["tv"]),
-            value=values["tv"],
-            unit_concept_id=concepts.UNIT_ML,
-        )
-        db_session.add_all([v_height, v_tv])
-        db_session.commit()
 
         value = ValueNumber(
             value_max=threshold, unit=omopdb.get_concept_info(concepts.UNIT_ML_PER_KG)
@@ -196,14 +267,265 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
             concept=concept, value=value, exclude=exclude
         ).query(f"{p.person_id} == person_id")
 
-        # exclusion is now performed only when combining the criteria into population/intervention
-        # if exclude:
-        #    expected = self.invert_date_points(
-        #        time_range=observation_window,
-        #        subtract=expected,
-        #    )
+        assert set(df["valid_date"].dt.date) == self.date_points(expected)
+
+    @pytest.mark.parametrize("gender", ["male", "female", "unknown"])
+    @pytest.mark.parametrize(
+        "threshold", [6], ids=["threshold=6"]
+    )  # threshold used in the criterion
+    def test_multiple_other_measurements(
+        self,
+        concept,
+        gender,
+        threshold,
+        person_visit,
+        db_session,
+        observation_window,
+        criterion_execute_func,
+    ):
+        """
+        This tests assures that the criterion does not fail if there are other measurements in the database, with
+        other concept_ids but at the same time. This ensures that the selection query of the ideal body weight
+        and the tidal volume really only uses the tidal volume and body height measurements.
+        """
+
+        from execution_engine.clients import omopdb
+
+        p, vo = person_visit[0]
+
+        # update person's gender
+        p.gender_concept_id = {
+            "male": concepts.GENDER_MALE,
+            "female": concepts.GENDER_FEMALE,
+            "unknown": concepts.UNKNOWN,
+        }[gender]
+        db_session.add(p)
+
+        height_value = TVPIBW.height_for_predicted_body_weight_ardsnet(gender, 71)
+
+        # TV/BW = 5.9
+        # add  FIRST two additional measurements for an arbitrary other concept (here: PEEP) with high values such
+        # that the criterion should not be fulfilled if the other measurements are not filtered out
+        self.insert_values(
+            db_session=db_session,
+            vo=vo,
+            other=[
+                dict(
+                    time="2023-03-04 07:00:00+01:00",
+                    value=1000,
+                    concept_id=concepts.PEEP,
+                    unit_concept_id=concepts.UNIT_CM,
+                ),
+                dict(
+                    time="2023-03-04 07:00:00+01:00",
+                    value=1000,
+                    concept_id=concepts.PEEP,
+                    unit_concept_id=concepts.UNIT_CM,
+                ),
+            ],
+        )
+        self.insert_values(
+            db_session=db_session,
+            vo=vo,
+            heights=[{"time": "2023-03-04 06:00:00+01:00", "value": height_value}],
+            tvs=[{"time": "2023-03-04 07:00:00+01:00", "value": 418.9}],
+        )
+        self.insert_values(
+            db_session=db_session,
+            vo=vo,
+            other=[
+                dict(
+                    time="2023-03-04 07:00:00+01:00",
+                    value=1000,
+                    concept_id=concepts.PEEP,
+                    unit_concept_id=concepts.UNIT_CM,
+                ),
+                dict(
+                    time="2023-03-04 07:00:00+01:00",
+                    value=1000,
+                    concept_id=concepts.PEEP,
+                    unit_concept_id=concepts.UNIT_CM,
+                ),
+            ],
+        )
+
+        expected = ["2023-03-04"]
+
+        value = ValueNumber(
+            value_max=threshold, unit=omopdb.get_concept_info(concepts.UNIT_ML_PER_KG)
+        )
+
+        # run criterion against db
+        df = criterion_execute_func(concept=concept, value=value, exclude=False).query(
+            f"{p.person_id} == person_id"
+        )
 
         assert set(df["valid_date"].dt.date) == self.date_points(expected)
+
+    @pytest.mark.parametrize("gender", ["male", "female", "unknown"])
+    def test_multiple_heights(
+        self,
+        concept,
+        gender,
+        person_visit,
+        db_session,
+        observation_window,
+        criterion_execute_func,
+    ):
+        """
+        This tests assures that the criterion does not fail if there are other measurements in the database, with
+        other concept_ids but at the same time. This ensures that the selection query of the ideal body weight
+        and the tidal volume really only uses the tidal volume and body height measurements.
+        """
+
+        from execution_engine.clients import omopdb
+
+        p, vo = person_visit[0]
+
+        # update person's gender
+        p.gender_concept_id = {
+            "male": concepts.GENDER_MALE,
+            "female": concepts.GENDER_FEMALE,
+            "unknown": concepts.UNKNOWN,
+        }[gender]
+        db_session.add(p)
+
+        threshold = 6
+        tv_per_ibw = 5.9
+        ideal_body_weight = 71
+        tidal_volume = tv_per_ibw * ideal_body_weight
+
+        height_value = TVPIBW.height_for_predicted_body_weight_ardsnet(
+            gender, ideal_body_weight
+        )
+
+        body_weight_for_too_high_tv_per_ibw = tidal_volume / 6.1  # TV/BW = 6.1
+        height_value_for_too_high_tv_per_ibw = (
+            TVPIBW.height_for_predicted_body_weight_ardsnet(
+                gender, body_weight_for_too_high_tv_per_ibw
+            )
+        )
+
+        value = ValueNumber(
+            value_max=threshold, unit=omopdb.get_concept_info(concepts.UNIT_ML_PER_KG)
+        )
+
+        ##############################################
+        # First measurement OK, second not OK
+        # first height measurement fulfills the criterion, second height measurement does not
+        ##############################################
+        self.insert_values(
+            db_session=db_session,
+            vo=vo,
+            heights=[
+                {"time": "2023-03-04 06:00:00+01:00", "value": height_value},
+                {
+                    "time": "2023-03-04 06:30:00+01:00",
+                    "value": height_value_for_too_high_tv_per_ibw,
+                },
+            ],
+            tvs=[{"time": "2023-03-04 07:00:00+01:00", "value": tidal_volume}],
+        )
+        expected = []
+        df = criterion_execute_func(concept=concept, value=value, exclude=False).query(
+            f"{p.person_id} == person_id"
+        )
+
+        assert set(df["valid_date"].dt.date) == self.date_points(expected)
+
+        self.clean_measurements(db_session)
+
+        ##############################################
+        # First measurement not OK, second OK
+        # first height measurement fulfills the criterion, second height measurement does not
+        ##############################################
+        self.insert_values(
+            db_session=db_session,
+            vo=vo,
+            heights=[
+                {
+                    "time": "2023-03-04 06:00:00+01:00",
+                    "value": height_value_for_too_high_tv_per_ibw,
+                },
+                {"time": "2023-03-04 06:30:00+01:00", "value": height_value},
+            ],
+            tvs=[{"time": "2023-03-04 07:00:00+01:00", "value": tidal_volume}],
+        )
+        expected = ["2023-03-04"]
+
+        df = criterion_execute_func(concept=concept, value=value, exclude=False).query(
+            f"{p.person_id} == person_id"
+        )
+
+        assert set(df["valid_date"].dt.date) == self.date_points(expected)
+
+        self.clean_measurements(db_session)
+
+        #######################
+        # Valid height after TV
+        #######################
+        self.insert_values(
+            db_session=db_session,
+            vo=vo,
+            heights=[
+                {
+                    "time": "2023-03-04 06:00:00+01:00",
+                    "value": height_value_for_too_high_tv_per_ibw,
+                },
+                {"time": "2023-03-04 08:00:00+01:00", "value": height_value},
+                {
+                    "time": "2023-03-04 09:00:00+01:00",
+                    "value": height_value_for_too_high_tv_per_ibw,
+                },
+            ],
+            tvs=[{"time": "2023-03-04 07:00:00+01:00", "value": tidal_volume}],
+        )
+        expected = []
+
+        df = criterion_execute_func(concept=concept, value=value, exclude=False).query(
+            f"{p.person_id} == person_id"
+        )
+
+        assert set(df["valid_date"].dt.date) == self.date_points(expected)
+
+        self.clean_measurements(db_session)
+
+        df = criterion_execute_func(concept=concept, value=value, exclude=False).query(
+            f"{p.person_id} == person_id"
+        )
+
+        assert set(df["valid_date"].dt.date) == self.date_points(expected)
+
+        self.clean_measurements(db_session)
+
+        #######################
+        # Valid height during TV
+        #######################
+        self.insert_values(
+            db_session=db_session,
+            vo=vo,
+            heights=[
+                {
+                    "time": "2023-03-04 06:00:00+01:00",
+                    "value": height_value_for_too_high_tv_per_ibw,
+                },
+                {"time": "2023-03-04 07:00:00+01:00", "value": height_value},
+                {
+                    "time": "2023-03-04 09:00:00+01:00",
+                    "value": height_value_for_too_high_tv_per_ibw,
+                },
+            ],
+            tvs=[{"time": "2023-03-04 07:00:00+01:00", "value": tidal_volume}],
+        )
+        expected = ["2023-03-04"]
+
+        df = criterion_execute_func(concept=concept, value=value, exclude=False).query(
+            f"{p.person_id} == person_id"
+        )
+
+        assert set(df["valid_date"].dt.date) == self.date_points(expected)
+
+        self.clean_measurements(db_session)
 
     def test_predicted_body_weight_ardsnet(self):
         # Test the function for a few basic cases to make sure it's working

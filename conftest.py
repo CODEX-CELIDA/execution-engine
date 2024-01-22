@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from pytest_postgresql.janitor import DatabaseJanitor
 
+# add each module in _fixtures as a pytest plugin (i.e. fixture)
 pytest_plugins = [
     fixture_file.replace("/", ".").replace(".py", "")
     for fixture_file in glob("tests/_fixtures/[!__]*.py", recursive=True)
@@ -19,11 +20,11 @@ def postgres_janitor() -> DatabaseJanitor:
 
     :return: DatabaseJanitor
     """
-    pg_user = os.environ["OMOP__USER"]
-    pg_pass = os.environ["OMOP__PASSWORD"]
-    pg_host = os.environ["OMOP__HOST"]
-    pg_port = os.environ["OMOP__PORT"]
-    pg_name = os.environ["OMOP__DATABASE"]
+    pg_user = os.environ["CELIDA_EE_OMOP__USER"]
+    pg_pass = os.environ["CELIDA_EE_OMOP__PASSWORD"]
+    pg_host = os.environ["CELIDA_EE_OMOP__HOST"]
+    pg_port = os.environ["CELIDA_EE_OMOP__PORT"]
+    pg_name = os.environ["CELIDA_EE_OMOP__DATABASE"]
 
     janitor = DatabaseJanitor(
         user=pg_user,
@@ -51,12 +52,11 @@ def init_postgres(config):  # type: ignore
     def getvalue(name):  # type: ignore
         return config.getoption(name) or config.getini(name)
 
-    os.environ["OMOP__USER"] = getvalue("postgresql_user")
-    os.environ["OMOP__PASSWORD"] = getvalue("postgresql_password")
-    os.environ["OMOP__HOST"] = getvalue("postgresql_host")
-    os.environ["OMOP__PORT"] = str(getvalue("postgresql_port"))
-    os.environ["OMOP__DATABASE"] = getvalue("postgresql_dbname")
-    os.environ["OMOP__SCHEMA"] = "cds_cdm"
+    os.environ["CELIDA_EE_OMOP__USER"] = getvalue("postgresql_user")
+    os.environ["CELIDA_EE_OMOP__PASSWORD"] = getvalue("postgresql_password")
+    os.environ["CELIDA_EE_OMOP__HOST"] = getvalue("postgresql_host")
+    os.environ["CELIDA_EE_OMOP__PORT"] = str(getvalue("postgresql_port"))
+    os.environ["CELIDA_EE_OMOP__DATABASE"] = getvalue("postgresql_dbname")
 
     janitor = postgres_janitor()
 

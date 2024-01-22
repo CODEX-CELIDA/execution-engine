@@ -1,3 +1,4 @@
+from abc import ABC
 from typing import Any, Dict
 
 from sqlalchemy.sql import Select
@@ -5,7 +6,9 @@ from sqlalchemy.sql import Select
 from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.util import Value, value_factory
+from execution_engine.util.types import Timing
+from execution_engine.util.value import Value
+from execution_engine.util.value.factory import value_factory
 
 __all__ = ["ConceptCriterion"]
 
@@ -14,12 +17,14 @@ Collection of static clinical variables.
 
 The values of these variables are considered constant over the observation period.
 """
-STATIC_CLINICAL_CONCEPTS = [int(OMOPConcepts.BODY_WEIGHT.value)]  # type: list[int]
-# TODO: weight can change over time - need to use the latest
+STATIC_CLINICAL_CONCEPTS = [
+    int(OMOPConcepts.BODY_WEIGHT.value),
+    int(OMOPConcepts.BODY_HEIGHT.value),
+]  # type: list[int]
 # TODO: Only use weight etc from the current encounter/visit!
 
 
-class ConceptCriterion(Criterion):
+class ConceptCriterion(Criterion, ABC):
     """
     Abstract class for a criterion based on an OMOP concept and optional value.
 
@@ -37,12 +42,14 @@ class ConceptCriterion(Criterion):
         concept: Concept,
         value: Value | None = None,
         static: bool | None = None,
+        timing: Timing | None = None,
     ):
         super().__init__(name=name, exclude=exclude, category=category)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
         self._value = value
+        self._timing = timing
 
         # static is a boolean that indicates whether the criterion is static or not
         # it is initially set by the _set_omop_variables_from_domain() function, but can be overridden
@@ -71,19 +78,6 @@ class ConceptCriterion(Criterion):
 
         return query.filter(self._table.c[concept_column_name] == concept_id)
 
-    def _sql_generate(self, query: Select) -> Select:
-        """
-        Get the SQL representation of the criterion.
-        """
-        if self._OMOP_VALUE_REQUIRED and self._value is None:
-            raise ValueError(
-                f'Value must be set for "{self._OMOP_TABLE.__tablename__}" criteria'
-            )
-
-        query = self._sql_filter_concept(query)
-
-        return query
-
     def _sql_select_data(self, query: Select) -> Select:
         c_start = self._get_datetime_column(self._table, "start")
 
@@ -109,7 +103,13 @@ class ConceptCriterion(Criterion):
         """
         Get a human-readable description of the criterion.
         """
-        return f"{self.__class__.__name__}['{self._name}'](concept={self._concept.concept_name}, value={str(self._value)})"
+        desc = f"{self.__class__.__name__}[concept={self._concept.concept_name}"
+
+        if self._value is not None:
+            desc += f", value={str(self._value)}"
+        desc += "]"
+
+        return desc
 
     def dict(self) -> dict[str, Any]:
         """
@@ -120,8 +120,13 @@ class ConceptCriterion(Criterion):
             "exclude": self._exclude,
             "category": self._category.value,
             "concept": self._concept.dict(),
-            "value": self._value.dict() if self._value is not None else None,
+            "value": self._value.dict(include_meta=True)
+            if self._value is not None
+            else None,
             "static": self._static,
+            "timing": self._timing.dict(include_meta=True)
+            if self._timing is not None
+            else None,
         }
 
     @classmethod
@@ -137,4 +142,5 @@ class ConceptCriterion(Criterion):
             concept=Concept(**data["concept"]),
             value=value_factory(**data["value"]) if data["value"] is not None else None,
             static=data["static"],
+            timing=Timing(**data["timing"]) if data["timing"] is not None else None,
         )

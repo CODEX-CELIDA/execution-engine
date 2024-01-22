@@ -1,8 +1,11 @@
 from abc import ABC
+from contextlib import contextmanager
 
 import pytest
 
-from execution_engine.util import TimeRange
+from execution_engine.util.interval import IntervalType, IntervalWithType
+from execution_engine.util.types import TimeRange
+from tests._fixtures.omop_fixture import disable_postgres_trigger
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 
 
@@ -17,7 +20,7 @@ class Occurrence(TestCriterion, ABC):
     ):
         _, vo = person_visit[0]
 
-        time_ranges = [("2023-03-04 18:00:00", "2023-03-04 18:00:00")]
+        time_ranges = [("2023-03-04 18:00:00Z", "2023-03-04 18:00:00Z")]
 
         self.perform_test(
             person_visit,
@@ -38,7 +41,7 @@ class Occurrence(TestCriterion, ABC):
     ):
         _, vo = person_visit[0]
 
-        time_ranges = [("2023-03-04 18:00:00", "2023-03-04 19:30:00")]
+        time_ranges = [("2023-03-04 18:00:00Z", "2023-03-04 19:30:00Z")]
 
         self.perform_test(
             person_visit,
@@ -57,7 +60,7 @@ class Occurrence(TestCriterion, ABC):
         criterion_execute_func,
         observation_window,
     ):
-        time_ranges = [("2023-03-04 18:00:00", "2023-03-06 18:00:00")]
+        time_ranges = [("2023-03-04 18:00:00Z", "2023-03-06 18:00:00Z")]
 
         self.perform_test(
             person_visit,
@@ -72,24 +75,24 @@ class Occurrence(TestCriterion, ABC):
         "time_ranges",
         [
             [  # non-overlapping
-                ("2023-03-04 00:00:00", "2023-03-04 02:00:00"),
-                ("2023-03-04 03:00:00", "2023-03-04 05:00:00"),
-                ("2023-03-04 06:00:00", "2023-03-04 08:00:00"),
+                ("2023-03-04 00:00:00Z", "2023-03-04 02:00:00Z"),
+                ("2023-03-04 03:00:00Z", "2023-03-04 05:00:00Z"),
+                ("2023-03-04 06:00:00Z", "2023-03-04 08:00:00Z"),
             ],
             [  # exact overlap
-                ("2023-03-04 00:00:00", "2023-03-04 02:00:00"),
-                ("2023-03-04 02:00:00", "2023-03-04 04:00:00"),
-                ("2023-03-04 04:00:00", "2023-03-04 06:00:00"),
+                ("2023-03-04 00:00:00Z", "2023-03-04 02:00:00Z"),
+                ("2023-03-04 02:00:00Z", "2023-03-04 04:00:00Z"),
+                ("2023-03-04 04:00:00Z", "2023-03-04 06:00:00Z"),
             ],
             [  # overlap by some margin
-                ("2023-03-04 00:00:00", "2023-03-04 02:00:00"),
-                ("2023-03-04 01:30:00", "2023-03-04 03:30:00"),
-                ("2023-03-04 04:00:00", "2023-03-04 06:00:00"),
+                ("2023-03-04 00:00:00Z", "2023-03-04 02:00:00Z"),
+                ("2023-03-04 01:30:00Z", "2023-03-04 03:30:00Z"),
+                ("2023-03-04 04:00:00Z", "2023-03-04 06:00:00Z"),
             ],
             [  # full overlap
-                ("2023-03-04 00:00:00", "2023-03-04 06:00:00"),
-                ("2023-03-04 01:00:00", "2023-03-04 02:00:00"),
-                ("2023-03-04 03:00:00", "2023-03-04 04:00:00"),
+                ("2023-03-04 00:00:00Z", "2023-03-04 06:00:00Z"),
+                ("2023-03-04 01:00:00Z", "2023-03-04 02:00:00Z"),
+                ("2023-03-04 03:00:00Z", "2023-03-04 04:00:00Z"),
             ],
         ],
     )
@@ -115,24 +118,24 @@ class Occurrence(TestCriterion, ABC):
         "time_ranges",
         [
             [  # non-overlapping
-                ("2023-03-01 08:00:00", "2023-03-03 16:00:00"),
-                ("2023-03-04 09:00:00", "2023-03-06 15:00:00"),
-                ("2023-03-07 10:00:00", "2023-03-09 18:00:00"),
+                ("2023-03-01 08:00:00Z", "2023-03-03 16:00:00Z"),
+                ("2023-03-04 09:00:00Z", "2023-03-06 15:00:00Z"),
+                ("2023-03-07 10:00:00Z", "2023-03-09 18:00:00Z"),
             ],
             [  # exact overlap
-                ("2023-03-01 08:00:00", "2023-03-03 16:00:00"),
-                ("2023-03-03 16:00:00", "2023-03-05 23:59:00"),
-                ("2023-03-05 23:59:00", "2023-03-08 11:00:00"),
+                ("2023-03-01 08:00:00Z", "2023-03-03 16:00:00Z"),
+                ("2023-03-03 16:00:00Z", "2023-03-05 23:59:00Z"),
+                ("2023-03-05 23:59:00Z", "2023-03-08 11:00:00Z"),
             ],
             [  # overlap by some margin
-                ("2023-03-01 08:00:00", "2023-03-03 16:00:00"),
-                ("2023-03-03 12:00:00", "2023-03-05 20:00:00"),
-                ("2023-03-06 10:00:00", "2023-03-08 18:00:00"),
+                ("2023-03-01 08:00:00Z", "2023-03-03 16:00:00Z"),
+                ("2023-03-03 12:00:00Z", "2023-03-05 20:00:00Z"),
+                ("2023-03-06 10:00:00Z", "2023-03-08 18:00:00Z"),
             ],
             [  # full overlap
-                ("2023-03-01 08:00:00", "2023-03-09 18:00:00"),
-                ("2023-03-03 10:00:00", "2023-03-05 12:00:00"),
-                ("2023-03-06 14:00:00", "2023-03-08 16:00:00"),
+                ("2023-03-01 08:00:00Z", "2023-03-09 18:00:00Z"),
+                ("2023-03-03 10:00:00Z", "2023-03-05 12:00:00Z"),
+                ("2023-03-06 14:00:00Z", "2023-03-08 16:00:00Z"),
             ],
         ],
     )
@@ -161,9 +164,9 @@ class Occurrence(TestCriterion, ABC):
                 [
                     {
                         "time_range": [  # non-overlapping
-                            ("2023-03-03 08:00:00", "2023-03-03 16:00:00"),
-                            ("2023-03-04 09:00:00", "2023-03-06 15:00:00"),
-                            ("2023-03-08 10:00:00", "2023-03-09 18:00:00"),
+                            ("2023-03-03 08:00:00Z", "2023-03-03 16:00:00Z"),
+                            ("2023-03-04 09:00:00Z", "2023-03-06 15:00:00Z"),
+                            ("2023-03-08 10:00:00Z", "2023-03-09 18:00:00Z"),
                         ],
                         "expected": {
                             "2023-03-03",
@@ -176,9 +179,9 @@ class Occurrence(TestCriterion, ABC):
                     },
                     {
                         "time_range": [  # exact overlap
-                            ("2023-03-01 08:00:00", "2023-03-02 16:00:00"),
-                            ("2023-03-02 16:00:00", "2023-03-03 23:59:00"),
-                            ("2023-03-03 23:59:00", "2023-03-04 11:00:00"),
+                            ("2023-03-01 08:00:00Z", "2023-03-02 16:00:00Z"),
+                            ("2023-03-02 16:00:00Z", "2023-03-03 23:59:00Z"),
+                            ("2023-03-03 23:59:00Z", "2023-03-04 11:00:00Z"),
                         ],
                         "expected": {
                             "2023-03-01",
@@ -189,9 +192,9 @@ class Occurrence(TestCriterion, ABC):
                     },
                     {
                         "time_range": [  # overlap by some margin
-                            ("2023-03-01 08:00:00", "2023-03-03 16:00:00"),
-                            ("2023-03-03 12:00:00", "2023-03-05 20:00:00"),
-                            ("2023-03-06 10:00:00", "2023-03-08 18:00:00"),
+                            ("2023-03-01 08:00:00Z", "2023-03-03 16:00:00Z"),
+                            ("2023-03-03 12:00:00Z", "2023-03-05 20:00:00Z"),
+                            ("2023-03-06 10:00:00Z", "2023-03-08 18:00:00Z"),
                         ],
                         "expected": {
                             "2023-03-01",
@@ -217,13 +220,17 @@ class Occurrence(TestCriterion, ABC):
             test_cases
         ), "Number of test cases must match number of persons"
 
-        for test_case, vo in zip(test_cases, vos):
-            time_ranges = [TimeRange.from_tuple(tr) for tr in test_case["time_range"]]
+        # need to disable trigger for overlapping intervals to perform the test
+        with disable_postgres_trigger(db_session):
+            for test_case, vo in zip(test_cases, vos):
+                time_ranges = [
+                    TimeRange.from_tuple(tr) for tr in test_case["time_range"]
+                ]
 
-            self.insert_occurrences(concept, db_session, vo, time_ranges)
+                self.insert_occurrences(concept, db_session, vo, time_ranges)
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
+            # run criterion against db
+            df = criterion_execute_func(concept=concept, exclude=False)
 
         for test_case, vo in zip(test_cases, vos):
             assert set(
@@ -242,6 +249,34 @@ class Occurrence(TestCriterion, ABC):
 
         db_session.commit()
 
+    @staticmethod
+    def disable_trigger_for_overlapping_intervals(
+        time_ranges: list[TimeRange],
+    ) -> callable:
+        """
+        Create a context manager that disables the postgres trigger for overlapping intervals.
+
+        This is needed to perform the test, because the postgres trigger will prevent the insertion of overlapping
+        intervals. If intervals are not overlapping, a no-op context manager is returned.
+
+        :param time_ranges: The time ranges to check for overlapping intervals.
+        :return: A context manager that disables the postgres trigger for overlapping intervals.
+        """
+
+        @contextmanager
+        def dummy_context_manager(session):
+            yield
+
+        intervals = [tr.interval(type_=IntervalType.POSITIVE) for tr in time_ranges]
+
+        if not IntervalWithType.pairwise_disjoint(intervals):
+            # intervals are overlapping, need to disable trigger for overlapping intervals to perform the test
+            ctx = disable_postgres_trigger
+        else:
+            ctx = dummy_context_manager
+
+        return ctx
+
     def perform_test(
         self,
         person_visit,
@@ -257,22 +292,12 @@ class Occurrence(TestCriterion, ABC):
         time_ranges = [TimeRange.from_tuple(tr[:2]) for tr in time_ranges]
         filtered_time_ranges = [tr for tr, v in zip(time_ranges, valid_range) if v]
 
-        self.insert_occurrences(concept, db_session, vo, time_ranges)
+        with self.disable_trigger_for_overlapping_intervals(time_ranges)(db_session):
+            self.insert_occurrences(concept, db_session, vo, time_ranges)
+            df = criterion_execute_func(concept=concept, exclude=False)
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
         valid_daterange = self.date_ranges(filtered_time_ranges)
-        assert (
-            set(df.query(f"person_id=={p.person_id}")["valid_date"].dt.date)
-            == valid_daterange
-        )
 
-        df = criterion_execute_func(concept=concept, exclude=True)
-        # exclusion is now performed only when combining the criteria into population/intervention
-        # valid_daterange = self.invert_date_range(
-        #    time_range=observation_window,
-        #    subtract=time_ranges,
-        # )
         assert (
             set(df.query(f"person_id=={p.person_id}")["valid_date"].dt.date)
             == valid_daterange

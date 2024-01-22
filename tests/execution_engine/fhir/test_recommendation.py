@@ -73,7 +73,11 @@ class TestRecommendation(RecommendationFixtures):
     def test_properties_before_load(self, mock_load):
         # Setup
         canonical_url = "http://test.com/PlanDefinition/123"
-        rec = Recommendation(canonical_url, FHIRClient("http://fhir.example.com"))
+        rec = Recommendation(
+            canonical_url,
+            package_version="latest",
+            fhir_connector=FHIRClient("http://fhir.example.com"),
+        )
 
         # Test
         with pytest.raises(ValueError, match=r"Recommendation not loaded."):
@@ -94,7 +98,11 @@ class TestRecommendation(RecommendationFixtures):
     def test_properties_without_data(self, mock_fetch_recommendation):
         # Setup
         canonical_url = "http://test.com/PlanDefinition/123"
-        rec = Recommendation(canonical_url, FHIRClient("http://fhir.example.com"))
+        rec = Recommendation(
+            canonical_url,
+            package_version="latest",
+            fhir_connector=FHIRClient("http://fhir.example.com"),
+        )
 
         # Test
         with pytest.raises(ValueError, match=r"Recommendation has no name."):
@@ -120,7 +128,11 @@ class TestRecommendation(RecommendationFixtures):
         with pytest.raises(
             ValueError, match=r"Unknown recommendation type: unknown-type"
         ):
-            _ = Recommendation(canonical_url, FHIRClient("http://fhir.example.com"))
+            _ = Recommendation(
+                canonical_url,
+                package_version="latest",
+                fhir_connector=FHIRClient("http://fhir.example.com"),
+            )
 
     def test_recommendation_fetch_with_no_partof_extension(
         self, mock_fetch_resource_no_partOf
@@ -133,7 +145,11 @@ class TestRecommendation(RecommendationFixtures):
             ValueError,
             match=r"No partOf extension found in PlanDefinition, can't fetch recommendation.",
         ):
-            _ = Recommendation(canonical_url, FHIRClient("http://fhir.example.com"))
+            _ = Recommendation(
+                canonical_url,
+                package_version="latest",
+                fhir_connector=FHIRClient("http://fhir.example.com"),
+            )
 
 
 class TestRecommendationPlan(RecommendationFixtures):
@@ -174,7 +190,11 @@ class TestRecommendationPlan(RecommendationFixtures):
     def test_properties_before_load(self, mock_load):
         # Setup
         canonical_url = "http://test.com/PlanDefinition/123"
-        rec = RecommendationPlan(canonical_url, FHIRClient("http://fhir.example.com"))
+        rec = RecommendationPlan(
+            canonical_url,
+            package_version="v1.3.0",
+            fhir_connector=FHIRClient("http://fhir.example.com"),
+        )
 
         # Test
         with pytest.raises(ValueError, match=r"Recommendation not loaded."):
@@ -185,7 +205,11 @@ class TestRecommendationPlan(RecommendationFixtures):
     ):
         # Setup
         canonical_url = "http://test.com/PlanDefinition/123"
-        rec = RecommendationPlan(canonical_url, FHIRClient("http://fhir.example.com"))
+        rec = RecommendationPlan(
+            canonical_url,
+            package_version="v1.3.0",
+            fhir_connector=FHIRClient("http://fhir.example.com"),
+        )
 
         # Test
         with pytest.raises(ValueError, match=r"Recommendation has no name."):
@@ -199,11 +223,19 @@ class TestRecommendationPlan(RecommendationFixtures):
         with pytest.raises(
             ValueError, match=r"Unknown recommendation type: unknown-type"
         ):
-            _ = RecommendationPlan(canonical_url, FHIRClient("http://fhir.example.com"))
+            _ = RecommendationPlan(
+                canonical_url,
+                package_version="v1.3.0",
+                fhir_connector=FHIRClient("http://fhir.example.com"),
+            )
 
     def test_goals_property(self, mock_fetch_resource_goals):
         canonical_url = "http://test.com/PlanDefinition/123"
 
-        rec = RecommendationPlan(canonical_url, FHIRClient("http://fhir.example.com"))
+        rec = RecommendationPlan(
+            canonical_url,
+            package_version="v1.3.0",
+            fhir_connector=FHIRClient("http://fhir.example.com"),
+        )
 
         assert rec.goals[0].description.text == "http://test.com/Goal/123"

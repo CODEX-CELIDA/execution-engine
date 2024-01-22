@@ -15,7 +15,7 @@ class FHIRClient:
         self.base_url = base_url
 
     def fetch_resource(
-        self, element_type: str, canonical_url: str
+        self, element_type: str, canonical_url: str, version: str
     ) -> FHIRAbstractModel:
         """
         Get a resource from the FHIR server by its canonical URL.
@@ -24,7 +24,8 @@ class FHIRClient:
 
         try:
             r = requests.get(
-                f"{self.base_url}/{element_type}?url={canonical_url}", timeout=10
+                f"{self.base_url}/{element_type}?url={canonical_url}&version={version}",
+                timeout=10,
             )
         except ConnectionRefusedError:
             raise ConnectionRefusedError(

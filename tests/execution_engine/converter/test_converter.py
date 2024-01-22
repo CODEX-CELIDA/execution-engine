@@ -18,7 +18,7 @@ from execution_engine.converter.converter import (
 )
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.util import ValueConcept, ValueNumber
+from execution_engine.util.value import ValueConcept, ValueNumber
 
 
 class TestSelectValue:

@@ -1,0 +1,18 @@
+services:
+  backend:
+    build: ./viz-backend
+    ports:
+      - "8001:8000"
+    #depends_on:
+    #  - db # If you have a database service
+
+  frontend:
+    build: ./viz-frontend
+    ports:
+      - "3000:3000"
+
+  #db:
+  #  image: postgres # Example database service
+    # Configuration for the database...
+
+  # Include other services as needed...

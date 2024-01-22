@@ -1,8 +1,12 @@
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import func, select, text
+import sqlalchemy.exc
+from sqlalchemy import func, select
 
+from execution_engine.omop.db.celida.views import partial_day_coverage
+from execution_engine.omop.db.omop.tables import VisitOccurrence
+from tests._fixtures.omop_fixture import disable_postgres_trigger
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit
@@ -29,8 +33,12 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         base_criterion,
         observation_window,
     ):
-
         person = person[0]
+
+        from execution_engine.clients import omopdb
+
+        # used to check for overlapping intervals
+        omopdb.enable_interval_check_trigger()
 
         def count_day_entries(visit_datetimes: list[tuple[str, str]]) -> int:
             """
@@ -41,22 +49,27 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             """
 
             self.insert_visits(db_session, person, visit_datetimes)
-
-            base_table = self.create_base_table(
-                base_criterion,
-                db_session,
-                observation_window,
-            )
-
-            stmt = select(
-                base_table.c.person_id, func.count("*").label("count")
-            ).group_by(base_table.c.person_id)
-            result = db_session.execute(stmt)
-            count = [dict(row._mapping) for row in result]
-
-            base_table.drop(db_session.connection())
-            db_session.execute(text('DELETE FROM "cds_cdm"."visit_occurrence";'))
-            db_session.commit()
+            try:
+                with self.execute_base_criterion(
+                    base_criterion,
+                    db_session,
+                    observation_window,
+                ):
+                    stmt = (
+                        select(
+                            partial_day_coverage.c.person_id,
+                            func.count("*").label("count"),
+                        )
+                        .where(partial_day_coverage.c.run_id == self.run_id)
+                        .group_by(partial_day_coverage.c.person_id)
+                    )
+                    result = db_session.execute(stmt)
+                    count = [dict(row._mapping) for row in result]
+            finally:
+                # cleanup
+                db_session.rollback()  # rollback to avoid constraint violation
+                db_session.query(VisitOccurrence).delete()
+                db_session.commit()
 
             return count[0]["count"] if len(count) > 0 else 0
 
@@ -79,14 +92,20 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             ("2023-03-04 01:30:00", "2023-03-04 03:30:00"),
             ("2023-03-04 04:00:00", "2023-03-04 06:00:00"),
         ]
-        assert count_day_entries(partial_overlap) == 1
+        with pytest.raises(
+            sqlalchemy.exc.ProgrammingError, match="Overlapping intervals detected"
+        ):
+            assert count_day_entries(partial_overlap) == 1
 
         contained_overlap = [
             ("2023-03-04 00:00:00", "2023-03-04 06:00:00"),
             ("2023-03-04 01:00:00", "2023-03-04 02:00:00"),
             ("2023-03-04 03:00:00", "2023-03-04 04:00:00"),
         ]
-        assert count_day_entries(contained_overlap) == 1
+        with pytest.raises(
+            sqlalchemy.exc.ProgrammingError, match="Overlapping intervals detected"
+        ):
+            assert count_day_entries(contained_overlap) == 1
 
         non_overlapping = [
             ("2023-03-01 08:00:00", "2023-03-03 16:00:00"),  # 3
@@ -107,24 +126,45 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             ("2023-03-03 12:00:00", "2023-03-05 20:00:00"),  # +2
             ("2023-03-06 10:00:00", "2023-03-08 18:00:00"),  # +3
         ]
-        assert count_day_entries(partial_overlap) == 8
+        with pytest.raises(
+            sqlalchemy.exc.ProgrammingError, match="Overlapping intervals detected"
+        ):
+            assert count_day_entries(partial_overlap) == 8
 
         contained_overlap = [
             ("2023-03-01 08:00:00", "2023-03-09 18:00:00"),  # 9
             ("2023-03-03 10:00:00", "2023-03-05 12:00:00"),  # +0
             ("2023-03-06 14:00:00", "2023-03-08 16:00:00"),  # +0
         ]
-        assert count_day_entries(contained_overlap) == 9
+        with pytest.raises(
+            sqlalchemy.exc.ProgrammingError, match="Overlapping intervals detected"
+        ):
+            assert count_day_entries(contained_overlap) == 9
 
-        before_observation_window = [
+        # in the next two cases, the visit either ends on the day the observation window starts or the day before.
+        before_observation_window_same_day = [
             ("2023-02-01 00:00:00", "2023-03-01 02:00:00"),
         ]
-        assert count_day_entries(before_observation_window) == 0
+        assert count_day_entries(before_observation_window_same_day) == 0
 
-        after_observation_window = [
-            ("2023-03-31 23:59:00", "2023-04-01 02:00:00"),
+        before_observation_window_previous_day = [
+            ("2023-02-01 00:00:00", "2023-02-27 02:00:00"),
         ]
-        assert count_day_entries(after_observation_window) == 0
+        assert count_day_entries(before_observation_window_previous_day) == 0
+
+        # note that proper time zone is required, otherwise (if given in utc), it will be the next day (see next example)
+        after_observation_window_same_day = [
+            ("2023-03-31 23:59:00+02:00", "2023-04-01 02:00:00"),
+        ]
+        assert count_day_entries(after_observation_window_same_day) == 0
+
+        after_observation_window_next_day = [
+            (
+                "2023-03-31 23:59:00+00:00",  # note: this is 2023-04-01 01:59:00+02:00 i.e. next day in Europe/Berlin
+                "2023-04-01 02:00:00",
+            ),
+        ]
+        assert count_day_entries(after_observation_window_next_day) == 0
 
         during_begin_observation_window = [
             ("2023-02-01 00:00:00", "2023-03-04 02:00:00"),
@@ -132,7 +172,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         assert count_day_entries(during_begin_observation_window) == 4
 
         during_end_observation_window = [
-            ("2023-03-29 23:59:00", "2023-04-01 02:00:00"),
+            ("2023-03-29 23:59:00+02:00", "2023-04-01 02:00:00"),
         ]
         assert count_day_entries(during_end_observation_window) == 3
 
@@ -193,31 +233,27 @@ class TestActivePatientsDuringPeriod(TestCriterion):
     def test_multiple_patients_active_during_period(
         self, person, db_session, base_criterion, observation_window, test_cases
     ):
+        # need to disable postgres trigger to avoid constraint violation due to overlapping intervals in testdata
+        with disable_postgres_trigger(db_session):
+            for p, tc in zip(person, test_cases):
+                self.insert_visits(db_session, p, tc["time_range"])
 
-        for p, tc in zip(person, test_cases):
-            self.insert_visits(db_session, p, tc["time_range"])
+            with self.execute_base_criterion(
+                base_criterion,
+                db_session,
+                observation_window,
+            ):
+                stmt = select(
+                    partial_day_coverage.c.person_id,
+                    partial_day_coverage.c.valid_date,
+                ).where(partial_day_coverage.c.run_id == self.run_id)
+                df = pd.read_sql(stmt, db_session.connection())
+                df["valid_date"] = pd.to_datetime(df["valid_date"])
 
-        base_table = self.create_base_table(
-            base_criterion,
-            db_session,
-            observation_window,
-        )
+            db_session.query(VisitOccurrence).delete()
+            db_session.commit()
 
-        stmt = select(base_table.c.person_id, base_table.c.valid_date).select_from(
-            base_table
-        )
-        df = pd.read_sql(
-            stmt,
-            db_session.connection(),
-            params=observation_window.dict(),
-        )
-        df["valid_date"] = pd.to_datetime(df["valid_date"])
-
-        base_table.drop(db_session.connection())
-        db_session.execute(text('DELETE FROM "cds_cdm"."visit_occurrence";'))
-        db_session.commit()
-
-        for tc, p in zip(test_cases, person):
-            assert set(
-                df.query(f"person_id=={p.person_id}")["valid_date"].dt.date
-            ) == date_set(tc["expected"])
+            for tc, p in zip(test_cases, person):
+                assert set(
+                    df.query(f"person_id=={p.person_id}")["valid_date"].dt.date
+                ) == date_set(tc["expected"])

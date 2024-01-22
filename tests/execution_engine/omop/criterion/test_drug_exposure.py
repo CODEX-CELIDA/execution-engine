@@ -2,13 +2,14 @@ import pandas as pd
 import pendulum
 import pytest
 
-from execution_engine.clients import omopdb
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
-from execution_engine.util import Dosage, Interval, ValueNumber
+from execution_engine.util.enum import TimeUnit
+from execution_engine.util.types import Dosage
+from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
-    concept_enoxparin_ingredient,
+    concept_enoxparin,
     concept_heparin_ingredient,
     concept_unit_mg,
     concepts_heparin_other,
@@ -18,35 +19,6 @@ from tests.functions import create_drug_exposure
 
 
 class TestDrugExposure(TestCriterion):
-
-    related_concepts: dict[int, list[str]] = {}
-
-    @pytest.fixture(scope="class", autouse=True)
-    def setup_related_concepts(self):
-        concept_ids = [
-            concept_heparin_ingredient.concept_id,
-            concept_enoxparin_ingredient.concept_id,
-        ]
-
-        for concept_id in concept_ids:
-            self.related_concepts[concept_id] = omopdb.drugs_by_ingredient(
-                concept_id, with_unit=True
-            )["drug_concept_id"].tolist()
-
-    @staticmethod
-    def drug_concepts(concept: Concept):
-        """
-        Given a drug concept, find the ingredient of that drug and return all drugs that contain that ingredient.
-        """
-
-        ingredient = omopdb.drug_vocabulary_to_ingredient(
-            concept.vocabulary_id, concept.concept_code  # type: ignore
-        )
-
-        drugs = omopdb.drugs_by_ingredient(ingredient.concept_id, with_unit=True)  # type: ignore
-
-        return {"ingredient": ingredient, "drugs": drugs}
-
     @pytest.fixture
     def execute_drug_exposure_criterion(
         self, base_table, db_session, observation_window
@@ -54,31 +26,26 @@ class TestDrugExposure(TestCriterion):
         def _run_drug_exposure(
             ingredient_concept: Concept,
             exclude: bool,
-            dose: ValueNumber | None,
-            frequency: int | None,
-            interval: Interval | None,
+            dose: Dosage | None,
             route: Concept | None,
         ) -> pd.DataFrame:
             criterion = DrugExposure(
                 name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
-                drug_concepts=self.related_concepts[ingredient_concept.concept_id],
                 ingredient_concept=ingredient_concept,
                 dose=dose,
-                frequency=frequency,
-                interval=interval,
                 route=route,
             )
 
-            query = criterion.sql_generate(base_table=base_table)
+            self.insert_criterion(db_session, criterion, observation_window)
 
-            df = pd.read_sql(
-                query,
-                db_session.connection(),
-                params=observation_window.dict(),
+            df = self.fetch_full_day_result(
+                db_session,
+                pi_pair_id=self.pi_pair_id,
+                criterion_id=self.criterion_id,
+                category=criterion.category,
             )
-            df["valid_date"] = pd.to_datetime(df["valid_date"])
 
             return df
 
@@ -124,9 +91,7 @@ class TestDrugExposure(TestCriterion):
         result = execute_drug_exposure_criterion(
             ingredient_concept=concept_heparin_ingredient,
             exclude=False,
-            dose=dosage.dose,
-            frequency=dosage.frequency,
-            interval=dosage.interval,
+            dose=dosage,
             route=None,
         )
 
@@ -155,7 +120,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -163,7 +128,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -171,7 +136,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -179,7 +144,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -187,7 +152,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -195,7 +160,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -203,7 +168,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -211,7 +176,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -219,7 +184,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -229,7 +194,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=100, value_max=100, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -237,7 +202,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=99, value_max=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -247,7 +212,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=0, value_max=10000, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -279,8 +244,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-08 23:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-08 23:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -304,7 +269,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=87.0, value_max=150, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.WEEK,
+                    interval=TimeUnit.WEEK,
                 ),
                 {
                     "2023-03-01",
@@ -322,7 +287,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=12.9, value_max=86.9, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.WEEK,
+                    interval=TimeUnit.WEEK,
                 ),
                 {
                     "2023-03-08",
@@ -340,7 +305,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=12.9, value_max=86.9, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {
                     "2023-03-02",
@@ -358,7 +323,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=12.9, value_max=86.9, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -396,7 +361,7 @@ class TestDrugExposure(TestCriterion):
                 # date         qty
                 # 2023-03-01 100.0
                 {
-                    "drug_concept_id": concept_enoxparin_ingredient.concept_id,
+                    "drug_concept_id": concept_enoxparin.concept_id,
                     "start_datetime": "2023-03-02 09:36:24",
                     "end_datetime": "2023-03-02 10:36:24",
                     "quantity": 200,
@@ -421,7 +386,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01", "2023-03-03"},
             ),
@@ -429,7 +394,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=99, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -460,8 +425,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-02 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty total
@@ -469,8 +434,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02  42.4 128.8
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-03 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 10:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -486,7 +451,15 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=50, value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {"2023-03-01", "2023-03-03"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=50, value_max=200, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-03"},
             ),
@@ -496,7 +469,17 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.7, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(
+                        value_min=128.7, value_max=200, unit=concept_unit_mg
+                    ),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -506,7 +489,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.7, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -516,7 +499,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.7, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=3,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -526,7 +509,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=128.8, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -557,16 +540,16 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-01 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-01 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
                 # 2023-03-01 100.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-02 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 10:36:24+01:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -581,7 +564,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01", "2023-03-02"},
             ),
@@ -589,7 +572,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -597,7 +580,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=200.1, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -628,16 +611,16 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-11 09:36:24",
-                    "end_datetime": "2023-03-11 10:36:24",
+                    "start_datetime": "2023-03-11 09:36:24+01:00",
+                    "end_datetime": "2023-03-11 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
                 # 2023-03-11 100.0
                 {
-                    "drug_concept_id": concept_enoxparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-02 10:36:24",
+                    "drug_concept_id": concept_enoxparin.concept_id,
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 10:36:24+01:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -652,7 +635,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-11"},
             ),
@@ -683,8 +666,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-03 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 10:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty total
@@ -693,8 +676,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-03  21.6  95.1
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-04 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 10:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -711,7 +694,15 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=29.3, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {"2023-03-01", "2023-03-04"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=29.3, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-03", "2023-03-04"},
             ),
@@ -719,7 +710,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=29.3, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02", "2023-03-03"},
             ),
@@ -727,7 +718,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=93.0, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02", "2023-03-03"},
             ),
@@ -735,7 +726,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=94.0, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-03"},
             ),
@@ -743,7 +734,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=96.0, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -751,7 +742,15 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=1.0, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.WEEK,
+                    interval=TimeUnit.WEEK,
+                ),
+                {},  # None because of interval WEEK
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=1.0, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.WEEK,
                 ),
                 {
                     "2023-03-01",
@@ -761,7 +760,7 @@ class TestDrugExposure(TestCriterion):
                     "2023-03-05",
                     "2023-03-06",
                     "2023-03-07",
-                },
+                },  # all days in that week because of interval WEEK
             ),
         ],
     )
@@ -790,8 +789,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-02 09:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 09:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -799,8 +798,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02  40.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-03 09:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 09:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -816,7 +815,15 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=1, value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {"2023-03-01", "2023-03-03"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=1, value_max=200, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-03"},
             ),
@@ -826,7 +833,7 @@ class TestDrugExposure(TestCriterion):
                         value_min=129.9, value_max=200, unit=concept_unit_mg
                     ),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -857,8 +864,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-04-01 09:36:24",
-                    "end_datetime": "2023-04-02 09:36:24",
+                    "start_datetime": "2023-04-01 09:36:24+01:00",
+                    "end_datetime": "2023-04-02 09:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -866,8 +873,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-04-02  40.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-04-02 09:36:24",
-                    "end_datetime": "2023-04-03 09:36:24",
+                    "start_datetime": "2023-04-02 09:36:24+01:00",
+                    "end_datetime": "2023-04-03 09:36:24+01:00",
                     "quantity": 150,
                 },
                 # date         qty total
@@ -883,7 +890,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=0, value_max=200, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -909,17 +916,18 @@ class TestDrugExposure(TestCriterion):
 
     # Test case 10: Drug exposure entries starting before or ending after observation window
     # question:
-    # - the drug entry part that is within the DAY of the observation window should count, or really only the part that is within the observation window?
-    # currently the former is implemented
-    # what if the interval is not day but week: should the drug entry part that is within the WEEK of the observation window count? what is the reference for the first week day?
+    # - the drug entry part that is within the DAY of the observation window should count, or really only
+    #   the part that is within the observation window? currently the former is implemented
+    #   what if the interval is not day but week: should the drug entry part that is within the WEEK of the
+    #   observation window count? what is the reference for the first week day?
     @pytest.mark.parametrize(
         "drug_exposures",
         [
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-02-28 12:00:00",
-                    "end_datetime": "2023-03-02 12:00:00",
+                    "start_datetime": "2023-02-28 12:00:00+01:00",
+                    "end_datetime": "2023-03-02 12:00:00+01:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -929,8 +937,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02  50.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-30 12:00:00",
-                    "end_datetime": "2023-04-01 12:00:00",
+                    "start_datetime": "2023-03-30 12:00:00+02:00",
+                    "end_datetime": "2023-04-01 12:00:00+02:00",
                     "quantity": 200,
                 },
                 # date         qty
@@ -948,7 +956,15 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {"2023-03-01", "2023-03-31"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=100, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01", "2023-03-31"},
             ),
@@ -956,7 +972,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=50, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01", "2023-03-02", "2023-03-30", "2023-03-31"},
             ),
@@ -964,7 +980,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=101, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -995,20 +1011,20 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-03 18:51:00",
-                    "end_datetime": "2023-03-12 23:59:00",
+                    "start_datetime": "2023-03-03 18:51:00+01:00",
+                    "end_datetime": "2023-03-12 23:59:00+01:00",
                     "quantity": 796.08,
                 },
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-05 00:00:00",
-                    "end_datetime": "2023-03-09 09:36:24",
+                    "start_datetime": "2023-03-05 00:00:00+01:00",
+                    "end_datetime": "2023-03-09 09:36:24+01:00",
                     "quantity": 38018.4,
                 },
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-06 12:34:56",
-                    "end_datetime": "2023-03-08 09:36:25",
+                    "start_datetime": "2023-03-06 12:34:56+01:00",
+                    "end_datetime": "2023-03-08 09:36:25+01:00",
                     "quantity": 1620.89,
                 },
             )
@@ -1032,7 +1048,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=18.54, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-03"},
             ),
@@ -1040,15 +1056,15 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=86.40, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04", "2023-03-10", "2023-03-11"},
             ),
             (
                 Dosage(
                     dose=ValueNumber(value=8726.40, unit=concept_unit_mg),
-                    frequency=1,
-                    interval=Interval.DAY,
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-05"},
             ),
@@ -1056,7 +1072,23 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=9137.44, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value=9137.44, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
+                ),
+                {"2023-03-06"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value=9137.44, unit=concept_unit_mg),
+                    frequency=3,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-06"},
             ),
@@ -1064,23 +1096,39 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=9590.40, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value=9590.40, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
+                ),
+                {"2023-03-07"},
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value=9590.40, unit=concept_unit_mg),
+                    frequency=3,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-07"},
             ),
             (
                 Dosage(
                     dose=ValueNumber(value=9072.25, unit=concept_unit_mg),
-                    frequency=1,
-                    interval=Interval.DAY,
+                    frequency=3,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-08"},
             ),
             (
                 Dosage(
                     dose=ValueNumber(value=3544.80, unit=concept_unit_mg),
-                    frequency=1,
-                    interval=Interval.DAY,
+                    frequency=2,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-09"},
             ),
@@ -1088,7 +1136,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=86.34, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-12"},
             ),
@@ -1096,7 +1144,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=10000, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -1104,7 +1152,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=4,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {},
             ),
@@ -1112,7 +1160,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=3,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {
                     "2023-03-06",
@@ -1124,7 +1172,18 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {
+                    "2023-03-05",
+                    "2023-03-09",
+                },
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
+                    frequency=">=2",
+                    interval=TimeUnit.DAY,
                 ),
                 {
                     "2023-03-05",
@@ -1138,7 +1197,21 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
+                ),
+                {
+                    "2023-03-03",
+                    "2023-03-04",
+                    "2023-03-10",
+                    "2023-03-11",
+                    "2023-03-12",
+                },
+            ),
+            (
+                Dosage(
+                    dose=ValueNumber(value_min=10.40, unit=concept_unit_mg),
+                    frequency=">=1",
+                    interval=TimeUnit.DAY,
                 ),
                 {
                     "2023-03-03",
@@ -1180,14 +1253,14 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept1.concept_id,
-                    "start_datetime": "2023-03-01 00:00:00",
-                    "end_datetime": "2023-03-03 12:00:00",
+                    "start_datetime": "2023-03-01 00:00:00+01:00",
+                    "end_datetime": "2023-03-03 12:00:00+01:00",
                     "quantity": 200,
                 },
                 {
                     "drug_concept_id": concept2.concept_id,
-                    "start_datetime": "2023-03-02 00:00:00",
-                    "end_datetime": "2023-03-05 00:00:00",
+                    "start_datetime": "2023-03-02 00:00:00+01:00",
+                    "end_datetime": "2023-03-05 00:00:00+01:00",
                     "quantity": 201,
                 },
             )
@@ -1209,7 +1282,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=80, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-01"},
             ),
@@ -1217,7 +1290,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=147, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02"},
             ),
@@ -1225,7 +1298,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value_min=67, unit=concept_unit_mg),
                     frequency=2,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-02", "2023-03-03"},
             ),
@@ -1255,8 +1328,8 @@ class TestDrugExposure(TestCriterion):
             (
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-04 09:36:24",
-                    "end_datetime": "2023-03-04 09:36:24",
+                    "start_datetime": "2023-03-04 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 09:36:24+01:00",
                     "quantity": 100,
                 },
                 # date         qty
@@ -1271,7 +1344,7 @@ class TestDrugExposure(TestCriterion):
                 Dosage(
                     dose=ValueNumber(value=100, unit=concept_unit_mg),
                     frequency=1,
-                    interval=Interval.DAY,
+                    interval=TimeUnit.DAY,
                 ),
                 {"2023-03-04"},
             ),
@@ -1301,8 +1374,8 @@ class TestDrugExposure(TestCriterion):
             [
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-01 09:36:24",
-                    "end_datetime": "2023-03-03 10:36:24",
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 10:36:24+01:00",
                     "quantity": 1000,
                     "expected": {"2023-03-01", "2023-03-02", "2023-03-03"},
                 },
@@ -1310,8 +1383,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-01 100.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-02 09:36:24",
-                    "end_datetime": "2023-03-04 10:36:24",
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 10:36:24+01:00",
                     "quantity": 2000,
                     "expected": {"2023-03-02", "2023-03-03", "2023-03-04"},
                 },
@@ -1319,8 +1392,8 @@ class TestDrugExposure(TestCriterion):
                 # 2023-03-02 200.0
                 {
                     "drug_concept_id": concept_heparin_ingredient.concept_id,
-                    "start_datetime": "2023-03-04 09:36:24",
-                    "end_datetime": "2023-03-06 10:36:24",
+                    "start_datetime": "2023-03-04 09:36:24+01:00",
+                    "end_datetime": "2023-03-06 10:36:24+01:00",
                     "quantity": 1000,
                     "expected": {"2023-03-04", "2023-03-05", "2023-03-06"},
                 },
@@ -1335,7 +1408,7 @@ class TestDrugExposure(TestCriterion):
             Dosage(
                 dose=ValueNumber(value_min=100, unit=concept_unit_mg),
                 frequency=1,
-                interval=Interval.DAY,
+                interval=TimeUnit.DAY,
             )
         ],
     )
@@ -1365,9 +1438,7 @@ class TestDrugExposure(TestCriterion):
         result = execute_drug_exposure_criterion(
             ingredient_concept=concept_heparin_ingredient,
             exclude=False,
-            dose=dosage.dose,
-            frequency=dosage.frequency,
-            interval=dosage.interval,
+            dose=dosage,
             route=None,
         )
 

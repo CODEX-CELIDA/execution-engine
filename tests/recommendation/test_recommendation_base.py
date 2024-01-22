@@ -2,6 +2,7 @@ import datetime
 import itertools
 import re
 from abc import ABC
+from functools import reduce
 
 import numpy as np
 import pandas as pd
@@ -10,13 +11,17 @@ import pytest
 import sympy
 from numpy import typing as npt
 from sqlalchemy import select
-from tqdm import tqdm
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
-from execution_engine.omop.db.cdm import Person
-from execution_engine.omop.db.celida import RecommendationPlan, RecommendationResult
-from execution_engine.util import TimeRange
+from execution_engine.omop.db.celida.tables import PopulationInterventionPair
+from execution_engine.omop.db.celida.views import (
+    full_day_coverage,
+    partial_day_coverage,
+)
+from execution_engine.omop.db.omop.tables import Person
+from execution_engine.util.interval import IntervalType
+from execution_engine.util.types import TimeRange
 from tests._testdata import concepts, parameter
 from tests.functions import (
     create_condition,
@@ -27,6 +32,15 @@ from tests.functions import (
     create_visit,
     generate_binary_combinations_dataframe,
 )
+
+MISSING_DATA_TYPE = {
+    "condition": IntervalType.NEGATIVE,
+    "observation": IntervalType.NO_DATA,
+    "drug": IntervalType.NEGATIVE,
+    "visit": IntervalType.NEGATIVE,
+    "measurement": IntervalType.NO_DATA,
+    "procedure": IntervalType.NEGATIVE,
+}
 
 
 class RecommendationCriteriaCombination:
@@ -39,6 +53,12 @@ class RecommendationCriteriaCombination:
             self.df = df.set_index(["person_id", "date"])
         else:
             self.df = df
+
+        # make NO_DATA and NOT_APPLICABLE equal to False
+        with IntervalType.custom_bool_true(
+            [IntervalType.POSITIVE, IntervalType.NOT_APPLICABLE]
+        ):
+            self.df = self.df.astype(bool)
 
     def __getitem__(self, item):
         return self.df[item]
@@ -150,23 +170,40 @@ class RecommendationCriteriaCombination:
         return reports
 
 
-def create_index_from_logical_expression(
+def elementwise_mask(s1, mask, fill_value=False):
+    return s1.combine(mask, lambda x, y: x if y else fill_value)
+
+
+def elementwise_and(s1, s2):
+    return s1.combine(s2, lambda x, y: x & y)
+
+
+def elementwise_or(s1, s2):
+    return s1.combine(s2, lambda x, y: x | y)
+
+
+def elementwise_not(s1):
+    return s1.map(lambda x: ~x)
+
+
+def combine_dataframe_via_logical_expression(
     df: pd.DataFrame, expression: str
-) -> npt.NDArray[np.bool_]:
-    # parse the sympy expression
+) -> npt.NDArray:
+    def eval_expr(expr):
+        if isinstance(expr, sympy.Symbol):
+            return df[str(expr)]
+        elif isinstance(expr, sympy.And):
+            return reduce(elementwise_and, map(eval_expr, expr.args))
+        elif isinstance(expr, sympy.Or):
+            return reduce(elementwise_or, map(eval_expr, expr.args))
+        elif isinstance(expr, sympy.Not):
+            return elementwise_not(eval_expr(expr.args[0]))
+        else:
+            raise ValueError(f"Unsupported expression: {expr}")
+
     parsed_expr = sympy.parse_expr(expression)
 
-    # get the symbols in the expression
-    symbols_in_expr = list(parsed_expr.free_symbols)
-    symbols_in_expr = [str(symbol) for symbol in symbols_in_expr]
-
-    # create a function from the expression
-    func = sympy.lambdify(symbols_in_expr, parsed_expr)
-
-    # calculate the result using the DataFrame columns
-    index = func(*[df[symbol] for symbol in symbols_in_expr])
-
-    return index
+    return eval_expr(parsed_expr)
 
 
 @pytest.mark.recommendation
@@ -207,11 +244,13 @@ class TestRecommendationBase(ABC):
 
         # Remove invalid combinations
         if invalid_combinations:
-            idx_invalid = create_index_from_logical_expression(df, invalid_combinations)
+            idx_invalid = combine_dataframe_via_logical_expression(
+                df, invalid_combinations
+            )
             df = df[~idx_invalid].copy()
 
         if not run_slow_tests:
-            df = pd.concat([df.head(15), df.tail(15)]).drop_duplicates()
+            df = pd.concat([df.head(100), df.tail(100)]).drop_duplicates()
 
         return df
 
@@ -224,11 +263,7 @@ class TestRecommendationBase(ABC):
     ):
         entries = []
 
-        for person_id, row in tqdm(
-            person_combinations.iterrows(),
-            total=len(person_combinations),
-            desc="Generating criteria",
-        ):
+        for person_id, row in person_combinations.iterrows():
             for criterion_name, comparator in self.extract_criteria(
                 population_intervention
             ):
@@ -238,6 +273,14 @@ class TestRecommendationBase(ABC):
 
                 if not row[criterion_name]:
                     continue
+
+                if criterion.datetime_offset and not criterion.type == "measurement":
+                    raise NotImplementedError(
+                        "datetime_offset is only implemented for measurements"
+                    )
+                time_offsets = criterion.datetime_offset or datetime.timedelta()
+                if not isinstance(time_offsets, list):
+                    time_offsets = [time_offsets]
 
                 add = {">": 1, "<": -1, "=": 0, "": 0}[comparator]
 
@@ -305,7 +348,18 @@ class TestRecommendationBase(ABC):
                     raise NotImplementedError(
                         f"Unknown criterion type: {criterion.type}"
                     )
-                entries.append(entry)
+
+                if time_offsets:
+                    for time_offset in time_offsets:
+                        current_entry = entry.copy()
+
+                        current_entry["start_datetime"] += time_offset
+                        if "end_datetime" in entry:
+                            current_entry["end_datetime"] += time_offset
+
+                        entries.append(current_entry)
+                else:
+                    entries.append(entry)
 
             if row.get("NADROPARIN_HIGH_WEIGHT") or row.get("NADROPARIN_LOW_WEIGHT"):
                 entry_weight = {
@@ -356,11 +410,7 @@ class TestRecommendationBase(ABC):
 
     @pytest.fixture
     def insert_criteria(self, db_session, criteria, visit_datetime):
-        for person_id, g in tqdm(
-            criteria.groupby("person_id"),
-            total=criteria["person_id"].nunique(),
-            desc="Inserting criteria",
-        ):
+        for person_id, g in criteria.groupby("person_id"):
             p = Person(
                 person_id=person_id,
                 gender_concept_id=concepts.GENDER_FEMALE,
@@ -422,10 +472,15 @@ class TestRecommendationBase(ABC):
                 else:
                     raise NotImplementedError(f"Unknown criterion type {row['type']}")
 
+                self._insert_criteria_hook(person_entries, entry, row)
+
                 person_entries.append(entry)
 
             db_session.add_all(person_entries)
             db_session.commit()
+
+    def _insert_criteria_hook(self, person_entries, entry, row):
+        pass
 
     @staticmethod
     def extract_criteria(population_intervention) -> list[tuple[str, str]]:
@@ -449,6 +504,9 @@ class TestRecommendationBase(ABC):
         names = [c[0] for c in self.extract_criteria(population_intervention)]
         return list(dict.fromkeys(names))  # order preserving
 
+    def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
+        return df
+
     @pytest.fixture
     def criteria_extended(
         self,
@@ -465,11 +523,15 @@ class TestRecommendationBase(ABC):
         idx_static = criteria["static"]
         criteria.loc[idx_static, "start_datetime"] = observation_window.start
         criteria.loc[idx_static, "end_datetime"] = observation_window.end
+
         df = self.expand_dataframe_by_date(
-            criteria[["person_id", "concept", "start_datetime", "end_datetime"]],
+            criteria[
+                ["person_id", "concept", "start_datetime", "end_datetime", "type"]
+            ],
             observation_window=observation_window,
         )
-        # the base criterion is the visit, all other criteria are &-combined with the base criterion
+
+        # the base criterion is the visit, all other criteria are AND-combined with the base criterion
         df_base = self.expand_dataframe_by_date(
             pd.DataFrame(
                 {
@@ -477,25 +539,55 @@ class TestRecommendationBase(ABC):
                     "start_datetime": visit_datetime.start,
                     "end_datetime": visit_datetime.end,
                     "concept": "BASE",
+                    "type": "visit",
                 }
             ),
             observation_window,
         )
 
-        df.loc[:, [c for c in unique_criteria if c not in df.columns]] = False
+        for c in unique_criteria:
+            if c not in df.columns:
+                criterion = getattr(parameter, c)
+                if criterion.missing_data_type is not None:
+                    df[c] = criterion.missing_data_type
+                else:
+                    df[c] = MISSING_DATA_TYPE[criterion.type]
+
+        df = self._modify_criteria_hook(df)
 
         for group_name, group in population_intervention.items():
-            df[f"p_{group_name}"] = create_index_from_logical_expression(
+            df[f"p_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["population"])
             )
-            df[f"i_{group_name}"] = create_index_from_logical_expression(
+            df[f"i_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["intervention"])
             )
-            df[f"p_i_{group_name}"] = df[f"p_{group_name}"] & df[f"i_{group_name}"]
 
-        df["p"] = df[[c for c in df.columns if c.startswith("p_")]].any(axis=1)
-        df["i"] = df[[c for c in df.columns if c.startswith("i_")]].any(axis=1)
-        df["p_i"] = df[[c for c in df.columns if c.startswith("p_i_")]].any(axis=1)
+            if "population_intervention" in group:
+                df[f"p_i_{group_name}"] = combine_dataframe_via_logical_expression(
+                    df, remove_comparators(group["population_intervention"])
+                )
+            else:
+                df[f"p_i_{group_name}"] = elementwise_and(
+                    df[f"p_{group_name}"], df[f"i_{group_name}"]
+                )
+
+        df["p"] = reduce(
+            elementwise_or,
+            [
+                df[c]
+                for c in df.columns
+                if c.startswith("p_") and not c.startswith("p_i_")
+            ],
+        )
+
+        df["i"] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c.startswith("i_")]
+        )
+
+        df["p_i"] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c.startswith("p_i_")]
+        )
 
         assert len(df_base) == len(df)
 
@@ -503,7 +595,11 @@ class TestRecommendationBase(ABC):
         # criterion is valid
         df = pd.merge(df_base, df, on=["person_id", "date"], how="left", validate="1:1")
         df = df.set_index(["person_id", "date"])
-        df = df.apply(lambda x: x & df["BASE"])
+
+        mask = df["BASE"].astype(bool)
+        fill_value = np.repeat(np.array(IntervalType.NEGATIVE, dtype=object), len(df))
+        df = df.apply(lambda x: np.where(mask, x, fill_value))
+
         df = df.drop(columns="BASE")
 
         return df.reset_index()
@@ -520,61 +616,76 @@ class TestRecommendationBase(ABC):
 
         # Set end_datetime equal to start_datetime if it's NaT
         df["end_datetime"].fillna(df["start_datetime"], inplace=True)
+        df["start_datetime"] = pd.to_datetime(df["start_datetime"], utc=True)
+        df["end_datetime"] = pd.to_datetime(df["end_datetime"], utc=True)
 
-        # Create a new dataframe with one row for each date (ignoring time) between start_datetime and end_datetime
-        df_expanded = pd.concat(
-            [
-                pd.DataFrame(
-                    {
-                        "person_id": row["person_id"],
-                        "date": pd.date_range(
-                            row["start_datetime"].date(),
-                            row["end_datetime"].date(),
-                            freq="D",
-                        ),
-                        "concept": row["concept"],
-                    },
-                    columns=["person_id", "date", "concept"],
-                )
-                for _, row in df.iterrows()
-            ],
-            ignore_index=True,
+        types = (
+            df[["concept", "type"]]
+            .drop_duplicates()
+            .set_index("concept")["type"]
+            .to_dict()
         )
 
-        # Pivot the expanded dataframe to have one column for each unique concept
+        types_missing_data = {}
+        for parameter_name, parameter_type in types.items():
+            if hasattr(parameter, parameter_name):
+                criterion_def = getattr(parameter, parameter_name)
+            else:
+                criterion_def = None
+
+            if (
+                criterion_def is not None
+                and criterion_def.missing_data_type is not None
+            ):
+                types_missing_data[parameter_name] = criterion_def.missing_data_type
+            else:
+                types_missing_data[parameter_name] = MISSING_DATA_TYPE[parameter_type]
+
+        # Vectorized expansion of DataFrame
+        df["key"] = 1  # Create a key for merging
+        date_range = pd.date_range(
+            observation_window.start.date(), observation_window.end.date(), freq="D"
+        )
+        dates_df = pd.DataFrame({"date": date_range, "key": 1})
+        df_expanded = df.merge(dates_df, on="key").drop("key", axis=1)
+        df_expanded = df_expanded[
+            df_expanded["date"].between(
+                df_expanded["start_datetime"].dt.date,
+                df_expanded["end_datetime"].dt.date,
+            )
+        ]
+
+        df_expanded.drop(["start_datetime", "end_datetime"], axis=1, inplace=True)
+
+        # Pivot operation (remains the same if already efficient)
         df_pivot = df_expanded.pivot_table(
             index=["person_id", "date"], columns="concept", aggfunc=len, fill_value=0
         )
 
-        # Reset index and column names
-        df_pivot = df_pivot.reset_index()
+        # Flatten the multi-level column index
+        df_pivot.columns = [col[1] for col in df_pivot.columns.values]
+
+        # Reset index to make 'person_id' and 'date' regular columns
+        df_pivot.reset_index(inplace=True)
+
         df_pivot.columns.name = None
-        df_pivot.columns = ["person_id", "date"] + [col for col in df_pivot.columns[2:]]
 
-        # Fill the new concept columns with True where the condition is met
-        df_pivot[df_pivot.columns[2:]] = df_pivot[df_pivot.columns[2:]].map(
-            lambda x: x > 0
-        )
+        # Efficiently map and fill missing values
+        df_pivot.iloc[:, 2:] = df_pivot.iloc[:, 2:].gt(0)
 
-        # Create an auxiliary DataFrame with all combinations of person_id and dates between observation_start_date and observation_end_date
-        unique_person_ids = df["person_id"].unique()
-        date_range = pd.date_range(
-            observation_window.start.date(), observation_window.end.date(), freq="D"
-        )
+        # Efficient merge with an auxiliary DataFrame
         aux_df = pd.DataFrame(
-            {
-                "person_id": np.repeat(unique_person_ids, len(date_range)),
-                "date": np.tile(date_range, len(unique_person_ids)),
-            }
+            itertools.product(df["person_id"].unique(), date_range),
+            columns=["person_id", "date"],
         )
-
-        # Merge the auxiliary DataFrame with the pivoted DataFrame
         merged_df = pd.merge(aux_df, df_pivot, on=["person_id", "date"], how="left")
 
-        # Fill missing values with False
-        merged_df[merged_df.columns[2:]] = merged_df[merged_df.columns[2:]].fillna(
-            False
-        )
+        idx = merged_df[merged_df.columns[2:]].fillna(False).astype(bool)
+
+        # Apply types_missing_data
+        for column in merged_df.columns[2:]:
+            merged_df.loc[idx[column], column] = IntervalType.POSITIVE
+            merged_df.loc[~idx[column], column] = types_missing_data[column]
 
         return merged_df
 
@@ -583,6 +694,7 @@ class TestRecommendationBase(ABC):
         recommendation_url: str,
         observation_window: TimeRange,
         criteria_extended: pd.DataFrame,
+        recommendation_package_version: str,
     ) -> None:
         from execution_engine.clients import omopdb
         from execution_engine.execution_engine import ExecutionEngine
@@ -590,51 +702,81 @@ class TestRecommendationBase(ABC):
         e = ExecutionEngine(verbose=False)
 
         print(recommendation_url)
-        cdd = e.load_recommendation(recommendation_url, force_reload=False)
+        recommendation = e.load_recommendation(
+            recommendation_url,
+            recommendation_package_version=recommendation_package_version,
+            force_reload=False,
+        )
 
         e.execute(
-            cdd,
+            recommendation,
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
         )
-        t = RecommendationResult
-        t_plan = RecommendationPlan
 
-        query = (
-            select(
-                t.recommendation_result_id,
-                t.person_id,
-                t_plan.recommendation_plan_name,
-                t.cohort_category,
-                t.valid_date,
+        def get_query(t, category):
+            return (
+                select(
+                    t.c.run_id,
+                    t.c.person_id,
+                    PopulationInterventionPair.pi_pair_name,
+                    t.c.cohort_category,
+                    t.c.valid_date,
+                )
+                .outerjoin(PopulationInterventionPair)
+                .where(t.c.criterion_id.is_(None))
+                .where(t.c.cohort_category.in_(category))
             )
-            .outerjoin(RecommendationPlan)
-            .where(t.criterion_id.is_(None))
-        )
-        df_result = omopdb.query(query)
-        df_result["valid_date"] = pd.to_datetime(df_result["valid_date"])
-        df_result["name"] = df_result["cohort_category"].map(
-            {
-                CohortCategory.INTERVENTION: "i",
-                CohortCategory.POPULATION: "p",
-                CohortCategory.POPULATION_INTERVENTION: "p_i",
-            }
-        )
-        df_result["name"] = df_result.apply(
-            lambda row: row["name"]
-            if row["recommendation_plan_name"] is None
-            else f"{row['name']}_{row['recommendation_plan_name']}",
-            axis=1,
+
+        def process_result(df_result):
+            df_result["valid_date"] = pd.to_datetime(df_result["valid_date"])
+            df_result["name"] = df_result["cohort_category"].map(
+                {
+                    CohortCategory.INTERVENTION: "i",
+                    CohortCategory.POPULATION: "p",
+                    CohortCategory.POPULATION_INTERVENTION: "p_i",
+                }
+            )
+            df_result["name"] = df_result.apply(
+                lambda row: row["name"]
+                if row["pi_pair_name"] is None
+                else f"{row['name']}_{row['pi_pair_name']}",
+                axis=1,
+            )
+
+            df_result = df_result.rename(columns={"valid_date": "date"})
+
+            df_result = df_result.pivot_table(
+                columns="name",
+                index=["person_id", "date"],
+                values="run_id",
+                aggfunc=len,
+                fill_value=0,
+            ).astype(bool)
+
+            return df_result
+
+        # P is fulfilled if they are fulfilled on any time of the day
+        df_result_p_i = omopdb.query(
+            get_query(
+                partial_day_coverage,
+                category=[CohortCategory.BASE, CohortCategory.POPULATION],
+            )
         )
 
-        df_result = df_result.rename(columns={"valid_date": "date"})
-        df_result = df_result.pivot_table(
-            columns="name",
-            index=["person_id", "date"],
-            values="recommendation_result_id",
-            aggfunc=len,
-            fill_value=0,
-        ).astype(bool)
+        # P_I is fulfilled only if it is fulfilled on the full day
+        df_result_pi = omopdb.query(
+            get_query(
+                full_day_coverage,
+                category=[
+                    CohortCategory.INTERVENTION,
+                    CohortCategory.POPULATION_INTERVENTION,
+                ],
+            )
+        )
+
+        df_result = pd.concat([df_result_p_i, df_result_pi])
+        df_result = process_result(df_result)
 
         result_expected = RecommendationCriteriaCombination(
             name="expected", df=criteria_extended

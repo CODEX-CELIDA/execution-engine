@@ -1,15 +1,15 @@
-from typing import Self, cast
+from typing import Self
 
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
-from execution_engine.converter.converter import parse_code, parse_value
+from execution_engine.converter.converter import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.vocabulary import SNOMEDCT
-from execution_engine.util import ValueNumber
+from execution_engine.util.types import Timing
 
 
 class BodyPositioningAction(AbstractAction):
@@ -25,7 +25,7 @@ class BodyPositioningAction(AbstractAction):
         name: str,
         exclude: bool,
         code: Concept,
-        timing: ValueNumber | None = None,
+        timing: Timing | None = None,
     ) -> None:
         """
         Initialize the drug administration action.
@@ -42,7 +42,7 @@ class BodyPositioningAction(AbstractAction):
             raise ValueError("BodyPositioningAction must have an activity")
 
         code = parse_code(action_def.activity.code)
-        timing = cast(ValueNumber, parse_value(action_def.activity, "timing"))
+        timing = cls.process_timing(action_def.activity.timingTiming)
 
         exclude = action_def.activity.doNotPerform
 

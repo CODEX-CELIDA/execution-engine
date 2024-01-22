@@ -1,10 +1,14 @@
 import datetime
 import itertools
 import re
+from io import StringIO
+from typing import Callable
 
 import pandas as pd
+import pendulum
+from pytz.tzinfo import DstTzInfo
 
-from execution_engine.omop.db.cdm import (
+from execution_engine.omop.db.omop.tables import (
     ConditionOccurrence,
     DrugExposure,
     Measurement,
@@ -13,6 +17,12 @@ from execution_engine.omop.db.cdm import (
     VisitDetail,
     VisitOccurrence,
 )
+from execution_engine.util.interval import (
+    DateTimeInterval,
+    IntervalType,
+    interval_datetime,
+)
+from execution_engine.util.types import PersonIntervals
 from tests._testdata import concepts
 
 
@@ -230,3 +240,85 @@ def get_fraction_per_day(
     assert abs(sum(fractions.values()) - 1.0) < 0.00001, "Fractions do not sum up to 1"
 
     return fractions
+
+
+def intervals_to_df(
+    result: PersonIntervals, by: list[str], normalize_func: Callable
+) -> pd.DataFrame:
+    """
+    Converts the result of the interval operations to a DataFrame.
+
+    :param result: The result of the interval operations.
+    :param by: A list of column names to group by.
+    :return: A DataFrame with the interval results.
+    """
+    records = []
+    for group_keys, intervals in result.items():
+        # Check if group_keys is a tuple or a single value and unpack accordingly
+        if isinstance(group_keys, tuple):
+            record_keys = dict(zip(by, group_keys))
+        else:
+            record_keys = {by[0]: group_keys}
+
+        for interv in intervals:
+            interv = normalize_func(interv)
+
+            record = {
+                **record_keys,
+                "interval_start": interv.lower,
+                "interval_end": interv.upper,
+                "interval_type": interv.type,
+            }
+            records.append(record)
+
+    return pd.DataFrame(
+        records, columns=by + ["interval_start", "interval_end", "interval_type"]
+    )
+
+
+def df_to_person_intervals(
+    df: pd.DataFrame, by: list[str] = ["person_id"]
+) -> PersonIntervals:
+    return {
+        key: df_to_datetime_interval(group_df) for key, group_df in df.groupby(by=by)
+    }
+
+
+def df_to_datetime_interval(df: pd.DataFrame) -> DateTimeInterval:
+    """
+    Converts the DataFrame to intervals.
+
+    :param df: A DataFrame with columns "interval_start" and "interval_end".
+    :return: A list of intervals.
+    """
+
+    from execution_engine.util.interval import interval_datetime
+
+    return DateTimeInterval(
+        *[
+            interval_datetime(start, end, type_)
+            for start, end, type_ in zip(
+                df["interval_start"], df["interval_end"], df["interval_type"]
+            )
+        ]
+    )
+
+
+def interval(
+    start: str, end: str, type_: IntervalType = IntervalType.POSITIVE
+) -> DateTimeInterval:
+    return interval_datetime(pendulum.parse(start), pendulum.parse(end), type_=type_)
+
+
+def parse_dt(s: str, tz: DstTzInfo) -> datetime.datetime:
+    return tz.localize(datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S"))
+
+
+def df_from_str(data_str: str) -> pd.DataFrame:
+    data_str = "\n".join(line.strip() for line in data_str.strip().split("\n"))
+    df = pd.read_csv(StringIO(data_str), sep="\t", dtype={"group1": str, "group2": int})
+    df["interval_start"] = pd.to_datetime(df["interval_start"], utc=True)
+    df["interval_end"] = pd.to_datetime(df["interval_end"], utc=True)
+    df["interval_type"] = df["interval_type"].apply(IntervalType)
+
+    return df

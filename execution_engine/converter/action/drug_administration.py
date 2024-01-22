@@ -1,9 +1,9 @@
 import logging
-from typing import Self, Tuple, TypedDict, cast
+from typing import Self, TypedDict, cast
 
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
-from fhir.resources.dosage import Dosage
+from fhir.resources.dosage import Dosage as FHIRDosage
 from fhir.resources.extension import Extension
 
 from execution_engine.clients import omopdb
@@ -14,14 +14,15 @@ from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
+from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
 from execution_engine.omop.vocabulary import (
     SNOMEDCT,
     VocabularyFactory,
     standard_vocabulary,
 )
-from execution_engine.util import Interval, Value, ValueNumber
+from execution_engine.util.types import Dosage
+from execution_engine.util.value import Value, ValueNumber
 
 
 class ExtensionType(TypedDict):
@@ -45,11 +46,8 @@ class DrugAdministrationAction(AbstractAction):
         self,
         name: str,
         exclude: bool,
-        drug_concepts: pd.DataFrame,
         ingredient_concept: Concept,
-        dose: ValueNumber | None = None,
-        frequency: int | None = None,
-        interval: Interval | None = None,
+        dose: Dosage | None = None,
         route: Concept | None = None,
         extensions: list[ExtensionType] | None = None,
     ) -> None:
@@ -57,11 +55,8 @@ class DrugAdministrationAction(AbstractAction):
         Initialize the drug administration action.
         """
         super().__init__(name=name, exclude=exclude)
-        self._drug_concepts = drug_concepts
         self._ingredient_concept = ingredient_concept
         self._dose = dose
-        self._frequency = frequency
-        self._interval = interval
         self._route = route
         self._extensions = extensions
 
@@ -72,7 +67,7 @@ class DrugAdministrationAction(AbstractAction):
         if action_def.activity is None:
             raise NotImplementedError("No activity defined for action")
 
-        df_drugs, ingredient = cls.get_drug_concepts(action_def.activity)
+        ingredient = cls.get_ingredient_concept(action_def.activity)
 
         name = f"drug_{ingredient.concept_name}"
         exclude = (
@@ -91,7 +86,6 @@ class DrugAdministrationAction(AbstractAction):
             action = cls(
                 name,
                 exclude,
-                drug_concepts=cls.drug_concept_ids(df_drugs),
                 ingredient_concept=ingredient,
             )
 
@@ -102,22 +96,14 @@ class DrugAdministrationAction(AbstractAction):
             ]  # dosage is bound to 0..1 by drug-administration-action profile
             dose = cls.process_dosage(dosage)
             route = cls.process_route(dosage)
-            frequency, interval = cls.process_timing(dosage)
 
             extensions = cls.process_dosage_extensions(dosage)
-
-            df_drugs = cls.filter_same_unit(
-                df_drugs, dose.unit
-            )  # todo: we should not filter here, but perform conversions of values instead (if possible)
 
             action = cls(
                 name=name,
                 exclude=exclude,
-                drug_concepts=cls.drug_concept_ids(df_drugs),
                 ingredient_concept=ingredient,
                 dose=dose,
-                frequency=frequency,
-                interval=interval,
                 route=route,
                 extensions=extensions,
             )
@@ -125,9 +111,7 @@ class DrugAdministrationAction(AbstractAction):
         return action
 
     @classmethod
-    def get_drug_concepts(
-        cls, activity: ActivityDefinition
-    ) -> Tuple[pd.DataFrame, Concept]:
+    def get_ingredient_concept(cls, activity: ActivityDefinition) -> Concept:
         """
         Gets all drug concepts that match the given definition in the productCodeableConcept.
         """
@@ -140,10 +124,11 @@ class DrugAdministrationAction(AbstractAction):
 
         for coding in cc.coding:
             vocab = vf.get(coding.system)
-            ingredient = omopdb.drug_vocabulary_to_ingredient(
-                vocab.omop_vocab_name, coding.code  # type: ignore
-            )
-            if ingredient is None:
+            try:
+                ingredient = omopdb.drug_vocabulary_to_ingredient(
+                    vocab.omop_vocab_name, coding.code  # type: ignore
+                )
+            except AssertionError:
                 if vocab.name() == "SNOMEDCT":
                     raise ValueError(
                         f"Could not find ingredient for SNOMEDCT code {coding.code}, but SNOMEDCT is required"
@@ -153,7 +138,8 @@ class DrugAdministrationAction(AbstractAction):
                 )
                 continue
 
-            ingredients.append(ingredient)
+            if ingredient is not None:
+                ingredients.append(ingredient)
 
         if len(set(ingredients)) > 1:
             raise NotImplementedError(
@@ -166,26 +152,7 @@ class DrugAdministrationAction(AbstractAction):
 
         logging.info(f"Found ingredient {ingredient.concept_name} id={ingredient.concept_id}")  # type: ignore
 
-        # get all drug concept ids for that ingredient
-        df = omopdb.drugs_by_ingredient(ingredient.concept_id, with_unit=True)  # type: ignore
-
-        # assert drug units are mutually exclusive
-        assert (
-            df.loc[df["amount_unit_concept_id"].notnull(), "numerator_unit_concept_id"]
-            .isnull()
-            .all()
-        )
-        assert (
-            df.loc[df["numerator_unit_concept_id"].notnull(), "amount_unit_concept_id"]
-            .isnull()
-            .all()
-        )
-
-        df["amount_unit_concept_id"].fillna(
-            df["numerator_unit_concept_id"], inplace=True
-        )
-
-        return df, ingredient
+        return ingredient
 
     @classmethod
     def drug_concept_ids(cls, df_drugs: pd.DataFrame) -> list[int]:
@@ -195,7 +162,7 @@ class DrugAdministrationAction(AbstractAction):
         return df_drugs["drug_concept_id"].sort_values().tolist()
 
     @classmethod
-    def process_dosage(cls, dosage: Dosage) -> ValueNumber:
+    def process_dosage(cls, dosage: FHIRDosage) -> Dosage:
         """
         Processes the dosage of a drug administration action into a ValueNumber.
         """
@@ -203,7 +170,7 @@ class DrugAdministrationAction(AbstractAction):
             0
         ]  # todo: should iterate over doseAndRate (could have multiple)
 
-        value = cast(ValueNumber, parse_value(dose_and_rate, value_prefix="dose"))
+        dose = cast(ValueNumber, parse_value(dose_and_rate, value_prefix="dose"))
 
         if (
             dose_and_rate.rateRatio is not None
@@ -212,10 +179,12 @@ class DrugAdministrationAction(AbstractAction):
         ):
             raise NotImplementedError("dosage rates have not been implemented yet")
 
-        return value
+        timing = cls.process_timing(dosage.timing)
+
+        return Dosage(dose=dose, **timing.dict())
 
     @classmethod
-    def process_dosage_extensions(cls, dosage: Dosage) -> list[ExtensionType]:
+    def process_dosage_extensions(cls, dosage: FHIRDosage) -> list[ExtensionType]:
         """
         Processes extensions of dosage
 
@@ -252,7 +221,7 @@ class DrugAdministrationAction(AbstractAction):
         return extensions
 
     @classmethod
-    def process_route(cls, dosage: Dosage) -> Concept | None:
+    def process_route(cls, dosage: FHIRDosage) -> Concept | None:
         """
         Processes the route of a drug administration action into a ValueNumber.
         """
@@ -260,23 +229,6 @@ class DrugAdministrationAction(AbstractAction):
             return None
 
         return parse_code(dosage.route)
-
-    @classmethod
-    def process_timing(cls, dosage: Dosage) -> Tuple[int, Interval]:
-        """
-        Returns the frequency and interval of the dosage.
-        """
-        timing = dosage.timing
-        frequency = timing.repeat.frequency
-        period = timing.repeat.period
-        interval = Interval(timing.repeat.periodUnit)
-
-        if period != 1:
-            raise NotImplementedError(
-                "Periods other than 1 have not yet been implemented"
-            )
-
-        return frequency, interval
 
     @classmethod
     def filter_same_unit(cls, df: pd.DataFrame, unit: Concept) -> pd.DataFrame:
@@ -320,11 +272,8 @@ class DrugAdministrationAction(AbstractAction):
             name=self._name,
             exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
-            drug_concepts=self._drug_concepts,
             ingredient_concept=self._ingredient_concept,
             dose=self._dose,
-            frequency=self._frequency,
-            interval=self._interval,
             route=self._route,
         )
 
@@ -343,7 +292,7 @@ class DrugAdministrationAction(AbstractAction):
 
             for extension in self._extensions:
                 comb.add(
-                    ConceptCriterion(
+                    PointInTimeCriterion(
                         name=f"{self._name}_ext_{extension['code'].concept_name}",
                         exclude=False,  # extensions are always included (at least for now)
                         category=CohortCategory.INTERVENTION,

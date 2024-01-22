@@ -8,12 +8,12 @@ class Serializable(ABC):
     Base class for serializable objects.
     """
 
-    _id: int | None
+    _id: int | None = None
 
     @property
     def id(self) -> int:
         """
-        Get the id of the object (used in the datbase).
+        Get the id of the object (used in the database).
         """
         if self._id is None:
             raise ValueError("Id not set")
@@ -62,3 +62,18 @@ class Serializable(ABC):
         Create a combination from a JSON string.
         """
         return cls.from_dict(json.loads(data))
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if two objects are equal.
+        """
+        if not isinstance(other, self.__class__):
+            return False
+
+        return self.dict() == other.dict()
+
+    def __hash__(self) -> int:
+        """
+        Get the hash of the object.
+        """
+        return hash(self.json())

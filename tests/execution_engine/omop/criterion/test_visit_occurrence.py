@@ -1,17 +1,11 @@
 import pendulum
 import pytest
-from sqlalchemy import func, select
 
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.visit_occurrence import VisitOccurrence
-from execution_engine.omop.db.cdm import Person
-from execution_engine.util.sql import select_into
+from tests._fixtures.omop_fixture import disable_postgres_trigger
 from tests._testdata.concepts import INPATIENT_VISIT, INTENSIVE_CARE
-from tests.execution_engine.omop.criterion.test_criterion import (
-    TestCriterion,
-    date_set,
-    to_table,
-)
+from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_visit
 
 
@@ -51,21 +45,21 @@ class TestVisitOccurrence(TestCriterion):
         self,
         person,
         db_session,
+        base_criterion,
+        observation_window,
     ):
-        base_table = to_table("base_table")
+        """
+        Execute the base criterion
 
-        query = select_into(select(Person.person_id), base_table, temporary=True)
-        db_session.execute(query)
-        db_session.commit()
-
-        count = db_session.query(func.count(base_table.c.person_id)).scalar()
-        assert (
-            count > 0
-        ), "Base table (active patients in period) should have at least one row."
-
-        yield base_table
-
-        base_table.drop(db_session.connection())
+        The TestCriterion.base_table uses person_visit as fixture, which inserts a visit for each person.
+        This is not suitable for testing VisitOccurrence, because we need insert specific visits for each test case,
+        and we must not have other visits in the table.
+        Therefor, the base_table fixture is overwritten here, and uses only person, not person_visit fixture.
+        """
+        with self.execute_base_criterion(
+            base_criterion, db_session, observation_window
+        ):
+            yield
 
     @pytest.mark.parametrize(
         "visit_datetimes,expected",
@@ -281,15 +275,37 @@ class TestVisitOccurrence(TestCriterion):
                 ],
                 {"2023-03-06", "2023-03-07", "2023-03-08"},
             ),
-            (  # before observation window
+            (  # before observation window (same day)
                 [
                     (("2023-02-01 00:00:00", "2023-03-01 02:00:00"), INTENSIVE_CARE),
                 ],
                 {},
             ),
-            (  # after observation window
+            (  # before observation window (previous day)
                 [
-                    (("2023-03-31 23:59:00", "2023-04-01 02:00:00"), INTENSIVE_CARE),
+                    (("2023-02-01 00:00:00", "2023-02-27 02:00:00"), INTENSIVE_CARE),
+                ],
+                {},
+            ),
+            (  # after observation window (same day)
+                # note that proper time zone is required, otherwise (if given in utc), it will be the next day (see next example)
+                [
+                    (
+                        ("2023-03-31 23:59:00+02:00", "2023-04-01 02:00:00"),
+                        INTENSIVE_CARE,
+                    ),
+                ],
+                {},
+            ),
+            (  # after observation window (next day)
+                [
+                    (
+                        (
+                            "2023-03-31 23:59:00+00:00",  # note: this is 2023-04-01 01:59:00+02:00 i.e. next day in Europe/Berlin
+                            "2023-04-01 02:00:00",
+                        ),
+                        INTENSIVE_CARE,
+                    ),
                 ],
                 {},
             ),
@@ -301,7 +317,10 @@ class TestVisitOccurrence(TestCriterion):
             ),
             (  # during end observation window
                 [
-                    (("2023-03-29 23:59:00", "2023-04-01 02:00:00"), INTENSIVE_CARE),
+                    (
+                        ("2023-03-29 23:59:00+02:00", "2023-04-01 02:00:00"),
+                        INTENSIVE_CARE,
+                    ),
                 ],
                 {"2023-03-29", "2023-03-30", "2023-03-31"},
             ),
@@ -313,9 +332,11 @@ class TestVisitOccurrence(TestCriterion):
         concept,
         db_session,
         base_criterion,
+        base_table,
         criterion_execute_func,
         visit_datetimes,
         expected,
+        observation_window,
     ):
         for (
             visit_start_datetime,
@@ -331,8 +352,13 @@ class TestVisitOccurrence(TestCriterion):
 
         db_session.commit()
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
+        # need to disable postgres trigger to avoid constraint violation due to overlapping intervals in testdata
+        with disable_postgres_trigger(db_session):
+            # execute base criterion because its results (the BASE person_ids) are used as filter in the criterion
+            with self.execute_base_criterion(
+                base_criterion, db_session, observation_window
+            ):
+                df = criterion_execute_func(concept=concept, exclude=False)
 
         assert set(df["valid_date"].dt.date) == date_set(expected)
 
@@ -400,23 +426,28 @@ class TestVisitOccurrence(TestCriterion):
         criterion_execute_func,
         test_cases,
     ):
-        for tc, p in zip(test_cases, person):
-            for (
-                visit_start_datetime,
-                visit_end_datetime,
-            ) in tc["time_range"]:
-                vo = create_visit(
-                    person_id=p.person_id,
-                    visit_start_datetime=pendulum.parse(visit_start_datetime),
-                    visit_end_datetime=pendulum.parse(visit_end_datetime),
-                    visit_concept_id=INTENSIVE_CARE,
-                )
-                db_session.add(vo)
+        # need to disable postgres trigger to avoid constraint violation due to overlapping intervals in testdata
+        with disable_postgres_trigger(db_session):
+            for tc, p in zip(test_cases, person):
+                for (
+                    visit_start_datetime,
+                    visit_end_datetime,
+                ) in tc["time_range"]:
+                    vo = create_visit(
+                        person_id=p.person_id,
+                        visit_start_datetime=pendulum.parse(visit_start_datetime),
+                        visit_end_datetime=pendulum.parse(visit_end_datetime),
+                        visit_concept_id=INTENSIVE_CARE,
+                    )
+                    db_session.add(vo)
 
-        db_session.commit()
+            db_session.commit()
 
-        # run criterion against db
-        df = criterion_execute_func(concept=concept, exclude=False)
+            with self.execute_base_criterion(
+                base_criterion, db_session, observation_window
+            ):
+                # run criterion against db
+                df = criterion_execute_func(concept=concept, exclude=False)
 
         for tc, p in zip(test_cases, person):
             assert set(

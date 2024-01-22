@@ -1,33 +1,37 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import NUMERIC, DateTime, bindparam, case, func, select
-from sqlalchemy.dialects.postgresql import INTERVAL
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.sql import Select
-from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.util import Interval, ValueNumber, value_factory
+from execution_engine.omop.criterion.abstract import (
+    SQL_ONE_SECOND,
+    Criterion,
+    column_interval_type,
+    create_conditional_interval_column,
+)
+from execution_engine.omop.db.omop import tables as omop
+from execution_engine.util.enum import TimeUnit
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.sql import SelectInto
+from execution_engine.util.types import Dosage
+from execution_engine.util.value.factory import value_factory
 
 __all__ = ["DrugExposure"]
 
 
 class DrugExposure(Criterion):
-    """A drug exposure criterion in a cohort definition."""
+    """A drug exposure criterion in a recommendation."""
 
     def __init__(
         self,
         name: str,
         exclude: bool,
         category: CohortCategory,
-        drug_concepts: list[str],
         ingredient_concept: Concept,
-        dose: ValueNumber | None,
-        frequency: int | None,
-        interval: Interval | str | None,
+        dose: Dosage | None,
         route: Concept | None,
     ) -> None:
         """
@@ -35,17 +39,25 @@ class DrugExposure(Criterion):
         """
         super().__init__(name=name, exclude=exclude, category=category)
         self._set_omop_variables_from_domain("drug")
-        self._drug_concepts = drug_concepts
         self._ingredient_concept = ingredient_concept
+
+        if dose is None:
+            dose = Dosage(
+                dose=None,
+                count=None,
+                duration=None,
+                frequency=1,
+                interval=1 * TimeUnit.DAY,
+            )
+        elif dose.frequency is None:
+            logging.warning(  # type: ignore # (statement is reachable)
+                f"No frequency specified in {self.description()}, using default 'Any / day'"
+            )
+            # set period first, otherwise validation error is triggered
+            dose.period = 1 * TimeUnit.DAY
+            dose.frequency = 1
+
         self._dose = dose
-        self._frequency = frequency
-
-        if interval is not None:
-            if isinstance(interval, str):
-                interval = Interval(interval)
-            assert isinstance(interval, Interval), "interval must be an Interval or str"
-
-        self._interval = interval
         self._route = route
 
     @property
@@ -56,144 +68,161 @@ class DrugExposure(Criterion):
     def _sql_filter_concept(self, query: Select) -> Select:
         """
         Return the SQL to filter the data for the criterion.
+
+        We here filter the drug_exposure table by all concepts that are descendants of the ingredient concept that
+        is associated with this DrugExposure Criterion.
+
+        Warning: We only take drugs that have the same amount_unit_concept_id as the ingredient!
+        If drug mixtures are specified in the OMOP CDM database, these WILL NOT be taken into account!
+
+        :param query: The query to filter
+        :return: The filtered query
         """
         drug_exposure = self._table
 
-        query = query.where(drug_exposure.c.drug_concept_id.in_(self._drug_concepts))
+        c = omop.Concept.__table__.alias("c")
+        cd = omop.Concept.__table__.alias("cd")
+        ca = omop.t_concept_ancestor.alias("ca")
+        ds = omop.t_drug_strength.alias("ds")
+        ds_ingr = omop.t_drug_strength.alias("ds_ingr")
+
+        drugs_by_ingredient = (
+            select(cd.c.concept_id.label("descendant_concept_id"))
+            .join(
+                ca,
+                c.c.concept_id == ca.c.ancestor_concept_id,
+            )
+            .join(
+                cd,
+                cd.c.concept_id == ca.c.descendant_concept_id,
+            )
+            .join(
+                ds,
+                and_(
+                    ds.c.drug_concept_id == cd.c.concept_id,
+                    ds.c.ingredient_concept_id == c.c.concept_id,
+                ),
+            )
+            .join(
+                ds_ingr,
+                ds_ingr.c.drug_concept_id == c.c.concept_id,
+            )
+            .where(
+                and_(
+                    c.c.concept_id == self._ingredient_concept.concept_id,
+                    c.c.domain_id == "Drug",
+                    ds.c.amount_unit_concept_id == ds_ingr.c.amount_unit_concept_id,
+                    func.now().between(c.c.valid_start_date, c.c.valid_end_date),
+                    func.now().between(cd.c.valid_start_date, cd.c.valid_end_date),
+                    func.now().between(ds.c.valid_start_date, ds.c.valid_end_date),
+                )
+            )
+        )
+
+        query = query.where(drug_exposure.c.drug_concept_id.in_(drugs_by_ingredient))
 
         return query
 
-    def _sql_generate(self, query: Select) -> Select:
-        drug_exposure = self._table
-
+    def _create_query(self) -> Select:
+        query = select(
+            self._table.c.person_id,
+        ).select_from(self._table)
         query = self._sql_filter_concept(query)
+        query = self._filter_datetime(query)
+        query = self._filter_base_persons(query)
 
-        if self._dose is not None:
-            if self._route is not None:
-                # route is not implemented yet because it uses HemOnc codes in the standard vocabulary
-                # (cf concept_class_id = 'Route') but these are not standard codes and HemOnc might not be
-                # addressable in FHIR
-                logging.warning("Route specified, but not implemented yet")
+        if self._route is not None:
+            # route is not implemented yet because it uses HemOnc codes in the standard vocabulary
+            # (cf concept_class_id = 'Route') but these are not standard codes and HemOnc might not be
+            # addressable in FHIR
+            logging.warning("Route specified, but not implemented yet")
 
-            # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
-            interval = func.cast(concat(1, self._interval.name), INTERVAL)  # type: ignore
-            interval_length_seconds = func.cast(
-                func.extract("EPOCH", interval), NUMERIC
-            ).label("interval_length_seconds")
-            one_second = func.cast(concat(1, "second"), INTERVAL)
+        # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
+        interval = self._dose.interval.to_sql_interval()
 
-            # Filter only drug_exposures that are inbetween the start and end date of the cohort
-            query = super()._insert_datetime(query)
+        interval_starts = self.cte_interval_starts(
+            query, interval, add_columns=[self._table.c.quantity.label("quantity")]
+        )
+        date_ranges = self.cte_date_ranges(
+            interval_starts, interval, add_columns=[interval_starts.c.quantity]
+        )
 
-            interval_starts = query.add_columns(
+        interval_quantities = (
+            select(
+                date_ranges.c.person_id,
+                date_ranges.c.interval_start,
                 (
-                    func.date_trunc(
-                        "day", bindparam("observation_start_datetime", type_=DateTime)
+                    func.least(
+                        date_ranges.c.end_datetime,
+                        date_ranges.c.interval_start + interval,
                     )
-                    + interval_length_seconds
-                    * (
-                        func.floor(
-                            func.extract(
-                                "EPOCH",
-                                (
-                                    drug_exposure.c.drug_exposure_start_datetime
-                                    - func.date_trunc(
-                                        "day",
-                                        bindparam(
-                                            "observation_start_datetime", type_=DateTime
-                                        ),
-                                    )
-                                ),
-                            )
-                            / interval_length_seconds
-                        )
-                        * one_second
+                    - func.greatest(
+                        date_ranges.c.start_datetime,
+                        date_ranges.c.interval_start,
                     )
-                ).label("interval_start"),
-                drug_exposure.c.drug_exposure_start_datetime.label("start_datetime"),
-                drug_exposure.c.drug_exposure_end_datetime.label("end_datetime"),
-                drug_exposure.c.quantity.label("quantity"),
-            ).cte("interval_starts")
-
-            date_ranges = select(
-                interval_starts.c.person_id,
-                func.generate_series(
-                    interval_starts.c.interval_start,
-                    interval_starts.c.end_datetime,
-                    interval,
-                ).label("interval_start"),
-                interval_starts.c.start_datetime,
-                interval_starts.c.end_datetime,
-                interval_starts.c.quantity,
-            ).cte("date_ranges")
-
-            interval_quantities = (
-                select(
-                    date_ranges.c.person_id,
-                    date_ranges.c.interval_start,
-                    (
-                        func.least(
-                            date_ranges.c.end_datetime,
-                            date_ranges.c.interval_start + interval,
-                        )
-                        - func.greatest(
-                            date_ranges.c.start_datetime,
-                            date_ranges.c.interval_start,
-                        )
-                    ).label("time_diff"),
-                    date_ranges.c.start_datetime,
-                    date_ranges.c.end_datetime,
-                    date_ranges.c.quantity,
-                )
-                .select_from(date_ranges)
-                .cte("interval_quantities")
+                ).label("time_diff"),
+                date_ranges.c.start_datetime,
+                date_ranges.c.end_datetime,
+                date_ranges.c.quantity,
             )
+            .select_from(date_ranges)
+            .cte("interval_quantities")
+        )
 
-            # Calculate the ratio of the interval that the drug was taken and handle the case where the
-            # interval is 0 (set ratio to 1 explicitly, this is a "bolus" dose)
-            ir_ratio_num = func.extract("EPOCH", interval_quantities.c.time_diff)
-            ir_ratio_denom = func.extract(
-                "EPOCH", interval_quantities.c.end_datetime
-            ) - func.extract("EPOCH", interval_quantities.c.start_datetime)
-            ir_ratio = case(
-                (ir_ratio_denom == 0, 1), else_=ir_ratio_num / ir_ratio_denom
-            ).label("ratio")
+        # Calculate the ratio of the interval that the drug was taken and handle the case where the
+        # interval is 0 (set ratio to 1 explicitly, this is a "bolus" dose)
+        ir_ratio_num = func.extract("EPOCH", interval_quantities.c.time_diff)
+        ir_ratio_denom = func.extract(
+            "EPOCH", interval_quantities.c.end_datetime
+        ) - func.extract("EPOCH", interval_quantities.c.start_datetime)
+        ir_ratio = case(
+            (ir_ratio_denom == 0, 1), else_=ir_ratio_num / ir_ratio_denom
+        ).label("ratio")
 
-            interval_ratios = (
-                select(
-                    interval_quantities.c.person_id,
-                    interval_quantities.c.interval_start,
-                    ir_ratio,
-                    interval_quantities.c.quantity,
-                )
-                .select_from(interval_quantities)
-                .cte("interval_ratios")
+        interval_ratios = (
+            select(
+                interval_quantities.c.person_id,
+                interval_quantities.c.interval_start,
+                ir_ratio,
+                interval_quantities.c.quantity,
             )
+            .select_from(interval_quantities)
+            .cte("interval_ratios")
+        )
 
-            c_interval_quantity = func.sum(
-                interval_ratios.c.quantity * interval_ratios.c.ratio
-            ).label("interval_quantity")
-            c_interval_count = func.count().label("interval_count")
+        c_interval_quantity = func.sum(
+            interval_ratios.c.quantity * interval_ratios.c.ratio
+        ).label("interval_quantity")
+        c_interval_count = func.count().label("interval_count")
 
-            query = (
-                select(
-                    interval_ratios.c.person_id,
-                    interval_ratios.c.interval_start.label("valid_from"),
-                    (interval_ratios.c.interval_start + interval - one_second).label(
-                        "valid_to"
-                    ),
-                    c_interval_quantity,
-                    c_interval_count,
+        if self._dose.dose is not None:
+            conditional_interval_column = create_conditional_interval_column(
+                condition=and_(
+                    self._dose.dose.to_sql(column_name=c_interval_quantity),
+                    self._dose.frequency.to_sql(column_name=c_interval_count),
                 )
-                .select_from(interval_ratios)
-                .where(interval_ratios.c.ratio > 0)
-                .group_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
-                .having(
-                    self._dose.to_sql(column_name=c_interval_quantity, with_unit=False)
-                )
-                .having(c_interval_count >= self._frequency)
-                .order_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
             )
+        elif self._dose.frequency is not None:
+            conditional_interval_column = create_conditional_interval_column(
+                condition=self._dose.frequency.to_sql(column_name=c_interval_count)
+            )
+        else:
+            # any dose and any frequency is fine
+            conditional_interval_column = column_interval_type(IntervalType.POSITIVE)  # type: ignore # (statement is reachable)
+
+        query = (
+            select(
+                interval_ratios.c.person_id,
+                interval_ratios.c.interval_start.label("interval_start"),
+                (interval_ratios.c.interval_start + interval - SQL_ONE_SECOND).label(
+                    "interval_end"
+                ),
+                conditional_interval_column.label("interval_type"),
+            )
+            .select_from(interval_ratios)
+            .where(interval_ratios.c.ratio > 0)
+            .group_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
+        )
 
         return query
 
@@ -226,13 +255,16 @@ class DrugExposure(Criterion):
         """
         Get a human-readable description of the criterion.
         """
-        return (
-            f"{self.__class__.__name__}['{self._name}']("
-            f"ingredient={self._ingredient_concept.concept_name}, "
-            f"dose={str(self._dose)}, frequency={self._frequency}/{self._interval}, "
-            f"route={self._route.concept_name if self._route is not None else None} "
-            f")"
-        )
+        route = self._route if hasattr(self, "_route") else None
+
+        parts = [f"ingredient={self._ingredient_concept.concept_name}"]
+        if self._dose is not None:
+            parts.append(f"dose={str(self._dose)}")
+
+        if route is not None:
+            parts.append(f"route={route.concept_name}")
+
+        return f"{self.__class__.__name__}[" + ", ".join(parts) + "]"
 
     def dict(self) -> dict[str, Any]:
         """
@@ -242,11 +274,10 @@ class DrugExposure(Criterion):
             "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
-            "drug_concepts": self._drug_concepts,
             "ingredient_concept": self._ingredient_concept.dict(),
-            "dose": self._dose.dict() if self._dose is not None else None,
-            "frequency": self._frequency,
-            "interval": self._interval,
+            "dose": self._dose.dict(include_meta=True)
+            if self._dose is not None
+            else None,
             "route": self._route.dict() if self._route is not None else None,
         }
 
@@ -258,16 +289,13 @@ class DrugExposure(Criterion):
 
         dose = value_factory(**data["dose"]) if data["dose"] is not None else None
 
-        assert dose is None or isinstance(dose, ValueNumber), "Dose must be a number"
+        assert dose is None or isinstance(dose, Dosage), "Dose must be a Dosage or None"
 
         return cls(
             name=data["name"],
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
-            drug_concepts=data["drug_concepts"],
             ingredient_concept=Concept(**data["ingredient_concept"]),
             dose=dose,
-            frequency=data["frequency"],
-            interval=data["interval"],
             route=Concept(**data["route"]) if data["route"] is not None else None,
         )

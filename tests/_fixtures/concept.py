@@ -27,6 +27,17 @@ def unit_concept():
     )
 
 
+concept_artificial_respiration = Concept(
+    concept_id=4230167,
+    concept_name="Artificial respiration",
+    domain_id="Procedure",
+    vocabulary_id="SNOMED",
+    concept_class_id="Procedure",
+    standard_concept="S",
+    concept_code="40617009",
+    invalid_reason=None,
+)
+
 concept_covid19 = Concept(
     concept_id=37311061,
     concept_name="COVID-19",
@@ -71,7 +82,58 @@ concept_heparin_ingredient = Concept(
     invalid_reason=None,
 )
 
+"""
+The following list of concepts are heparin drugs and all of them directly map to heparin as ingredient (via ancestor,
+not relationship !)
+"""
 concepts_heparin_other = [
+    Concept(
+        concept_id=40894655,
+        concept_name="heparin Topical Gel [Thrombocutan]",
+        domain_id="Drug",
+        vocabulary_id="RxNorm Extension",
+        concept_class_id="Branded Drug Form",
+        standard_concept="S",
+        concept_code="OMOP2092617",
+        invalid_reason=None,
+    ),
+    Concept(
+        concept_id=40988159,
+        concept_name="heparin Injectable Solution [Vetren]",
+        domain_id="Drug",
+        vocabulary_id="RxNorm Extension",
+        concept_class_id="Branded Drug Form",
+        standard_concept="S",
+        concept_code="OMOP2186121",
+        invalid_reason=None,
+    ),
+    Concept(
+        concept_id=41269112,
+        concept_name="heparin Stick [Vetren]",
+        domain_id="Drug",
+        vocabulary_id="RxNorm Extension",
+        concept_class_id="Branded Drug Form",
+        standard_concept="S",
+        concept_code="OMOP2467074",
+        invalid_reason=None,
+    ),
+    Concept(
+        concept_id=44188826,
+        concept_name="Dihydroergotamine 0.5 MG / heparin 5000 UNT Prefilled Syringe [Heparin Dihydergot] Box of 20",
+        domain_id="Drug",
+        vocabulary_id="RxNorm Extension",
+        concept_class_id="Branded Drug Box",
+        standard_concept="S",
+        concept_code="OMOP3065549",
+        invalid_reason=None,
+    ),
+]
+
+
+"""
+The following list of concepts are heparin drugs, but not all of them have a "maps to" ingredient.
+"""
+concepts_heparin_other_including_non_ingredient_related = [
     Concept(
         concept_id=995426,
         concept_name="101000 MG heparin 0.6 UNT/MG Topical Gel by Axicorp",
@@ -124,7 +186,7 @@ concepts_heparin_other = [
     ),
 ]
 
-concept_enoxparin_ingredient = Concept(
+concept_enoxparin = Concept(
     concept_id=995271,
     concept_name="0.4 ML Enoxaparin 100 MG/ML Injectable Solution [Inhixa] by Emra-Med",
     domain_id="Drug",
@@ -132,5 +194,16 @@ concept_enoxparin_ingredient = Concept(
     concept_class_id="Marketed Product",
     standard_concept="S",
     concept_code="OMOP4821780",
+    invalid_reason=None,
+)
+
+concept_enoxparin_ingredient = Concept(
+    concept_id=1301025,
+    concept_name="enoxaparin",
+    domain_id="Drug",
+    vocabulary_id="RxNorm",
+    concept_class_id="Ingredient",
+    standard_concept="S",
+    concept_code="67108",
     invalid_reason=None,
 )

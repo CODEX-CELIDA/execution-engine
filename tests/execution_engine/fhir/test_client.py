@@ -24,7 +24,9 @@ class TestFHIRClient:
             "status": "active",
         }
         with unittest.mock.patch("requests.get", return_value=mock_response):
-            result = client.fetch_resource(element_type, canonical_url)
+            result = client.fetch_resource(
+                element_type, canonical_url, version="latest"
+            )
             assert result.url == canonical_url
             assert result.status == "active"
 
@@ -35,7 +37,7 @@ class TestFHIRClient:
 
         with unittest.mock.patch("requests.get", side_effect=ConnectionRefusedError):
             with pytest.raises(ConnectionRefusedError):
-                client.fetch_resource(element_type, canonical_url)
+                client.fetch_resource(element_type, canonical_url, version="latest")
 
     def test_fetch_resource_bad_status_code(self, client):
         client.base_url = "https://example.com/fhir"
@@ -46,4 +48,4 @@ class TestFHIRClient:
         mock_response.status_code = 404
         with unittest.mock.patch("requests.get", return_value=mock_response):
             with pytest.raises(AssertionError):
-                client.fetch_resource(element_type, canonical_url)
+                client.fetch_resource(element_type, canonical_url, version="latest")

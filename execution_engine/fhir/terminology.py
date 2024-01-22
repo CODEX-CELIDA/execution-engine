@@ -66,11 +66,20 @@ class FHIRTerminologyClient:
         """
         Expand the given value set from an external FHIR terminology server.
         """
-        r = requests.get(
-            f"{self.server_url}/ValueSet/?url={url}",
-            headers={"ACCEPT": "application/fhir+json"},
-            timeout=10,
-        )
+        try:
+            r = requests.get(
+                f"{self.server_url}/ValueSet/?url={url}",
+                headers={"ACCEPT": "application/fhir+json"},
+                timeout=10,
+            )
+        except requests.ConnectionError:
+            raise FHIRTerminologyServerException(
+                f"Error getting value set {url}: Connection error"
+            )
+        except requests.ReadTimeout:
+            raise FHIRTerminologyServerException(
+                f"Error getting value set {url}: Request timed out"
+            )
 
         if r.status_code == 500:
             raise FHIRTerminologyServerException(
