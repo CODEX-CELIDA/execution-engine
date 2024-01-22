@@ -40,11 +40,11 @@ def db_setup():
     from execution_engine.omop.db.celida.schema import SCHEMA_NAME as CELIDA_SCHEMA_NAME
     from execution_engine.omop.db.omop.schema import SCHEMA_NAME as OMOP_SCHEMA_NAME
 
-    pg_user = os.environ["OMOP__USER"]
-    pg_password = os.environ["OMOP__PASSWORD"]
-    pg_host = os.environ["OMOP__HOST"]
-    pg_port = os.environ["OMOP__PORT"]
-    pg_db = os.environ["OMOP__DATABASE"]
+    pg_user = os.environ["CELIDA_EE_OMOP__USER"]
+    pg_password = os.environ["CELIDA_EE_OMOP__PASSWORD"]
+    pg_host = os.environ["CELIDA_EE_OMOP__HOST"]
+    pg_port = os.environ["CELIDA_EE_OMOP__PORT"]
+    pg_db = os.environ["CELIDA_EE_OMOP__DATABASE"]
 
     connection_str = f"postgresql+psycopg://{quote(pg_user)}:{quote(pg_password)}@{pg_host}:{pg_port}/{pg_db}"
     engine = create_engine(connection_str)

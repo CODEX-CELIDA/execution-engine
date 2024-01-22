@@ -31,7 +31,7 @@ class Settings(BaseSettings):  # type: ignore
     fhir_terminology_server_url: str = "http://tx.fhir.org/r4"
     fhir_base_url: str
 
-    timezone: str
+    timezone: str = "Europe/Berlin"
     multiprocessing_use: bool = False
     episode_of_care_visit_detail: bool = False
     multiprocessing_pool_size: int = -1
