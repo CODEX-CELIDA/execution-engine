@@ -28,7 +28,7 @@ that can be used to execute the recommendations on patient data in OMOP CDM form
 
 > [!WARNING]
 > In contrast to the OMOP CDM 5.4 specification, the OMOP CDM database used for the execution engine
-> **must** implement all `*_datetime` fields as `TIMESTAMP WITH TIME ZONE NOT NULL`.
+> **must** implement all `*_datetime` fields as `TIMESTAMP WITH TIME ZONE NOT NULL`. 
 
 
 ### Setup
@@ -51,16 +51,16 @@ and execute it on a target OMOP CDM database.
 
    You can copy the supplied `sample.env` file to `.env` and adjust the variables according to your local setup.
    ```bash
-   cp .env.sample .env
+   cp sample.env .env
    ```
 
-4. Optionally: Compile the Cython code``
+4. Optionally: Compile the Cython code
     ```bash
     python setup.py build_ext --inplace
     ```
 
 ### Execute Recommendations
- Run the following code
+ Run the following code (also present in [scripts/execute.py](https://github.com/CODEX-CELIDA/execution-engine/blob/main/scripts/execute.py)):
 
    ```python
    import pendulum
@@ -96,18 +96,18 @@ and execute it on a target OMOP CDM database.
        e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)
    ```
 
-### Results of the Execution
+## Results of the Execution
 
 Below is an overview of how the data is structured and how to interpret the results.
 
-## Data Storage and Schema
+### Data Storage and Schema
 
 - **Result Storage**: The results are stored in the `celida.result_interval` table of the OMOP database.
   Refer to the [Configuration](#configuration) section for more details.
 - **Schema Customization**: By default, the results are written in the `celida` schema. This can be altered
-  using the `OMOP__RESULT_SCHEMA` environment variable.
+  using the `CELIDA_EE_OMOP__RESULT_SCHEMA` environment variable.
 
-## Recommendation Process
+### Recommendation Process
 
 The recommendation process is divided into several steps:
 
@@ -134,7 +134,7 @@ The recommendation process is divided into several steps:
 6. **Result Combination**:
    - Post-evaluation, results are combined using AND, OR, and NOT operators based on the recommendation definition.
 
-## Result Intervals
+### Result Intervals
 
 - **Structure**: A result interval comprises an `interval_start`, `interval_end`, and `interval_type` , describing the
   coverage of a criterion or combination.
@@ -144,18 +144,17 @@ The recommendation process is divided into several steps:
   - NO_DATA: No data available to evaluate the criterion/combination.
   - NOT_APPLICABLE: Not applicable, used for POPULATION_INTERVENTION where POPULATION is NEGATIVE.
 
-## Execution Run
+### Execution Run
 
 Each execution run is registered in the `celida.execution_run` table and identified by a `run_id`.
-This run_id is used to identify the results of the execution in the `celida.result_interval` table.
+This `run_id` is used to identify the results of the execution in the `celida.result_interval` table.
 Note that if you run the same recommendation multiple times, each run will be stored in the database with
-its own run_id. That means that results should be retrieved using the `run_id` of the execution run.
+its own `run_id`. That means that results should be retrieved using the `run_id` of the execution run.
 
-## Convenience Views for Analysis
+### Convenience Views for Analysis
 
 To facilitate result analysis, the following views are available:
 
-Convenience views are provided to simplify the analysis of the results:
 - `celida.interval_result`: Same structure as `celida.result_interval` but with additional columns for the
   recommendation name, the criterion description, and the subpopulation ("pi_pair") name.
 - `celida.interval_coverage`: One row per day within the observation period (defined in the execution run) and criterion
@@ -174,7 +173,7 @@ To analyze the results of the cohort definition execution, primarily use the `in
 and `full_day_coverage` views in the `celida` schema.
 
 
-### Summary of Results
+#### Summary of Results
 The following query yields a summary of the results for each recommendation and execution run, aggregated by
 cohort category (POPULATION, INTERVENTION, POPULATION_INTERVENTION) and day:
 ```sql
@@ -204,7 +203,7 @@ GROUP BY rec.recommendation_name, run.run_id, res.cohort_category, res.valid_dat
 > This query is not yet optimized and may run for several minutes for large datasets (e.g., 10k patients over 3 years).
 
 
-### Individual Results
+#### Individual Results
 The following query yields the individual results for a specific patient and recommendation:
 
 ```sql
@@ -236,35 +235,36 @@ WHERE
 
 The following environment variables need to be defined (e.g., in a .env file):
 
-``` bash
+```env
 # FHIR Configuration
 ## The FHIR server serving CPG-on-EBM-on-FHIR resources
-FHIR_BASE_URL=http://localhost:8000/fhir
+CELIDA_EE_FHIR_BASE_URL=http://localhost:8000/fhir
 
 ## A FHIR terminology server
-FHIR_TERMINOLOGY_SERVER_URL=http://tx.fhir.org/r4
+CELIDA_EE_FHIR_TERMINOLOGY_SERVER_URL=http://tx.fhir.org/r4
 
 # OMOP Configuration
 ## OMOP Database Username
-OMOP__USER=postgres
+CELIDA_EE_OMOP__USER=postgres
 
 ## OMOP Database Password
-OMOP__PASSWORD=<your_password>
+CELIDA_EE_OMOP__PASSWORD=<your_password>
 
 ## OMOP Database Host
-OMOP__HOST=localhost
+CELIDA_EE_OMOP__HOST=localhost
 
 ## OMOP Database Port
-OMOP__PORT=5432
+CELIDA_EE_OMOP__PORT=5432
 
 ## OMOP Database
-OMOP__DATABASE=ohdsi
+CELIDA_EE_OMOP__DATABASE=ohdsi
 
 ## OMOP Database Schema
-OMOP__DATA_SCHEMA=cds_cdm
+CELIDA_EE_OMOP__DATA_SCHEMA=cds_cdm
 
 ## Execution Engine Result Schema
-OMOP__RESULT_SCHEMA=celida
+CELIDA_EE_OMOP__RESULT_SCHEMA=celida
+CELIDA_EE_OMOP__RESULT_SCHEMA=celida
 
 # Execution Engine Configuration
 ## Timezone used for date/time calculations
@@ -280,7 +280,6 @@ CELIDA_EE_MULTIPROCESSING_USE=0
 
 # Set number of workers in multiprocessing pool. Use -1 to use number of available cpu cores.
 CELIDA_EE_MULTIPROCESSING_POOL_SIZE=-1
-
 ```
 
 You can copy the supplied `sample.env` file to `.env` and adjust the variables according to your local setup.
