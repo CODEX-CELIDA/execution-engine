@@ -89,7 +89,13 @@ class RecommendationCriteriaCombination:
         def compare_series(name):
             s1 = df1[name]
             s2 = df2[name]
-            s1, s2 = s1.align(s2, fill_value=False)
+
+            # align the series to make sure they have the same index
+            s1, s2 = s1.align(s2)
+            # replacement for s1.align(s2, fill_value=False) as this raises a warning in pandas 2.2.0
+            s1 = s1.astype(bool) & s1.notnull()
+            s2 = s2.astype(bool) & s2.notnull()
+
             return s1.equals(s2)
 
         return all([compare_series(col) for col in self.plan_name_column_names()])
@@ -615,9 +621,10 @@ class TestRecommendationBase(ABC):
         df = df.copy()
 
         # Set end_datetime equal to start_datetime if it's NaT
-        df["end_datetime"].fillna(df["start_datetime"], inplace=True)
+        df["end_datetime"] = pd.to_datetime(
+            df["end_datetime"].fillna(df["start_datetime"]), utc=True
+        )
         df["start_datetime"] = pd.to_datetime(df["start_datetime"], utc=True)
-        df["end_datetime"] = pd.to_datetime(df["end_datetime"], utc=True)
 
         types = (
             df[["concept", "type"]]
@@ -671,7 +678,7 @@ class TestRecommendationBase(ABC):
         df_pivot.columns.name = None
 
         # Efficiently map and fill missing values
-        df_pivot.iloc[:, 2:] = df_pivot.iloc[:, 2:].gt(0)
+        df_pivot.iloc[:, 2:] = df_pivot.iloc[:, 2:].gt(0).astype(int)
 
         # Efficient merge with an auxiliary DataFrame
         aux_df = pd.DataFrame(
@@ -680,14 +687,17 @@ class TestRecommendationBase(ABC):
         )
         merged_df = pd.merge(aux_df, df_pivot, on=["person_id", "date"], how="left")
 
-        idx = merged_df[merged_df.columns[2:]].fillna(False).astype(bool)
+        output_df = pd.DataFrame(index=merged_df.index)
+        for i in range(2):
+            output_df[merged_df.columns[i]] = merged_df.iloc[:, i]
 
         # Apply types_missing_data
         for column in merged_df.columns[2:]:
-            merged_df.loc[idx[column], column] = IntervalType.POSITIVE
-            merged_df.loc[~idx[column], column] = types_missing_data[column]
+            idx_positive = merged_df[column].astype(bool) & merged_df[column].notnull()
+            output_df[column] = types_missing_data[column]
+            output_df.loc[idx_positive, column] = IntervalType.POSITIVE
 
-        return merged_df
+        return output_df
 
     @staticmethod
     def recommendation_test_runner(
