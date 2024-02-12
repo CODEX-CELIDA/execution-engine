@@ -21,6 +21,8 @@ from execution_engine.util.value.factory import value_factory
 
 __all__ = ["DrugExposure"]
 
+from execution_engine.util.value.time import ValueCount
+
 
 class DrugExposure(Criterion):
     """A drug exposure criterion in a recommendation."""
@@ -55,7 +57,7 @@ class DrugExposure(Criterion):
             )
             # set period first, otherwise validation error is triggered
             dose.period = 1 * TimeUnit.DAY
-            dose.frequency = 1
+            dose.frequency = ValueCount(value_min=1)
 
         self._dose = dose
         self._route = route
