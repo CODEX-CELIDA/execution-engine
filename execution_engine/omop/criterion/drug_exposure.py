@@ -44,11 +44,14 @@ class DrugExposure(Criterion):
         self._ingredient_concept = ingredient_concept
 
         if dose is None:
+            logging.warning(
+                f"No dose specified in {self.description()}, using default 'Any / day'"
+            )
             dose = Dosage(
                 dose=None,
                 count=None,
                 duration=None,
-                frequency=1,
+                frequency= ValueCount(value_min=1),
                 interval=1 * TimeUnit.DAY,
             )
         elif dose.frequency is None:
@@ -258,9 +261,10 @@ class DrugExposure(Criterion):
         Get a human-readable description of the criterion.
         """
         route = self._route if hasattr(self, "_route") else None
+        dose = self._dose if hasattr(self, "_dose") else None
 
         parts = [f"ingredient={self._ingredient_concept.concept_name}"]
-        if self._dose is not None:
+        if dose is not None:
             parts.append(f"dose={str(self._dose)}")
 
         if route is not None:
