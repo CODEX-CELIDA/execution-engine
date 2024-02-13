@@ -16,5 +16,5 @@ networkx==3.2.1
 numpy==1.26.3
 pytz==2024.1
 cython==3.0.8
-setuptools==69.0.3
+setuptools==69.1.0
 sortedcontainers==2.4.0
