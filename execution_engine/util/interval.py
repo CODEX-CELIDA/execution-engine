@@ -70,6 +70,7 @@ class IntervalType(StrEnum):
     """
 
     __union_priority_order: list[str] = [POSITIVE, NO_DATA, NOT_APPLICABLE, NEGATIVE]
+    """Union priority order starting with the highest priority."""
 
     # until Jan 13:
     # POSITIVE has higher priority than NO_DATA, as in measurements we return NO_DATA intervals for all intervals
@@ -92,6 +93,7 @@ class IntervalType(StrEnum):
         POSITIVE,
         NOT_APPLICABLE,
     ]
+    """Intersection priority order starting with the highest priority."""
 
     __invert_map: dict[str, str] = {
         POSITIVE: NEGATIVE,
@@ -353,7 +355,7 @@ Atomic = namedtuple("Atomic", ["left", "lower", "upper", "right", "type"])
 
 class IntervalWithType(Interval, Generic[IntervalT, IntervalTypeT]):
     """
-    This class represents an interval wit type.
+    This class represents an interval with type.
 
     An interval is an (automatically simplified) union of atomic intervals.
     It can be created with IntervalWithType.from_atomic(...) or by passing Interval

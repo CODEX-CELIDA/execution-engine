@@ -269,6 +269,10 @@ class Task:
             result = process.intersect_intervals(data)
         elif isinstance(self.expr, logic.Or):
             result = process.union_intervals(data)
+        elif isinstance(self.expr, logic.Count):
+            result = process.count_intervals(data)
+        elif isinstance(self.expr, logic.AllOrNone):
+            raise NotImplementedError("AllOrNone is not implemented yet.")
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
 

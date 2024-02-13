@@ -19,6 +19,7 @@ class CriterionCombination(AbstractCriterion):
         AT_LEAST = "AT_LEAST"
         AT_MOST = "AT_MOST"
         EXACTLY = "EXACTLY"
+        ALL_OR_NONE = "ALL_OR_NONE"
 
         def __init__(self, operator: str, threshold: int | None = None):
             assert operator in [
@@ -27,6 +28,7 @@ class CriterionCombination(AbstractCriterion):
                 "AT_LEAST",
                 "AT_MOST",
                 "EXACTLY",
+                "ALL_OR_NONE",
             ], f"Invalid operator {operator}"
 
             self.operator = operator
