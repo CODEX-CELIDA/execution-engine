@@ -1260,7 +1260,7 @@ class TestUnionRectWithCount:
             # we don't expect this to work at all
             process.union_rects_with_count(intervals)
 
-    def test_union_rect(self):
+    def test_union_rect_with_count(self):
         intervals = [
             Interval(lower=1, upper=2, type=T.POSITIVE),
             Interval(lower=3, upper=4, type=T.NEGATIVE),

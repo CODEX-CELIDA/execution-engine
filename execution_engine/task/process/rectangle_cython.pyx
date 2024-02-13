@@ -1,12 +1,11 @@
 from collections import namedtuple
 
 cimport numpy as np
+
 import numpy as np
 
-from execution_engine.task.process import Interval
+from execution_engine.task.process import Interval, IntervalWithCount
 from execution_engine.util.interval import IntervalType
-
-#Interval = namedtuple("Interval", ["lower", "upper", "type"])
 
 DEF SCHAR_MIN = -128
 DEF SCHAR_MAX = 127
@@ -156,6 +155,92 @@ def union_rects(list[Interval] intervals) -> list[Interval]:
                     )  # close the previous rectangle at y_max
                     last_x_closed = cur_x
                     last_x = cur_x  # start new output rectangle
+    return union
+
+def union_rects_with_count(list[Interval] intervals) -> list[IntervalWithCount]:
+    cdef double last_x = -np.inf
+    cdef double last_x_closed = -np.inf
+    cdef double cur_x = -np.inf
+    cdef double first_x
+    cdef signed char max_open_y = SCHAR_MIN
+
+    if not intervals:
+        return []
+
+    order = IntervalType.union_priority()[::-1]
+
+    events = intervals_to_events(intervals)
+
+    union = []
+
+    last_x = -np.inf  # holds the x_min of the currently open output rectangle
+    last_x_closed = events[0][0]  # x variable of the last closed interval (we start with the first x, so we
+                                  # don't close the first rectangle at the first x)
+    cur_x = -np.inf
+    open_y = list()
+
+    for x, start_point, y_type in events:
+
+        y = order.index(y_type)
+
+        if start_point:
+            if x > cur_x and not open_y:  # no currently open rectangles
+                cur_x = x
+                last_x = cur_x  # start new output rectangle
+            elif y >= max_open_y:
+
+                if x == last_x_closed:
+                    # we already closed a rectangle at this x, so we don't need to start a new one
+                    open_y.append(y)
+                    max_open_y = max(open_y)
+                    continue
+
+                if x > cur_x:
+                    # new x
+                    if y > max_open_y:
+                        # the newly starting rectangle has a higher y_max than the currently open ones
+                        count = 1
+                    else:
+                        # the newly starting rectangle has the same y_max as the currently open ones
+                        count = open_y.count(y)
+                else:
+                    # same x, count the number of open rectangles with the currently highest y
+                    count = open_y.count(max_open_y)
+
+                union.append(
+                    IntervalWithCount(
+                        lower=last_x, upper=x - 1, type=order[max_open_y], count=count
+                    )
+                )
+                last_x_closed = x
+                last_x = x
+
+            open_y.append(y)
+            max_open_y = max(open_y)
+
+        else:
+            open_y.remove(y)
+            if y == max_open_y:
+                max_open_y = max(open_y) if open_y else SCHAR_MIN
+
+            if (
+                    (open_y and max_open_y <= y) or not open_y
+            ) and x > last_x_closed:
+                if not open_y or max_open_y < y:
+                    count = 1
+                else:
+                    count = open_y.count(y) + 1
+
+                union.append(
+                    IntervalWithCount(
+                        lower=last_x, upper=x - 1, type=order[y], count=count
+                    )
+                )  # close the previous rectangle at y_max
+                last_x_closed = x
+                last_x = x  # start new output rectangle
+
+        cur_x = x
+
     return union
 
 
