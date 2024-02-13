@@ -291,13 +291,9 @@ class MinCount(Count):
     Class representing a logical MIN_COUNT operation.
     """
 
-    def __new__(cls, threshold: int, *args: Any, **kwargs: Any) -> "Count":
-        """
-        Create a new Count object.
-        """
-        obj = super().__new__(cls, *args, **kwargs)
-        obj.count_min = threshold
-        return obj
+    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+        self.count_min = threshold
+        super().__init__(*args, **kwargs)
 
     def __repr__(self) -> str:
         """
@@ -311,13 +307,9 @@ class MaxCount(Count):
     Class representing a logical MAX_COUNT operation.
     """
 
-    def __new__(cls, threshold: int, *args: Any, **kwargs: Any) -> "Count":
-        """
-        Create a new Count object.
-        """
-        obj = super().__new__(cls, *args, **kwargs)
-        obj.count_max = threshold
-        return obj
+    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+        self.count_max = threshold
+        super().__init__(*args, **kwargs)
 
     def __repr__(self) -> str:
         """
@@ -331,14 +323,10 @@ class ExactCount(Count):
     Class representing a logical EXACT_COUNT operation.
     """
 
-    def __new__(cls, threshold: int, *args: Any, **kwargs: Any) -> "Count":
-        """
-        Create a new Count object.
-        """
-        obj = super().__new__(cls, *args, **kwargs)
-        obj.count_min = threshold
-        obj.count_max = threshold
-        return obj
+    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+        self.count_min = threshold
+        self.count_max = threshold
+        super().__init__(*args, **kwargs)
 
     def __repr__(self) -> str:
         """

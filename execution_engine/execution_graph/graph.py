@@ -291,7 +291,7 @@ class ExecutionGraph(nx.DiGraph):
                     raise ValueError(
                         f"Threshold must be set for operator {comb.operator.operator}"
                     )
-                return lambda args, category: logic.MinCount(
+                return lambda *args, category: logic.MinCount(
                     *args, threshold=comb.operator.threshold, category=category  # type: ignore
                 )
             elif comb.operator.operator == CriterionCombination.Operator.AT_MOST:
@@ -299,7 +299,7 @@ class ExecutionGraph(nx.DiGraph):
                     raise ValueError(
                         f"Threshold must be set for operator {comb.operator.operator}"
                     )
-                return lambda args, category: logic.MaxCount(
+                return lambda *args, category: logic.MaxCount(
                     *args, threshold=comb.operator.threshold, category=category  # type: ignore
                 )
             elif comb.operator.operator == CriterionCombination.Operator.EXACTLY:
@@ -307,7 +307,7 @@ class ExecutionGraph(nx.DiGraph):
                     raise ValueError(
                         f"Threshold must be set for operator {comb.operator.operator}"
                     )
-                return lambda args, category: logic.ExactCount(
+                return lambda *args, category: logic.ExactCount(
                     *args, threshold=comb.operator.threshold, category=category  # type: ignore
                 )
             else:

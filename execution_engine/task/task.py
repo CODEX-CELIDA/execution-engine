@@ -148,7 +148,14 @@ class Task:
                         data, base_data, observation_window
                     )
                 elif isinstance(
-                    self.expr, (logic.And, logic.Or, logic.NonSimplifiableAnd)
+                    self.expr,
+                    (
+                        logic.And,
+                        logic.Or,
+                        logic.NonSimplifiableAnd,
+                        logic.Count,
+                        logic.AllOrNone,
+                    ),
                 ):
                     result = self.handle_binary_logical_operator(data)
                 elif isinstance(self.expr, logic.LeftDependentToggle):
