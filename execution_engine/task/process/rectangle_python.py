@@ -1,7 +1,7 @@
 import numpy as np
 from sortedcontainers import SortedList
 
-from execution_engine.task.process import Interval
+from execution_engine.task.process import Interval, IntervalWithCount
 from execution_engine.util.interval import IntervalType
 
 
@@ -76,6 +76,140 @@ def union_rects(intervals: list[Interval]) -> list[Interval]:
                     ) and cur_x > last_x_closed:
                         union.append(
                             Interval(lower=last_x, upper=cur_x - 1, type=y_max)
+                        )  # close the previous rectangle at y_max
+                        last_x_closed = cur_x
+                        last_x = cur_x  # start new output rectangle
+        return union
+
+
+def union_rects_with_count(intervals: list[Interval]) -> list[IntervalWithCount]:
+    """
+    Unions the intervals while keeping track of the count of overlapping intervals of the same type.
+    """
+
+    if not len(intervals):
+        return []
+
+    with IntervalType.union_order():
+        events = intervals_to_events(intervals)
+
+        union = []
+
+        first_x = events[0][0]
+        last_x = -np.inf  # holds the x_min of the currently open output rectangle
+        last_x_closed = -np.inf  # x variable of the last closed interval
+        cur_x = -np.inf
+        open_y = SortedList()
+
+        for x_min, start_point, y_max in events:
+            if x_min > cur_x:
+                # previously unvisited x
+                cur_x = x_min
+
+                if start_point:
+                    # start of a rectangle, check if this current y_max is bigger than any
+                    # of the currently open and if so, start a new rectangle
+
+                    if not open_y:  # no currently open rectangles
+                        last_x = cur_x  # start new output rectangle
+                    elif y_max > open_y[-1]:
+                        union.append(
+                            IntervalWithCount(
+                                lower=last_x, upper=cur_x - 1, type=open_y[-1], count=1
+                            )
+                        )  # close the previous rectangle at the max(y) of the open rectangles
+                        last_x_closed = cur_x
+                        last_x = cur_x  # start new output rectangle
+                    elif y_max == open_y[-1]:
+                        # todo: this is the same code as the previous case, reduce redundancy
+                        # other open rectangles have the same max, so we need to increment the count
+                        # remember that this is a previously unvisited x
+                        union.append(
+                            IntervalWithCount(
+                                lower=last_x,
+                                upper=cur_x - 1,
+                                type=open_y[-1],
+                                count=open_y.count(y_max),
+                            )
+                        )
+                        last_x_closed = cur_x
+                        last_x = cur_x  # start new output rectangle
+
+                    open_y.add(y_max)
+                else:
+                    # end of a rectangle, check if this rectangle's y_max is bigger than any of the
+                    # remaining ones and if so, start a new rectangle
+                    open_y.remove(y_max)
+
+                    if (open_y and open_y[-1] < y_max) or not open_y:
+                        # no rectangle open anymore or the remaining open rectangles have a lower y_max
+                        union.append(
+                            IntervalWithCount(
+                                lower=last_x, upper=cur_x - 1, type=y_max, count=1
+                            )
+                        )  # close the previous rectangle at y_max
+                        last_x_closed = cur_x
+                        last_x = cur_x  # start new output rectangle
+                    elif open_y and open_y[-1] == y_max:
+                        # todo: again, this is the same code as above, reduce redundancy
+                        # other rectangles are open and have the same y as the currently closing one
+                        # we need to close the current interval and start a new one (with decreased count)
+                        union.append(
+                            IntervalWithCount(
+                                lower=last_x,
+                                upper=cur_x - 1,
+                                type=y_max,
+                                count=open_y.count(y_max) + 1,
+                            )
+                        )
+                        last_x_closed = cur_x
+                        last_x = cur_x  # start new output rectangle
+            else:
+                # previously visited x, we possibly need to update the current's y?
+                if start_point:
+                    # a new interval is created but only if we haven't closed one at this point already
+                    if (
+                        y_max >= open_y[-1]
+                        and cur_x > first_x
+                        and cur_x > last_x_closed
+                    ):
+                        # the newly starting rectangle has a higher y_max than the currently open ones,
+                        # so we need to start a new rectangle
+                        # count is the number of open rectangles with the previous y_max
+                        union.append(
+                            IntervalWithCount(
+                                lower=last_x,
+                                upper=cur_x - 1,
+                                type=open_y[-1],
+                                count=open_y.count(open_y[-1]),
+                            )
+                        )
+                        last_x_closed = cur_x
+                        last_x = cur_x  # start new output rectangle
+
+                    open_y.add(y_max)
+                else:
+                    # end of a rectangle, start new output rectangle if the remaining open rectangles have a lower y_max
+                    open_y.remove(y_max)
+
+                    if (
+                        (open_y and open_y[-1] < y_max) or not open_y
+                    ) and cur_x > last_x_closed:
+                        union.append(
+                            IntervalWithCount(
+                                lower=last_x, upper=cur_x - 1, type=y_max, count=1
+                            )
+                        )  # close the previous rectangle at y_max
+                        last_x_closed = cur_x
+                        last_x = cur_x  # start new output rectangle
+                    elif (open_y and open_y[-1] == y_max) and cur_x > last_x_closed:
+                        union.append(
+                            IntervalWithCount(
+                                lower=last_x,
+                                upper=cur_x - 1,
+                                type=y_max,
+                                count=open_y.count(y_max) + 1,
+                            )
                         )  # close the previous rectangle at y_max
                         last_x_closed = cur_x
                         last_x = cur_x  # start new output rectangle

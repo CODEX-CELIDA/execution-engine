@@ -25,3 +25,4 @@ def get_processing_module(name: str = "rectangle") -> types.ModuleType:
 
 
 Interval = namedtuple("Interval", ["lower", "upper", "type"])
+IntervalWithCount = namedtuple("IntervalWithCount", ["lower", "upper", "type", "count"])

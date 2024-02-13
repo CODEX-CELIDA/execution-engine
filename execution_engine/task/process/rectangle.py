@@ -395,7 +395,7 @@ def union_intervals(data: list[PersonIntervals]) -> PersonIntervals:
 
 def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     """
-    Intersects the intervals  per dict key in the list.
+    Intersects the intervals per dict key in the list.
 
     :param data: A list of dict of intervals.
     :return: A dict with the intersected intervals.

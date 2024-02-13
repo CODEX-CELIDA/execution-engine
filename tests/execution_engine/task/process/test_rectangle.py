@@ -3,7 +3,11 @@ import pendulum
 import pytest
 import pytz
 
-from execution_engine.task.process import Interval, get_processing_module
+from execution_engine.task.process import (
+    Interval,
+    IntervalWithCount,
+    get_processing_module,
+)
 from execution_engine.util.interval import DateTimeInterval
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.interval import interval_datetime
@@ -1245,6 +1249,353 @@ class TestUnionRect:
         assert (
             process.union_rects(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
+
+
+class TestUnionRectWithCount:
+    def test_union_rect_with_count_negative_duration(self):
+        intervals = [
+            Interval(lower=5, upper=3, type=T.POSITIVE),
+        ]
+        with pytest.raises(ValueError):
+            # we don't expect this to work at all
+            process.union_rects_with_count(intervals)
+
+    def test_union_rect(self):
+        intervals = [
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=3, upper=4, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=3, type=T.POSITIVE),
+            Interval(lower=3, upper=4, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=3, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=4, upper=4, type=T.NEGATIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=4, type=T.POSITIVE),
+            Interval(lower=3, upper=4, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=4, type=T.POSITIVE),
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=2),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=4, type=T.NEGATIVE),
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+            Interval(lower=5, upper=6, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=5, upper=6, type=T.NEGATIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+            Interval(lower=1, upper=6, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=5, upper=6, type=T.NEGATIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.NEGATIVE),
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same start and end
+        intervals = [
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=4),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same start, different end
+        intervals = [
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=1, upper=3, type=T.POSITIVE),
+            Interval(lower=1, upper=4, type=T.POSITIVE),
+            Interval(lower=1, upper=5, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=4),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same end, different start, with other types inbetween
+        intervals = [
+            Interval(lower=1, upper=2, type=T.POSITIVE),
+            Interval(lower=2, upper=8, type=T.NEGATIVE),
+            Interval(lower=1, upper=3, type=T.POSITIVE),
+            Interval(lower=1, upper=4, type=T.POSITIVE),
+            Interval(lower=2, upper=4, type=T.NEGATIVE),
+            Interval(lower=1, upper=5, type=T.POSITIVE),
+            Interval(lower=2, upper=4, type=T.NEGATIVE),
+            Interval(lower=5, upper=6, type=T.NEGATIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=4),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=6, upper=6, type=T.NEGATIVE, count=2),
+            IntervalWithCount(lower=7, upper=8, type=T.NEGATIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same end, different start
+        intervals = [
+            Interval(lower=4, upper=6, type=T.POSITIVE),
+            Interval(lower=3, upper=6, type=T.POSITIVE),
+            Interval(lower=2, upper=6, type=T.POSITIVE),
+            Interval(lower=1, upper=6, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=4, upper=6, type=T.POSITIVE, count=4),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple starts and end at the same position inbetween
+        intervals = [
+            Interval(lower=1, upper=4, type=T.POSITIVE),
+            Interval(lower=2, upper=4, type=T.POSITIVE),
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+            Interval(lower=4, upper=5, type=T.POSITIVE),
+            Interval(lower=4, upper=6, type=T.POSITIVE),
+            Interval(lower=4, upper=7, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=6),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=6, upper=6, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=7, upper=7, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple starts and end at the same position inbetween, other types inbetween
+        intervals = [
+            Interval(lower=1, upper=4, type=T.NEGATIVE),
+            Interval(lower=2, upper=4, type=T.NEGATIVE),
+            Interval(lower=3, upper=4, type=T.NEGATIVE),
+            Interval(lower=4, upper=5, type=T.NEGATIVE),
+            Interval(lower=4, upper=6, type=T.NEGATIVE),
+            Interval(lower=4, upper=7, type=T.NEGATIVE),
+            Interval(lower=1, upper=4, type=T.POSITIVE),
+            Interval(lower=2, upper=4, type=T.POSITIVE),
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+            Interval(lower=4, upper=5, type=T.POSITIVE),
+            Interval(lower=4, upper=6, type=T.POSITIVE),
+            Interval(lower=4, upper=7, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=6),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=6, upper=6, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=7, upper=7, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple starts and end at the same position inbetween, other types inbetween (random order)
+        intervals = [
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+            Interval(lower=4, upper=6, type=T.NEGATIVE),
+            Interval(lower=3, upper=4, type=T.NEGATIVE),
+            Interval(lower=1, upper=4, type=T.POSITIVE),
+            Interval(lower=4, upper=5, type=T.NEGATIVE),
+            Interval(lower=1, upper=4, type=T.NEGATIVE),
+            Interval(lower=2, upper=4, type=T.NEGATIVE),
+            Interval(lower=4, upper=7, type=T.POSITIVE),
+            Interval(lower=4, upper=5, type=T.POSITIVE),
+            Interval(lower=4, upper=7, type=T.NEGATIVE),
+            Interval(lower=4, upper=6, type=T.POSITIVE),
+            Interval(lower=2, upper=4, type=T.POSITIVE),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=6),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=3),
+            IntervalWithCount(lower=6, upper=6, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=7, upper=7, type=T.POSITIVE, count=1),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
 
 
 class TestUnionIntervals:
