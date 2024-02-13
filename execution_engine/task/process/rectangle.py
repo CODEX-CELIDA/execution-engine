@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Callable
+from typing import Callable, cast
 
 import numpy as np
 import pytz
@@ -9,13 +9,14 @@ from sqlalchemy import CursorResult
 from execution_engine.util.interval import IntervalType, interval_datetime
 from execution_engine.util.types import TimeRange
 
-from . import Interval
+from . import Interval, IntervalWithCount
 
 try:
     from .rectangle_cython import (
         intersect_interval_lists,
         union_interval_lists,
         union_rects,
+        union_with_count_interval_lists,
     )
 except ImportError:
     logging.info("Cython rectangle module not found, using python module")
@@ -23,9 +24,11 @@ except ImportError:
         intersect_interval_lists,
         union_interval_lists,
         union_rects,
+        union_with_count_interval_lists,
     )
 
 PersonIntervals = dict[int, list[Interval]]
+PersonIntervalsWithCount = dict[int, list[IntervalWithCount]]
 
 
 def normalize_interval(interval: Interval) -> Interval:
@@ -391,6 +394,64 @@ def union_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     :return: A dict with the unioned intervals.
     """
     return _process_intervals(data, union_interval_lists)
+
+
+def count_intervals(data: list[PersonIntervals]) -> PersonIntervalsWithCount:
+    """
+    Counts the intervals per dict key in the list.
+
+    :param data: A list of dict of intervals.
+    :return: A dict with the unioned intervals.
+    """
+    return cast(
+        PersonIntervalsWithCount,
+        _process_intervals(data, union_with_count_interval_lists),
+    )
+
+
+def filter_count_intervals(
+    data: PersonIntervalsWithCount,
+    min_count: int | None,
+    max_count: int | None,
+    type_: IntervalType,
+) -> PersonIntervals:
+    """
+    Filters the intervals per dict key in the list by count.
+
+    :param data: A list of dict of intervals.
+    :param min_count: The minimum count of the intervals.
+    :param max_count: The maximum count of the intervals.
+    :param type_: The type of the intervals.
+    :return: A dict with the unioned intervals.
+    """
+
+    result: PersonIntervals = {}
+
+    if min_count is None and max_count is None:
+        raise ValueError("min_count and max_count cannot both be None")
+    elif min_count is not None and max_count is not None:
+        for person_id in data:
+            result[person_id] = [
+                Interval(interval.lower, interval.upper, interval.type)
+                for interval in data[person_id]
+                if min_count <= interval.count <= max_count and interval.type == type_
+            ]
+    elif min_count is not None:
+        for person_id in data:
+            result[person_id] = [
+                Interval(interval.lower, interval.upper, interval.type)
+                for interval in data[person_id]
+                if min_count <= interval.count and interval.type == type_
+            ]
+    elif max_count is not None:
+        for person_id in data:
+            result[person_id] = [
+                Interval(interval.lower, interval.upper, interval.type)
+                for interval in data[person_id]
+                if interval.count <= max_count and interval.type == type_
+            ]
+
+    return result
 
 
 def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:

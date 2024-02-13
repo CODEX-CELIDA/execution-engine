@@ -271,6 +271,12 @@ class Task:
             result = process.union_intervals(data)
         elif isinstance(self.expr, logic.Count):
             result = process.count_intervals(data)
+            result = process.filter_count_intervals(
+                result,
+                min_count=self.expr.count_min,
+                max_count=self.expr.count_max,
+                type_=IntervalType.POSITIVE,
+            )
         elif isinstance(self.expr, logic.AllOrNone):
             raise NotImplementedError("AllOrNone is not implemented yet.")
         else:

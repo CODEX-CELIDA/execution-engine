@@ -274,3 +274,19 @@ def union_interval_lists(
     result = union_rects(processed)
 
     return result
+
+
+def union_with_count_interval_lists(
+    left: list[Interval], right: list[Interval]
+) -> list[IntervalWithCount]:
+    """
+    Unions each interval in the left list with each interval in the right list while keeping track of the count of
+    overlapping intervals of the same type.
+
+    :param left: The left list.
+    :param right: The right list.
+    :return: The list of unions.
+    """
+    processed = [item for x in left for y in right for item in union_rects_with_count([x, y])]
+
+    return processed

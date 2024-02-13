@@ -158,7 +158,9 @@ def union_rects_with_count(intervals: list[Interval]) -> list[IntervalWithCount]
         return union
 
 
-def union_rects_with_count2(intervals: list[Interval]) -> list[IntervalWithCount]:
+def __union_rects_with_count_explicit(
+    intervals: list[Interval],
+) -> list[IntervalWithCount]:
     """
     Unions the intervals while keeping track of the count of overlapping intervals of the same type.
     """
@@ -357,3 +359,21 @@ def union_interval_lists(left: list[Interval], right: list[Interval]) -> list[In
     result = union_rects(processed)
 
     return result
+
+
+def union_with_count_interval_lists(
+    left: list[Interval], right: list[Interval]
+) -> list[IntervalWithCount]:
+    """
+    Unions each interval in the left list with each interval in the right list while keeping track of the count of
+    overlapping intervals of the same type.
+
+    :param left: The left list.
+    :param right: The right list.
+    :return: The list of unions.
+    """
+    processed = [
+        item for x in left for y in right for item in union_rects_with_count([x, y])
+    ]
+
+    return processed

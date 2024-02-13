@@ -282,21 +282,8 @@ class Count(BooleanFunction):
     Adds a "threshold" parameter of type int.
     """
 
-    threshold: int
-
-    def __new__(cls, threshold: int, *args: Any, **kwargs: Any) -> "Count":
-        """
-        Create a new Count object.
-        """
-        obj = super().__new__(cls, *args, **kwargs)
-        obj.threshold = threshold
-        return obj
-
-    def __repr__(self) -> str:
-        """
-        Represent the expression in a readable format.
-        """
-        return f"{self.__class__.__name__}(threshold={self.threshold}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+    count_min: int | None = None
+    count_max: int | None = None
 
 
 class MinCount(Count):
@@ -304,17 +291,60 @@ class MinCount(Count):
     Class representing a logical MIN_COUNT operation.
     """
 
+    def __new__(cls, threshold: int, *args: Any, **kwargs: Any) -> "Count":
+        """
+        Create a new Count object.
+        """
+        obj = super().__new__(cls, *args, **kwargs)
+        obj.count_min = threshold
+        return obj
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
 
 class MaxCount(Count):
     """
     Class representing a logical MAX_COUNT operation.
     """
 
+    def __new__(cls, threshold: int, *args: Any, **kwargs: Any) -> "Count":
+        """
+        Create a new Count object.
+        """
+        obj = super().__new__(cls, *args, **kwargs)
+        obj.count_max = threshold
+        return obj
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_max}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
 
 class ExactCount(Count):
     """
     Class representing a logical EXACT_COUNT operation.
     """
+
+    def __new__(cls, threshold: int, *args: Any, **kwargs: Any) -> "Count":
+        """
+        Create a new Count object.
+        """
+        obj = super().__new__(cls, *args, **kwargs)
+        obj.count_min = threshold
+        obj.count_max = threshold
+        return obj
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
 
 
 class AllOrNone(BooleanFunction):
