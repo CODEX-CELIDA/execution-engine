@@ -2,6 +2,7 @@ import os
 from glob import glob
 from typing import Any
 
+import pandas as pd
 import pytest
 from pytest_postgresql.janitor import DatabaseJanitor
 
@@ -10,6 +11,15 @@ pytest_plugins = [
     fixture_file.replace("/", ".").replace(".py", "")
     for fixture_file in glob("tests/_fixtures/[!__]*.py", recursive=True)
 ]
+
+
+@pytest.fixture(autouse=True, scope="session")
+def set_pandas_display_options() -> None:
+    """
+    Set the pandas display options for the entire test session.
+    """
+    pd.set_option("display.max_columns", 5)
+    pd.set_option("display.width", 1000)
 
 
 def postgres_janitor() -> DatabaseJanitor:

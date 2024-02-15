@@ -1,6 +1,6 @@
 import datetime
 import logging
-from typing import Callable, cast
+from typing import Callable
 
 import numpy as np
 import pytz
@@ -16,6 +16,7 @@ try:
         intersect_interval_lists,
         union_interval_lists,
         union_rects,
+        union_rects_with_count,
         union_with_count_interval_lists,
     )
 except ImportError:
@@ -24,6 +25,7 @@ except ImportError:
         intersect_interval_lists,
         union_interval_lists,
         union_rects,
+        union_rects_with_count,
         union_with_count_interval_lists,
     )
 
@@ -31,21 +33,24 @@ PersonIntervals = dict[int, list[Interval]]
 PersonIntervalsWithCount = dict[int, list[IntervalWithCount]]
 
 
-def normalize_interval(interval: Interval) -> Interval:
+def normalize_interval(
+    interval: Interval | IntervalWithCount,
+) -> Interval | IntervalWithCount:
     """
-    Normalizes the interval for storage in database.
+    Normalizes the interval for storage in a database.
 
-    :param interval: The interval to normalize.
-    :return: A tuple with the normalized interval.
+    This function is compatible with both Interval and IntervalWithCount types.
+
+    :param interval: The interval to normalize, can be of type Interval or IntervalWithCount.
+    :return: A tuple with the normalized interval, maintaining any additional fields.
     """
-    return Interval(
-        datetime.datetime.fromtimestamp(interval.lower, pytz.utc),
-        datetime.datetime.fromtimestamp(interval.upper, pytz.utc),
-        interval.type,
-    )
+    # Convert timestamps to datetime objects
+    normalized_lower = datetime.datetime.fromtimestamp(interval.lower, pytz.utc)
+    normalized_upper = datetime.datetime.fromtimestamp(interval.upper, pytz.utc)
+
+    return interval._replace(lower=normalized_lower, upper=normalized_upper)
 
 
-# ok
 def result_to_intervals(result: CursorResult) -> PersonIntervals:
     """
     Converts the result of the interval operations to a list of intervals.
@@ -396,6 +401,22 @@ def union_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     return _process_intervals(data, union_interval_lists)
 
 
+def interval_to_interval_with_count(interval: Interval) -> IntervalWithCount:
+    """
+    Converts an Interval to an IntervalWithCount.
+    """
+    return IntervalWithCount(interval.lower, interval.upper, interval.type, 1)
+
+
+def intervals_to_intervals_with_count(
+    intervals: list[Interval],
+) -> list[IntervalWithCount]:
+    """
+    Converts a list of Intervals to a list of IntervalWithCount.
+    """
+    return [interval_to_interval_with_count(interval) for interval in intervals]
+
+
 def count_intervals(data: list[PersonIntervals]) -> PersonIntervalsWithCount:
     """
     Counts the intervals per dict key in the list.
@@ -403,10 +424,32 @@ def count_intervals(data: list[PersonIntervals]) -> PersonIntervalsWithCount:
     :param data: A list of dict of intervals.
     :return: A dict with the unioned intervals.
     """
-    return cast(
-        PersonIntervalsWithCount,
-        _process_intervals(data, union_with_count_interval_lists),
-    )
+    if not len(data):
+        return dict()
+
+    # assert dfs is a list of dataframes
+    assert isinstance(data, list) and all(
+        isinstance(arr, dict) for arr in data
+    ), "data must be a list of dicts"
+
+    result = {}
+
+    for arr in data:
+        if not len(arr):
+            # if the operation is union, an empty dataframe can be ignored
+            continue
+
+        for group_keys, intervals in arr.items():
+            intervals_with_count = intervals_to_intervals_with_count(intervals)
+            intervals_with_count = union_rects_with_count(intervals_with_count)
+            if group_keys not in result:
+                result[group_keys] = intervals_with_count
+            else:
+                result[group_keys] = union_with_count_interval_lists(
+                    result[group_keys], intervals_with_count
+                )
+
+    return result
 
 
 def filter_count_intervals(

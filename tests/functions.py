@@ -17,6 +17,7 @@ from execution_engine.omop.db.omop.tables import (
     VisitDetail,
     VisitOccurrence,
 )
+from execution_engine.task.process import IntervalWithCount
 from execution_engine.util.interval import (
     DateTimeInterval,
     IntervalType,
@@ -250,6 +251,7 @@ def intervals_to_df(
 
     :param result: The result of the interval operations.
     :param by: A list of column names to group by.
+    :param normalize_func: A function to normalize the intervals for storage in database.
     :return: A DataFrame with the interval results.
     """
     records = []
@@ -269,11 +271,17 @@ def intervals_to_df(
                 "interval_end": interv.upper,
                 "interval_type": interv.type,
             }
+            if isinstance(interv, IntervalWithCount):
+                record["interval_count"] = interv.count
+
             records.append(record)
 
-    return pd.DataFrame(
-        records, columns=by + ["interval_start", "interval_end", "interval_type"]
-    )
+    cols = by + ["interval_start", "interval_end", "interval_type"]
+
+    if records and "interval_count" in records[0]:
+        cols.append("interval_count")
+
+    return pd.DataFrame(records, columns=cols)
 
 
 def df_to_person_intervals(

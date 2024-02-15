@@ -1,5 +1,5 @@
 import numpy as np
-from sortedcontainers import SortedList
+from sortedcontainers import SortedDict, SortedList
 
 from execution_engine.task.process import Interval, IntervalWithCount
 from execution_engine.util.interval import IntervalType
@@ -82,7 +82,9 @@ def union_rects(intervals: list[Interval]) -> list[Interval]:
         return union
 
 
-def union_rects_with_count(intervals: list[Interval]) -> list[IntervalWithCount]:
+def union_rects_with_count(
+    intervals: list[IntervalWithCount],
+) -> list[IntervalWithCount]:
     """
     Unions the intervals while keeping track of the count of overlapping intervals of the same type.
     """
@@ -91,69 +93,84 @@ def union_rects_with_count(intervals: list[Interval]) -> list[IntervalWithCount]
         return []
 
     with IntervalType.union_order():
-        events = intervals_to_events(intervals)
+        events = intervals_with_count_to_events(intervals)
 
         union = []
 
-        last_x = -np.inf  # holds the x_min of the currently open output rectangle
-        last_x_closed = events[0][
+        last_x_start = -np.inf  # holds the x_min of the currently open output rectangle
+        last_x_end = events[0][
             0
         ]  # x variable of the last closed interval (we start with the first x, so we
         # don't close the first rectangle at the first x)
-        cur_x = -np.inf
-        open_y = SortedList()
+        previous_x_visited = -np.inf
+        open_y = SortedDict()
 
-        for x, start_point, y in events:
+        def get_y_max() -> IntervalType | None:
+            max_key = None
+            for key in reversed(open_y):
+                if open_y[key] > 0:
+                    max_key = key
+                    break
+            return max_key
+
+        for x, start_point, y, count_event in events:
             if start_point:
-                if x > cur_x and not open_y:  # no currently open rectangles
-                    cur_x = x
-                    last_x = cur_x  # start new output rectangle
-                elif y >= open_y[-1]:
-                    if x == last_x_closed:
+                y_max = get_y_max()
+
+                if (
+                    x > previous_x_visited and y_max is None
+                ):  # no currently open rectangles
+                    last_x_start = x  # start new output rectangle
+                elif y >= y_max:
+                    if x == last_x_end:
                         # we already closed a rectangle at this x, so we don't need to start a new one
-                        open_y.add(y)
+                        open_y[y] = open_y.get(y, 0) + count_event
                         continue
 
-                    if x > cur_x:
+                    if x > previous_x_visited:
                         # new x
-                        if y > open_y[-1]:
+                        if y > y_max:
                             # the newly starting rectangle has a higher y_max than the currently open ones
-                            count = 1
+                            count = count_event
                         else:
                             # the newly starting rectangle has the same y_max as the currently open ones
-                            count = open_y.count(y)
+                            count = open_y[y]
                     else:
                         # same x, count the number of open rectangles with the currently highest y
-                        count = open_y.count(open_y[-1])
+                        count = open_y[y_max]
 
                     union.append(
                         IntervalWithCount(
-                            lower=last_x, upper=x - 1, type=open_y[-1], count=count
+                            lower=last_x_start, upper=x - 1, type=y_max, count=count
                         )
                     )
-                    last_x_closed = x
-                    last_x = x
+                    last_x_end = x
+                    last_x_start = x
 
-                open_y.add(y)
+                open_y[y] = open_y.get(y, 0) + count_event
 
             else:
-                open_y.remove(y)
+                open_y[y] = max(open_y.get(y, 0) - count_event, 0)
 
-                if ((open_y and open_y[-1] <= y) or not open_y) and x > last_x_closed:
-                    if not open_y or open_y[-1] < y:
-                        count = 1
+                y_max = get_y_max()
+
+                if (y_max is None or (open_y and y_max <= y)) and x > last_x_end:
+                    if y_max is None or y_max < y:
+                        # the closing rectangle has a higher y_max than the currently open ones
+                        count = count_event
                     else:
-                        count = open_y.count(y) + 1
+                        # the closing rectangle has the same y_max as the currently open ones
+                        count = open_y[y] + count_event
 
                     union.append(
                         IntervalWithCount(
-                            lower=last_x, upper=x - 1, type=y, count=count
+                            lower=last_x_start, upper=x - 1, type=y, count=count
                         )
                     )  # close the previous rectangle at y_max
-                    last_x_closed = x
-                    last_x = x  # start new output rectangle
+                    last_x_end = x
+                    last_x_start = x  # start new output rectangle
 
-            cur_x = x
+            previous_x_visited = x
 
         return union
 
@@ -331,6 +348,26 @@ def intervals_to_events(
     )
 
 
+def intervals_with_count_to_events(
+    intervals: list[IntervalWithCount],
+) -> list[tuple[int, bool, IntervalType, int]]:
+    """
+    Converts the intervals to a list of events.
+
+    The events are a sorted list of the opening/closing points of all rectangles.
+
+    :param intervals: The intervals.
+    :return: The events.
+    """
+    events = [(i.lower, True, i.type, i.count) for i in intervals] + [
+        (i.upper + 1, False, i.type, i.count) for i in intervals
+    ]
+    return sorted(
+        events,
+        key=lambda i: (i[0]),
+    )
+
+
 def intersect_interval_lists(
     left: list[Interval], right: list[Interval]
 ) -> list[Interval]:
@@ -362,7 +399,7 @@ def union_interval_lists(left: list[Interval], right: list[Interval]) -> list[In
 
 
 def union_with_count_interval_lists(
-    left: list[Interval], right: list[Interval]
+    left: list[IntervalWithCount], right: list[IntervalWithCount]
 ) -> list[IntervalWithCount]:
     """
     Unions each interval in the left list with each interval in the right list while keeping track of the count of
