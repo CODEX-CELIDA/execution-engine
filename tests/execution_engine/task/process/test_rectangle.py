@@ -1260,6 +1260,41 @@ class TestUnionRectWithCount:
 
         assert result == expected_intervals
 
+    def test_union_special_cases(self):
+        intervals = [
+            IntervalWithCount(lower=180, upper=190, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=180, upper=180, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=190, upper=200, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=180, upper=189, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=190, upper=190, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=191, upper=200, type=T.POSITIVE, count=1),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=180, upper=180, type=T.POSITIVE, count=4),
+            IntervalWithCount(lower=181, upper=189, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=190, upper=190, type=T.POSITIVE, count=4),
+            IntervalWithCount(lower=191, upper=200, type=T.POSITIVE, count=2),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=1),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=2),
+        ]
+
+        result = process.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
     @pytest.mark.parametrize("factor", [1, 2, 3])
     def test_union_rect_with_count_adjacent(self, factor):
         intervals = [
@@ -1369,7 +1404,7 @@ class TestUnionRectWithCount:
         ]
 
         expected_intervals = [
-            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=2 * factor),
             IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
             IntervalWithCount(lower=5, upper=6, type=T.NEGATIVE, count=1 * factor),
         ]
@@ -1612,6 +1647,61 @@ class TestUnionRectWithCount:
         result = process.union_rects_with_count(intervals)
 
         assert result == expected_intervals
+
+
+class TestMergeAdjacentIntervals:
+    def test_empty_list(self):
+        """Test that an empty list returns an empty list."""
+        assert process.merge_adjacent_intervals([]) == []
+
+    def test_single_interval(self):
+        """Test that a list with a single interval returns the same list."""
+        intervals = [IntervalWithCount(1, 2, "A", 10)]
+        assert process.merge_adjacent_intervals(intervals) == intervals
+
+    def test_no_merge_needed(self):
+        """Test intervals that do not require merging."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(3, 4, "B", 20),
+        ]
+        assert process.merge_adjacent_intervals(intervals) == intervals
+
+    def test_merge_multiple_adjacent_same_type_and_count(self):
+        """Test merging multiple adjacent intervals with the same type and count."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(3, 4, "A", 10),
+            IntervalWithCount(5, 6, "A", 10),
+        ]
+        expected = [IntervalWithCount(1, 6, "A", 10)]
+        assert process.merge_adjacent_intervals(intervals) == expected
+
+    def test_merge_with_different_types_and_counts(self):
+        """Test merging only adjacent intervals with the same type and count, ignoring others."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(3, 4, "A", 10),
+            IntervalWithCount(5, 6, "B", 5),
+            IntervalWithCount(7, 8, "B", 5),
+            IntervalWithCount(9, 10, "A", 10),
+        ]
+        expected = [
+            IntervalWithCount(1, 4, "A", 10),
+            IntervalWithCount(5, 8, "B", 5),
+            IntervalWithCount(9, 10, "A", 10),
+        ]
+        assert process.merge_adjacent_intervals(intervals) == expected
+
+    def test_non_adjacent_intervals(self):
+        """Test handling of non-adjacent intervals."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(4, 5, "A", 10),
+            IntervalWithCount(7, 8, "A", 10),
+        ]
+        # No merging should occur since intervals are not adjacent.
+        assert process.merge_adjacent_intervals(intervals) == intervals
 
 
 class TestUnionIntervals:
@@ -2314,11 +2404,13 @@ class TestCountIntervals:
         df2 = pd.DataFrame(data2)
 
         expected_data = {
-            "person_id": [1, 1, 1],
-            "concept_id": ["A", "A", "B"],
+            "person_id": [1, 1, 1, 1, 1],
+            "concept_id": ["A", "A", "A", "A", "B"],
             "interval_start": pd.to_datetime(
                 [
                     "2023-01-01T00:00:00Z",
+                    "2023-01-01T06:00:00Z",
+                    "2023-01-01T12:00:01Z",
                     "2023-01-02T00:00:00Z",
                     "2023-01-03T00:00:00Z",
                 ],
@@ -2326,13 +2418,22 @@ class TestCountIntervals:
             ),
             "interval_end": pd.to_datetime(
                 [
+                    "2023-01-01T05:59:59Z",
+                    "2023-01-01T12:00:00Z",
                     "2023-01-01T18:00:00Z",
                     "2023-01-02T12:00:00Z",
                     "2023-01-03T12:00:00Z",
                 ],
                 utc=True,
             ),
-            "interval_type": [T.POSITIVE, T.POSITIVE, T.POSITIVE],
+            "interval_type": [
+                T.POSITIVE,
+                T.POSITIVE,
+                T.POSITIVE,
+                T.POSITIVE,
+                T.POSITIVE,
+            ],
+            "interval_count": [1, 2, 1, 1, 1],
         }
         expected_df = pd.DataFrame(expected_data)
 
@@ -2345,6 +2446,54 @@ class TestCountIntervals:
         result_df = intervals_to_df(result_df, ["person_id", "concept_id"])
 
         pd.testing.assert_frame_equal(result_df, expected_df)
+
+    def test_count_intervals_group_by_multiple_columns_complex_data2(self):
+        data1 = """
+        group1	group2	interval_start	interval_end	interval_type
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE
+        B	1	2024-01-01 17:00:00	2024-01-01 18:00:00	POSITIVE
+        B	1	2024-01-01 19:00:00	2024-01-01 20:00:00	POSITIVE
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        group1	group2	interval_start	interval_end	interval_type
+        B	1	2024-01-01 18:00:00	2024-01-01 19:00:00	POSITIVE
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE
+        """
+        df2 = df_from_str(data2)
+
+        expected_data = """
+        group1	group2	interval_start	interval_end	interval_type	interval_count
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE	2
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE	2
+        B	1	2024-01-01 17:00:00	2024-01-01 17:59:59	POSITIVE	1
+        B	1	2024-01-01 18:00:00	2024-01-01 18:00:00	POSITIVE	2
+        B	1	2024-01-01 18:00:01	2024-01-01 18:59:59	POSITIVE	1
+        B	1	2024-01-01 19:00:00	2024-01-01 19:00:00	POSITIVE	2
+        B	1	2024-01-01 19:00:01	2024-01-01 20:00:00	POSITIVE	1
+        """
+        expected_df = (
+            df_from_str(expected_data)
+            .sort_values(by=["group1", "group2", "interval_start", "interval_end"])
+            .reset_index(drop=True)
+        )
+
+        result = process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["group1", "group2"]),
+                df_to_person_interval_tuple(df2, by=["group1", "group2"]),
+            ]
+        )
+        result = (
+            intervals_to_df(result, ["group1", "group2"])
+            .sort_values(by=["group1", "group2", "interval_start", "interval_end"])
+            .reset_index(drop=True)
+        )
+
+        pd.testing.assert_frame_equal(result, expected_df)
 
     def test_count_intervals_group_by_multiple_columns_complex_data(self):
         data1 = """
@@ -2387,21 +2536,30 @@ class TestCountIntervals:
         df3 = df_from_str(data3)
 
         expected_data = """
-        group1	group2	interval_start	interval_end	interval_type
-        A	1	2023-01-01 12:00:00	2023-01-03 05:00:00	POSITIVE
-        A	1	2023-01-03 06:00:00	2023-01-04 12:00:00	POSITIVE
-        A	1	2023-01-04 18:00:00	2023-01-04 20:00:00	POSITIVE
-        A	1	2023-01-04 22:00:00	2023-01-05 02:00:00	POSITIVE
-        A	1	2023-01-05 06:00:00	2023-01-05 23:59:00	POSITIVE
-        A	2	2023-02-01 12:59:00	2023-02-01 12:59:01	POSITIVE
-        A	2	2023-02-01 06:00:00	2023-02-01 06:00:00	POSITIVE
-        A	2	2023-02-01 06:00:02	2023-02-01 12:58:58	POSITIVE
-        B	1	2024-01-01 17:00:00	2024-01-01 20:00:00	POSITIVE
-        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE
-        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE
-        B	2	2024-02-01 15:00:00	2024-02-01 16:00:01	POSITIVE
-        B	2	2024-02-01 12:00:00	2024-02-01 14:00:00	POSITIVE
-        B	3	2023-03-04 22:00:00	2023-03-05 02:00:00	POSITIVE
+        group1	group2	interval_start	interval_end	interval_type	interval_count
+        A	1	2023-01-01 12:00:00	2023-01-02 04:59:59	POSITIVE	1
+        A	1	2023-01-02 05:00:00	2023-01-02 12:00:00	POSITIVE	2
+        A	1	2023-01-02 12:00:01	2023-01-03 05:00:00	POSITIVE	1
+        A	1	2023-01-03 06:00:00	2023-01-04 12:00:00	POSITIVE	1
+        A	1	2023-01-04 18:00:00	2023-01-04 20:00:00	POSITIVE	1
+        A	1	2023-01-04 22:00:00	2023-01-05 02:00:00	POSITIVE	1
+        A	1	2023-01-05 06:00:00	2023-01-05 23:59:00	POSITIVE	1
+        A	2	2023-02-01 12:59:00	2023-02-01 12:59:01	POSITIVE	1
+        A	2	2023-02-01 06:00:00	2023-02-01 06:00:00	POSITIVE	1
+        A	2	2023-02-01 06:00:02	2023-02-01 12:58:58	POSITIVE	1
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE	2
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE	2
+        B	1	2024-01-01 17:00:00	2024-01-01 17:59:59	POSITIVE	1
+        B	1	2024-01-01 18:00:00	2024-01-01 18:00:00	POSITIVE	2
+        B	1	2024-01-01 18:00:01	2024-01-01 18:59:59	POSITIVE	1
+        B	1	2024-01-01 19:00:00	2024-01-01 19:00:00	POSITIVE	2
+        B	1	2024-01-01 19:00:01	2024-01-01 20:00:00	POSITIVE	1
+        B	2	2024-02-01 12:00:00	2024-02-01 12:59:59	POSITIVE	1
+        B	2	2024-02-01 13:00:00	2024-02-01 13:00:00	POSITIVE	2
+        B	2	2024-02-01 13:00:01	2024-02-01 14:00:00	POSITIVE	1
+        B	2	2024-02-01 15:00:00	2024-02-01 16:00:00	POSITIVE	2
+        B	2	2024-02-01 16:00:01	2024-02-01 16:00:01	POSITIVE	1
+        B	3	2023-03-04 22:00:00	2023-03-05 02:00:00	POSITIVE	1
         """
         expected_df = (
             df_from_str(expected_data)
@@ -2416,7 +2574,11 @@ class TestCountIntervals:
                 df_to_person_interval_tuple(df3, by=["group1", "group2"]),
             ]
         )
-        result = intervals_to_df(result, ["group1", "group2"])
+        result = (
+            intervals_to_df(result, ["group1", "group2"])
+            .sort_values(by=["group1", "group2", "interval_start", "interval_end"])
+            .reset_index(drop=True)
+        )
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -2435,9 +2597,9 @@ class TestCountIntervals:
         df2 = df_from_str(data2)
 
         expected_data = """
-        person_id	interval_start	interval_end	interval_type
-        30833	2023-03-02 13:00:01+00:00	2023-03-02 15:00:00+00:00	POSITIVE
-        30833	2023-03-02 15:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        person_id	interval_start	interval_end	interval_type	interval_count
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 15:00:00+00:00	POSITIVE	1
+        30833	2023-03-02 15:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE	1
         """
         expected_df = df_from_str(expected_data)
 
@@ -2465,9 +2627,9 @@ class TestCountIntervals:
         df2 = df_from_str(data2)
 
         expected_data = """
-        person_id	interval_start	interval_end	interval_type
-        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE
-        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        person_id	interval_start	interval_end	interval_type	interval_count
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE	1
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE	2
         """
         expected_df = df_from_str(expected_data)
 
@@ -2497,8 +2659,8 @@ class TestCountIntervals:
 
         expected_intervals = {
             1: [
-                Interval(lower=1, upper=2, type=T.POSITIVE),
-                Interval(lower=3, upper=4, type=T.NEGATIVE),
+                IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+                IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=2),
             ]
         }
 
@@ -2522,9 +2684,9 @@ class TestCountIntervals:
 
         expected_intervals = {
             1: [
-                Interval(lower=1, upper=2, type=T.NO_DATA),
-                Interval(lower=3, upper=4, type=T.POSITIVE),
-                Interval(lower=5, upper=6, type=T.NO_DATA),
+                IntervalWithCount(lower=1, upper=2, type=T.NO_DATA, count=2),
+                IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1),
+                IntervalWithCount(lower=5, upper=6, type=T.NO_DATA, count=2),
             ]
         }
 
@@ -2552,10 +2714,10 @@ class TestCountIntervals:
         df2 = df_from_str(data2)
 
         expected_data = """
-        person_id	interval_start	interval_end	interval_type
-        30748	2023-02-26 07:00:00+00:00	2023-03-02 12:59:59+00:00	NO_DATA
-        30748	2023-03-02 13:00:00+00:00	2023-03-02 14:00:00+00:00	POSITIVE
-        30748	2023-03-02 14:00:01+00:00	2023-04-03 23:00:00+00:00	NO_DATA
+        person_id	interval_start	interval_end	interval_type	interval_count
+        30748	2023-02-26 07:00:00+00:00	2023-03-02 12:59:59+00:00	NO_DATA	2
+        30748	2023-03-02 13:00:00+00:00	2023-03-02 14:00:00+00:00	POSITIVE	1
+        30748	2023-03-02 14:00:01+00:00	2023-04-03 23:00:00+00:00	NO_DATA	2
         """
         expected_df = df_from_str(expected_data)
 

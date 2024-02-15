@@ -17,7 +17,6 @@ try:
         union_interval_lists,
         union_rects,
         union_rects_with_count,
-        union_with_count_interval_lists,
     )
 except ImportError:
     logging.info("Cython rectangle module not found, using python module")
@@ -26,7 +25,6 @@ except ImportError:
         union_interval_lists,
         union_rects,
         union_rects_with_count,
-        union_with_count_interval_lists,
     )
 
 PersonIntervals = dict[int, list[Interval]]
@@ -445,8 +443,8 @@ def count_intervals(data: list[PersonIntervals]) -> PersonIntervalsWithCount:
             if group_keys not in result:
                 result[group_keys] = intervals_with_count
             else:
-                result[group_keys] = union_with_count_interval_lists(
-                    result[group_keys], intervals_with_count
+                result[group_keys] = union_rects_with_count(
+                    result[group_keys] + intervals_with_count
                 )
 
     return result

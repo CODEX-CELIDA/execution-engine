@@ -18,7 +18,7 @@ def set_pandas_display_options() -> None:
     """
     Set the pandas display options for the entire test session.
     """
-    pd.set_option("display.max_columns", 5)
+    pd.set_option("display.max_columns", 7)
     pd.set_option("display.width", 1000)
 
 
