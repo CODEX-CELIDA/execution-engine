@@ -4,6 +4,8 @@ from sortedcontainers import SortedDict, SortedList
 from execution_engine.task.process import Interval, IntervalWithCount
 from execution_engine.util.interval import IntervalType
 
+MODULE_IMPLEMENTATION = "python"
+
 
 def union_rects(intervals: list[Interval]) -> list[Interval]:
     """

@@ -1,5 +1,7 @@
 import datetime
+import importlib
 import logging
+import os
 from typing import Callable
 
 import numpy as np
@@ -11,23 +13,28 @@ from execution_engine.util.types import TimeRange
 
 from . import Interval, IntervalWithCount
 
-try:
-    from .rectangle_cython import (  # noqa: F401 -- do not remove, should be exported by this module
-        intersect_interval_lists,
-        merge_adjacent_intervals,
-        union_interval_lists,
-        union_rects,
-        union_rects_with_count,
-    )
-except ImportError:
-    logging.info("Cython rectangle module not found, using python module")
-    from .rectangle_python import (  # noqa: F401 -- do not remove, should be exported by this module
-        intersect_interval_lists,
-        merge_adjacent_intervals,
-        union_interval_lists,
-        union_rects,
-        union_rects_with_count,
-    )
+PROCESS_RECTANGLE_VERSION = os.getenv("PROCESS_RECTANGLE_VERSION", "auto")
+
+
+if "PROCESS_RECTANGLE_VERSION" not in globals() or PROCESS_RECTANGLE_VERSION == "auto":
+    try:
+        # Try to import the Cython version
+        importlib.import_module(
+            ".rectangle_cython", package="execution_engine.task.process"
+        )
+        module_name = ".rectangle_cython"
+    except ImportError:
+        logging.info("Cython rectangle module not found, using python module")
+elif PROCESS_RECTANGLE_VERSION == "cython":
+    module_name = ".rectangle_cython"
+elif PROCESS_RECTANGLE_VERSION == "python":
+    module_name = ".rectangle_python"
+else:
+    module_name = ".rectangle_python"  # Default to Python version
+
+# Dynamically import the chosen module
+_impl = importlib.import_module(module_name, package="execution_engine.task.process")
+
 
 PersonIntervals = dict[int, list[Interval]]
 PersonIntervalsWithCount = dict[int, list[IntervalWithCount]]
@@ -78,7 +85,7 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
             person_interval[row.person_id].append(interval)
 
     for person_id in person_interval:
-        person_interval[person_id] = union_rects(person_interval[person_id])
+        person_interval[person_id] = _impl.union_rects(person_interval[person_id])
 
     return person_interval
 
@@ -133,7 +140,7 @@ def concat_intervals(data: list[PersonIntervals]) -> PersonIntervals:
             if group_keys not in result:
                 result[group_keys] = intervals
             else:
-                result[group_keys] = union_rects(result[group_keys] + intervals)
+                result[group_keys] = _impl.union_rects(result[group_keys] + intervals)
 
     return result
 
@@ -176,7 +183,7 @@ def forward_fill_intervals(intervals: list[Interval]) -> list[Interval]:
 
     filled_intervals.append(all_intervals[-1])
 
-    return union_rects(filled_intervals)
+    return _impl.union_rects(filled_intervals)
 
 
 def forward_fill(data: PersonIntervals) -> PersonIntervals:
@@ -298,7 +305,7 @@ def complementary_intervals(
         result[key] = (
             # take the least of the intersection of the observation window to retain the type of the
             #   original interval
-            intersect_interval_lists(
+            _impl.intersect_interval_lists(
                 complement_intervals(data[key], type_=interval_type),
                 [observation_window_mask],
             )
@@ -374,7 +381,7 @@ def _process_intervals(
 
     for arr in data:
         if not len(arr):
-            if operator == intersect_interval_lists:
+            if operator == _impl.intersect_interval_lists:
                 # if the operation is intersection, an empty dataframe means that the result is empty
                 return dict()
             else:
@@ -382,7 +389,7 @@ def _process_intervals(
                 continue
 
         for group_keys, intervals in arr.items():
-            intervals = union_rects(intervals)
+            intervals = _impl.union_rects(intervals)
             if group_keys not in result:
                 result[group_keys] = intervals
             else:
@@ -398,7 +405,7 @@ def union_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     :param data: A list of dict of intervals.
     :return: A dict with the unioned intervals.
     """
-    return _process_intervals(data, union_interval_lists)
+    return _process_intervals(data, _impl.union_interval_lists)
 
 
 def interval_to_interval_with_count(interval: Interval) -> IntervalWithCount:
@@ -441,11 +448,11 @@ def count_intervals(data: list[PersonIntervals]) -> PersonIntervalsWithCount:
 
         for group_keys, intervals in arr.items():
             intervals_with_count = intervals_to_intervals_with_count(intervals)
-            intervals_with_count = union_rects_with_count(intervals_with_count)
+            intervals_with_count = _impl.union_rects_with_count(intervals_with_count)
             if group_keys not in result:
                 result[group_keys] = intervals_with_count
             else:
-                result[group_keys] = union_rects_with_count(
+                result[group_keys] = _impl.union_rects_with_count(
                     result[group_keys] + intervals_with_count
                 )
 
@@ -506,7 +513,7 @@ def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     """
     data = filter_dicts_by_common_keys(data)
 
-    result = _process_intervals(data, intersect_interval_lists)
+    result = _process_intervals(data, _impl.intersect_interval_lists)
 
     return result
 
@@ -541,7 +548,7 @@ def mask_intervals(
     result = {}
     for person_id in data:
         # intersect every interval in data with every interval in mask
-        result[person_id] = intersect_interval_lists(
+        result[person_id] = _impl.intersect_interval_lists(
             data[person_id], person_mask[person_id]
         )
 

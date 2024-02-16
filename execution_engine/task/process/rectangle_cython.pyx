@@ -11,6 +11,7 @@ from execution_engine.util.interval import IntervalType
 DEF SCHAR_MIN = -128
 DEF SCHAR_MAX = 127
 
+MODULE_IMPLEMENTATION = "cython"
 
 def intervals_to_events(
     intervals: list[Interval],
