@@ -120,6 +120,7 @@ def create_drug_exposure(
     start_datetime: datetime.datetime,
     end_datetime: datetime.datetime,
     quantity: float,
+    route_concept_id: int | None = None,
 ) -> DrugExposure:
     """
     Create a drug exposure for a visit
@@ -137,6 +138,7 @@ def create_drug_exposure(
         drug_exposure_end_date=end_datetime.date(),
         quantity=quantity,
         drug_type_concept_id=concepts.EHR,
+        route_concept_id=route_concept_id,
     )
 
 

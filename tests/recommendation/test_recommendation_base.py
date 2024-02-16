@@ -316,6 +316,7 @@ class TestRecommendationBase(ABC):
                         else criterion.dosage
                     ) + add
                     entry["quantity"] *= 2  # over two days
+                    entry["route_concept_id"] = criterion.route_concept_id
 
                     assert criterion.doses_per_day is not None
                     if criterion.doses_per_day > 1:  # add more doses
@@ -323,6 +324,7 @@ class TestRecommendationBase(ABC):
                         entries += [
                             entry.copy() for _ in range(criterion.doses_per_day - 1)
                         ]
+
                 # create_measurement(vo, concepts.LAB_APTT, datetime.datetime(2023,3,4, 18), 50, concepts.UNIT_SECOND)
                 elif criterion.type == "visit":
                     entry["start_datetime"] = pendulum.parse(
@@ -459,6 +461,9 @@ class TestRecommendationBase(ABC):
                         start_datetime=row["start_datetime"],
                         end_datetime=row["end_datetime"],
                         quantity=row["quantity"],
+                        route_concept_id=row["route_concept_id"]
+                        if not pd.isna(row["route_concept_id"])
+                        else None,
                     )
                 elif row["type"] == "visit":
                     entry = create_visit(
