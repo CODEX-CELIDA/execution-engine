@@ -148,7 +148,14 @@ class Task:
                         data, base_data, observation_window
                     )
                 elif isinstance(
-                    self.expr, (logic.And, logic.Or, logic.NonSimplifiableAnd)
+                    self.expr,
+                    (
+                        logic.And,
+                        logic.Or,
+                        logic.NonSimplifiableAnd,
+                        logic.Count,
+                        logic.AllOrNone,
+                    ),
                 ):
                     result = self.handle_binary_logical_operator(data)
                 elif isinstance(self.expr, logic.LeftDependentToggle):
@@ -269,6 +276,16 @@ class Task:
             result = process.intersect_intervals(data)
         elif isinstance(self.expr, logic.Or):
             result = process.union_intervals(data)
+        elif isinstance(self.expr, logic.Count):
+            result = process.count_intervals(data)
+            result = process.filter_count_intervals(
+                result,
+                min_count=self.expr.count_min,
+                max_count=self.expr.count_max,
+                type_=IntervalType.POSITIVE,
+            )
+        elif isinstance(self.expr, logic.AllOrNone):
+            raise NotImplementedError("AllOrNone is not implemented yet.")
         else:
             raise ValueError(f"Unsupported expression type: {self.expr}")
 

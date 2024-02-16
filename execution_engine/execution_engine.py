@@ -217,11 +217,19 @@ class ExecutionEngine:
             if selection_behavior.threshold == 1:
                 operator = CriterionCombination.Operator("OR")
             else:
-                raise NotImplementedError(
-                    f"AT_LEAST with threshold {selection_behavior.threshold} not implemented."
+                operator = CriterionCombination.Operator(
+                    "AT_LEAST", threshold=selection_behavior.threshold
                 )
         elif selection_behavior.code == CharacteristicCombination.Code.AT_MOST:
-            raise NotImplementedError("AT_MOST not implemented.")
+            operator = CriterionCombination.Operator(
+                "AT_MOST", threshold=selection_behavior.threshold
+            )
+        elif selection_behavior.code == CharacteristicCombination.Code.EXACTLY:
+            operator = CriterionCombination.Operator(
+                "EXACTLY", threshold=selection_behavior.threshold
+            )
+        elif selection_behavior.code == CharacteristicCombination.Code.ALL_OR_NONE:
+            operator = CriterionCombination.Operator("ALL_OR_NONE")
         else:
             raise NotImplementedError(
                 f"Selection behavior {str(selection_behavior.code)} not implemented."

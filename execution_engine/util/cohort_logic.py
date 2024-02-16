@@ -275,6 +275,72 @@ class Not(BooleanFunction):
         return super().__new__(cls)
 
 
+class Count(BooleanFunction):
+    """
+    Class representing a logical COUNT operation.
+
+    Adds a "threshold" parameter of type int.
+    """
+
+    count_min: int | None = None
+    count_max: int | None = None
+
+
+class MinCount(Count):
+    """
+    Class representing a logical MIN_COUNT operation.
+    """
+
+    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+        self.count_min = threshold
+        super().__init__(*args, **kwargs)
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+
+class MaxCount(Count):
+    """
+    Class representing a logical MAX_COUNT operation.
+    """
+
+    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+        self.count_max = threshold
+        super().__init__(*args, **kwargs)
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_max}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+
+class ExactCount(Count):
+    """
+    Class representing a logical EXACT_COUNT operation.
+    """
+
+    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+        self.count_min = threshold
+        self.count_max = threshold
+        super().__init__(*args, **kwargs)
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+
+class AllOrNone(BooleanFunction):
+    """
+    Class representing a logical ALL_OR_NONE operation.
+    """
+
+
 class NonSimplifiableAnd(BooleanFunction):
     """
     A NonSimplifiableAnd object represents a logical AND operation that cannot be simplified.

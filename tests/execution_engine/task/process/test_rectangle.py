@@ -3,26 +3,29 @@ import pendulum
 import pytest
 import pytz
 
-from execution_engine.task.process import Interval, get_processing_module
-from execution_engine.util.interval import DateTimeInterval
+from execution_engine.task.process import (
+    Interval,
+    IntervalWithCount,
+    get_processing_module,
+)
 from execution_engine.util.interval import IntervalType as T
-from execution_engine.util.interval import interval_datetime
 from execution_engine.util.types import PersonIntervals, TimeRange
 from tests.functions import df_from_str
 from tests.functions import intervals_to_df as intervals_to_df_original
 from tests.functions import parse_dt
 
-process = get_processing_module("rectangle")
-
 one_hour = pd.Timedelta(hours=1)
 one_second = pd.Timedelta(seconds=1)
 
 
-def intervals_to_df(result, by):
-    return intervals_to_df_original(result, by, process.normalize_interval)
+@pytest.fixture(params=["cython", "python"], scope="session")
+def process_module(request):
+    module = get_processing_module("rectangle", version=request.param)
+    assert module._impl.MODULE_IMPLEMENTATION == request.param
+    return module
 
 
-def interval(start: str, end: str, type_=T.POSITIVE) -> DateTimeInterval:
+def interval(start: str, end: str, type_=T.POSITIVE) -> Interval:
     return Interval(
         pendulum.parse(start).timestamp(), pendulum.parse(end).timestamp(), type_
     )
@@ -48,7 +51,16 @@ def df_to_person_interval_tuple(df: pd.DataFrame, by=["person_id"]) -> PersonInt
     return {key: df_to_interval_tuple(group_df) for key, group_df in df.groupby(by=by)}
 
 
-class TestToIntervals:
+class ProcessTest:
+    @pytest.fixture(autouse=True)
+    def setup_method(self, process_module):
+        self.process = process_module
+
+    def intervals_to_df(self, result, by):
+        return intervals_to_df_original(result, by, self.process.normalize_interval)
+
+
+class TestToIntervals(ProcessTest):
     def test_to_intervals_empty_dataframe(self):
         df = pd.DataFrame(columns=["interval_start", "interval_end", "interval_type"])
         result = df_to_interval_tuple(df)
@@ -110,9 +122,9 @@ class TestToIntervals:
             ), "Failed: DataFrame with invalid structure should raise KeyError"
 
 
-class TestResultToDf:
+class TestResultToDf(ProcessTest):
     def test_result_to_df_empty(self):
-        assert intervals_to_df(
+        assert self.intervals_to_df(
             {}, ["person_id"]
         ).empty, "Failed: Empty result should return empty DataFrame"
 
@@ -122,7 +134,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00")
             ]
         }
-        df = intervals_to_df(result, ["person_id"])
+        df = self.intervals_to_df(result, ["person_id"])
         assert (
             len(df) == 1 and df.iloc[0]["person_id"] == "group1"
         ), "Failed: Single group not handled correctly"
@@ -136,7 +148,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00")
             ],
         }
-        df = intervals_to_df(result, ["person_id"])
+        df = self.intervals_to_df(result, ["person_id"])
         assert len(df) == 2 and set(df["person_id"]) == {
             "group1",
             "group2",
@@ -148,7 +160,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00+01:00", "2020-01-02 00:00:00+00:00")
             ]
         }
-        df = intervals_to_df(result, ["person_id"])
+        df = self.intervals_to_df(result, ["person_id"])
         assert (
             df["interval_start"].dt.tz == pytz.utc
             and df["interval_end"].dt.tz == pytz.utc
@@ -160,7 +172,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00")
             ]
         }
-        df = intervals_to_df(result, ["person_id", "subgroup"])
+        df = self.intervals_to_df(result, ["person_id", "subgroup"])
         assert all(
             df.columns
             == [
@@ -178,7 +190,7 @@ class TestResultToDf:
                 interval("2020-01-01 00:00:00+01:00", "2020-01-02 00:00:00+01:00")
             ]
         }
-        df = intervals_to_df(result, ["person_id"])
+        df = self.intervals_to_df(result, ["person_id"])
         assert (
             df["interval_start"].dt.tz == pytz.utc
             and df["interval_end"].dt.tz == pytz.utc
@@ -191,15 +203,15 @@ class TestResultToDf:
 
         result = {
             1: [
-                interval_datetime(
-                    parse_dt("2021-01-01 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-01 02:00:00", tz=tz_end).timestamp(),
-                    type_=T.POSITIVE,
+                Interval(
+                    lower=parse_dt("2021-01-01 00:00:00", tz=tz_start).timestamp(),
+                    upper=parse_dt("2021-01-01 02:00:00", tz=tz_end).timestamp(),
+                    type=T.POSITIVE,
                 ),
-                interval_datetime(
-                    parse_dt("2021-01-02 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-02 02:00:00", tz=tz_end).timestamp(),
-                    type_=T.POSITIVE,
+                Interval(
+                    lower=parse_dt("2021-01-02 00:00:00", tz=tz_start).timestamp(),
+                    upper=parse_dt("2021-01-02 02:00:00", tz=tz_end).timestamp(),
+                    type=T.POSITIVE,
                 ),
             ]
         }
@@ -219,7 +231,7 @@ class TestResultToDf:
         }
         expected_df = pd.DataFrame(expected_data)
 
-        result_df = intervals_to_df(result, by)
+        result_df = self.intervals_to_df(result, by)
 
         pd.testing.assert_frame_equal(result_df, expected_df)
 
@@ -231,17 +243,17 @@ class TestResultToDf:
 
         result = {
             (1, "A"): [
-                interval_datetime(
-                    parse_dt("2021-01-01 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-01 02:00:00", tz=tz_end).timestamp(),
-                    type_=T.POSITIVE,
+                Interval(
+                    lower=parse_dt("2021-01-01 00:00:00", tz=tz_start).timestamp(),
+                    upper=parse_dt("2021-01-01 02:00:00", tz=tz_end).timestamp(),
+                    type=T.POSITIVE,
                 )
             ],
             (2, "B"): [
-                interval_datetime(
-                    parse_dt("2021-01-02 00:00:00", tz=tz_start).timestamp(),
-                    parse_dt("2021-01-02 02:00:00", tz=tz_end).timestamp(),
-                    type_=T.POSITIVE,
+                Interval(
+                    lower=parse_dt("2021-01-02 00:00:00", tz=tz_start).timestamp(),
+                    upper=parse_dt("2021-01-02 02:00:00", tz=tz_end).timestamp(),
+                    type=T.POSITIVE,
                 )
             ],
         }
@@ -262,12 +274,12 @@ class TestResultToDf:
         }
         expected_df = pd.DataFrame(expected_data)
 
-        result_df = intervals_to_df(result, by)
+        result_df = self.intervals_to_df(result, by)
 
         pd.testing.assert_frame_equal(result_df, expected_df)
 
 
-class TestComplementIntervals:
+class TestComplementIntervals(ProcessTest):
     @pytest.fixture
     def observation_window(self):
         return TimeRange(start="2023-01-01 01:00:00Z", end="2023-01-03 16:00:00Z")
@@ -307,13 +319,13 @@ class TestComplementIntervals:
         )
 
         by = ["person_id"]
-        result = process.complementary_intervals(
+        result = self.process.complementary_intervals(
             df_to_person_interval_tuple(df, by=by),
             df_to_person_interval_tuple(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
     def test_complement_intervals_single_row(
@@ -331,13 +343,13 @@ class TestComplementIntervals:
         expected_result = empty_dataframe
 
         by = ["person_id"]
-        result = process.complementary_intervals(
+        result = self.process.complementary_intervals(
             df_to_person_interval_tuple(df, by=by),
             df_to_person_interval_tuple(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # longer than observation window
@@ -352,13 +364,13 @@ class TestComplementIntervals:
         expected_result = empty_dataframe.copy()
 
         by = ["person_id"]
-        result = process.complementary_intervals(
+        result = self.process.complementary_intervals(
             df_to_person_interval_tuple(df, by=by),
             df_to_person_interval_tuple(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # starting at observation window start but ending before end
@@ -383,13 +395,13 @@ class TestComplementIntervals:
         )
 
         by = ["person_id"]
-        result = process.complementary_intervals(
+        result = self.process.complementary_intervals(
             df_to_person_interval_tuple(df, by=by),
             df_to_person_interval_tuple(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # ending at observation window end but starting after start
@@ -414,13 +426,13 @@ class TestComplementIntervals:
         )
 
         by = ["person_id"]
-        result = process.complementary_intervals(
+        result = self.process.complementary_intervals(
             df_to_person_interval_tuple(df, by=by),
             df_to_person_interval_tuple(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
         # in between
@@ -451,13 +463,13 @@ class TestComplementIntervals:
         )
 
         by = ["person_id"]
-        result = process.complementary_intervals(
+        result = self.process.complementary_intervals(
             df_to_person_interval_tuple(df, by=by),
             df_to_person_interval_tuple(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
         pd.testing.assert_frame_equal(result, expected_result)
 
     def test_complementary_intervals_multiple_persons(
@@ -496,13 +508,13 @@ class TestComplementIntervals:
         )
 
         by = ["person_id"]
-        result = process.complementary_intervals(
+        result = self.process.complementary_intervals(
             df_to_person_interval_tuple(df, by=by),
             df_to_person_interval_tuple(reference_df, by=by),
             observation_window,
             interval_type=T.NO_DATA,
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
 
         expected_data = [
             (
@@ -539,7 +551,7 @@ class TestComplementIntervals:
         pd.testing.assert_frame_equal(result, expected_df)
 
 
-class TestInvertIntervals:
+class TestInvertIntervals(ProcessTest):
     @pytest.fixture
     def observation_window(self):
         return TimeRange(start="2023-01-01 01:00:00Z", end="2023-01-03 16:00:00Z")
@@ -578,12 +590,12 @@ class TestInvertIntervals:
             }
         )
 
-        result = process.invert_intervals(
+        result = self.process.invert_intervals(
             df_to_person_interval_tuple(df),
             df_to_person_interval_tuple(reference_df),
             observation_window,
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_result)
 
@@ -601,12 +613,12 @@ class TestInvertIntervals:
         )
         expected_result = df.assign(interval_type=T.NEGATIVE)
 
-        result = process.invert_intervals(
+        result = self.process.invert_intervals(
             df_to_person_interval_tuple(df),
             df_to_person_interval_tuple(reference_df),
             observation_window,
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -623,12 +635,12 @@ class TestInvertIntervals:
         )
         expected_result = df.assign(interval_type=T.NEGATIVE)
 
-        result = process.invert_intervals(
+        result = self.process.invert_intervals(
             df_to_person_interval_tuple(df),
             df_to_person_interval_tuple(reference_df),
             observation_window,
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -660,12 +672,12 @@ class TestInvertIntervals:
             ],
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
-        result = process.invert_intervals(
+        result = self.process.invert_intervals(
             df_to_person_interval_tuple(df),
             df_to_person_interval_tuple(reference_df),
             observation_window,
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -697,12 +709,12 @@ class TestInvertIntervals:
             ],
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
-        result = process.invert_intervals(
+        result = self.process.invert_intervals(
             df_to_person_interval_tuple(df),
             df_to_person_interval_tuple(reference_df),
             observation_window,
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -741,12 +753,12 @@ class TestInvertIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
 
-        result = process.invert_intervals(
+        result = self.process.invert_intervals(
             df_to_person_interval_tuple(df),
             df_to_person_interval_tuple(reference_df),
             observation_window,
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -833,12 +845,12 @@ class TestInvertIntervals:
             columns=["person_id", "interval_start", "interval_end", "interval_type"],
         )
 
-        result = process.invert_intervals(
+        result = self.process.invert_intervals(
             df_to_person_interval_tuple(df),
             df_to_person_interval_tuple(reference_df),
             observation_window,
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
         result = result.sort_values(by=["person_id", "interval_start"]).reset_index(
             drop=True
         )
@@ -846,21 +858,21 @@ class TestInvertIntervals:
         pd.testing.assert_frame_equal(result, expected_df)
 
 
-class TestFilterCommonKeys:
+class TestFilterCommonKeys(ProcessTest):
     def test_filter_common_items_empty_list(self):
-        result = process.filter_dicts_by_common_keys([])
+        result = self.process.filter_dicts_by_common_keys([])
         assert result == [], "Failed: Empty list should return an empty list"
 
     def test_filter_common_items_single_dict(self):
         d = dict(column1=[1, 2], column2=[3, 4])
-        result = process.filter_dicts_by_common_keys([d])
+        result = self.process.filter_dicts_by_common_keys([d])
         assert result[0] == d
 
     def test_filter_common_items_multiple_dicts_common_items(self):
         d1 = dict(column1=[1, 2, 8, 9], column2=[3, 4, 5, 8])
         d2 = dict(column1=[1, 3, 8, 9], column2=[3, 5, 6, 8])
 
-        result = process.filter_dicts_by_common_keys([d1, d2])
+        result = self.process.filter_dicts_by_common_keys([d1, d2])
         assert d1 == result[0]
         assert d2 == result[1]
 
@@ -868,7 +880,7 @@ class TestFilterCommonKeys:
         # compare two dicts that have no common keys
         d1 = dict(column1=[1], column2=[3])
         d2 = dict(column3=[2], column4=[4])
-        result = process.filter_dicts_by_common_keys([d1, d2])
+        result = self.process.filter_dicts_by_common_keys([d1, d2])
         assert result == [dict(), dict()]
 
     def test_filter_common_items(self):
@@ -878,21 +890,21 @@ class TestFilterCommonKeys:
         d3 = dict(F=1, B=4, D=3)
 
         # Call the function
-        result = process.filter_dicts_by_common_keys([d1, d2, d3])
+        result = self.process.filter_dicts_by_common_keys([d1, d2, d3])
 
         assert result[0] == dict(B=2)
         assert result[1] == dict(B=3)
         assert result[2] == dict(B=4)
 
 
-class TestUnionRect:
+class TestUnionRect(ProcessTest):
     def test_union_rect_negative_duration(self):
         intervals = [
             Interval(lower=5, upper=3, type=T.POSITIVE),
         ]
         with pytest.raises(ValueError):
             # we don't expect this to work at all
-            process.union_rects(intervals)
+            self.process._impl.union_rects(intervals)
 
     def test_union_rect(self):
         intervals = [
@@ -905,7 +917,7 @@ class TestUnionRect:
             Interval(lower=3, upper=4, type=T.NEGATIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -919,7 +931,7 @@ class TestUnionRect:
             Interval(lower=4, upper=4, type=T.NEGATIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -932,7 +944,7 @@ class TestUnionRect:
             Interval(lower=1, upper=4, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -945,7 +957,7 @@ class TestUnionRect:
             Interval(lower=1, upper=4, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -959,7 +971,7 @@ class TestUnionRect:
             Interval(lower=3, upper=4, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -975,7 +987,7 @@ class TestUnionRect:
             Interval(lower=5, upper=6, type=T.NEGATIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -991,7 +1003,7 @@ class TestUnionRect:
             Interval(lower=5, upper=6, type=T.NEGATIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -1005,7 +1017,7 @@ class TestUnionRect:
             Interval(lower=1, upper=2, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -1018,7 +1030,7 @@ class TestUnionRect:
             Interval(lower=1, upper=2, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -1033,7 +1045,7 @@ class TestUnionRect:
             Interval(lower=1, upper=2, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -1048,7 +1060,7 @@ class TestUnionRect:
             Interval(lower=1, upper=2, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
@@ -1063,20 +1075,20 @@ class TestUnionRect:
             Interval(lower=1, upper=2, type=T.POSITIVE),
         ]
 
-        result = process.union_rects(intervals)
+        result = self.process._impl.union_rects(intervals)
 
         assert result == expected_intervals
 
     def test_union_rect_empty_datetime(self):
         assert (
-            process.union_rects([]) == []
+            self.process._impl.union_rects([]) == []
         ), "Failed: Empty list should return an empty interval"
 
     def test_union_rect_single_datetime_interval(self):
         interv = interval(
             "2020-01-01 00:00:00+00:00", "2020-01-02 00:00:00+00:00", type_=T.POSITIVE
         )
-        assert process.union_rects([interv]) == [
+        assert self.process._impl.union_rects([interv]) == [
             interv
         ], "Failed: Single interval should return itself"
 
@@ -1106,7 +1118,7 @@ class TestUnionRect:
             ),
         ]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Non-overlapping intervals not handled correctly"
 
     def test_union_rect_overlapping_datetime_intervals(self):
@@ -1130,7 +1142,7 @@ class TestUnionRect:
             )
         ]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
 
         intervals = [
@@ -1153,7 +1165,7 @@ class TestUnionRect:
             )
         ]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
 
         intervals = [
@@ -1176,7 +1188,7 @@ class TestUnionRect:
             )
         ]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Overlapping intervals not handled correctly"
 
     def test_union_rect_adjacent_datetime_intervals(self):
@@ -1186,7 +1198,7 @@ class TestUnionRect:
         ]
         expected = [interval("2020-01-01 00:00:00+00:00", "2020-01-01 23:00:00+00:00")]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Adjacent intervals not handled correctly"
 
     def test_union_rect_mixed_datetime_intervals(self):
@@ -1200,7 +1212,7 @@ class TestUnionRect:
             interval("2020-01-01 16:00:00+00:00", "2020-01-01 23:00:00+00:00"),
         ]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
 
     def test_union_rect_timezones(self):
@@ -1210,7 +1222,7 @@ class TestUnionRect:
         ]
         expected = [interval("2020-01-01 00:00:00+00:00", "2020-01-01 15:59:58+00:00")]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Timezones not handled correctly"
 
         intervals = [
@@ -1222,7 +1234,7 @@ class TestUnionRect:
             interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:59+00:00"),
         ]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
 
         intervals = [
@@ -1234,7 +1246,7 @@ class TestUnionRect:
             interval("2020-01-01 13:00:00+00:00", "2020-01-01 15:59:59+00:00"),
         ]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
 
         intervals = [
@@ -1243,13 +1255,468 @@ class TestUnionRect:
         ]
         expected = [interval("2020-01-01 00:00:00+00:00", "2020-01-01 15:59:58+00:00")]
         assert (
-            process.union_rects(intervals) == expected
+            self.process._impl.union_rects(intervals) == expected
         ), "Failed: Mixed intervals not handled correctly"
 
 
-class TestUnionIntervals:
+class TestUnionRectWithCount(ProcessTest):
+    def test_union_rect_with_count_negative_duration(self):
+        intervals = [
+            IntervalWithCount(lower=5, upper=3, type=T.POSITIVE, count=1),
+        ]
+        expected_intervals = []
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+    def test_union_special_cases(self):
+        intervals = [
+            IntervalWithCount(lower=180, upper=190, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=180, upper=180, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=190, upper=200, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=180, upper=189, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=190, upper=190, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=191, upper=200, type=T.POSITIVE, count=1),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=180, upper=180, type=T.POSITIVE, count=4),
+            IntervalWithCount(lower=181, upper=189, type=T.POSITIVE, count=2),
+            IntervalWithCount(lower=190, upper=190, type=T.POSITIVE, count=4),
+            IntervalWithCount(lower=191, upper=200, type=T.POSITIVE, count=2),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=1),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=2),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+    @pytest.mark.parametrize("factor", [1, 2, 3])
+    def test_union_rect_with_count_adjacent(self, factor):
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+    @pytest.mark.parametrize("factor", [1, 2, 3])
+    def test_union_rect_with_count_one(self, factor):
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=3, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=3, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=4, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=2 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=5, upper=6, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=5, upper=6, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=6, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=2 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=5, upper=6, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same start and end
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=4 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same start, different end
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=3, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=5, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=4 * factor),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same end, different start, with other types inbetween
+        intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=8, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=3, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=5, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=5, upper=6, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=4 * factor),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=6, upper=6, type=T.NEGATIVE, count=2 * factor),
+            IntervalWithCount(lower=7, upper=8, type=T.NEGATIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple intervals with the same end, different start
+        intervals = [
+            IntervalWithCount(lower=4, upper=6, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=6, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=6, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=6, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=4, upper=6, type=T.POSITIVE, count=4 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple starts and end at the same position inbetween
+        intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=6, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=7, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=6 * factor),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=6, upper=6, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=7, upper=7, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple starts and end at the same position inbetween, other types inbetween
+        intervals = [
+            IntervalWithCount(lower=1, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=5, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=6, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=7, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=6, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=7, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=6 * factor),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=6, upper=6, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=7, upper=7, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+        # multiple starts and end at the same position inbetween, other types inbetween (random order)
+        intervals = [
+            IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=6, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=4, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=5, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=1, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=4, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=7, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=5, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=7, type=T.NEGATIVE, count=1 * factor),
+            IntervalWithCount(lower=4, upper=6, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=4, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        expected_intervals = [
+            IntervalWithCount(lower=1, upper=1, type=T.POSITIVE, count=1 * factor),
+            IntervalWithCount(lower=2, upper=2, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=3, upper=3, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=4, upper=4, type=T.POSITIVE, count=6 * factor),
+            IntervalWithCount(lower=5, upper=5, type=T.POSITIVE, count=3 * factor),
+            IntervalWithCount(lower=6, upper=6, type=T.POSITIVE, count=2 * factor),
+            IntervalWithCount(lower=7, upper=7, type=T.POSITIVE, count=1 * factor),
+        ]
+
+        result = self.process._impl.union_rects_with_count(intervals)
+
+        assert result == expected_intervals
+
+
+class TestMergeAdjacentIntervals(ProcessTest):
+    def test_empty_list(self):
+        """Test that an empty list returns an empty list."""
+        assert self.process._impl.merge_adjacent_intervals([]) == []
+
+    def test_single_interval(self):
+        """Test that a list with a single interval returns the same list."""
+        intervals = [IntervalWithCount(1, 2, "A", 10)]
+        assert self.process._impl.merge_adjacent_intervals(intervals) == intervals
+
+    def test_no_merge_needed(self):
+        """Test intervals that do not require merging."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(3, 4, "B", 20),
+        ]
+        assert self.process._impl.merge_adjacent_intervals(intervals) == intervals
+
+    def test_merge_multiple_adjacent_same_type_and_count(self):
+        """Test merging multiple adjacent intervals with the same type and count."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(3, 4, "A", 10),
+            IntervalWithCount(5, 6, "A", 10),
+        ]
+        expected = [IntervalWithCount(1, 6, "A", 10)]
+        assert self.process._impl.merge_adjacent_intervals(intervals) == expected
+
+    def test_merge_with_different_types_and_counts(self):
+        """Test merging only adjacent intervals with the same type and count, ignoring others."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(3, 4, "A", 10),
+            IntervalWithCount(5, 6, "B", 5),
+            IntervalWithCount(7, 8, "B", 5),
+            IntervalWithCount(9, 10, "A", 10),
+        ]
+        expected = [
+            IntervalWithCount(1, 4, "A", 10),
+            IntervalWithCount(5, 8, "B", 5),
+            IntervalWithCount(9, 10, "A", 10),
+        ]
+        assert self.process._impl.merge_adjacent_intervals(intervals) == expected
+
+    def test_non_adjacent_intervals(self):
+        """Test handling of non-adjacent intervals."""
+        intervals = [
+            IntervalWithCount(1, 2, "A", 10),
+            IntervalWithCount(4, 5, "A", 10),
+            IntervalWithCount(7, 8, "A", 10),
+        ]
+        # No merging should occur since intervals are not adjacent.
+        assert self.process._impl.merge_adjacent_intervals(intervals) == intervals
+
+
+class TestUnionIntervals(ProcessTest):
     def test_union_intervals_empty_dataframe_list(self):
-        result = process.union_intervals([])
+        result = self.process.union_intervals([])
         assert (
             not result
         ), "Failed: Empty list of DataFrames should return an empty DataFrame"
@@ -1276,8 +1743,8 @@ class TestUnionIntervals:
             }
         )
 
-        result = process.union_intervals([df_to_person_interval_tuple(df)])
-        result = intervals_to_df(result, ["person_id"])
+        result = self.process.union_intervals([df_to_person_interval_tuple(df)])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1307,13 +1774,13 @@ class TestUnionIntervals:
             }
         )
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["person_id"]),
                 df_to_person_interval_tuple(df2, by=["person_id"]),
             ]
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1336,13 +1803,13 @@ class TestUnionIntervals:
         )
         expected_df = pd.concat([df1, df2]).reset_index(drop=True)
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["person_id"]),
                 df_to_person_interval_tuple(df2, by=["person_id"]),
             ]
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1375,13 +1842,13 @@ class TestUnionIntervals:
             }
         )
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["group1", "group2"]),
                 df_to_person_interval_tuple(df2, by=["group1", "group2"]),
             ]
         )
-        result = intervals_to_df(result, ["group1", "group2"])
+        result = self.intervals_to_df(result, ["group1", "group2"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1411,13 +1878,13 @@ class TestUnionIntervals:
             }
         )
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["person_id"]),
                 df_to_person_interval_tuple(df2, by=["person_id"]),
             ]
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1470,13 +1937,13 @@ class TestUnionIntervals:
         }
         expected_df = pd.DataFrame(expected_data)
 
-        result_df = process.union_intervals(
+        result_df = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["person_id", "concept_id"]),
                 df_to_person_interval_tuple(df2, by=["person_id", "concept_id"]),
             ]
         )
-        result_df = intervals_to_df(result_df, ["person_id", "concept_id"])
+        result_df = self.intervals_to_df(result_df, ["person_id", "concept_id"])
 
         pd.testing.assert_frame_equal(result_df, expected_df)
 
@@ -1543,14 +2010,14 @@ class TestUnionIntervals:
             .reset_index(drop=True)
         )
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["group1", "group2"]),
                 df_to_person_interval_tuple(df2, by=["group1", "group2"]),
                 df_to_person_interval_tuple(df3, by=["group1", "group2"]),
             ]
         )
-        result = intervals_to_df(result, ["group1", "group2"])
+        result = self.intervals_to_df(result, ["group1", "group2"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1575,13 +2042,13 @@ class TestUnionIntervals:
         """
         expected_df = df_from_str(expected_data)
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["person_id"]),
                 df_to_person_interval_tuple(df2, by=["person_id"]),
             ]
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1605,13 +2072,13 @@ class TestUnionIntervals:
         """
         expected_df = df_from_str(expected_data)
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["person_id"]),
                 df_to_person_interval_tuple(df2, by=["person_id"]),
             ]
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1636,7 +2103,7 @@ class TestUnionIntervals:
             ]
         }
 
-        result = process.union_intervals([intervals1, intervals2])
+        result = self.process.union_intervals([intervals1, intervals2])
 
         assert len(result) == len(expected_intervals)
         assert result == expected_intervals
@@ -1662,7 +2129,7 @@ class TestUnionIntervals:
             ]
         }
 
-        result = process.union_intervals([{1: intervals1}, {1: intervals2}])
+        result = self.process.union_intervals([{1: intervals1}, {1: intervals2}])
 
         assert len(result) == len(expected_intervals)
         assert result == expected_intervals
@@ -1693,20 +2160,591 @@ class TestUnionIntervals:
         """
         expected_df = df_from_str(expected_data)
 
-        result = process.union_intervals(
+        result = self.process.union_intervals(
             [
                 df_to_person_interval_tuple(df1, by=["person_id"]),
                 df_to_person_interval_tuple(df2, by=["person_id"]),
             ]
         )
-        result = intervals_to_df(result, ["person_id"])
+        result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
 
 
-class TestIntersectIntervals:
+class TestCountIntervals(ProcessTest):
+    def test_count_intervals_empty_dataframe_list(self):
+        result = self.process.count_intervals([])
+        assert (
+            not result
+        ), "Failed: Empty list of DataFrames should return an empty DataFrame"
+
+    def test_count_intervals_single_dataframe(self):
+        df = pd.DataFrame(
+            {
+                "person_id": ["A", "A"],
+                "interval_start": pd.to_datetime(
+                    ["2020-01-01 12:00:00+00:00", "2020-01-02 12:00:00+00:00"]
+                ),
+                "interval_end": pd.to_datetime(
+                    ["2020-01-02 18:00:00+00:00", "2020-01-03 18:00:00+00:00"]
+                ),
+                "interval_type": [T.POSITIVE, T.POSITIVE],
+            }
+        )
+        expected_df = pd.DataFrame(
+            {
+                "person_id": ["A", "A", "A"],
+                "interval_start": pd.to_datetime(
+                    [
+                        "2020-01-01 12:00:00+00:00",
+                        "2020-01-02 12:00:00+00:00",
+                        "2020-01-02 18:00:01+00:00",
+                    ]
+                ),
+                "interval_end": pd.to_datetime(
+                    [
+                        "2020-01-02 11:59:59+00:00",
+                        "2020-01-02 18:00:00+00:00",
+                        "2020-01-03 18:00:00+00:00",
+                    ]
+                ),
+                "interval_type": [T.POSITIVE, T.POSITIVE, T.POSITIVE],
+                "interval_count": [1, 2, 1],
+            }
+        )
+
+        result = self.process.count_intervals([df_to_person_interval_tuple(df)])
+        result = self.intervals_to_df(result, ["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_overlapping_intervals(self):
+        df1 = pd.DataFrame(
+            {
+                "person_id": ["A"],
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-05 18:00:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "person_id": ["A"],
+                "interval_start": pd.to_datetime(["2020-01-04 12:00:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-06 12:00:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        expected_df = pd.DataFrame(
+            {
+                "person_id": ["A", "A", "A"],
+                "interval_start": pd.to_datetime(
+                    [
+                        "2020-01-01 12:00:00+00:00",
+                        "2020-01-04 12:00:00+00:00",
+                        "2020-01-05 18:00:01+00:00",
+                    ]
+                ),
+                "interval_end": pd.to_datetime(
+                    [
+                        "2020-01-04 11:59:59+00:00",
+                        "2020-01-05 18:00:00+00:00",
+                        "2020-01-06 12:00:00+00:00",
+                    ]
+                ),
+                "interval_type": [T.POSITIVE, T.POSITIVE, T.POSITIVE],
+                "interval_count": [1, 2, 1],
+            }
+        )
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["person_id"]),
+                df_to_person_interval_tuple(df2, by=["person_id"]),
+            ]
+        )
+        result = self.intervals_to_df(result, ["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_non_overlapping_intervals(self):
+        df1 = pd.DataFrame(
+            {
+                "person_id": ["A"],
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 13:30:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "person_id": ["A"],
+                "interval_start": pd.to_datetime(["2020-01-03 13:31:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-04 18:00:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        expected_df = (
+            pd.concat([df1, df2]).reset_index(drop=True).assign(interval_count=1)
+        )
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["person_id"]),
+                df_to_person_interval_tuple(df2, by=["person_id"]),
+            ]
+        )
+        result = self.intervals_to_df(result, ["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_group_by_multiple_columns(self):
+        df1 = pd.DataFrame(
+            {
+                "group1": ["A"],
+                "group2": ["B"],
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-02 12:00:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "group1": ["A"],
+                "group2": ["B"],
+                "interval_start": pd.to_datetime(["2020-01-02 12:00:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 12:00:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        expected_df = pd.DataFrame(
+            {
+                "group1": ["A", "A", "A"],
+                "group2": ["B", "B", "B"],
+                "interval_start": pd.to_datetime(
+                    [
+                        "2020-01-01 12:00:00+00:00",
+                        "2020-01-02 12:00:00+00:00",
+                        "2020-01-02 12:00:01+00:00",
+                    ]
+                ),
+                "interval_end": pd.to_datetime(
+                    [
+                        "2020-01-02 11:59:59+00:00",
+                        "2020-01-02 12:00:00+00:00",
+                        "2020-01-03 12:00:00+00:00",
+                    ]
+                ),
+                "interval_type": [T.POSITIVE, T.POSITIVE, T.POSITIVE],
+                "interval_count": [1, 2, 1],
+            }
+        )
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["group1", "group2"]),
+                df_to_person_interval_tuple(df2, by=["group1", "group2"]),
+            ]
+        )
+        result = self.intervals_to_df(result, ["group1", "group2"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_adjacent_intervals(self):
+        df1 = pd.DataFrame(
+            {
+                "person_id": ["A"],
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-03 13:30:59+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        df2 = pd.DataFrame(
+            {
+                "person_id": ["A"],
+                "interval_start": pd.to_datetime(["2020-01-03 13:31:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-04 18:00:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+            }
+        )
+        expected_df = pd.DataFrame(
+            {
+                "person_id": ["A"],
+                "interval_start": pd.to_datetime(["2020-01-01 12:00:00+00:00"]),
+                "interval_end": pd.to_datetime(["2020-01-04 18:00:00+00:00"]),
+                "interval_type": [T.POSITIVE],
+                "interval_count": [1],
+            }
+        )
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["person_id"]),
+                df_to_person_interval_tuple(df2, by=["person_id"]),
+            ]
+        )
+        result = self.intervals_to_df(result, ["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_with_timezone(self):
+        data1 = {
+            "person_id": [1, 1],
+            "concept_id": ["A", "A"],
+            "interval_start": pd.to_datetime(
+                ["2023-01-01T00:00:00Z", "2023-01-02T00:00:00Z"], utc=True
+            ),
+            "interval_end": pd.to_datetime(
+                ["2023-01-01T12:00:00Z", "2023-01-02T12:00:00Z"], utc=True
+            ),
+            "interval_type": [T.POSITIVE, T.POSITIVE],
+        }
+        data2 = {
+            "person_id": [1, 1],
+            "concept_id": ["A", "B"],
+            "interval_start": pd.to_datetime(
+                ["2023-01-01T06:00:00Z", "2023-01-03T00:00:00Z"], utc=True
+            ),
+            "interval_end": pd.to_datetime(
+                ["2023-01-01T18:00:00Z", "2023-01-03T12:00:00Z"], utc=True
+            ),
+            "interval_type": [T.POSITIVE, T.POSITIVE],
+        }
+        df1 = pd.DataFrame(data1)
+        df2 = pd.DataFrame(data2)
+
+        expected_data = {
+            "person_id": [1, 1, 1, 1, 1],
+            "concept_id": ["A", "A", "A", "A", "B"],
+            "interval_start": pd.to_datetime(
+                [
+                    "2023-01-01T00:00:00Z",
+                    "2023-01-01T06:00:00Z",
+                    "2023-01-01T12:00:01Z",
+                    "2023-01-02T00:00:00Z",
+                    "2023-01-03T00:00:00Z",
+                ],
+                utc=True,
+            ),
+            "interval_end": pd.to_datetime(
+                [
+                    "2023-01-01T05:59:59Z",
+                    "2023-01-01T12:00:00Z",
+                    "2023-01-01T18:00:00Z",
+                    "2023-01-02T12:00:00Z",
+                    "2023-01-03T12:00:00Z",
+                ],
+                utc=True,
+            ),
+            "interval_type": [
+                T.POSITIVE,
+                T.POSITIVE,
+                T.POSITIVE,
+                T.POSITIVE,
+                T.POSITIVE,
+            ],
+            "interval_count": [1, 2, 1, 1, 1],
+        }
+        expected_df = pd.DataFrame(expected_data)
+
+        result_df = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["person_id", "concept_id"]),
+                df_to_person_interval_tuple(df2, by=["person_id", "concept_id"]),
+            ]
+        )
+        result_df = self.intervals_to_df(result_df, ["person_id", "concept_id"])
+
+        pd.testing.assert_frame_equal(result_df, expected_df)
+
+    def test_count_intervals_group_by_multiple_columns_complex_data2(self):
+        data1 = """
+        group1	group2	interval_start	interval_end	interval_type
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE
+        B	1	2024-01-01 17:00:00	2024-01-01 18:00:00	POSITIVE
+        B	1	2024-01-01 19:00:00	2024-01-01 20:00:00	POSITIVE
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        group1	group2	interval_start	interval_end	interval_type
+        B	1	2024-01-01 18:00:00	2024-01-01 19:00:00	POSITIVE
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE
+        """
+        df2 = df_from_str(data2)
+
+        expected_data = """
+        group1	group2	interval_start	interval_end	interval_type	interval_count
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE	2
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE	2
+        B	1	2024-01-01 17:00:00	2024-01-01 17:59:59	POSITIVE	1
+        B	1	2024-01-01 18:00:00	2024-01-01 18:00:00	POSITIVE	2
+        B	1	2024-01-01 18:00:01	2024-01-01 18:59:59	POSITIVE	1
+        B	1	2024-01-01 19:00:00	2024-01-01 19:00:00	POSITIVE	2
+        B	1	2024-01-01 19:00:01	2024-01-01 20:00:00	POSITIVE	1
+        """
+        expected_df = (
+            df_from_str(expected_data)
+            .sort_values(by=["group1", "group2", "interval_start", "interval_end"])
+            .reset_index(drop=True)
+        )
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["group1", "group2"]),
+                df_to_person_interval_tuple(df2, by=["group1", "group2"]),
+            ]
+        )
+        result = (
+            self.intervals_to_df(result, ["group1", "group2"])
+            .sort_values(by=["group1", "group2", "interval_start", "interval_end"])
+            .reset_index(drop=True)
+        )
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_group_by_multiple_columns_complex_data(self):
+        data1 = """
+        group1	group2	interval_start	interval_end	interval_type
+        A	1	2023-01-01 12:00:00	2023-01-02 12:00:00	POSITIVE
+        A	1	2023-01-02 05:00:00	2023-01-03 05:00:00	POSITIVE
+        A	1	2023-01-03 06:00:00	2023-01-03 12:00:00	POSITIVE
+        A	1	2023-01-03 13:00:00	2023-01-04 12:00:00	POSITIVE
+        A	1	2023-01-04 18:00:00	2023-01-04 20:00:00	POSITIVE
+        A	1	2023-01-05 06:00:00	2023-01-05 23:59:00	POSITIVE
+        A	2	2023-02-01 12:59:00	2023-02-01 12:59:00	POSITIVE
+        A	2	2023-02-01 12:59:01	2023-02-01 12:59:01	POSITIVE
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE
+        B	1	2024-01-01 17:00:00	2024-01-01 18:00:00	POSITIVE
+        B	1	2024-01-01 19:00:00	2024-01-01 20:00:00	POSITIVE
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        group1	group2	interval_start	interval_end	interval_type
+        A	1	2023-01-03 12:00:01	2023-01-03 12:59:59	POSITIVE
+        B	2	2024-02-01 12:00:00	2024-02-01 13:00:00	POSITIVE
+        B	2	2024-02-01 13:00:00	2024-02-01 14:00:00	POSITIVE
+        B	2	2024-02-01 15:00:00	2024-02-01 16:00:00	POSITIVE
+        B	1	2024-01-01 18:00:00	2024-01-01 19:00:00	POSITIVE
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE
+        """
+        df2 = df_from_str(data2)
+
+        data3 = """
+        group1	group2	interval_start	interval_end	interval_type
+        A	2	2023-02-01 06:00:00	2023-02-01 06:00:00	POSITIVE
+        A	2	2023-02-01 06:00:02	2023-02-01 12:58:58	POSITIVE
+        A	1	2023-01-04 22:00:00	2023-01-05 02:00:00	POSITIVE
+        B	3	2023-03-04 22:00:00	2023-03-05 02:00:00	POSITIVE
+        B	2	2024-02-01 15:00:00	2024-02-01 16:00:01	POSITIVE
+        """
+        df3 = df_from_str(data3)
+
+        expected_data = """
+        group1	group2	interval_start	interval_end	interval_type	interval_count
+        A	1	2023-01-01 12:00:00	2023-01-02 04:59:59	POSITIVE	1
+        A	1	2023-01-02 05:00:00	2023-01-02 12:00:00	POSITIVE	2
+        A	1	2023-01-02 12:00:01	2023-01-03 05:00:00	POSITIVE	1
+        A	1	2023-01-03 06:00:00	2023-01-04 12:00:00	POSITIVE	1
+        A	1	2023-01-04 18:00:00	2023-01-04 20:00:00	POSITIVE	1
+        A	1	2023-01-04 22:00:00	2023-01-05 02:00:00	POSITIVE	1
+        A	1	2023-01-05 06:00:00	2023-01-05 23:59:00	POSITIVE	1
+        A	2	2023-02-01 12:59:00	2023-02-01 12:59:01	POSITIVE	1
+        A	2	2023-02-01 06:00:00	2023-02-01 06:00:00	POSITIVE	1
+        A	2	2023-02-01 06:00:02	2023-02-01 12:58:58	POSITIVE	1
+        B	1	2024-01-01 13:00:00	2024-01-01 14:00:00	POSITIVE	2
+        B	1	2024-01-01 15:00:00	2024-01-01 16:00:00	POSITIVE	2
+        B	1	2024-01-01 17:00:00	2024-01-01 17:59:59	POSITIVE	1
+        B	1	2024-01-01 18:00:00	2024-01-01 18:00:00	POSITIVE	2
+        B	1	2024-01-01 18:00:01	2024-01-01 18:59:59	POSITIVE	1
+        B	1	2024-01-01 19:00:00	2024-01-01 19:00:00	POSITIVE	2
+        B	1	2024-01-01 19:00:01	2024-01-01 20:00:00	POSITIVE	1
+        B	2	2024-02-01 12:00:00	2024-02-01 12:59:59	POSITIVE	1
+        B	2	2024-02-01 13:00:00	2024-02-01 13:00:00	POSITIVE	2
+        B	2	2024-02-01 13:00:01	2024-02-01 14:00:00	POSITIVE	1
+        B	2	2024-02-01 15:00:00	2024-02-01 16:00:00	POSITIVE	2
+        B	2	2024-02-01 16:00:01	2024-02-01 16:00:01	POSITIVE	1
+        B	3	2023-03-04 22:00:00	2023-03-05 02:00:00	POSITIVE	1
+        """
+        expected_df = (
+            df_from_str(expected_data)
+            .sort_values(by=["group1", "group2", "interval_start", "interval_end"])
+            .reset_index(drop=True)
+        )
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["group1", "group2"]),
+                df_to_person_interval_tuple(df2, by=["group1", "group2"]),
+                df_to_person_interval_tuple(df3, by=["group1", "group2"]),
+            ]
+        )
+        result = (
+            self.intervals_to_df(result, ["group1", "group2"])
+            .sort_values(by=["group1", "group2", "interval_start", "interval_end"])
+            .reset_index(drop=True)
+        )
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_edge_case(self):
+        data1 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 15:00:00+00:00	POSITIVE
+        """
+        df2 = df_from_str(data2)
+
+        expected_data = """
+        person_id	interval_start	interval_end	interval_type	interval_count
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 15:00:00+00:00	POSITIVE	1
+        30833	2023-03-02 15:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE	1
+        """
+        expected_df = df_from_str(expected_data)
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["person_id"]),
+                df_to_person_interval_tuple(df2, by=["person_id"]),
+            ]
+        )
+        result = self.intervals_to_df(result, ["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+        data1 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        person_id	interval_start	interval_end	interval_type
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE
+        """
+        df2 = df_from_str(data2)
+
+        expected_data = """
+        person_id	interval_start	interval_end	interval_type	interval_count
+        30833	2023-03-02 13:00:01+00:00	2023-03-02 14:00:00+00:00	POSITIVE	1
+        30833	2023-03-02 14:00:01+00:00	2023-03-02 19:00:00+00:00	NEGATIVE	2
+        """
+        expected_df = df_from_str(expected_data)
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["person_id"]),
+                df_to_person_interval_tuple(df2, by=["person_id"]),
+            ]
+        )
+        result = self.intervals_to_df(result, ["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+    def test_count_intervals_edge_case_int(self):
+        intervals1 = {
+            1: [
+                Interval(lower=1, upper=4, type=T.NEGATIVE),
+            ]
+        }
+
+        intervals2 = {
+            1: [
+                Interval(lower=1, upper=2, type=T.POSITIVE),
+                Interval(lower=3, upper=4, type=T.NEGATIVE),
+            ]
+        }
+
+        expected_intervals = {
+            1: [
+                IntervalWithCount(lower=1, upper=2, type=T.POSITIVE, count=1),
+                IntervalWithCount(lower=3, upper=4, type=T.NEGATIVE, count=2),
+            ]
+        }
+
+        result = self.process.count_intervals([intervals1, intervals2])
+
+        assert len(result) == len(expected_intervals)
+        assert result == expected_intervals
+
+    def test_count_intervals_no_data_negative_int(self):
+        intervals1 = [
+            Interval(lower=1, upper=2, type=T.NO_DATA),
+            Interval(lower=3, upper=4, type=T.POSITIVE),
+            Interval(lower=5, upper=6, type=T.NO_DATA),
+        ]
+
+        intervals2 = [
+            Interval(lower=1, upper=2, type=T.NO_DATA),
+            Interval(lower=3, upper=4, type=T.NEGATIVE),
+            Interval(lower=5, upper=6, type=T.NO_DATA),
+        ]
+
+        expected_intervals = {
+            1: [
+                IntervalWithCount(lower=1, upper=2, type=T.NO_DATA, count=2),
+                IntervalWithCount(lower=3, upper=4, type=T.POSITIVE, count=1),
+                IntervalWithCount(lower=5, upper=6, type=T.NO_DATA, count=2),
+            ]
+        }
+
+        result = self.process.count_intervals([{1: intervals1}, {1: intervals2}])
+
+        assert len(result) == len(expected_intervals)
+        assert result == expected_intervals
+
+    def test_count_intervals_no_data_negative(self):
+        data1 = """
+        person_id	interval_start	interval_end	interval_type
+        30748	2023-02-26 07:00:00+00:00	2023-03-02 12:59:59+00:00	NO_DATA
+        30748	2023-03-02 13:00:00+00:00	2023-03-02 14:00:00+00:00	POSITIVE
+        30748	2023-03-02 14:00:01+00:00	2023-04-03 23:00:00+00:00	NO_DATA
+        """
+        df1 = df_from_str(data1)
+
+        data2 = """
+        person_id	interval_start	interval_end	interval_type
+        30748	2023-02-26 07:00:00+00:00	2023-03-02 12:59:59+00:00	NO_DATA
+        30748	2023-03-02 13:00:00+00:00	2023-03-02 14:00:00+00:00	NEGATIVE
+        30748	2023-03-02 14:00:01+00:00	2023-04-03 23:00:00+00:00	NO_DATA
+        """
+
+        df2 = df_from_str(data2)
+
+        expected_data = """
+        person_id	interval_start	interval_end	interval_type	interval_count
+        30748	2023-02-26 07:00:00+00:00	2023-03-02 12:59:59+00:00	NO_DATA	2
+        30748	2023-03-02 13:00:00+00:00	2023-03-02 14:00:00+00:00	POSITIVE	1
+        30748	2023-03-02 14:00:01+00:00	2023-04-03 23:00:00+00:00	NO_DATA	2
+        """
+        expected_df = df_from_str(expected_data)
+
+        result = self.process.count_intervals(
+            [
+                df_to_person_interval_tuple(df1, by=["person_id"]),
+                df_to_person_interval_tuple(df2, by=["person_id"]),
+            ]
+        )
+        result = self.intervals_to_df(result, ["person_id"])
+
+        pd.testing.assert_frame_equal(result, expected_df)
+
+
+class TestIntersectIntervals(ProcessTest):
     def test_intersect_intervals_empty_dataframe_list(self):
-        result = process.intersect_intervals([])
+        result = self.process.intersect_intervals([])
         assert (
             not result
         ), "Failed: Empty list of DataFrames should return an empty DataFrame"
@@ -1725,8 +2763,10 @@ class TestIntersectIntervals:
             }
         )
         by = ["person_id"]
-        result = process.intersect_intervals([df_to_person_interval_tuple(df, by=by)])
-        result = intervals_to_df(result, by=by)
+        result = self.process.intersect_intervals(
+            [df_to_person_interval_tuple(df, by=by)]
+        )
+        result = self.intervals_to_df(result, by=by)
         expected_df = df.copy()
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1757,13 +2797,13 @@ class TestIntersectIntervals:
         )
 
         by = ["person_id"]
-        result = process.intersect_intervals(
+        result = self.process.intersect_intervals(
             [
                 df_to_person_interval_tuple(df1, by=by),
                 df_to_person_interval_tuple(df2, by=by),
             ]
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1789,13 +2829,13 @@ class TestIntersectIntervals:
         )
 
         by = ["person_id"]
-        result = process.intersect_intervals(
+        result = self.process.intersect_intervals(
             [
                 df_to_person_interval_tuple(df1, by=by),
                 df_to_person_interval_tuple(df2, by=by),
             ]
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1829,13 +2869,13 @@ class TestIntersectIntervals:
         )
 
         by = ["group1", "group2"]
-        result = process.intersect_intervals(
+        result = self.process.intersect_intervals(
             [
                 df_to_person_interval_tuple(df1, by=by),
                 df_to_person_interval_tuple(df2, by=by),
             ]
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
 
         pd.testing.assert_frame_equal(result, expected_df)
 
@@ -1868,13 +2908,13 @@ class TestIntersectIntervals:
 
         # Call the function
         by = ["person_id", "concept_id"]
-        result = process.intersect_intervals(
+        result = self.process.intersect_intervals(
             [
                 df_to_person_interval_tuple(df1, by=by),
                 df_to_person_interval_tuple(df2, by=by),
             ]
         )
-        result = intervals_to_df(result, by=by)
+        result = self.intervals_to_df(result, by=by)
 
         # Define expected output
         expected_data = {
@@ -1952,7 +2992,7 @@ class TestIntersectIntervals:
         expected_df = df_from_str(expected_data)
 
         by = ["group1", "group2"]
-        result = process.intersect_intervals(
+        result = self.process.intersect_intervals(
             [
                 df_to_person_interval_tuple(df1, by=by),
                 df_to_person_interval_tuple(df2, by=by),
@@ -1960,15 +3000,16 @@ class TestIntersectIntervals:
             ]
         )
         result = (
-            intervals_to_df(result, by=by).sort_values(by=by).reset_index(drop=True)
+            self.intervals_to_df(result, by=by)
+            .sort_values(by=by)
+            .reset_index(drop=True)
         )
 
         pd.testing.assert_frame_equal(result, expected_df)
 
 
-class TestIntervalFilling:
-    @staticmethod
-    def assert_equal(data, expected):
+class TestIntervalFilling(ProcessTest):
+    def assert_equal(self, data, expected):
         def to_df(data):
             df = pd.DataFrame(
                 data,
@@ -1984,10 +3025,10 @@ class TestIntervalFilling:
 
             return df
 
-        result = process.forward_fill(
+        result = self.process.forward_fill(
             df_to_person_interval_tuple(to_df(data), by=["person_id"])
         )
-        df_result = intervals_to_df(result, ["person_id"])
+        df_result = self.intervals_to_df(result, ["person_id"])
         df_expected = to_df(expected)
 
         pd.testing.assert_frame_equal(df_result, df_expected, check_dtype=False)

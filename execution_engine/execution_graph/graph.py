@@ -1,4 +1,4 @@
-from typing import Any, Type, cast
+from typing import Any, Callable, Type, cast
 
 import networkx as nx
 
@@ -182,8 +182,11 @@ class ExecutionGraph(nx.DiGraph):
                     "NonSimplifiableAnd": "!&",
                     "NoDataPreservingAnd": "NDP-&",
                     "NoDataPreservingOr": "NPD-|",
+                    "MinCount": "Min",
+                    "MaxCount": "Max",
+                    "ExactCount": "Exact",
                 }
-                label = symbols[label]
+                label = symbols.get(label, label)
 
             labels[node] = label + f" [{category}]"
 
@@ -265,7 +268,7 @@ class ExecutionGraph(nx.DiGraph):
 
         def conjunction_from_combination(
             comb: CriterionCombination,
-        ) -> Type[logic.BooleanFunction]:
+        ) -> Type[logic.BooleanFunction] | Callable:
             """
             Convert the criterion's operator into a logical conjunction (And or Or)
             """
@@ -284,6 +287,32 @@ class ExecutionGraph(nx.DiGraph):
                 return logic.And
             elif comb.operator.operator == CriterionCombination.Operator.OR:
                 return logic.Or
+            elif comb.operator.operator == CriterionCombination.Operator.ALL_OR_NONE:
+                return logic.AllOrNone
+            elif comb.operator.operator == CriterionCombination.Operator.AT_LEAST:
+                if comb.operator.threshold is None:
+                    raise ValueError(
+                        f"Threshold must be set for operator {comb.operator.operator}"
+                    )
+                return lambda *args, category: logic.MinCount(
+                    *args, threshold=comb.operator.threshold, category=category  # type: ignore
+                )
+            elif comb.operator.operator == CriterionCombination.Operator.AT_MOST:
+                if comb.operator.threshold is None:
+                    raise ValueError(
+                        f"Threshold must be set for operator {comb.operator.operator}"
+                    )
+                return lambda *args, category: logic.MaxCount(
+                    *args, threshold=comb.operator.threshold, category=category  # type: ignore
+                )
+            elif comb.operator.operator == CriterionCombination.Operator.EXACTLY:
+                if comb.operator.threshold is None:
+                    raise ValueError(
+                        f"Threshold must be set for operator {comb.operator.operator}"
+                    )
+                return lambda *args, category: logic.ExactCount(
+                    *args, threshold=comb.operator.threshold, category=category  # type: ignore
+                )
             else:
                 raise NotImplementedError(
                     f'Operator "{str(comb.operator)}" not implemented'

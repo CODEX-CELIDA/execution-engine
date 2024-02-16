@@ -1,8 +1,13 @@
+import importlib
+import os
+import sys
 import types
 from collections import namedtuple
 
 
-def get_processing_module(name: str = "rectangle") -> types.ModuleType:
+def get_processing_module(
+    name: str = "rectangle", version: str = "auto"
+) -> types.ModuleType:
     """
     Returns the processing module with the given name.
 
@@ -12,16 +17,29 @@ def get_processing_module(name: str = "rectangle") -> types.ModuleType:
 
     :param name: name of the processing module
     """
+
     if name == "interval_portion":
         from execution_engine.task.process import interval_portion
 
         return interval_portion
     elif name == "rectangle":
-        from execution_engine.task.process import rectangle
+        if version not in ["auto", "python", "cython"]:
+            raise ValueError("Unknown processing module version: {}".format(version))
 
-        return rectangle
+        os.environ["PROCESS_RECTANGLE_VERSION"] = version
+
+        module_path = "execution_engine.task.process.rectangle"
+        if module_path in sys.modules:
+            # The module is in sys.modules, reload it
+            rectangle_module = importlib.reload(sys.modules[module_path])
+        else:
+            # Import the module for the first time
+            rectangle_module = importlib.import_module(module_path)
+
+        return rectangle_module
     else:
         raise ValueError("Unknown processing module: {}".format(name))
 
 
 Interval = namedtuple("Interval", ["lower", "upper", "type"])
+IntervalWithCount = namedtuple("IntervalWithCount", ["lower", "upper", "type", "count"])

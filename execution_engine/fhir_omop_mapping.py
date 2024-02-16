@@ -16,6 +16,7 @@ def characteristic_code_to_criterion_combination_operator(
         CharacteristicCombination.Code.ANY_OF: CriterionCombination.Operator.OR,
         CharacteristicCombination.Code.AT_LEAST: CriterionCombination.Operator.AT_LEAST,
         CharacteristicCombination.Code.AT_MOST: CriterionCombination.Operator.AT_MOST,
+        CharacteristicCombination.Code.EXACTLY: CriterionCombination.Operator.EXACTLY,
     }
 
     if code not in mapping:
@@ -55,8 +56,11 @@ class ActionSelectionBehavior:
     _map = {
         "any": {"code": CharacteristicCombination.Code.ANY_OF, "threshold": None},
         "all": {"code": CharacteristicCombination.Code.ALL_OF, "threshold": None},
-        "all-or-none": None,
-        "exactly-one": None,
+        "all-or-none": {
+            "code": CharacteristicCombination.Code.ALL_OR_NONE,
+            "threshold": None,
+        },
+        "exactly-one": {"code": CharacteristicCombination.Code.EXACTLY, "threshold": 1},
         "at-most-one": {"code": CharacteristicCombination.Code.AT_MOST, "threshold": 1},
         "one-or-more": {
             "code": CharacteristicCombination.Code.AT_LEAST,

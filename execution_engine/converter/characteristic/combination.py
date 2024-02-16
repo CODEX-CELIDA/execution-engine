@@ -16,9 +16,8 @@ class CharacteristicCombination:
         ANY_OF = "any-of"  # at least one characteristic must be true
         AT_LEAST = "at-least"  # at least n characteristics must be true
         AT_MOST = "at-most"  # at most n characteristics must be true
-        STATISTICAL = "statistical"  # statistical combination of characteristics
-        NET_EFFECT = "net-effect"  # net effect of characteristics
-        DATASET = "dataset"  # dataset of characteristics
+        EXACTLY = "exactly"  # exactly n characteristics must be true
+        ALL_OR_NONE = "all-or-none"  # all or none of the characteristics must be true
 
     def __init__(self, code: Code, exclude: bool, threshold: int | None = None) -> None:
         """

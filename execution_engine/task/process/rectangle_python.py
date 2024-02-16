@@ -1,8 +1,10 @@
 import numpy as np
-from sortedcontainers import SortedList
+from sortedcontainers import SortedDict, SortedList
 
-from execution_engine.task.process import Interval
+from execution_engine.task.process import Interval, IntervalWithCount
 from execution_engine.util.interval import IntervalType
+
+MODULE_IMPLEMENTATION = "python"
 
 
 def union_rects(intervals: list[Interval]) -> list[Interval]:
@@ -82,6 +84,156 @@ def union_rects(intervals: list[Interval]) -> list[Interval]:
         return union
 
 
+def union_rects_with_count(
+    intervals: list[IntervalWithCount],
+) -> list[IntervalWithCount]:
+    """
+    Unions the intervals while keeping track of the count of overlapping intervals of the same type.
+    """
+
+    if not len(intervals):
+        return []
+
+    with IntervalType.union_order():
+        events = intervals_with_count_to_events(intervals)
+
+        union = []
+
+        last_x_start = -np.inf  # holds the x_min of the currently open output rectangle
+        last_x_end = events[0][
+            0
+        ]  # x variable of the last closed interval (we start with the first x, so we
+        # don't close the first rectangle at the first x)
+        previous_x_visited = -np.inf
+        open_y = SortedDict()
+
+        def get_y_max() -> IntervalType | None:
+            max_key = None
+            for key in reversed(open_y):
+                if open_y[key] > 0:
+                    max_key = key
+                    break
+            return max_key
+
+        for x, start_point, y, count_event in events:
+            if start_point:
+                y_max = get_y_max()
+
+                if x > previous_x_visited and y_max is None:
+                    # no currently open rectangles
+                    last_x_start = x  # start new output rectangle
+                elif y >= y_max:
+                    if x == last_x_end or x == last_x_start:
+                        # we already closed a rectangle at this x, so we don't need to start a new one
+                        open_y[y] = open_y.get(y, 0) + count_event
+                        continue
+
+                    union.append(
+                        IntervalWithCount(
+                            lower=last_x_start,
+                            upper=x - 1,
+                            type=y_max,
+                            count=open_y[y_max],
+                        )
+                    )
+                    last_x_end = x
+                    last_x_start = x
+
+                open_y[y] = open_y.get(y, 0) + count_event
+
+            else:
+                open_y[y] = max(open_y.get(y, 0) - count_event, 0)
+
+                y_max = get_y_max()
+
+                if (y_max is None or (open_y and y_max <= y)) and x > last_x_end:
+                    if y_max is None or y_max < y:
+                        # the closing rectangle has a higher y_max than the currently open ones
+                        count = count_event
+                    else:
+                        # the closing rectangle has the same y_max as the currently open ones
+                        count = open_y[y] + count_event
+
+                    union.append(
+                        IntervalWithCount(
+                            lower=last_x_start, upper=x - 1, type=y, count=count
+                        )
+                    )  # close the previous rectangle at y_max
+                    last_x_end = x
+                    last_x_start = x  # start new output rectangle
+
+            previous_x_visited = x
+
+        return merge_adjacent_intervals(union)
+
+
+def merge_adjacent_intervals(
+    intervals: list[IntervalWithCount],
+) -> list[IntervalWithCount]:
+    """
+    Merges adjacent intervals in a list of IntervalWithCount namedtuples if they have the same 'type' and 'count'.
+
+    This function assumes that the input list 'intervals' contains IntervalWithCount namedtuples, each representing
+    an interval with 'lower' and 'upper' bounds, a 'type' (categorical identifier), and a 'count' (numerical value).
+    It merges intervals that are adjacent (i.e., the 'upper' bound of one interval is equal to the 'lower' bound of
+    the next) and have the same 'type' and 'count'. The function is designed to work with non-overlapping intervals
+    that may be adjacent.
+
+    Parameters:
+    - intervals (List[IntervalWithCount]): A list of IntervalWithCount namedtuples. Each namedtuple should have
+      four fields: 'lower' (int), 'upper' (int), 'type' (str), and 'count' (int).
+
+    Returns:
+    - List[IntervalWithCount]: A list of merged IntervalWithCount namedtuples, where adjacent intervals with the
+      same 'type' and 'count' have been merged into single intervals.
+
+    Note:
+    - The input list 'intervals' is assumed to be sorted by the 'lower' bound of each interval. If this is not the
+      case, unexpected behavior may occur.
+    - The function does not handle overlapping intervals; it is assumed that the input list does not contain any
+      overlapping intervals.
+
+    Example:
+    >>> union = [
+    ...     IntervalWithCount(1, 2, 'A', 10),
+    ...     IntervalWithCount(2, 3, 'A', 10),
+    ...     IntervalWithCount(3, 4, 'A', 10),
+    ...     IntervalWithCount(4, 5, 'B', 5),
+    ...     IntervalWithCount(6, 7, 'B', 5),
+    ...     IntervalWithCount(8, 9, 'C', 20),
+    ... ]
+    >>> merge_adjacent_intervals(union)
+    [IntervalWithCount(lower=1, upper=4, type='A', count=10),
+     IntervalWithCount(lower=4, upper=5, type='B', count=5),
+     IntervalWithCount(lower=6, upper=7, type='B', count=5),
+     IntervalWithCount(lower=8, upper=9, type='C', count=20)]
+    """
+    if not intervals:
+        return []
+
+    merged_intervals = [intervals[0]]
+
+    for current in intervals[1:]:
+        # Get the last interval in the merged list
+        last = merged_intervals[-1]
+
+        # Check if the current interval is adjacent to the last interval and has the same type and count
+        if (
+            current.lower - 1 == last.upper
+            and current.type == last.type
+            and current.count == last.count
+        ):
+            # Merge the intervals by creating a new interval and updating the last element in the merged list
+            merged_intervals[-1] = IntervalWithCount(
+                last.lower, current.upper, last.type, last.count
+            )
+        else:
+            # If not adjacent or different type/count, add the current interval to the merged list
+            merged_intervals.append(current)
+
+    return merged_intervals
+
+
 def intersect_rects(intervals: list[Interval]) -> list[Interval]:
     """
     Intersects the intervals.
@@ -138,6 +290,26 @@ def intervals_to_events(
     )
 
 
+def intervals_with_count_to_events(
+    intervals: list[IntervalWithCount],
+) -> list[tuple[int, bool, IntervalType, int]]:
+    """
+    Converts the intervals to a list of events.
+
+    The events are a sorted list of the opening/closing points of all rectangles.
+
+    :param intervals: The intervals.
+    :return: The events.
+    """
+    events = [(i.lower, True, i.type, i.count) for i in intervals] + [
+        (i.upper + 1, False, i.type, i.count) for i in intervals
+    ]
+    return sorted(
+        events,
+        key=lambda i: (i[0]),
+    )
+
+
 def intersect_interval_lists(
     left: list[Interval], right: list[Interval]
 ) -> list[Interval]:
@@ -161,8 +333,4 @@ def union_interval_lists(left: list[Interval], right: list[Interval]) -> list[In
     :param right: The right list.
     :return: The list of unions.
     """
-    processed = [item for x in left for y in right for item in union_rects([x, y])]
-
-    result = union_rects(processed)
-
-    return result
+    return union_rects(left + right)
