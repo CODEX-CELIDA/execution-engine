@@ -12,16 +12,18 @@ from execution_engine.util.types import TimeRange
 from . import Interval, IntervalWithCount
 
 try:
-    from .rectangle_cython import (
+    from .rectangle_cython import (  # noqa: F401 -- do not remove, should be exported by this module
         intersect_interval_lists,
+        merge_adjacent_intervals,
         union_interval_lists,
         union_rects,
         union_rects_with_count,
     )
 except ImportError:
     logging.info("Cython rectangle module not found, using python module")
-    from .rectangle_python import (
+    from .rectangle_python import (  # noqa: F401 -- do not remove, should be exported by this module
         intersect_interval_lists,
+        merge_adjacent_intervals,
         union_interval_lists,
         union_rects,
         union_rects_with_count,
