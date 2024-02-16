@@ -182,8 +182,11 @@ class ExecutionGraph(nx.DiGraph):
                     "NonSimplifiableAnd": "!&",
                     "NoDataPreservingAnd": "NDP-&",
                     "NoDataPreservingOr": "NPD-|",
+                    "MinCount": "Min",
+                    "MaxCount": "Max",
+                    "ExactCount": "Exact",
                 }
-                label = symbols[label]
+                label = symbols.get(label, label)
 
             labels[node] = label + f" [{category}]"
 
