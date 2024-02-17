@@ -25,6 +25,8 @@ class AppState:
             "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
         )
 
+        recommendation_package_version = "v1.3.1"
+
         urls = [
             "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
             # "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
@@ -40,7 +42,11 @@ class AppState:
         for recommendation_url in urls:
             url = base_url + recommendation_url
             logging.info(f"Loading {url}")
-            rec = e.load_recommendation(url, force_reload=False)
+            rec = e.load_recommendation(
+                url,
+                force_reload=False,
+                recommendation_package_version=recommendation_package_version,
+            )
             cls._recommendations[url] = {
                 "name": rec.name,
                 "title": rec.title,

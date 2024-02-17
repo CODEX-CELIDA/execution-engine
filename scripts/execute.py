@@ -68,6 +68,7 @@ with omopdb.begin() as con:
     )
 
 base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
+recommendation_package_version = "v1.3.1"
 
 urls = [
     "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
@@ -88,6 +89,9 @@ logging.getLogger().setLevel(logging.DEBUG)
 
 for recommendation_url in urls:
     print(recommendation_url)
-    cdd = e.load_recommendation(base_url + recommendation_url)
+    cdd = e.load_recommendation(
+        base_url + recommendation_url,
+        recommendation_package_version=recommendation_package_version,
+    )
 
     e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)

@@ -28,7 +28,7 @@ class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
 
         Required to allow different versions of the recommendation package to be tested.
         """
-        return "latest"
+        return "v1.3.1"
 
     @pytest.fixture
     def population_intervention(self) -> dict:
