@@ -29,7 +29,7 @@ class TestRecommendation17TherapeuticAnticoagulation(TestRecommendationBase):
 
         Required to allow different versions of the recommendation package to be tested.
         """
-        return "v1.3.0"
+        return "latest"
 
     @pytest.fixture
     def population_intervention(self) -> dict:
@@ -81,7 +81,7 @@ class TestRecommendation17TherapeuticAnticoagulationOldVersionWithThrombosis(
 
         Required to allow different versions of the recommendation package to be tested.
         """
-        return "v1.2.1"
+        return "v1.2.2"
 
     @pytest.fixture
     def population_intervention(self) -> dict:

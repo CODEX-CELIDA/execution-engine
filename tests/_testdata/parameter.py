@@ -22,6 +22,7 @@ class CriterionDefinition(BaseModel):
     occurrences_per_day: list[int] | None = None
     datetime_offset: timedelta | None = None
     missing_data_type: IntervalType | None = None
+    route_concept_id: int | None = None
 
 
 COVID19 = CriterionDefinition(
@@ -96,6 +97,7 @@ DALTEPARIN = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.DALTEPARIN,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 ENOXAPARIN = CriterionDefinition(
     name="ENOXAPARIN",
@@ -104,6 +106,7 @@ ENOXAPARIN = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.ENOXAPARIN,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 NADROPARIN_LOW_WEIGHT = CriterionDefinition(
     name="NADROPARIN_LOW_WEIGHT",
@@ -112,6 +115,7 @@ NADROPARIN_LOW_WEIGHT = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.NADROPARIN,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 NADROPARIN_HIGH_WEIGHT = CriterionDefinition(
     name="NADROPARIN_HIGH_WEIGHT",
@@ -120,6 +124,7 @@ NADROPARIN_HIGH_WEIGHT = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.NADROPARIN,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 CERTOPARIN = CriterionDefinition(
     name="CERTOPARIN",
@@ -128,6 +133,7 @@ CERTOPARIN = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.CERTOPARIN,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 TINZAPARIN = CriterionDefinition(
     name="TINZAPARIN",
@@ -136,6 +142,7 @@ TINZAPARIN = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.TINZAPARIN,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 FONDAPARINUX_PROPHYLACTIC = CriterionDefinition(
     name="FONDAPARINUX_PROPHYLACTIC",
@@ -144,6 +151,7 @@ FONDAPARINUX_PROPHYLACTIC = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.FONDAPARINUX,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 FONDAPARINUX_THERAPEUTIC = CriterionDefinition(
     name="FONDAPARINUX_THERAPEUTIC",
@@ -152,6 +160,7 @@ FONDAPARINUX_THERAPEUTIC = CriterionDefinition(
     doses_per_day=2,
     static=False,
     concept_id=concepts.FONDAPARINUX,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
 HEPARIN = CriterionDefinition(
     name="HEPARIN",
@@ -160,6 +169,7 @@ HEPARIN = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.HEPARIN,
+    route_concept_id=concepts.ROUTE_INTRAVENOUS,
 )
 ARGATROBAN = CriterionDefinition(
     name="ARGATROBAN",
@@ -168,6 +178,7 @@ ARGATROBAN = CriterionDefinition(
     doses_per_day=1,
     static=False,
     concept_id=concepts.ARGATROBAN,
+    route_concept_id=concepts.ROUTE_INTRAVENOUS,
 )
 ICU = CriterionDefinition(
     name="ICU",

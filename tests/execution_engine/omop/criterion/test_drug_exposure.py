@@ -8,12 +8,16 @@ from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.types import Dosage
 from execution_engine.util.value import ValueNumber
+from execution_engine.util.value.time import ValueCount
 from tests._fixtures.concept import (
     concept_enoxparin,
     concept_heparin_ingredient,
+    concept_route_intravenous,
+    concept_route_subcutaneous,
     concept_unit_mg,
     concepts_heparin_other,
 )
+from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import create_drug_exposure
 
@@ -53,7 +57,12 @@ class TestDrugExposure(TestCriterion):
 
     @staticmethod
     def create_drug_exposure(
-        visit_occurrence, drug_concept_id, start_datetime, end_datetime, quantity
+        visit_occurrence,
+        drug_concept_id,
+        start_datetime,
+        end_datetime,
+        quantity,
+        route_concept_id=None,
     ):
         return create_drug_exposure(
             vo=visit_occurrence,
@@ -61,6 +70,7 @@ class TestDrugExposure(TestCriterion):
             start_datetime=start_datetime,
             end_datetime=end_datetime,
             quantity=quantity,
+            route_concept_id=route_concept_id,
         )
 
     def perform_test(
@@ -71,6 +81,7 @@ class TestDrugExposure(TestCriterion):
         drug_exposures,
         dosage,
         expected,
+        route=None,
     ):
         _, vo = person_visit[0]
 
@@ -82,6 +93,7 @@ class TestDrugExposure(TestCriterion):
                 start_datetime=pendulum.parse(exposure["start_datetime"]),
                 end_datetime=pendulum.parse(exposure["end_datetime"]),
                 quantity=exposure["quantity"],
+                route_concept_id=exposure.get("route_concept_id", None),
             )
             db_session.add(c)
 
@@ -92,7 +104,7 @@ class TestDrugExposure(TestCriterion):
             ingredient_concept=concept_heparin_ingredient,
             exclude=False,
             dose=dosage,
-            route=None,
+            route=route,
         )
 
         assert set(result["valid_date"].dt.date) == date_set(expected)
@@ -1449,3 +1461,71 @@ class TestDrugExposure(TestCriterion):
             )
 
             assert actual == expected
+
+    @pytest.mark.parametrize(
+        "drug_exposures",
+        [
+            [
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-03 10:36:24+01:00",
+                    "quantity": 1000,
+                    "route_concept_id": concepts.ROUTE_SUBCUTANEOUS,
+                },
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 10:36:24+01:00",
+                    "quantity": 2000,
+                    "route_concept_id": concepts.ROUTE_INTRAVENOUS,
+                },
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-04 09:36:24+01:00",
+                    "end_datetime": "2023-03-06 10:36:24+01:00",
+                    "quantity": 1000,
+                    "route_concept_id": concepts.ROUTE_INTRAVENOUS,
+                },
+            ]
+        ],
+    )
+    @pytest.mark.parametrize(
+        "dosage",
+        [
+            Dosage(
+                dose=ValueNumber(value_min=100, unit=concept_unit_mg),
+                frequency=ValueCount(value_min=1),
+                interval=TimeUnit.DAY,
+            )
+        ],
+    )
+    @pytest.mark.parametrize(
+        "route,expected",
+        [
+            (concept_route_subcutaneous, {"2023-03-01", "2023-03-02", "2023-03-03"}),
+            (
+                concept_route_intravenous,
+                {"2023-03-02", "2023-03-03", "2023-03-04", "2023-03-05", "2023-03-06"},
+            ),
+        ],
+    )
+    def test_drug_exposure_routes(
+        self,
+        person_visit,
+        db_session,
+        execute_drug_exposure_criterion,
+        drug_exposures,
+        dosage,
+        route,
+        expected,
+    ):
+        self.perform_test(
+            db_session,
+            person_visit,
+            execute_drug_exposure_criterion,
+            drug_exposures,
+            dosage,
+            expected,
+            route,
+        )

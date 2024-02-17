@@ -82,6 +82,28 @@ concept_heparin_ingredient = Concept(
     invalid_reason=None,
 )
 
+concept_route_subcutaneous = Concept(
+    concept_id=4142048,
+    concept_name="Subcutaneous route",
+    domain_id="Route",
+    vocabulary_id="SNOMED",
+    concept_class_id="Qualifier Value",
+    standard_concept="S",
+    concept_code="34206005",
+    invalid_reason=None,
+)
+
+concept_route_intravenous = Concept(
+    concept_id=4171047,
+    concept_name="Intravenous route",
+    domain_id="Route",
+    vocabulary_id="SNOMED",
+    concept_class_id="Qualifier Value",
+    standard_concept="S",
+    concept_code="47625008",
+    invalid_reason=None,
+)
+
 """
 The following list of concepts are heparin drugs and all of them directly map to heparin as ingredient (via ancestor,
 not relationship !)

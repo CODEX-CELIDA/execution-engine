@@ -51,7 +51,7 @@ class DrugExposure(Criterion):
                 dose=None,
                 count=None,
                 duration=None,
-                frequency= ValueCount(value_min=1),
+                frequency=ValueCount(value_min=1),
                 interval=1 * TimeUnit.DAY,
             )
         elif dose.frequency is None:
@@ -134,13 +134,11 @@ class DrugExposure(Criterion):
         ).select_from(self._table)
         query = self._sql_filter_concept(query)
         query = self._filter_datetime(query)
-        query = self._filter_base_persons(query)
 
         if self._route is not None:
-            # route is not implemented yet because it uses HemOnc codes in the standard vocabulary
-            # (cf concept_class_id = 'Route') but these are not standard codes and HemOnc might not be
-            # addressable in FHIR
-            logging.warning("Route specified, but not implemented yet")
+            query = self._sql_filter_route(query)
+
+        query = self._filter_base_persons(query)
 
         # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
         interval = self._dose.interval.to_sql_interval()
@@ -228,6 +226,21 @@ class DrugExposure(Criterion):
             .where(interval_ratios.c.ratio > 0)
             .group_by(interval_ratios.c.person_id, interval_ratios.c.interval_start)
         )
+
+        return query
+
+    def _sql_filter_route(self, query: Select) -> Select:
+        """
+        Return the SQL to filter the data for the criterion by route.
+
+        :param query: The query to filter
+        :return: The filtered query
+        """
+        drug_exposure = self._table
+        route = self._route
+        assert route is not None, "Route must be set"
+
+        query = query.where(drug_exposure.c.route_concept_id == route.concept_id)
 
         return query
 

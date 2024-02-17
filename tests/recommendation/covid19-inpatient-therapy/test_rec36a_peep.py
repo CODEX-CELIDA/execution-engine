@@ -32,7 +32,7 @@ class TestRecommendation36aPeep(TestRecommendationBase):
 
         Required to allow different versions of the recommendation package to be tested.
         """
-        return "v1.2.1"
+        return "latest"
 
     @pytest.fixture
     def population_intervention(self) -> dict:
