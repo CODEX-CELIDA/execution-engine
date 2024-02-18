@@ -49,7 +49,7 @@ from execution_engine.omop.criterion.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 
 
-class FhirParser:
+class FhirToRecommendationFactory:
     """
     A class for parsing FHIR resources into OMOP cohort objects.
 

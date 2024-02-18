@@ -8,7 +8,9 @@ from sqlalchemy import and_, insert, select
 
 from execution_engine import __version__
 from execution_engine.clients import fhir_client, omopdb
-from execution_engine.converter.parser import FhirParser
+from execution_engine.converter.recommendation_factory import (
+    FhirToRecommendationFactory,
+)
 from execution_engine.omop import cohort
 from execution_engine.omop.cohort import PopulationInterventionPair
 from execution_engine.omop.criterion.abstract import Criterion
@@ -86,7 +88,7 @@ class ExecutionEngine:
                 )
                 return recommendation
 
-        recommendation = FhirParser().parse_recommendation_from_url(
+        recommendation = FhirToRecommendationFactory().parse_recommendation_from_url(
             url=recommendation_url,
             package_version=recommendation_package_version,
             fhir_client=self._fhir,
