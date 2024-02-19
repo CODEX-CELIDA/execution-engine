@@ -15,13 +15,13 @@ from execution_engine.converter.characteristic.combination import (
 )
 from execution_engine.converter.converter import CriterionConverter
 from execution_engine.converter.goal.abstract import Goal
-from execution_engine.converter.parser.base import FhirParserInterface
+from execution_engine.converter.parser.base import FhirRecommendationParserInterface
 from execution_engine.fhir_omop_mapping import ActionSelectionBehavior
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination import CriterionCombination
 
 
-class FhirParserV1(FhirParserInterface):
+class FhirRecommendationParserV1(FhirRecommendationParserInterface):
     """
     Parses a recommendation in CPG-on-EBMonFHIR format before version v0.8.
 

@@ -1,5 +1,5 @@
 from execution_engine import fhir
-from execution_engine.converter.parser.factory import FhirParserFactory
+from execution_engine.converter.parser.factory import FhirRecommendationParserFactory
 from execution_engine.fhir.client import FHIRClient
 from execution_engine.fhir_omop_mapping import characteristic_to_criterion
 from execution_engine.omop import cohort
@@ -39,7 +39,7 @@ class FhirToRecommendationFactory:
             ValueError: If an action within a recommendation plan is None, indicating incomplete or invalid data.
         """
 
-        parser = FhirParserFactory().get_parser(package_version)
+        parser = FhirRecommendationParserFactory().get_parser(package_version)
 
         rec = fhir.Recommendation(
             url,

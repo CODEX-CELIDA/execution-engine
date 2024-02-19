@@ -31,7 +31,7 @@ from execution_engine.converter.goal.ventilator_management import (
 from execution_engine.omop.criterion.combination import CriterionCombination
 
 
-class FhirParserInterface(ABC):
+class FhirRecommendationParserInterface(ABC):
     """Define a common interface for all FHIR parsers."""
 
     @staticmethod

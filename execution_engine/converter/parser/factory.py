@@ -1,20 +1,20 @@
-from execution_engine.converter.parser.base import FhirParserInterface
-from execution_engine.converter.parser.fhir_parser_v1 import FhirParserV1
-from execution_engine.converter.parser.fhir_parser_v2 import FhirParserV2
+from execution_engine.converter.parser.base import FhirRecommendationParserInterface
+from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
+from execution_engine.converter.parser.fhir_parser_v2 import FhirRecommendationParserV2
 from execution_engine.util import version
 
 
-class FhirParserFactory:
+class FhirRecommendationParserFactory:
     """Factory to instantiate the correct FhirParser based on the version string."""
 
     @staticmethod
-    def get_parser(version_str: str) -> FhirParserInterface:
+    def get_parser(version_str: str) -> FhirRecommendationParserInterface:
         """
         Return the correct FhirParser based on the version string.
         """
         version_map = {
-            "1": FhirParserV1,
-            "2": FhirParserV2,
+            "1": FhirRecommendationParserV1,
+            "2": FhirRecommendationParserV2,
         }
 
         if version.is_version_below(version_str, "1.4"):

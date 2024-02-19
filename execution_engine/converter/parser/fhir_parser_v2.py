@@ -4,11 +4,11 @@ from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction
 from execution_engine import constants
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.converter import get_extension_by_url
-from execution_engine.converter.parser.fhir_parser_v1 import FhirParserV1
+from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
 from execution_engine.omop.criterion.combination import CriterionCombination
 
 
-class FhirParserV2(FhirParserV1):
+class FhirRecommendationParserV2(FhirRecommendationParserV1):
     """
     Parses a recommendation in CPG-on-EBMonFHIR format with version >= v0.8.
 
