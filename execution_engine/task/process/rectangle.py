@@ -463,7 +463,7 @@ def filter_count_intervals(
     data: PersonIntervalsWithCount,
     min_count: int | None,
     max_count: int | None,
-    type_: IntervalType,
+    keep_no_data: bool = True,
 ) -> PersonIntervals:
     """
     Filters the intervals per dict key in the list by count.
@@ -471,11 +471,15 @@ def filter_count_intervals(
     :param data: A list of dict of intervals.
     :param min_count: The minimum count of the intervals.
     :param max_count: The maximum count of the intervals.
-    :param type_: The type of the intervals.
+    :param keep_no_data: Whether to keep NO_DATA intervals (irrespective of the count).
     :return: A dict with the unioned intervals.
     """
 
     result: PersonIntervals = {}
+
+    interval_filter = []
+    if keep_no_data:
+        interval_filter.append(IntervalType.NO_DATA)
 
     if min_count is None and max_count is None:
         raise ValueError("min_count and max_count cannot both be None")
@@ -484,21 +488,22 @@ def filter_count_intervals(
             result[person_id] = [
                 Interval(interval.lower, interval.upper, interval.type)
                 for interval in data[person_id]
-                if min_count <= interval.count <= max_count and interval.type == type_
+                if min_count <= interval.count <= max_count
+                or interval.type in interval_filter
             ]
     elif min_count is not None:
         for person_id in data:
             result[person_id] = [
                 Interval(interval.lower, interval.upper, interval.type)
                 for interval in data[person_id]
-                if min_count <= interval.count and interval.type == type_
+                if min_count <= interval.count or interval.type in interval_filter
             ]
     elif max_count is not None:
         for person_id in data:
             result[person_id] = [
                 Interval(interval.lower, interval.upper, interval.type)
                 for interval in data[person_id]
-                if interval.count <= max_count and interval.type == type_
+                if interval.count <= max_count or interval.type in interval_filter
             ]
 
     return result
