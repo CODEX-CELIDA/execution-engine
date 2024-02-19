@@ -188,6 +188,10 @@ def elementwise_or(s1, s2):
     return s1.combine(s2, lambda x, y: x | y)
 
 
+def elementwise_add(s1, s2):
+    return s1.combine(s2, lambda x, y: x + y)
+
+
 def elementwise_not(s1):
     return s1.map(lambda x: ~x)
 
@@ -204,6 +208,20 @@ def combine_dataframe_via_logical_expression(
             return reduce(elementwise_or, map(eval_expr, expr.args))
         elif isinstance(expr, sympy.Not):
             return elementwise_not(eval_expr(expr.args[0]))
+        elif isinstance(expr, sympy.Equality):
+            expr, value = expr.args[0], int(expr.args[1])
+            if isinstance(expr, sympy.Add):
+                return (
+                    reduce(
+                        elementwise_add,
+                        map(
+                            lambda col: df[str(col)].astype(bool).astype(int), expr.args
+                        ),
+                    )
+                    == value
+                )
+            else:
+                raise ValueError(f"Unsupported expression: {expr}")
         else:
             raise ValueError(f"Unsupported expression: {expr}")
 
@@ -495,6 +513,7 @@ class TestRecommendationBase(ABC):
 
     @staticmethod
     def extract_criteria(population_intervention) -> list[tuple[str, str]]:
+        # first extract criteria names and modifies (>,=,<) using a regex
         criteria: list[tuple[str, str]] = sum(
             [
                 re.findall(
@@ -506,7 +525,18 @@ class TestRecommendationBase(ABC):
             [],
         )
 
+        # then extract actual symbols from the relationship using sympy - here we need to remove the '<', '>', '='
+        clean = str.maketrans({"<": None, ">": None, "=": None})
+
+        valid_criteria = []
+        for plan in population_intervention.values():
+            for eq in plan.values():
+                symbols = sympy.parse_expr(eq.translate(clean))
+                valid_criteria += [str(s) for s in symbols.free_symbols]
+
+        # remove duplicates and select actual criteria names (the regex also captures sympy functions such as Eq)
         unique_criteria = list(dict.fromkeys(criteria))  # order preserving
+        unique_criteria = [c for c in unique_criteria if c[0] in valid_criteria]
 
         return unique_criteria
 
@@ -573,6 +603,18 @@ class TestRecommendationBase(ABC):
             df[f"i_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["intervention"])
             )
+
+            # expressions like "Eq(a+b+c, 1)" (at least one criterion) yield boolean columns and must
+            # be converted to IntervalType
+            if df[f"p_{group_name}"].dtype == bool:
+                df[f"p_{group_name}"] = df[f"p_{group_name}"].map(
+                    {False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE}
+                )
+
+            if df[f"i_{group_name}"].dtype == bool:
+                df[f"i_{group_name}"] = df[f"i_{group_name}"].map(
+                    {False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE}
+                )
 
             if "population_intervention" in group:
                 df[f"p_i_{group_name}"] = combine_dataframe_via_logical_expression(
