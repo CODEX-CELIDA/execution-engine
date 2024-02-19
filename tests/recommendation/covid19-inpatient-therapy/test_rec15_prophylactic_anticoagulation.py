@@ -9,7 +9,14 @@ from execution_engine.util.types import TimeRange
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 
 
-class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
+class TestRecommendation15ProphylacticAnticoagulation_v1_3(TestRecommendationBase):
+    """
+    Test the recommendation for prophylactic anticoagulation.
+
+    This class tests the v1.3 version of the recommendation 15 that only checks for the existence
+    of one or more prophylactic drugs.
+    """
+
     @pytest.fixture
     def recommendation_url(self) -> str:
         base_url = (
@@ -62,9 +69,14 @@ class TestRecommendation15ProphylacticAnticoagulation(TestRecommendationBase):
         )
 
 
-class TestRecommendation15ProphylacticAnticoagulationOldVersionWithThrombosis(
-    TestRecommendationBase
-):
+class TestRecommendation15ProphylacticAnticoagulation_v1_2(TestRecommendationBase):
+    """
+    Test the recommendation for prophylactic anticoagulation with thrombosis.
+
+    This class tests the v1.2 version of the recommendation 15 that includes thrombosis as a
+    population criterion.
+    """
+
     @pytest.fixture
     def recommendation_url(self) -> str:
         base_url = (

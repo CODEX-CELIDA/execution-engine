@@ -56,7 +56,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
         action_def: RecommendationPlan.Action,
     ) -> bool:
         """Checks if the given FHIR definition is a valid action in the context of CPG-on-EBM-on-FHIR."""
-        cc = get_coding(action_def.action.code)
+        cc = get_coding(action_def.fhir().code)
         return (
             cls._concept_vocabulary.is_system(cc.system)
             and cc.code == cls._concept_code

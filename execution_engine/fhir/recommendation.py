@@ -1,19 +1,16 @@
 import logging
 
+import fhir
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
 )
-from fhir.resources.plandefinition import (
-    PlanDefinition,
-    PlanDefinitionAction,
-    PlanDefinitionGoal,
-)
+from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionGoal
 
-from ..constants import CS_PLAN_DEFINITION_TYPE, EXT_CPG_PARTOF
-from .client import FHIRClient
-from .util import get_coding, get_extension
+from execution_engine.constants import CS_PLAN_DEFINITION_TYPE, EXT_CPG_PARTOF
+from execution_engine.fhir.client import FHIRClient
+from execution_engine.fhir.util import get_coding, get_extension
 
 
 class Recommendation:
@@ -176,14 +173,18 @@ class RecommendationPlan:
 
         def __init__(
             self,
-            action_def: PlanDefinitionAction,
-            goals: list[PlanDefinitionGoal],
+            action_def: fhir.resources.plandefinition.PlanDefinitionAction,
+            parent_plan: fhir.resources.plandefinition.PlanDefinition,
             package_version: str,
             fhir_connector: FHIRClient,
         ) -> None:
             """Create a new action from a FHIR PlanDefinition.action."""
-            self._action: PlanDefinitionAction = action_def
-            self._activity: ActivityDefinition | None = None
+            self._action: fhir.resources.plandefinition.PlanDefinitionAction = (
+                action_def
+            )
+            self._activity: fhir.resources.activitydefinition.ActivityDefinition | None = (
+                None
+            )
             self._package_version = package_version
 
             # an action must not necessarily contain an activity definition (e.g. ventilator management)
@@ -197,20 +198,39 @@ class RecommendationPlan:
             if action_def.goalId is None:
                 self._goals = []
             else:
-                self._goals = [g for g in goals if g.id in action_def.goalId]
+                self._goals = [g for g in parent_plan.goal if g.id in action_def.goalId]
 
-        @property
-        def action(self) -> PlanDefinitionAction:
+            if action_def.action is not None:
+                self._nested_actions = [
+                    RecommendationPlan.Action(
+                        nested_action_def,
+                        parent_plan=parent_plan,
+                        package_version=self._package_version,
+                        fhir_connector=fhir_connector,
+                    )
+                    for nested_action_def in action_def.action
+                ]
+            else:
+                self._nested_actions = []
+
+        def fhir(self) -> fhir.resources.plandefinition.PlanDefinitionAction:
             """Get the FHIR PlanDefinition.action."""
             return self._action
 
         @property
-        def activity(self) -> ActivityDefinition | None:
+        def nested_actions(self) -> list["RecommendationPlan.Action"]:
+            """Get the nested actions."""
+            return self._nested_actions
+
+        @property
+        def activity_definition_fhir(self) -> ActivityDefinition | None:
             """Get the ActivityDefinition for this action."""
             return self._activity
 
         @property
-        def goals(self) -> list[PlanDefinitionGoal]:
+        def goals_fhir(
+            self,
+        ) -> list[PlanDefinitionGoal]:
             """Get the goals for this action."""
             return self._goals
 
@@ -219,7 +239,7 @@ class RecommendationPlan:
     ):
         self.canonical_url = canonical_url
         self._package_version = package_version
-        self.fhir = fhir_connector
+        self._fhir_connector = fhir_connector
 
         self._recommendation: PlanDefinition | None = None
         self._population: EvidenceVariable | None = None
@@ -235,7 +255,7 @@ class RecommendationPlan:
 
         plan_def = self.fetch_recommendation_plan(self.canonical_url)
 
-        ev = self.fhir.fetch_resource(
+        ev = self._fhir_connector.fetch_resource(
             "EvidenceVariable", plan_def.subjectCanonical, self._package_version
         )
 
@@ -244,9 +264,9 @@ class RecommendationPlan:
         self._actions = [
             RecommendationPlan.Action(
                 action,
-                goals=plan_def.goal,
+                parent_plan=plan_def,
                 package_version=self._package_version,
-                fhir_connector=self.fhir,
+                fhir_connector=self._fhir_connector,
             )
             for action in plan_def.action
         ]
@@ -266,7 +286,7 @@ class RecommendationPlan:
         :param canonical_url: Canonical URL of the recommendation
         :return: FHIR PlanDefinition
         """
-        rec = self.fhir.fetch_resource(
+        rec = self._fhir_connector.fetch_resource(
             "PlanDefinition", canonical_url, self._package_version
         )
         cc = get_coding(rec.type, CS_PLAN_DEFINITION_TYPE)
@@ -300,25 +320,31 @@ class RecommendationPlan:
         return self._recommendation.url
 
     @property
-    def population(self) -> EvidenceVariable:
+    def population(self) -> fhir.resources.evidencevariable.EvidenceVariable:
         """
         The population for the recommendation.
         """
         return self._population
 
     @property
-    def actions(self) -> list[Action]:
+    def actions(self) -> list["RecommendationPlan.Action"]:
         """
         The actions for the recommendation.
         """
         return self._actions
 
     @property
-    def goals(self) -> list[PlanDefinitionGoal]:
+    def goals(self) -> list[fhir.resources.plandefinition.PlanDefinitionGoal]:
         """
         The actions for the recommendation.
         """
         return self._goals
+
+    def fhir(self) -> fhir.resources.plandefinition.PlanDefinition:
+        """
+        Get the FHIR PlanDefinition for this recommendation plan.
+        """
+        return self._recommendation
 
     @staticmethod
     def is_combination_definition(

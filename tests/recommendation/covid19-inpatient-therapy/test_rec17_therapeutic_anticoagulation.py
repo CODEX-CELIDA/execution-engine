@@ -60,9 +60,14 @@ class TestRecommendation17TherapeuticAnticoagulation(TestRecommendationBase):
 
 
 @pytest.mark.recommendation
-class TestRecommendation17TherapeuticAnticoagulationOldVersionWithThrombosis(
-    TestRecommendationBase
-):
+class TestRecommendation17TherapeuticAnticoagulation_v1_2(TestRecommendationBase):
+    """
+    Test the recommendation for therapeutic anticoagulation with thrombosis.
+
+    This class tests the "old" version of the recommendation 17 (<= 1.2) that includes thrombosis as a
+    population criterion.
+    """
+
     @pytest.fixture
     def recommendation_url(self) -> str:
         base_url = (

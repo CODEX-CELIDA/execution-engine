@@ -19,13 +19,13 @@ class VentilatorManagementAction(AbstractAction):
     @classmethod
     def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
         """Creates a new action from a FHIR PlanDefinition."""
-        if action_def.activity is not None:
+        if action_def.activity_definition_fhir is not None:
             raise ValueError("VentilatorManagementAction does not support activity")
 
-        assert action_def.goals, "VentilatorManagementAction must have goals"
+        assert action_def.goals_fhir, "VentilatorManagementAction must have goals"
 
         # only using first goal for name
-        goal = action_def.goals[0]
+        goal = action_def.goals_fhir[0]
 
         try:
             name = parse_code(goal.target[0].measure).concept_name
