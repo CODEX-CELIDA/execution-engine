@@ -13,14 +13,17 @@ class FhirRecommendationParserFactory:
         Return the correct FhirParser based on the version string.
         """
         version_map = {
-            "1": FhirRecommendationParserV1,
-            "2": FhirRecommendationParserV2,
+            "1.3": FhirRecommendationParserV1,
+            "1.4": FhirRecommendationParserV2,
+            "latest": FhirRecommendationParserV2,
         }
 
-        if version.is_version_below(version_str, "1.4"):
-            version_str = "1"
+        if version_str in version_map:
+            pass
+        elif version.is_version_below(version_str, "1.4"):
+            version_str = "1.3"
         else:
-            version_str = "2"
+            version_str = "1.4"
 
         parser_class = version_map.get(version_str)
 

@@ -69,6 +69,12 @@ PULMONARY_EMBOLISM = CriterionDefinition(
 ARDS = CriterionDefinition(
     name="ARDS", type="condition", static=True, concept_id=concepts.ARDS
 )
+ATRIAL_FIBRILLATION = CriterionDefinition(
+    name="ATRIAL_FIBRILLATION",
+    type="condition",
+    static=True,
+    concept_id=concepts.ATRIAL_FIBRILLATION,
+)
 
 WEIGHT = CriterionDefinition(
     name="WEIGHT",
@@ -162,6 +168,17 @@ FONDAPARINUX_THERAPEUTIC = CriterionDefinition(
     concept_id=concepts.FONDAPARINUX,
     route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
 )
+
+HEPARIN_SUBCUTANEOUS = CriterionDefinition(
+    name="HEPARIN",
+    type="drug",
+    dosage=7500,
+    doses_per_day=2,
+    static=False,
+    concept_id=concepts.HEPARIN,
+    route_concept_id=concepts.ROUTE_SUBCUTANEOUS,
+)
+
 HEPARIN = CriterionDefinition(
     name="HEPARIN",
     type="drug",

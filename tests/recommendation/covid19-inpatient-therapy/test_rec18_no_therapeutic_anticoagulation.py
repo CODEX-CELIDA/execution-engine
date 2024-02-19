@@ -29,13 +29,13 @@ class TestRecommendation18NoTherapeuticAnticoagulation(TestRecommendationBase):
 
         Required to allow different versions of the recommendation package to be tested.
         """
-        return "v1.3.1"
+        return "latest"
 
     @pytest.fixture
     def population_intervention(self) -> dict:
         return {
             "Anticoagulation_Plan_No_Specific_Indication": {
-                "population": "COVID19 & ICU & ~PULMONARY_EMBOLISM & ~VENOUS_THROMBOSIS",
+                "population": "COVID19 & ICU & ~PULMONARY_EMBOLISM & ~VENOUS_THROMBOSIS & ~ATRIAL_FIBRILLATION",
                 "intervention": "~(DALTEPARIN> | ENOXAPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | CERTOPARIN> | (HEPARIN & APTT>) | (ARGATROBAN & APTT>))",
             },
         }
