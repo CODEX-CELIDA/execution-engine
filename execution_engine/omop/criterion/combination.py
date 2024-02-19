@@ -47,6 +47,15 @@ class CriterionCombination(AbstractCriterion):
             else:
                 return f"{self.operator}"
 
+        def __repr__(self) -> str:
+            """
+            Get the string representation of the operator.
+            """
+            if self.operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
+                return f'CriterionCombination.Operator("{self.operator}", threshold={self.threshold})'
+            else:
+                return f'CriterionCombination.Operator("{self.operator}")'
+
         def __eq__(self, other: object) -> bool:
             """
             Check if the operator is equal to another operator.
