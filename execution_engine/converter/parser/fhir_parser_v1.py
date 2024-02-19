@@ -105,7 +105,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                 if action_def.nested_actions:
                     # todo: make sure code is used correctly and we don't have a definition?
                     action_combination = action_to_combination(
-                        action_def.nested_actions, action_def.fhir()
+                        action_def.nested_actions, action_def
                     )
                     actions.append(action_combination)
                 else:

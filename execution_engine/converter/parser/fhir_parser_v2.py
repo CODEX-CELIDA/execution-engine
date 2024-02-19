@@ -5,6 +5,7 @@ from execution_engine import constants
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.converter import get_extension_by_url
 from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
+from execution_engine.fhir.util import get_coding
 from execution_engine.omop.criterion.combination import CriterionCombination
 
 
@@ -29,13 +30,10 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
         method: CodeableConcept = get_extension_by_url(
             ext, "method"
         ).valueCodeableConcept
-        if method.system != constants.CS_ACTION_COMBINATION_METHOD:
-            raise ValueError(f"Invalid action combination method: {method.system}")
-        if len(method.coding) != 1:
-            raise ValueError(
-                f"Expected exactly one coding in action combination method: {method.coding}"
-            )
-        method_code = method.coding[0].code
+
+        method_code = get_coding(
+            method, system_uri=constants.CS_ACTION_COMBINATION_METHOD
+        ).code
 
         try:
             threshold = get_extension_by_url(ext, "threshold").valuePositiveInt

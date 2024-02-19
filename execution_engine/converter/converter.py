@@ -35,7 +35,7 @@ def parse_code_value(
     code: CodeableConcept, value_parent: Element, value_prefix: str
 ) -> Tuple[Concept, Value]:
     """
-    Parses a code and value from a FHIR element.
+    Parses a code and value from a FHIR CodeableConcept into OMOP concepts and values.
     """
     return parse_code(code), parse_value(value_parent, value_prefix)
 
