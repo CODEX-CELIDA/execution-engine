@@ -232,44 +232,111 @@ def combine_dataframe_via_logical_expression(
 
 @pytest.mark.recommendation
 class TestRecommendationBase(ABC):
-    @pytest.fixture
-    def visit_datetime(self) -> TimeRange:
-        return TimeRange(
+    recommendation_base_url = (
+        "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
+    )
+    """
+    The base URL of the canonical addresses (URLs) of the FHIR recommendation instances.
+
+    Example:
+        "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
+    """
+
+    visit_datetime = TimeRange(
+        start="2023-03-01 07:00:00+01:00",
+        end="2023-03-31 22:00:00+01:00",
+        name="visit",
+    )
+    """
+    An instance of TimeRange that specifies the start and end datetimes of a patient's visit in the context of this
+    test.
+
+    Example:
+        TimeRange(
             start="2023-03-01 07:00:00+01:00",
             end="2023-03-31 22:00:00+01:00",
             name="visit",
         )
+    """
 
-    @pytest.fixture
-    def observation_window(self, visit_datetime: TimeRange) -> TimeRange:
-        return TimeRange(
+    observation_window = TimeRange(
+        start=visit_datetime.start - datetime.timedelta(days=3),
+        end=visit_datetime.end + datetime.timedelta(days=3),
+        name="observation",
+    )
+    """
+    An instance of TimeRange that defines the time windows that is used when evaluating guideline adherence. For
+    each day in the observation window, the guideline adherence is evaluated based on the data available on that day.
+
+    Example:
+        TimeRange(
             start=visit_datetime.start - datetime.timedelta(days=3),
             end=visit_datetime.end + datetime.timedelta(days=3),
             name="observation",
         )
+    """
 
-    @pytest.fixture
-    def recommendation_url(self) -> str:
-        raise NotImplementedError("Must be implemented by subclass")
+    recommendation_url = None
+    """
+    The URL or identifier of the Recommendation FHIR resource of the specific recommendation being considered.
+    It is appended to the `recommendation_base_url` to form the full URL of the recommendation.
 
-    @pytest.fixture
-    def population_intervention(self) -> dict:
-        raise NotImplementedError("Must be implemented by subclass")
+    Example:
+        "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
+    """
 
-    @pytest.fixture
-    def invalid_combinations(self, population_intervention) -> str:
-        return ""
+    recommendation_expression = None
+    """
+    The symbolic expression of the recommendation, specifying the population and intervention criteria.
 
-    @pytest.fixture
-    def person_combinations(
-        self, unique_criteria: set[str], run_slow_tests: bool, invalid_combinations: str
+    Each key in the dictionary is a population-intervention pair identifier, and its value is another dictionary
+    specifying the population criteria (key="population") and the intervention criteria (key="intervention").
+
+    The 'population' key defines the eligibility criteria for the recommendation, using logical
+    expressions to include or exclude certain conditions.
+
+    The 'intervention' key defines the specific actions or treatments recommended, also using
+    logical expressions to specify combinations or exclusions of treatments.
+
+    Example:
+        {
+            "AntithromboticProphylaxisWithLWMH": {
+                "population": "COVID19 & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
+                "intervention": "..."
+            },
+            ...
+        }
+    """
+
+    recommendation_package_version = None
+    """
+    The version of the recommendation FHIR package being used.Required to allow different versions of the
+    recommendation package to be tested.
+
+    Example:
+        "v1.4.0-snapshot"
+    """
+
+    invalid_combinations = ""
+    """
+    A logical expression representing combinations of criteria that are considered invalid or
+    contradictory within the context of the recommendation. This string is used to filter out
+    or prevent the application of the recommendation in scenarios where these invalid combinations
+    are present.
+
+    Example:
+        "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
+    """
+
+    def generate_criteria_combinations(
+        self, criteria_names: set[str], run_slow_tests: bool
     ) -> pd.DataFrame:
-        df = generate_binary_combinations_dataframe(list(unique_criteria))
+        df = generate_binary_combinations_dataframe(list(criteria_names))
 
         # Remove invalid combinations
-        if invalid_combinations:
+        if self.invalid_combinations:
             idx_invalid = combine_dataframe_via_logical_expression(
-                df, invalid_combinations
+                df, self.invalid_combinations
             )
             df = df[~idx_invalid].copy()
 
@@ -278,19 +345,14 @@ class TestRecommendationBase(ABC):
 
         return df
 
-    @pytest.fixture
-    def criteria(
+    def generate_criterion_entries_from_criteria(
         self,
-        person_combinations: pd.DataFrame,
-        visit_datetime: TimeRange,
-        population_intervention: dict,
+        df_criteria_combinations: pd.DataFrame,
     ):
         entries = []
 
-        for person_id, row in person_combinations.iterrows():
-            for criterion_name, comparator in self.extract_criteria(
-                population_intervention
-            ):
+        for person_id, row in df_criteria_combinations.iterrows():
+            for criterion_name, comparator in self.get_criteria_names():
                 criterion: parameter.CriterionDefinition = getattr(
                     parameter, criterion_name
                 )
@@ -317,8 +379,8 @@ class TestRecommendationBase(ABC):
                 }
 
                 if criterion.type == "condition":
-                    entry["start_datetime"] = visit_datetime.start
-                    entry["end_datetime"] = visit_datetime.end
+                    entry["start_datetime"] = self.visit_datetime.start
+                    entry["end_datetime"] = self.visit_datetime.end
                 elif criterion.type == "observation":
                     entry["start_datetime"] = pendulum.parse(
                         "2023-03-15 12:00:00+01:00"
@@ -394,7 +456,7 @@ class TestRecommendationBase(ABC):
                     "concept": "WEIGHT",
                     "concept_id": concepts.BODY_WEIGHT,
                     "start_datetime": datetime.datetime.combine(
-                        visit_datetime.start.date(), datetime.time()
+                        self.visit_datetime.start.date(), datetime.time()
                     )
                     + datetime.timedelta(days=1),
                     "value": 71 if row["NADROPARIN_HIGH_WEIGHT"] else 69,
@@ -434,9 +496,8 @@ class TestRecommendationBase(ABC):
 
         return pd.DataFrame(entries)
 
-    @pytest.fixture
-    def insert_criteria(self, db_session, criteria, visit_datetime):
-        for person_id, g in criteria.groupby("person_id"):
+    def insert_criteria_into_database(self, db_session, df_entries: pd.DataFrame):
+        for person_id, g in df_entries.groupby("person_id"):
             p = Person(
                 person_id=person_id,
                 gender_concept_id=concepts.GENDER_FEMALE,
@@ -448,8 +509,8 @@ class TestRecommendationBase(ABC):
             )
             vo = create_visit(
                 person_id=p.person_id,
-                visit_start_datetime=visit_datetime.start,
-                visit_end_datetime=visit_datetime.end,
+                visit_start_datetime=self.visit_datetime.start,
+                visit_end_datetime=self.visit_datetime.end,
                 visit_concept_id=concepts.INPATIENT_VISIT,
             )
 
@@ -511,8 +572,7 @@ class TestRecommendationBase(ABC):
     def _insert_criteria_hook(self, person_entries, entry, row):
         pass
 
-    @staticmethod
-    def extract_criteria(population_intervention) -> list[tuple[str, str]]:
+    def get_criteria_names(self) -> list[tuple[str, str]]:
         # first extract criteria names and modifies (>,=,<) using a regex
         criteria: list[tuple[str, str]] = sum(
             [
@@ -520,7 +580,7 @@ class TestRecommendationBase(ABC):
                     r"(\b\w+\b)([<=>]?)",
                     plan["population"] + " " + plan["intervention"],
                 )
-                for plan in population_intervention.values()
+                for plan in self.recommendation_expression.values()
             ],
             [],
         )
@@ -529,8 +589,10 @@ class TestRecommendationBase(ABC):
         clean = str.maketrans({"<": None, ">": None, "=": None})
 
         valid_criteria = []
-        for plan in population_intervention.values():
+        for plan in self.recommendation_expression.values():
             for eq in plan.values():
+                # print(eq)
+                # print(eq.translate(clean))
                 symbols = sympy.parse_expr(eq.translate(clean))
                 valid_criteria += [str(s) for s in symbols.free_symbols]
 
@@ -540,53 +602,47 @@ class TestRecommendationBase(ABC):
 
         return unique_criteria
 
-    @pytest.fixture
-    def unique_criteria(self, population_intervention) -> list[str]:
-        names = [c[0] for c in self.extract_criteria(population_intervention)]
+    def unique_criteria_names(self) -> list[str]:
+        names = [c[0] for c in self.get_criteria_names()]
         return list(dict.fromkeys(names))  # order preserving
 
     def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
         return df
 
-    @pytest.fixture
-    def criteria_extended(
+    def assemble_daily_recommendation_evaluation(
         self,
-        insert_criteria: dict,
-        criteria: pd.DataFrame,
-        unique_criteria: set[tuple[str, str]],
-        population_intervention: dict[str, dict],
-        visit_datetime: TimeRange,
-        observation_window: TimeRange,
+        df_entries: pd.DataFrame,
+        criteria_names,
     ) -> pd.DataFrame:
         def remove_comparators(s):
             return s.translate(str.maketrans("", "", "<>="))
 
-        idx_static = criteria["static"]
-        criteria.loc[idx_static, "start_datetime"] = observation_window.start
-        criteria.loc[idx_static, "end_datetime"] = observation_window.end
+        idx_static = df_entries["static"]
+        df_entries.loc[idx_static, "start_datetime"] = self.observation_window.start
+        df_entries.loc[idx_static, "end_datetime"] = self.observation_window.end
 
-        df = self.expand_dataframe_by_date(
-            criteria[
+        df = self.expand_dataframe_to_daily_observations(
+            df_entries[
                 ["person_id", "concept", "start_datetime", "end_datetime", "type"]
             ],
-            observation_window=observation_window,
+            observation_window=self.observation_window,
         )
 
         # the base criterion is the visit, all other criteria are AND-combined with the base criterion
-        df_base = self.expand_dataframe_by_date(
+        df_base = self.expand_dataframe_to_daily_observations(
             pd.DataFrame(
                 {
-                    "person_id": criteria["person_id"].unique(),
-                    "start_datetime": visit_datetime.start,
-                    "end_datetime": visit_datetime.end,
+                    "person_id": df_entries["person_id"].unique(),
+                    "start_datetime": self.visit_datetime.start,
+                    "end_datetime": self.visit_datetime.end,
                     "concept": "BASE",
                     "type": "visit",
                 }
             ),
-            observation_window,
+            self.observation_window,
         )
 
-        for c in unique_criteria:
+        for c in criteria_names:
             if c not in df.columns:
                 criterion = getattr(parameter, c)
                 if criterion.missing_data_type is not None:
@@ -596,7 +652,7 @@ class TestRecommendationBase(ABC):
 
         df = self._modify_criteria_hook(df)
 
-        for group_name, group in population_intervention.items():
+        for group_name, group in self.recommendation_expression.items():
             df[f"p_{group_name}"] = combine_dataframe_via_logical_expression(
                 df, remove_comparators(group["population"])
             )
@@ -658,12 +714,28 @@ class TestRecommendationBase(ABC):
         return df.reset_index()
 
     @staticmethod
-    def expand_dataframe_by_date(
+    def expand_dataframe_to_daily_observations(
         df: pd.DataFrame, observation_window: TimeRange
     ) -> pd.DataFrame:
         """
-        Expand a dataframe with one row per person and one column per concept to a dataframe with one row per person and
-        per day and one column per concept between `observation_start_date` and `observation_end_date`.
+        Expands a DataFrame to detail daily observations for each person within a specified observation window.
+
+        This function transforms an input DataFrame, which contains one row per person and one column per concept, into
+        an expanded DataFrame where each row corresponds to a single day's observation of a person for the specified
+        time range. The expansion is based on the `observation_window`, which defines the start and end dates for the
+        observations.
+
+        Parameters:
+            df (pd.DataFrame): The input DataFrame with columns indicating different concepts and rows representing
+                               individual observations per person.
+            observation_window (TimeRange): An object with `start` and `end` attributes specifying the date range for
+                                            which to expand the observations.
+
+        Returns:
+            pd.DataFrame: An expanded DataFrame where each row represents an observation for a person on a specific day
+                          within the observation window. The DataFrame's columns correspond to the original concepts,
+                          expanded to indicate the presence or absence of each concept per person per day.
+
         """
         df = df.copy()
 
@@ -746,29 +818,56 @@ class TestRecommendationBase(ABC):
 
         return output_df
 
-    @staticmethod
+    @pytest.fixture(scope="function", autouse=True)
+    def setup_testdata(self, db_session, run_slow_tests):
+        # criteria_names = self.get_criteria_names()
+        unique_criteria_names = self.unique_criteria_names()
+
+        # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
+        #   rows = persons, columns = criteria
+        # df_combinations = self.generate_criteria_combinations(criteria_names, run_slow_tests=run_slow_tests)
+        df_combinations = self.generate_criteria_combinations(
+            unique_criteria_names, run_slow_tests=run_slow_tests
+        )
+
+        # df_criterion_entries is dataframe with all criteria that are to be added to the database
+        #   rows = single actual criteria (with date, value etc.)
+        #   columns = person_id, type, concept, start_datetime, end_datetime, value
+        df_criterion_entries = self.generate_criterion_entries_from_criteria(
+            df_combinations
+        )
+
+        self.insert_criteria_into_database(db_session, df_criterion_entries)
+
+        # df_result = self.assemble_daily_recommendation_evaluation(df_criterion_entries, criteria_names)
+        df_result = self.assemble_daily_recommendation_evaluation(
+            df_criterion_entries, unique_criteria_names
+        )
+
+        yield df_result
+
     def recommendation_test_runner(
-        recommendation_url: str,
-        observation_window: TimeRange,
-        criteria_extended: pd.DataFrame,
-        recommendation_package_version: str,
+        self,
+        df_expected: pd.DataFrame,
     ) -> None:
         from execution_engine.clients import omopdb
         from execution_engine.execution_engine import ExecutionEngine
 
         e = ExecutionEngine(verbose=False)
 
+        recommendation_url = self.recommendation_base_url + self.recommendation_url
+
         print(recommendation_url)
         recommendation = e.load_recommendation(
             recommendation_url,
-            recommendation_package_version=recommendation_package_version,
+            recommendation_package_version=self.recommendation_package_version,
             force_reload=False,
         )
 
         e.execute(
             recommendation,
-            start_datetime=observation_window.start,
-            end_datetime=observation_window.end,
+            start_datetime=self.observation_window.start,
+            end_datetime=self.observation_window.end,
         )
 
         def get_query(t, category):
@@ -836,7 +935,7 @@ class TestRecommendationBase(ABC):
         df_result = process_result(df_result)
 
         result_expected = RecommendationCriteriaCombination(
-            name="expected", df=criteria_extended
+            name="expected", df=df_expected
         )
         result_db = result_expected.derive_database_result(df=df_result)
 
