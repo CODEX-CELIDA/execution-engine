@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
@@ -11,6 +11,13 @@ class BaseExpr(ABC):
     """
 
     args: tuple
+
+    @classmethod
+    def _recreate(cls, args: Any, kwargs: dict) -> "Expr":
+        """
+        Recreate an expression from its arguments and category.
+        """
+        return cast(Expr, cls(*args, **kwargs))
 
     def __new__(cls, *args: Any, **kwargs: Any) -> "BaseExpr":
         """
@@ -66,6 +73,16 @@ class Expr(BaseExpr):
     """
 
     category: CohortCategory
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (self._recreate, (self.args, {"category": self.category}))
 
     def __new__(cls, *args: Any, category: CohortCategory) -> "Expr":
         """
@@ -128,6 +145,16 @@ class Symbol(BaseExpr):
     """
 
     criterion: Criterion
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (self._recreate, (self.args, {"criterion": self.criterion}))
 
     def __new__(cls, criterion: Criterion) -> "Symbol":
         """
@@ -301,15 +328,30 @@ class Not(BooleanFunction):
         return cast(Not, super().__new__(cls, *args, **kwargs))
 
 
-class Count(BooleanFunction):
+class Count(BooleanFunction, ABC):
     """
     Class representing a logical COUNT operation.
 
     Adds a "threshold" parameter of type int.
+
+    This class should not be instantiated directly, but rather through one of its subclasses.
     """
 
     count_min: int | None = None
     count_max: int | None = None
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (self.args, {"category": self.category, "threshold": self.count_min}),
+        )
 
 
 class MinCount(Count):
