@@ -21,7 +21,7 @@ class TestRecommendation18NoTherapeuticAnticoagulation(TestRecommendationBase):
         },
     }
 
-    invalid_combinations = "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
+    invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
 
     def test_recommendation_18_no_therapeutic_anticoagulation(
         self, setup_testdata

@@ -1,5 +1,3 @@
-import pytest
-
 from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
     Base,
     metadata,
@@ -7,7 +5,6 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 
 
-@pytest.mark.skip
 class TestRecommendation15ProphylacticAnticoagulation_v1_4(TestRecommendationBase):
     """
     Test the recommendation for prophylactic anticoagulation.
@@ -26,7 +23,7 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_4(TestRecommendationBas
             "intervention": "Eq("
             "DALTEPARIN= + ENOXAPARIN= + NADROPARIN_LOW_WEIGHT= + NADROPARIN_HIGH_WEIGHT= + CERTOPARIN= + TINZAPARIN= + HEPARIN_SUBCUTANEOUS=, "
             "1) & "
-            "~(DALTEPARIN> | ENOXAPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | CERTOPARIN> | HEPARIN | ARGATROBAN)",
+            "~(DALTEPARIN> | ENOXAPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | CERTOPARIN> | HEPARIN= | ARGATROBAN=)",
         },
         "AntithromboticProphylaxisWithFondaparinux": {
             "population": "COVID19 & (HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",

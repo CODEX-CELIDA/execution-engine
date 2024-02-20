@@ -62,11 +62,22 @@ class TestRecommendation36aPeep(TestRecommendationBase):
         },
     }
 
-    invalid_combinations = "(PEEP_18 & PEEP_14) | (PEEP_18 & PEEP_10) | (PEEP_18 & PEEP_8) | (PEEP_18 & PEEP_5) | (PEEP_14 & PEEP_10) | (PEEP_14 & PEEP_8) | (PEEP_14 & PEEP_5) | (PEEP_10 & PEEP_8) | (PEEP_10 & PEEP_5) | (PEEP_8 & PEEP_5)"
+    invalid_combinations = (
+        "(PEEP_18> & PEEP_14>) | "
+        "(PEEP_18> & PEEP_10>) | "
+        "(PEEP_18> & PEEP_8>) | "
+        "(PEEP_18> & PEEP_5>) | "
+        "(PEEP_14> & PEEP_10>) | "
+        "(PEEP_14> & PEEP_8>) | "
+        "(PEEP_14> & PEEP_5>) | "
+        "(PEEP_10> & PEEP_8>) | "
+        "(PEEP_10> & PEEP_5>) | "
+        "(PEEP_8> & PEEP_5>)"
+    )
 
     def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
         # NO_DATA FiO2 cols need to be set to "NEGATIVE", if any other FiO2 col is POSITIVE
-        cols = [c for c in df.columns if c.startswith("FiO2_")]
+        cols = [c for c in df.columns if c[0].startswith("FiO2_")]
         idx_any_positive = (df[cols] == IntervalType.POSITIVE).any(axis=1)
 
         for c in cols:

@@ -21,7 +21,7 @@ class TestRecommendation17TherapeuticAnticoagulation(TestRecommendationBase):
         },
     }
 
-    invalid_combinations = "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
+    invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
 
     def test_recommendation_17_therapeutic_anticoagulation(
         self, setup_testdata
@@ -49,7 +49,7 @@ class TestRecommendation17TherapeuticAnticoagulation_v1_2(TestRecommendationBase
             "intervention": "(HEPARIN & APTT>) | DALTEPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | ENOXAPARIN> | CERTOPARIN> | FONDAPARINUX_THERAPEUTIC= | (ARGATROBAN & APTT>)",
         },
     }
-    invalid_combinations = "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
+    invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
 
     def test_recommendation_17_therapeutic_anticoagulation(
         self, setup_testdata

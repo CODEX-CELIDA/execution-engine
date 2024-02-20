@@ -27,7 +27,7 @@ from execution_engine.util.types import PersonIntervals
 from tests._testdata import concepts
 
 
-def generate_binary_combinations_dataframe(keys: list[str]) -> pd.DataFrame:
+def generate_binary_combinations_dataframe(keys: list[tuple[str, str]]) -> pd.DataFrame:
     """
     Generate a pandas DataFrame with all possible combinations of binary factors
     """
@@ -36,7 +36,10 @@ def generate_binary_combinations_dataframe(keys: list[str]) -> pd.DataFrame:
     combinations = list(itertools.product(options, repeat=len(keys)))
 
     # Create a pandas DataFrame from the combinations
-    df = pd.DataFrame(combinations, columns=keys).astype(bool)
+    df = pd.DataFrame(
+        combinations,
+        columns=pd.MultiIndex.from_tuples(keys, names=["criterion", "comparator"]),
+    ).astype(bool)
 
     return df
 
