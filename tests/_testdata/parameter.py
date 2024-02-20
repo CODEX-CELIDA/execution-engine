@@ -188,6 +188,7 @@ HEPARIN = CriterionDefinition(
     concept_id=concepts.HEPARIN,
     route_concept_id=concepts.ROUTE_INTRAVENOUS,
 )
+
 ARGATROBAN = CriterionDefinition(
     name="ARGATROBAN",
     type="drug",

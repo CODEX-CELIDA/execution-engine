@@ -148,11 +148,17 @@ class RecommendationCriteriaCombination:
                     index=df1_subset.index, columns=df1_subset.columns, data=False
                 )
 
-            # Create a logical expression for "other" columns
-            logical_expression = " & ".join(
-                f"~{col}" if not val else col
-                for col, val in df1_subset[other_cols].any().items()
+            # Splitting and sorting the conditions
+            true_cols = sorted(
+                col for col, val in df1_subset[other_cols].any().items() if val
             )
+            false_cols = sorted(
+                col for col, val in df1_subset[other_cols].any().items() if not val
+            )
+
+            # Constructing the logical expressions
+            true_expression = " & ".join(true_cols)
+            false_expression = " & ".join(f"~{col}" for col in false_cols)
 
             mismatch_reported = False
             # Loop over each overlapping column
@@ -166,7 +172,11 @@ class RecommendationCriteriaCombination:
                 # If any mismatches exist, add a report for this column
                 if not mismatches.empty:
                     if not mismatch_reported:
-                        reports.append(f"person_id '{person_id}': {logical_expression}")
+                        person_id_str = f"person_id '{person_id}'"
+                        reports.append(f"{person_id_str} - TRUE:  {true_expression}")
+                        reports.append(
+                            f"{' ' * len(person_id_str)} - FALSE: {false_expression}"
+                        )
                         mismatch_reported = True
 
                     mismatch_reports = []
@@ -394,7 +404,7 @@ class TestRecommendationBase(ABC):
                 entry = {
                     "person_id": person_id,
                     "type": criterion.type,
-                    "concept": criterion.name,
+                    "concept": criterion_name,
                     "comparator": comparator,
                     "concept_id": criterion.concept_id,
                     "static": criterion.static,
@@ -888,7 +898,9 @@ class TestRecommendationBase(ABC):
             )
         ]
 
-        df_expanded.drop(["start_datetime", "end_datetime"], axis=1, inplace=True)
+        df_expanded.drop(
+            ["start_datetime", "end_datetime", "type"], axis=1, inplace=True
+        )
 
         # Pivot operation (remains the same if already efficient)
         df_pivot = df_expanded.pivot_table(
@@ -896,11 +908,7 @@ class TestRecommendationBase(ABC):
             columns=["concept", "comparator"],
             aggfunc=len,
             fill_value=0,
-            dropna=False,
         )
-
-        # Flatten the multi-level column index
-        df_pivot.columns = [col[1:3] for col in df_pivot.columns.values]
 
         # Reset index to make 'person_id' and 'date' regular columns
         df_pivot.reset_index(inplace=True)
@@ -913,8 +921,11 @@ class TestRecommendationBase(ABC):
         # Efficient merge with an auxiliary DataFrame
         aux_df = pd.DataFrame(
             itertools.product(df["person_id"].unique(), date_range),
-            columns=["person_id", "date"],
+            columns=pd.MultiIndex.from_tuples([("person_id", ""), ("date", "")]),
         )
+        df_pivot = df_pivot.sort_index(
+            axis=1
+        )  # Sort columns to avoid performance warning
         merged_df = pd.merge(aux_df, df_pivot, on=["person_id", "date"], how="left")
         merged_df.set_index(["person_id", "date"], inplace=True)
 
@@ -949,9 +960,11 @@ class TestRecommendationBase(ABC):
 
         self.insert_criteria_into_database(db_session, df_criterion_entries)
 
-        df_result = self.assemble_daily_recommendation_evaluation(df_criterion_entries)
+        df_expected = self.assemble_daily_recommendation_evaluation(
+            df_criterion_entries
+        )
 
-        yield df_result
+        yield df_expected
 
     def recommendation_test_runner(
         self,
