@@ -59,17 +59,8 @@ class RecommendationCriteriaCombination:
 
         # only if there are two levels in the columns
         if isinstance(self.df.columns, pd.MultiIndex):
-            select_columns = [
-                col
-                for col in self.df.columns
-                if col[0].startswith("i_")
-                or col[0] in ["p", "i", "p_i"]
-                or col[0].startswith("p_")
-            ]
-
-            self.df = self.df[select_columns]
-            # drop second column level
-            self.df.columns = self.df.columns.droplevel(1)
+            # flatten columns
+            self.df.columns = ["".join(col) for col in self.df.columns]
 
         # make NO_DATA and NOT_APPLICABLE equal to False
         with IntervalType.custom_bool_true(
@@ -338,12 +329,11 @@ class TestRecommendationBase(ABC):
         if not run_slow_tests:
             n = 50
             top, mid, bottom = df.head(n), df.iloc[n:-n], df.tail(n)
+
             df = pd.concat(
                 (
                     top,
-                    mid[50:-50].sample(
-                        n=min(n * 2, len(mid)), replace=False, random_state=42
-                    ),
+                    mid.sample(n=min(n * 2, len(mid)), replace=False, random_state=42),
                     bottom,
                 )
             ).drop_duplicates()
@@ -405,9 +395,7 @@ class TestRecommendationBase(ABC):
                     "person_id": person_id,
                     "type": criterion.type,
                     "concept": criterion.name,
-                    "comparator": comparator
-                    if comparator
-                    else "=",  # Use "=" as default if comparator is empty
+                    "comparator": comparator,
                     "concept_id": criterion.concept_id,
                     "static": criterion.static,
                 }
@@ -506,7 +494,7 @@ class TestRecommendationBase(ABC):
                     "person_id": person_id,
                     "type": "measurement",
                     "concept": "APTT",
-                    "comparator": "=",
+                    "comparator": ">",
                     "concept_id": concepts.LAB_APTT,
                     "start_datetime": entry["start_datetime"]
                     + datetime.timedelta(days=1),
@@ -640,7 +628,7 @@ class TestRecommendationBase(ABC):
                 or creating the entry.
         """
 
-    def get_criteria_name_and_comparator(self) -> set[tuple[str, str]]:
+    def get_criteria_name_and_comparator(self) -> list[tuple[str, str]]:
         """
         Extracts criteria names and their associated comparators from recommendation expressions.
 
@@ -668,7 +656,7 @@ class TestRecommendationBase(ABC):
             [],
         )
 
-        return set(criteria)
+        return sorted(list(set(criteria)))
 
     def unique_criteria_names(self) -> list[str]:
         """

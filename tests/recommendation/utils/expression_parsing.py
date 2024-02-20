@@ -11,7 +11,9 @@ from sympy import (  # noqa: F401 -- this module should expose these classes
     Symbol,
 )
 
-CRITERION_PATTERN = re.compile(r"([A-Z][A-Za-z0-9_]+)([<=>]?)")
+CRITERION_PATTERN = re.compile(
+    r"(?!Eq\b|And\b|Or\b|Not\b|Add\b|Div\b|Sub\b)([A-Z][A-Za-z0-9_]+)([<=>]?)"
+)
 
 
 def _sympify_criteria_names(expression: str) -> str:

@@ -31,7 +31,7 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_4(TestRecommendationBas
         },
     }
 
-    invalid_combinations = "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
+    invalid_combinations = "(NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>) | (NADROPARIN_HIGH_WEIGHT= & NADROPARIN_LOW_WEIGHT=)"
 
     def test_recommendation_15_prophylactic_anticoagulation(
         self, setup_testdata
