@@ -38,13 +38,13 @@ class BodyPositioningAction(AbstractAction):
     def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
         """Creates a new action from a FHIR PlanDefinition."""
 
-        if action_def.activity is None:
+        if action_def.activity_definition_fhir is None:
             raise ValueError("BodyPositioningAction must have an activity")
 
-        code = parse_code(action_def.activity.code)
-        timing = cls.process_timing(action_def.activity.timingTiming)
+        code = parse_code(action_def.activity_definition_fhir.code)
+        timing = cls.process_timing(action_def.activity_definition_fhir.timingTiming)
 
-        exclude = action_def.activity.doNotPerform
+        exclude = action_def.activity_definition_fhir.doNotPerform
 
         return cls(name=code.concept_name, exclude=exclude, code=code, timing=timing)
 

@@ -34,6 +34,7 @@ Note:
 """
 import logging
 import os
+import re
 import sys
 
 import pendulum
@@ -46,29 +47,44 @@ sys.path.insert(0, parent_dir)
 
 from execution_engine.clients import omopdb
 from execution_engine.execution_engine import ExecutionEngine
-from execution_engine.settings import update_config
+from execution_engine.settings import get_config, update_config
 
 # enable multiprocessing with all available cores
 update_config(multiprocessing_use=True, multiprocessing_pool_size=-1)
 
+result_schema = get_config().omop.db_result_schema
+
+# Validate the schema name to ensure it's safe to use in the query
+if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", result_schema):
+    raise ValueError(f"Invalid schema name: {result_schema}")
+
 # Optional: Truncate all tables before execution
 with omopdb.begin() as con:
-    con.execute(
+    schema_exists = con.execute(
         text(
-            "TRUNCATE TABLE "
-            "   celida.comment, "
-            "   celida.recommendation, "
-            "   celida.criterion, "
-            "   celida.execution_run, "
-            "   celida.result_interval, "
-            "   celida.recommendation, "
-            "   celida.population_intervention_pair "
-            "RESTART IDENTITY"
+            "SELECT count(*) FROM information_schema.schemata WHERE schema_name = :schema_name;"
+        ),
+        {"schema_name": result_schema},
+    ).fetchone()
+
+    # If the schema exists, proceed to truncate tables
+    if schema_exists:
+        con.execute(
+            text(
+                "TRUNCATE TABLE "
+                f"   {result_schema}.comment, "
+                f"   {result_schema}.recommendation, "
+                f"   {result_schema}.criterion, "
+                f"   {result_schema}.execution_run, "
+                f"   {result_schema}.result_interval, "
+                f"   {result_schema}.recommendation, "
+                f"   {result_schema}.population_intervention_pair "
+                "RESTART IDENTITY",
+            )
         )
-    )
 
 base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
-recommendation_package_version = "v1.3.1"
+recommendation_package_version = "latest"
 
 urls = [
     "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",

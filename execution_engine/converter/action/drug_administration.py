@@ -4,12 +4,15 @@ from typing import Self, TypedDict, cast
 import pandas as pd
 from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.dosage import Dosage as FHIRDosage
-from fhir.resources.extension import Extension
 
 from execution_engine.clients import omopdb
 from execution_engine.constants import EXT_DOSAGE_CONDITION, CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
-from execution_engine.converter.converter import parse_code, parse_value
+from execution_engine.converter.converter import (
+    get_extension_by_url,
+    parse_code,
+    parse_value,
+)
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
@@ -64,21 +67,21 @@ class DrugAdministrationAction(AbstractAction):
     def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
         """Creates a new action from a FHIR PlanDefinition."""
 
-        if action_def.activity is None:
+        if action_def.activity_definition_fhir is None:
             raise NotImplementedError("No activity defined for action")
 
-        ingredient = cls.get_ingredient_concept(action_def.activity)
+        ingredient = cls.get_ingredient_concept(action_def.activity_definition_fhir)
 
         name = f"drug_{ingredient.concept_name}"
         exclude = (
-            action_def.activity.doNotPerform
-            if action_def.activity.doNotPerform is not None
+            action_def.activity_definition_fhir.doNotPerform
+            if action_def.activity_definition_fhir.doNotPerform is not None
             else False
         )
 
-        if action_def.activity.dosage is None:
+        if action_def.activity_definition_fhir.dosage is None:
             assert (
-                action_def.goals
+                action_def.goals_fhir
             ), "DrugAdministrationAction without a dosage must have a goal"
 
             # must return criterion according to goal
@@ -91,7 +94,7 @@ class DrugAdministrationAction(AbstractAction):
 
         else:
             # has dosage
-            dosage = action_def.activity.dosage[
+            dosage = action_def.activity_definition_fhir.dosage[
                 0
             ]  # dosage is bound to 0..1 by drug-administration-action profile
             dose = cls.process_dosage(dosage)
@@ -197,19 +200,13 @@ class DrugAdministrationAction(AbstractAction):
         if dosage.extension is None:
             return extensions
 
-        def extension_field(extensions: list[Extension], url: str) -> Extension:
-            cmpr = [ext for ext in extensions if ext.url == url]
-            assert len(cmpr) == 1
-
-            return cmpr[0]
-
         for extension in dosage.extension:
             if extension.url == EXT_DOSAGE_CONDITION:
                 assert (
                     len(extension.extension) == 2
                 ), "Dosage condition must have 2 sub-extensions (code, value)"
-                condition_value = extension_field(extension.extension, "value")
-                condition_type = extension_field(extension.extension, "type")
+                condition_value = get_extension_by_url(extension, "value")
+                condition_type = get_extension_by_url(extension, "type")
 
                 code = parse_code(condition_type.valueCodeableConcept)
                 value = parse_value(condition_value, "value")

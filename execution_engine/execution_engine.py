@@ -1,59 +1,19 @@
 import hashlib
 import logging
 from datetime import datetime
-from typing import Tuple, Union, cast
 
 import pandas as pd
 import sqlalchemy
-from fhir.resources.evidencevariable import (
-    EvidenceVariable,
-    EvidenceVariableCharacteristic,
-)
 from sqlalchemy import and_, insert, select
 
-from execution_engine import __version__, fhir
+from execution_engine import __version__
 from execution_engine.clients import fhir_client, omopdb
-from execution_engine.constants import CohortCategory
-from execution_engine.converter.action.abstract import AbstractAction
-from execution_engine.converter.action.body_positioning import BodyPositioningAction
-from execution_engine.converter.action.drug_administration import (
-    DrugAdministrationAction,
-)
-from execution_engine.converter.action.ventilator_management import (
-    VentilatorManagementAction,
-)
-from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
-from execution_engine.converter.characteristic.allergy import AllergyCharacteristic
-from execution_engine.converter.characteristic.combination import (
-    CharacteristicCombination,
-)
-from execution_engine.converter.characteristic.condition import ConditionCharacteristic
-from execution_engine.converter.characteristic.episode_of_care import (
-    EpisodeOfCareCharacteristic,
-)
-from execution_engine.converter.characteristic.laboratory import (
-    LaboratoryCharacteristic,
-)
-from execution_engine.converter.characteristic.procedure import ProcedureCharacteristic
-from execution_engine.converter.characteristic.radiology import RadiologyCharacteristic
-from execution_engine.converter.converter import (
-    CriterionConverter,
-    CriterionConverterFactory,
-)
-from execution_engine.converter.goal.abstract import Goal
-from execution_engine.converter.goal.laboratory_value import LaboratoryValueGoal
-from execution_engine.converter.goal.ventilator_management import (
-    VentilatorManagementGoal,
-)
-from execution_engine.fhir_omop_mapping import (
-    ActionSelectionBehavior,
-    characteristic_to_criterion,
+from execution_engine.converter.recommendation_factory import (
+    FhirToRecommendationFactory,
 )
 from execution_engine.omop import cohort
 from execution_engine.omop.cohort import PopulationInterventionPair
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
-from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.celida import tables as result_db
 from execution_engine.omop.serializable import Serializable
 from execution_engine.task import runner
@@ -85,160 +45,6 @@ class ExecutionEngine:
         logging.basicConfig(
             format="%(asctime)s - %(levelname)s - %(message)s",
             level=logging.DEBUG if verbose else logging.INFO,
-        )
-
-    @staticmethod
-    def _init_characteristics_factory() -> CriterionConverterFactory:
-        cf = CriterionConverterFactory()
-        cf.register(ConditionCharacteristic)
-        cf.register(AllergyCharacteristic)
-        cf.register(RadiologyCharacteristic)
-        cf.register(ProcedureCharacteristic)
-        cf.register(EpisodeOfCareCharacteristic)
-        # cf.register(VentilationObservableCharacteristic) # fixme: implement (valueset retrieval / caching)
-        cf.register(LaboratoryCharacteristic)
-
-        return cf
-
-    @staticmethod
-    def _init_action_factory() -> CriterionConverterFactory:
-        af = CriterionConverterFactory()
-        af.register(DrugAdministrationAction)
-        af.register(VentilatorManagementAction)
-        af.register(BodyPositioningAction)
-
-        return af
-
-    @staticmethod
-    def _init_goal_factory() -> CriterionConverterFactory:
-        gf = CriterionConverterFactory()
-        gf.register(LaboratoryValueGoal)
-        gf.register(VentilatorManagementGoal)
-
-        return gf
-
-    def _parse_characteristics(self, ev: EvidenceVariable) -> CharacteristicCombination:
-        """Parses the characteristics of an EvidenceVariable and returns a CharacteristicCombination."""
-        cf = self._init_characteristics_factory()
-
-        def get_characteristic_combination(
-            characteristic: EvidenceVariableCharacteristic,
-        ) -> Tuple[CharacteristicCombination, EvidenceVariableCharacteristic]:
-            comb = CharacteristicCombination(
-                CharacteristicCombination.Code(
-                    characteristic.definitionByCombination.code
-                ),
-                exclude=characteristic.exclude,
-            )
-            characteristics = characteristic.definitionByCombination.characteristic
-            return comb, characteristics
-
-        def get_characteristics(
-            comb: CharacteristicCombination,
-            characteristics: list[EvidenceVariableCharacteristic],
-        ) -> CharacteristicCombination:
-            sub: Union[CriterionConverter, CharacteristicCombination]
-            for c in characteristics:
-                if c.definitionByCombination is not None:
-                    sub = get_characteristics(*get_characteristic_combination(c))
-                else:
-                    sub = cf.get(c)
-                    sub = cast(
-                        AbstractCharacteristic, sub
-                    )  # only for mypy, doesn't do anything at runtime
-                comb.add(sub)
-
-            return comb
-
-        if len(
-            ev.characteristic
-        ) == 1 and fhir.RecommendationPlan.is_combination_definition(
-            ev.characteristic[0]
-        ):
-            comb, characteristics = get_characteristic_combination(ev.characteristic[0])
-        else:
-            comb = CharacteristicCombination(
-                CharacteristicCombination.Code.ALL_OF, exclude=False
-            )
-            characteristics = ev.characteristic
-
-        get_characteristics(comb, characteristics)
-
-        return comb
-
-    def _parse_actions(
-        self, actions_def: list[fhir.RecommendationPlan.Action]
-    ) -> Tuple[list[AbstractAction], ActionSelectionBehavior]:
-        """
-        Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
-        corresponding action selection behavior.
-        """
-
-        af = self._init_action_factory()
-        gf = self._init_goal_factory()
-
-        assert (
-            len(set([a.action.selectionBehavior for a in actions_def])) == 1
-        ), "All actions must have the same selection behaviour."
-
-        selection_behavior = ActionSelectionBehavior(
-            actions_def[0].action.selectionBehavior
-        )
-
-        # loop through PlanDefinition.action elements and find the corresponding Action object (by action.code)
-        actions: list[AbstractAction] = []
-        for action_def in actions_def:
-            action = af.get(action_def)
-            action = cast(
-                AbstractAction, action
-            )  # only for mypy, doesn't do anything at runtime
-
-            for goal_def in action_def.goals:
-                goal = gf.get(goal_def)
-                goal = cast(Goal, goal)
-                action.goals.append(goal)
-
-            actions.append(action)
-
-        return actions, selection_behavior
-
-    def _action_combination(
-        self, selection_behavior: ActionSelectionBehavior
-    ) -> CriterionCombination:
-        """
-        Get the correct action combination based on the action selection behavior.
-        """
-
-        if selection_behavior.code == CharacteristicCombination.Code.ANY_OF:
-            operator = CriterionCombination.Operator("OR")
-        elif selection_behavior.code == CharacteristicCombination.Code.ALL_OF:
-            operator = CriterionCombination.Operator("AND")
-        elif selection_behavior.code == CharacteristicCombination.Code.AT_LEAST:
-            if selection_behavior.threshold == 1:
-                operator = CriterionCombination.Operator("OR")
-            else:
-                operator = CriterionCombination.Operator(
-                    "AT_LEAST", threshold=selection_behavior.threshold
-                )
-        elif selection_behavior.code == CharacteristicCombination.Code.AT_MOST:
-            operator = CriterionCombination.Operator(
-                "AT_MOST", threshold=selection_behavior.threshold
-            )
-        elif selection_behavior.code == CharacteristicCombination.Code.EXACTLY:
-            operator = CriterionCombination.Operator(
-                "EXACTLY", threshold=selection_behavior.threshold
-            )
-        elif selection_behavior.code == CharacteristicCombination.Code.ALL_OR_NONE:
-            operator = CriterionCombination.Operator("ALL_OR_NONE")
-        else:
-            raise NotImplementedError(
-                f"Selection behavior {str(selection_behavior.code)} not implemented."
-            )
-        return CriterionCombination(
-            name="intervention_actions",
-            category=CohortCategory.INTERVENTION,
-            exclude=False,
-            operator=operator,
         )
 
     def load_recommendation(
@@ -282,51 +88,10 @@ class ExecutionEngine:
                 )
                 return recommendation
 
-        rec = fhir.Recommendation(
-            recommendation_url,
+        recommendation = FhirToRecommendationFactory().parse_recommendation_from_url(
+            url=recommendation_url,
             package_version=recommendation_package_version,
-            fhir_connector=self._fhir,
-        )
-
-        pi_pairs: list[PopulationInterventionPair] = []
-
-        base_criterion = PatientsActiveDuringPeriod(name="active_patients")
-
-        for rec_plan in rec.plans():
-            pi_pair = PopulationInterventionPair(
-                name=rec_plan.name,
-                url=rec_plan.url,
-                base_criterion=base_criterion,
-            )
-
-            # parse population and create criteria
-            characteristics = self._parse_characteristics(rec_plan.population)
-
-            for characteristic in characteristics:
-                pi_pair.add_population(characteristic_to_criterion(characteristic))
-
-            # parse intervention and create criteria
-            actions, selection_behavior = self._parse_actions(rec_plan.actions)
-            comb_actions = self._action_combination(selection_behavior)
-
-            for action in actions:
-                if action is None:
-                    raise ValueError("Action is None.")
-                comb_actions.add(action.to_criterion())
-
-            pi_pair.add_intervention(comb_actions)
-
-            pi_pairs.append(pi_pair)
-
-        recommendation = cohort.Recommendation(
-            pi_pairs,
-            base_criterion=base_criterion,
-            url=rec.url,
-            name=rec.name,
-            title=rec.title,
-            version=rec.version,
-            description=rec.description,
-            package_version=rec.package_version,
+            fhir_client=self._fhir,
         )
 
         self.register_recommendation(recommendation)
@@ -342,8 +107,10 @@ class ExecutionEngine:
         """
         Executes a recommendation and stores the results in the result database.
 
-        :param recommendation: The Recommendation object (loaded from Exectu.
-
+        :param recommendation: The Recommendation object (loaded from ExectionEngine.load_recommendation).
+        :param start_datetime: The start of the observation window.
+        :param end_datetime: The end of the observation window. If None, the current time is used.
+        :return: The ID of the run.
         """
         # todo: improve documentation
 

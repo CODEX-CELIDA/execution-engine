@@ -1,10 +1,18 @@
+import pickle  # nosec: need to test pickling of objects
+from multiprocessing import Process, Queue
+
 import pytest
 
 from execution_engine.constants import CohortCategory
 from execution_engine.util.cohort_logic import (
+    AllOrNone,
     And,
+    BooleanFunction,
+    ExactCount,
     Expr,
     LeftDependentToggle,
+    MaxCount,
+    MinCount,
     NoDataPreservingAnd,
     NoDataPreservingOr,
     NonSimplifiableAnd,
@@ -186,3 +194,74 @@ class TestLeftDependentToggle:
 
         assert not left_toggle.is_Not
         assert not left_toggle.is_Atom
+
+
+def worker(queue: Queue, symbol: Symbol):
+    """
+    Worker function to test pickling and unpickling of Symbol objects.
+    This function tries to put a Symbol object into a multiprocessing Queue,
+    which implicitly tests the pickling process.
+    """
+    queue.put(symbol)
+
+
+class TestSymbolMultiprocessing:
+    @pytest.fixture(
+        params=[
+            Expr(1, 2, 3, category=CohortCategory.POPULATION),
+            Symbol(dummy_criterion),
+            BooleanFunction(1, 2, 3, category=CohortCategory.POPULATION),
+            Or(1, 2, 3, category=CohortCategory.POPULATION),
+            And(1, 2, 3, category=CohortCategory.POPULATION),
+            Not(1, category=CohortCategory.POPULATION),
+            MinCount(1, 2, 3, threshold=2, category=CohortCategory.POPULATION),
+            MaxCount(1, 2, 3, threshold=2, category=CohortCategory.POPULATION),
+            ExactCount(1, 2, 3, threshold=2, category=CohortCategory.POPULATION),
+            AllOrNone(1, 2, 3, category=CohortCategory.POPULATION),
+            NonSimplifiableAnd(1, 2, 3, category=CohortCategory.POPULATION),
+            NoDataPreservingAnd(1, 2, 3, category=CohortCategory.POPULATION),
+            NoDataPreservingOr(1, 2, 3, category=CohortCategory.POPULATION),
+            LeftDependentToggle(left=1, right=2, category=CohortCategory.POPULATION),
+        ],
+        ids=lambda expr: expr.__class__.__name__,
+    )
+    def expr(self, request):
+        return request.param
+
+    def test_symbol_pickle_unpickle(self, expr):
+        """
+        Test if a Symbol object can be pickled and unpickled directly.
+        """
+
+        pickled_expr = pickle.dumps(expr)  # nosec: need to test pickling of objects
+        unpickled_expr = pickle.loads(
+            pickled_expr
+        )  # nosec: need to test pickling of objects
+
+        assert isinstance(
+            unpickled_expr, expr.__class__
+        ), f"Unpickled object is not an instance of {expr.__class__.__name__}"
+        for arg in expr.args:
+            assert (
+                arg in unpickled_expr.args
+            ), "The args of the unpickled Expression do not match the original"
+
+    def test_symbol_multiprocessing_transfer(self, expr):
+        """
+        Test if a Symbol object can be transferred to another process.
+        """
+        queue = Queue()
+
+        process = Process(target=worker, args=(queue, expr))
+        process.start()
+        process.join()
+
+        received_expr = queue.get()
+
+        assert isinstance(
+            received_expr, expr.__class__
+        ), f"Received object is not an instance of {expr.__class__.__name__}"
+        for arg in expr.args:
+            assert (
+                arg in received_expr.args
+            ), "The args of the received Expression do not match the original"

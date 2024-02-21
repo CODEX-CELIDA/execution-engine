@@ -158,9 +158,14 @@ class TestCriterionCombination:
         op = CriterionCombination.Operator(operator, threshold)
 
         if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-            assert str(op) == f"Operator(operator={operator}, threshold={threshold})"
+            assert (
+                repr(op)
+                == f'CriterionCombination.Operator("{operator}", threshold={threshold})'
+            )
+            assert str(op) == f"{operator}(threshold={threshold})"
         else:
-            assert str(op) == f"Operator(operator={operator})"
+            assert repr(op) == f'CriterionCombination.Operator("{operator}")'
+            assert str(op) == f"{operator}"
 
     def test_repr(self):
         operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)

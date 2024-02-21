@@ -1,6 +1,5 @@
 import datetime
 import itertools
-import re
 from abc import ABC
 from functools import reduce
 
@@ -8,8 +7,6 @@ import numpy as np
 import pandas as pd
 import pendulum
 import pytest
-import sympy
-from numpy import typing as npt
 from sqlalchemy import select
 
 from execution_engine.constants import CohortCategory
@@ -32,6 +29,16 @@ from tests.functions import (
     create_visit,
     generate_binary_combinations_dataframe,
 )
+from tests.recommendation.utils.dataframe_operations import (
+    combine_dataframe_via_logical_expression,
+    elementwise_and,
+    elementwise_or,
+)
+from tests.recommendation.utils.expression_parsing import (
+    CRITERION_PATTERN,
+    criteria_combination_str_to_df,
+)
+from tests.recommendation.utils.result_comparator import ResultComparator
 
 MISSING_DATA_TYPE = {
     "condition": IntervalType.NEGATIVE,
@@ -43,241 +50,276 @@ MISSING_DATA_TYPE = {
 }
 
 
-class RecommendationCriteriaCombination:
-    def __init__(self, name, df):
-        if name not in ["db", "expected"]:
-            raise ValueError(f"Invalid name '{name}' for RecommendationCriteriaResult")
-        self.name = name
-
-        if df.index.names != ["person_id", "date"]:
-            self.df = df.set_index(["person_id", "date"])
-        else:
-            self.df = df
-
-        # make NO_DATA and NOT_APPLICABLE equal to False
-        with IntervalType.custom_bool_true(
-            [IntervalType.POSITIVE, IntervalType.NOT_APPLICABLE]
-        ):
-            self.df = self.df.astype(bool)
-
-    def __getitem__(self, item):
-        return self.df[item]
-
-    @property
-    def plan_names(self):
-        return [col[2:] for col in self.df.columns if col.startswith("i_")]
-
-    def plan_name_column_names(self):
-        cols = [
-            "_".join(i) for i in itertools.product(["p", "i", "p_i"], self.plan_names)
-        ]
-        return cols + ["p", "i", "p_i"]
-
-    def derive_database_result(self, df):
-        df = df.copy()
-        df.loc[
-            :, [c for c in self.plan_name_column_names() if c not in df.columns]
-        ] = False
-
-        return RecommendationCriteriaCombination(name="db", df=df)
-
-    def __eq__(self, other):
-        assert isinstance(other, RecommendationCriteriaCombination)
-
-        df1, df2 = self.__order_dfs(other)
-
-        def compare_series(name):
-            s1 = df1[name]
-            s2 = df2[name]
-
-            # align the series to make sure they have the same index
-            s1, s2 = s1.align(s2)
-            # replacement for s1.align(s2, fill_value=False) as this raises a warning in pandas 2.2.0
-            s1 = s1.astype(bool) & s1.notnull()
-            s2 = s2.astype(bool) & s2.notnull()
-
-            return s1.equals(s2)
-
-        return all([compare_series(col) for col in self.plan_name_column_names()])
-
-    def __order_dfs(self, other):
-        if self.name == "expected":
-            df1, df2 = self.df, other.df
-        elif other.name == "expected":
-            df1, df2 = other.df, self.df
-        else:
-            raise ValueError(
-                "Cannot compare two RecommendationCriteriaCombination objects that are both not 'expected'"
-            )
-        return df1, df2
-
-    def comparison_report(self, other) -> list[str]:
-        if not isinstance(other, RecommendationCriteriaCombination):
-            raise ValueError(
-                "Can only compare RecommendationCriteriaCombination objects"
-            )
-
-        if self == other:
-            return ["Results match"]
-
-        df1, df2 = self.__order_dfs(other)
-
-        overlapping_cols = self.plan_name_column_names()
-
-        # Find the "other" columns in df1
-        other_cols = list(set(df1.columns) - set(overlapping_cols))
-
-        reports = ["Results do not match"]
-
-        # Loop over each person_id
-        for person_id in df1.index.get_level_values("person_id").unique():
-            df1_subset = df1.loc[person_id]
-
-            if person_id in df2.index.get_level_values("person_id"):
-                df2_subset = df2.loc[person_id]
-            else:
-                df2_subset = pd.DataFrame(
-                    index=df1_subset.index, columns=df1_subset.columns, data=False
-                )
-
-            # Create a logical expression for "other" columns
-            logical_expression = " & ".join(
-                f"~{col}" if not val else col
-                for col, val in df1_subset[other_cols].any().items()
-            )
-
-            mismatch_reported = False
-            # Loop over each overlapping column
-            for col in overlapping_cols:
-                # Find dates where the column doesn't match
-                s1 = df1_subset[col]
-                s2 = df2_subset[col]
-                s1, s2 = s1.align(s2, fill_value=False)
-                mismatches = s1[s1 != s2]
-
-                # If any mismatches exist, add a report for this column
-                if not mismatches.empty:
-                    if not mismatch_reported:
-                        reports.append(f"person_id '{person_id}': {logical_expression}")
-                        mismatch_reported = True
-
-                    mismatch_reports = []
-                    for date, value in mismatches.items():
-                        expected_value = value
-                        actual_value = s2.loc[date]
-                        mismatch_reports.append(
-                            f"{date.date()} (expected: {expected_value}, actual: {actual_value})"
-                        )
-
-                    reports.append(
-                        f"Column '{col}' does not match on dates: {', '.join(mismatch_reports)}"
-                    )
-
-        return reports
-
-
-def elementwise_mask(s1, mask, fill_value=False):
-    return s1.combine(mask, lambda x, y: x if y else fill_value)
-
-
-def elementwise_and(s1, s2):
-    return s1.combine(s2, lambda x, y: x & y)
-
-
-def elementwise_or(s1, s2):
-    return s1.combine(s2, lambda x, y: x | y)
-
-
-def elementwise_not(s1):
-    return s1.map(lambda x: ~x)
-
-
-def combine_dataframe_via_logical_expression(
-    df: pd.DataFrame, expression: str
-) -> npt.NDArray:
-    def eval_expr(expr):
-        if isinstance(expr, sympy.Symbol):
-            return df[str(expr)]
-        elif isinstance(expr, sympy.And):
-            return reduce(elementwise_and, map(eval_expr, expr.args))
-        elif isinstance(expr, sympy.Or):
-            return reduce(elementwise_or, map(eval_expr, expr.args))
-        elif isinstance(expr, sympy.Not):
-            return elementwise_not(eval_expr(expr.args[0]))
-        else:
-            raise ValueError(f"Unsupported expression: {expr}")
-
-    parsed_expr = sympy.parse_expr(expression)
-
-    return eval_expr(parsed_expr)
-
-
 @pytest.mark.recommendation
 class TestRecommendationBase(ABC):
-    @pytest.fixture
-    def visit_datetime(self) -> TimeRange:
-        return TimeRange(
+    recommendation_base_url = (
+        "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
+    )
+    """
+    The base URL of the canonical addresses (URLs) of the FHIR recommendation instances.
+
+    Example:
+        "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
+    """
+
+    visit_datetime = TimeRange(
+        start="2023-03-01 07:00:00+01:00",
+        end="2023-03-31 22:00:00+01:00",
+        name="visit",
+    )
+    """
+    An instance of TimeRange that specifies the start and end datetimes of a patient's visit in the context of this
+    test.
+
+    Example:
+        TimeRange(
             start="2023-03-01 07:00:00+01:00",
             end="2023-03-31 22:00:00+01:00",
             name="visit",
         )
+    """
 
-    @pytest.fixture
-    def observation_window(self, visit_datetime: TimeRange) -> TimeRange:
-        return TimeRange(
+    observation_window = TimeRange(
+        start=visit_datetime.start - datetime.timedelta(days=3),
+        end=visit_datetime.end + datetime.timedelta(days=3),
+        name="observation",
+    )
+    """
+    An instance of TimeRange that defines the time windows that is used when evaluating guideline adherence. For
+    each day in the observation window, the guideline adherence is evaluated based on the data available on that day.
+
+    Example:
+        TimeRange(
             start=visit_datetime.start - datetime.timedelta(days=3),
             end=visit_datetime.end + datetime.timedelta(days=3),
             name="observation",
         )
+    """
 
-    @pytest.fixture
-    def recommendation_url(self) -> str:
-        raise NotImplementedError("Must be implemented by subclass")
+    recommendation_url = None
+    """
+    The URL or identifier of the Recommendation FHIR resource of the specific recommendation being considered.
+    It is appended to the `recommendation_base_url` to form the full URL of the recommendation.
 
-    @pytest.fixture
-    def population_intervention(self) -> dict:
-        raise NotImplementedError("Must be implemented by subclass")
+    Example:
+        "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
+    """
 
-    @pytest.fixture
-    def invalid_combinations(self, population_intervention) -> str:
-        return ""
+    recommendation_package_version = None
+    """
+    The version of the recommendation FHIR package being used.Required to allow different versions of the
+    recommendation package to be tested.
 
-    @pytest.fixture
-    def person_combinations(
-        self, unique_criteria: set[str], run_slow_tests: bool, invalid_combinations: str
-    ) -> pd.DataFrame:
-        df = generate_binary_combinations_dataframe(list(unique_criteria))
+    Example:
+        "v1.4.0-snapshot"
+    """
 
+    recommendation_expression = None
+    """
+    The symbolic expression of the recommendation, specifying the population and intervention criteria.
+
+    Each key in the dictionary is a population-intervention pair identifier, and its value is another dictionary
+    specifying the population criteria (key="population") and the intervention criteria (key="intervention").
+
+    The 'population' key defines the eligibility criteria for the recommendation, using logical
+    expressions to include or exclude certain conditions.
+
+    The 'intervention' key defines the specific actions or treatments recommended, also using
+    logical expressions to specify combinations or exclusions of treatments.
+
+    Criteria naming
+    ---------------
+    * Individual criteria are represented as uppercase strings, which must be present as a CategoryDefinition with the
+      same name in tests/_testdata/parameters.py.
+    * A comparator (>, <, =) can be appended to the criterion name to modify the numerical value that is inserted
+      into the database. Examples:
+        * "DALTEPARIN=": The value of DALTEPARIN is inserted as is into the database.
+        * "DALTEPARIN>": The value of DALTEPARIN is incremented by 1 before insertion into the database.
+        * "DALTEPARIN<": The value of DALTEPARIN is decremented by 1 before insertion into the database.
+
+    Example:
+        {
+            "AntithromboticProphylaxisWithLWMH": {
+                "population": "COVID19 & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
+                "intervention": "..."
+            },
+            ...
+        }
+    """
+
+    combinations: list[str | None] = None
+    """
+    Specifies the criteria combinations for recommendation evaluation.
+
+    `combinations`: Can take two types of values:
+      1. `None`: Indicates that all possible combinations of criteria listed in the 'recommendation_expression'
+                 variable are to be used. Note: This approach is exponential in the number of combinations.
+      2. `List[str]`: A list where each string defines a specific set of criteria combinations to be included or
+                      excluded in the evaluation. These strings must be formatted according to the
+                      'criteria_combination_str_to_df' function, detailing criteria with their names and comparators.
+                      Criteria can be marked as always present (no prefix), always absent ('!'), or optional ('?').
+
+    String Format Details:
+    - Criteria Representation: Each criterion within a string is represented by its
+      name followed by a comparator ('<', '>', '=').
+        - Prefix '!' indicates the criterion must always be absent in the combination.
+        - Prefix '?' marks the criterion as optional.
+        - Criteria without a prefix are considered always present.
+    - Multiple Criteria: Criteria are separated by spaces.
+    - The criterion names and comparators must match those in the `recommendation_expression` variable.
+
+    Example:
+        combinations = ["A>= !B<= ?C=", "!D> E< ?F="]
+        # This specifies two combinations to be evaluated:
+        # 1. 'A' must be present and at least as great as, 'B' must be absent, 'C' is optional.
+        # 2. 'D' must be absent and greater than, 'E' must be present and less than, 'F' is optional.
+    """
+
+    invalid_combinations = ""
+    """
+    A logical expression representing combinations of criteria that are considered invalid or
+    contradictory within the context of the recommendation. This string is used to filter out
+    or prevent the application of the recommendation in scenarios where these invalid combinations
+    are present.
+
+    Example:
+        "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
+    """
+
+    def generate_criteria_combinations(self, run_slow_tests: bool) -> pd.DataFrame:
+        # list of all criteria in the recommendation
+        criteria = self.get_criteria_name_and_comparator()
+
+        if self.combinations is None:
+            # no explicit combinations provided, generate all possible combinations
+            df_combinations = self.generate_cartesian_criteria_combinations(
+                criteria, run_slow_tests=run_slow_tests
+            )
+        else:
+            # combinations are provided, generate from list
+            df_combinations = self.generate_criteria_combinations_from_list(
+                self.combinations, criteria
+            )
+
+        assert set(df_combinations.columns) == set(
+            criteria
+        ), "All criteria must be present in test combinations"
+
+        return df_combinations
+
+    def remove_invalid_criterion_combinations(self, df: pd.DataFrame) -> pd.DataFrame:
         # Remove invalid combinations
-        if invalid_combinations:
+        if self.invalid_combinations:
             idx_invalid = combine_dataframe_via_logical_expression(
-                df, invalid_combinations
+                df, self.invalid_combinations
             )
             df = df[~idx_invalid].copy()
 
+        return df
+
+    def generate_criteria_combinations_from_list(
+        self, combinations: list[str], criteria: list[str]
+    ) -> pd.DataFrame:
+        df_combinations = []
+        for combination_str in combinations:
+            df_combination = criteria_combination_str_to_df(combination_str)
+            # assert that each column name is in the criteria list
+            for c in df_combination.columns:
+                if c not in criteria:
+                    raise ValueError(
+                        f"Criterion {''.join(c)} not in recommendation criteria"
+                    )
+            df_combinations.append(df_combination)
+        df_combinations = (
+            pd.concat(df_combinations).fillna(False).reset_index(drop=True)
+        )
+
+        df_combinations = self.remove_invalid_criterion_combinations(df_combinations)
+
+        return df_combinations
+
+    def generate_cartesian_criteria_combinations(
+        self, criteria: set[str], run_slow_tests: bool
+    ) -> pd.DataFrame:
+        """
+        Generates a DataFrame of criteria combinations, filtering out invalid combinations and optionally limiting the
+        output for quicker tests.
+
+        This function creates a DataFrame that lists all possible combinations of provided criteria as binary factors.
+        It then filters out any combinations deemed invalid according to a predefined logic or expression.
+        If the function is instructed to run in a 'fast' mode (by setting `run_slow_tests` to False), the resulting
+        DataFrame is further limited to a subset of combinations to speed up processing,
+        particularly useful in testing environments where full combinatorial exploration may be time-consuming.
+
+        Parameters:
+            criteria (set[str]): A set of criteria names that will be used to generate binary combinations. Each
+                                 criterion represents a column in the resulting DataFrame, with rows indicating the
+                                 presence (True) or absence (False) of each criterion in a given combination.
+            run_slow_tests (bool): A flag indicating whether to run slow tests. If False, the output DataFrame is
+                                   limited to a representative subset (the first 100 and last 100 rows) of all possible
+                                   combinations to speed up processing.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing all valid combinations of the input criteria. Each row represents a
+                          unique combination, with True/False values indicating the presence/absence of each criterion.
+        """
+        df = generate_binary_combinations_dataframe(criteria)
+
+        df = self.remove_invalid_criterion_combinations(df)
+
         if not run_slow_tests:
-            df = pd.concat([df.head(100), df.tail(100)]).drop_duplicates()
+            n = 50
+            top, mid, bottom = df.head(n), df.iloc[n:-n], df.tail(n)
+
+            df = pd.concat(
+                (
+                    top,
+                    mid.sample(n=min(n * 2, len(mid)), replace=False, random_state=42),
+                    bottom,
+                )
+            ).drop_duplicates()
 
         return df
 
-    @pytest.fixture
-    def criteria(
+    def generate_criterion_entries_from_criteria(
         self,
-        person_combinations: pd.DataFrame,
-        visit_datetime: TimeRange,
-        population_intervention: dict,
+        df_criteria_combinations: pd.DataFrame,
     ):
+        """
+        Generates a DataFrame of criterion entries based on specified criteria combinations.
+
+        This function iterates through a DataFrame of criteria combinations, evaluating each combination
+        against a set of predefined criteria to generate detailed entries for each person. These entries
+        include information such as the type of criterion, concept names, concept IDs, and relevant
+        date-time information indicating when each criterion is applicable.
+
+        Parameters:
+            df_criteria_combinations (pd.DataFrame): A DataFrame where each row represents a combination
+                of criteria for a person. Columns correspond to specific criteria, and rows are indexed
+                by person IDs. The DataFrame should include boolean flags indicating the presence or
+                absence of each criterion for each person.
+
+        Returns:
+            pd.DataFrame: A DataFrame where each row represents an entry for a specific criterion applied
+                to a person. The columns include 'person_id', 'type', 'concept', 'concept_id', 'static',
+                'start_datetime', 'end_datetime', among other criterion-specific fields. The DataFrame
+                aggregates these entries across all persons and criteria, taking into account any specified
+                datetime offsets and handling specific criterion types with tailored logic.
+        """
         entries = []
 
-        for person_id, row in person_combinations.iterrows():
-            for criterion_name, comparator in self.extract_criteria(
-                population_intervention
-            ):
+        def row_any(row, criterion_name):
+            if criterion_name in row:
+                return row[criterion_name].any()
+            return False
+
+        for person_id, row in df_criteria_combinations.iterrows():
+            for criterion_name, comparator in self.get_criteria_name_and_comparator():
                 criterion: parameter.CriterionDefinition = getattr(
                     parameter, criterion_name
                 )
 
-                if not row[criterion_name]:
+                if not row[(criterion_name, comparator)]:
                     continue
 
                 if criterion.datetime_offset and not criterion.type == "measurement":
@@ -293,14 +335,15 @@ class TestRecommendationBase(ABC):
                 entry = {
                     "person_id": person_id,
                     "type": criterion.type,
-                    "concept": criterion.name,
+                    "concept": criterion_name,
+                    "comparator": comparator,
                     "concept_id": criterion.concept_id,
                     "static": criterion.static,
                 }
 
                 if criterion.type == "condition":
-                    entry["start_datetime"] = visit_datetime.start
-                    entry["end_datetime"] = visit_datetime.end
+                    entry["start_datetime"] = self.visit_datetime.start
+                    entry["end_datetime"] = self.visit_datetime.end
                 elif criterion.type == "observation":
                     entry["start_datetime"] = pendulum.parse(
                         "2023-03-15 12:00:00+01:00"
@@ -369,26 +412,30 @@ class TestRecommendationBase(ABC):
                 else:
                     entries.append(entry)
 
-            if row.get("NADROPARIN_HIGH_WEIGHT") or row.get("NADROPARIN_LOW_WEIGHT"):
+            if row_any(row, "NADROPARIN_HIGH_WEIGHT") or row_any(
+                row, "NADROPARIN_LOW_WEIGHT"
+            ):
                 entry_weight = {
                     "person_id": person_id,
                     "type": "measurement",
                     "concept": "WEIGHT",
+                    "comparator": "=",
                     "concept_id": concepts.BODY_WEIGHT,
                     "start_datetime": datetime.datetime.combine(
-                        visit_datetime.start.date(), datetime.time()
+                        self.visit_datetime.start.date(), datetime.time()
                     )
                     + datetime.timedelta(days=1),
-                    "value": 71 if row["NADROPARIN_HIGH_WEIGHT"] else 69,
+                    "value": 71 if row_any(row, "NADROPARIN_HIGH_WEIGHT") else 69,
                     "unit_concept_id": concepts.UNIT_KG,
                     "static": True,
                 }
                 entries.append(entry_weight)
-            elif row.get("HEPARIN") or row.get("ARGATROBAN"):
+            elif row_any(row, "HEPARIN") or row_any(row, "ARGATROBAN"):
                 entry_appt = {
                     "person_id": person_id,
                     "type": "measurement",
                     "concept": "APTT",
+                    "comparator": ">",
                     "concept_id": concepts.LAB_APTT,
                     "start_datetime": entry["start_datetime"]
                     + datetime.timedelta(days=1),
@@ -397,12 +444,13 @@ class TestRecommendationBase(ABC):
                     "static": False,
                 }
                 entries.append(entry_appt)
-            elif row.get("TIDAL_VOLUME"):
+            elif row_any(row, "TIDAL_VOLUME"):
                 # need to add height to calculate ideal body weight and then tidal volume per kg
                 entry_weight = {
                     "person_id": person_id,
                     "type": "measurement",
                     "concept": "HEIGHT",
+                    "comparator": "=",
                     "concept_id": concepts.BODY_HEIGHT,
                     "start_datetime": entry["start_datetime"]
                     - datetime.timedelta(days=1),
@@ -416,9 +464,22 @@ class TestRecommendationBase(ABC):
 
         return pd.DataFrame(entries)
 
-    @pytest.fixture
-    def insert_criteria(self, db_session, criteria, visit_datetime):
-        for person_id, g in criteria.groupby("person_id"):
+    def insert_criteria_into_database(self, db_session, df_entries: pd.DataFrame):
+        """
+        Inserts criteria entries from a DataFrame into the database, associating them with a newly created Person and
+        Visit objects.
+
+        This function iterates over a DataFrame containing entries for various criteria (e.g., conditions, observations)
+        and inserts them into a database. Each entry is associated with a Person and a Visit object, which are created
+        based on the information in the DataFrame and some default values.
+
+        Parameters:
+            db_session: The database session used to insert the entries.
+            df_entries (pd.DataFrame): A DataFrame containing the criteria entries. Each row represents an entry,
+                with columns for 'person_id', 'type', 'concept_id', etc.
+        """
+
+        for person_id, g in df_entries.groupby("person_id"):
             p = Person(
                 person_id=person_id,
                 gender_concept_id=concepts.GENDER_FEMALE,
@@ -430,8 +491,8 @@ class TestRecommendationBase(ABC):
             )
             vo = create_visit(
                 person_id=p.person_id,
-                visit_start_datetime=visit_datetime.start,
-                visit_end_datetime=visit_datetime.end,
+                visit_start_datetime=self.visit_datetime.start,
+                visit_end_datetime=self.visit_datetime.end,
                 visit_concept_id=concepts.INPATIENT_VISIT,
             )
 
@@ -491,113 +552,199 @@ class TestRecommendationBase(ABC):
             db_session.commit()
 
     def _insert_criteria_hook(self, person_entries, entry, row):
-        pass
+        """
+        A hook method intended for subclass overriding, providing a way to customize the behavior of
+        `insert_criteria_into_database`.
 
-    @staticmethod
-    def extract_criteria(population_intervention) -> list[tuple[str, str]]:
+        This method is called for each criteria entry before it is added to the list of entries to be inserted into the
+        database. Subclasses can override this method to implement custom logic, such as filtering certain entries or
+        modifying them before insertion.
+
+        Parameters:
+            person_entries: The list of entries (including Person and Visit objects) to be inserted into the database
+                for a specific person.
+            entry: The current entry being processed, which can be a condition, observation, measurement, drug exposure,
+                or procedure object.
+            row (pd.Series): The row from the DataFrame corresponding to the current entry, containing all relevant data
+                or creating the entry.
+        """
+
+    def get_criteria_name_and_comparator(self) -> list[tuple[str, str]]:
+        """
+        Extracts criteria names and their associated comparators from recommendation expressions.
+
+        This function parses the 'population' and 'intervention' fields of each recommendation expression to extract
+        criteria names and any associated comparators (>, =, <). The criteria names are expected to be in uppercase
+        and can include underscores. If no comparator is explicitly associated with a criteria name, "=" is assumed as the default comparator.
+
+        Returns:
+            list[tuple[str, str]]: A list of tuples, where each tuple contains a criteria name and its comparator.
+            If no comparator is associated with a criteria name, "=" is used as the default comparator.
+        """
         criteria: list[tuple[str, str]] = sum(
             [
-                re.findall(
-                    r"(\b\w+\b)([<=>]?)",
-                    plan["population"] + " " + plan["intervention"],
-                )
-                for plan in population_intervention.values()
+                [
+                    (
+                        name,
+                        comparator if comparator else "=",
+                    )  # Use "=" as default if comparator is empty
+                    for name, comparator in CRITERION_PATTERN.findall(
+                        plan["population"] + " " + plan["intervention"],
+                    )
+                ]
+                for plan in self.recommendation_expression.values()
             ],
             [],
         )
 
-        unique_criteria = list(dict.fromkeys(criteria))  # order preserving
+        return sorted(list(set(criteria)))
 
-        return unique_criteria
+    def unique_criteria_names(self) -> list[str]:
+        """
+        Generates a list of unique criteria names extracted from recommendation expressions.
 
-    @pytest.fixture
-    def unique_criteria(self, population_intervention) -> list[str]:
-        names = [c[0] for c in self.extract_criteria(population_intervention)]
+        This function utilizes `get_criteria_name_and_comparator` to fetch all criteria names along with their
+         omparators, then filters out the comparator information to provide a list of unique criteria names.
+
+        Returns:
+            list[str]: A list of unique criteria names extracted from the recommendation expressions. The order of
+            names is preserved.
+        """
+
+        names = [c[0] for c in self.get_criteria_name_and_comparator()]
         return list(dict.fromkeys(names))  # order preserving
 
     def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        A placeholder hook method for subclasses to modify the DataFrame containing criteria entries.
+
+        This method provides a mechanism for subclasses to implement custom logic that modifies the DataFrame of
+        criteria entries before further processing or analysis. By default, this method returns the DataFrame unchanged,
+        serving as a pass-through. Subclasses can override this method to apply specific transformations, filtering, or
+        enhancements to the criteria data.
+
+        Parameters:
+            df (pd.DataFrame): The DataFrame containing criteria entries to be potentially modified.
+
+        Returns:
+            pd.DataFrame: The potentially modified DataFrame.
+        """
         return df
 
-    @pytest.fixture
-    def criteria_extended(
+    def assemble_daily_recommendation_evaluation(
         self,
-        insert_criteria: dict,
-        criteria: pd.DataFrame,
-        unique_criteria: set[tuple[str, str]],
-        population_intervention: dict[str, dict],
-        visit_datetime: TimeRange,
-        observation_window: TimeRange,
+        df_entries: pd.DataFrame,
     ) -> pd.DataFrame:
-        def remove_comparators(s):
-            return s.translate(str.maketrans("", "", "<>="))
+        """
+        Assembles a daily evaluation DataFrame for recommendation criteria, incorporating additional logic for base
+        criteria and group-specific population and intervention criteria.
 
-        idx_static = criteria["static"]
-        criteria.loc[idx_static, "start_datetime"] = observation_window.start
-        criteria.loc[idx_static, "end_datetime"] = observation_window.end
+        This function takes a DataFrame of criteria entries and expands it to a daily granularity, creating a row for
+        each person and day within the observation window.
 
-        df = self.expand_dataframe_by_date(
-            criteria[
-                ["person_id", "concept", "start_datetime", "end_datetime", "type"]
+        The resulting DataFrame is a comprehensive view of recommendation criteria evaluations on a daily basis for
+        each person.
+
+        Parameters:
+            df_entries (pd.DataFrame): The DataFrame containing entries for various criteria. Each entry includes
+                the person ID, concept, start and end datetimes, and the type of criterion (e.g., condition).
+
+        Returns:
+            pd.DataFrame: A DataFrame where each row represents a person-day combination, with columns for each
+                criterion evaluated. The DataFrame includes all population and intervention criteria combinations
+                (based on the recommendation_expression) and overall evaluations like 'p', 'i', and 'p_i' which
+                represent the combined evaluation of population, intervention, and their intersection, respectively.
+        """
+        idx_static = df_entries["static"]
+        df_entries.loc[idx_static, "start_datetime"] = self.observation_window.start
+        df_entries.loc[idx_static, "end_datetime"] = self.observation_window.end
+
+        df = self.expand_dataframe_to_daily_observations(
+            df_entries[
+                [
+                    "person_id",
+                    "concept",
+                    "comparator",
+                    "start_datetime",
+                    "end_datetime",
+                    "type",
+                ]
             ],
-            observation_window=observation_window,
+            observation_window=self.observation_window,
         )
 
         # the base criterion is the visit, all other criteria are AND-combined with the base criterion
-        df_base = self.expand_dataframe_by_date(
+        df_base = self.expand_dataframe_to_daily_observations(
             pd.DataFrame(
                 {
-                    "person_id": criteria["person_id"].unique(),
-                    "start_datetime": visit_datetime.start,
-                    "end_datetime": visit_datetime.end,
+                    "person_id": df_entries["person_id"].unique(),
+                    "start_datetime": self.visit_datetime.start,
+                    "end_datetime": self.visit_datetime.end,
                     "concept": "BASE",
+                    "comparator": "",
                     "type": "visit",
                 }
             ),
-            observation_window,
+            self.observation_window,
         )
 
-        for c in unique_criteria:
-            if c not in df.columns:
-                criterion = getattr(parameter, c)
+        for criterion_name, comparator in self.get_criteria_name_and_comparator():
+            col = criterion_name, comparator
+            if col not in df.columns:
+                criterion = getattr(parameter, criterion_name)
                 if criterion.missing_data_type is not None:
-                    df[c] = criterion.missing_data_type
+                    df[col] = criterion.missing_data_type
                 else:
-                    df[c] = MISSING_DATA_TYPE[criterion.type]
+                    df[col] = MISSING_DATA_TYPE[criterion.type]
 
         df = self._modify_criteria_hook(df)
 
-        for group_name, group in population_intervention.items():
-            df[f"p_{group_name}"] = combine_dataframe_via_logical_expression(
-                df, remove_comparators(group["population"])
+        for group_name, group in self.recommendation_expression.items():
+            df[(f"p_{group_name}", "")] = combine_dataframe_via_logical_expression(
+                df, group["population"]
             )
-            df[f"i_{group_name}"] = combine_dataframe_via_logical_expression(
-                df, remove_comparators(group["intervention"])
+            df[(f"i_{group_name}", "")] = combine_dataframe_via_logical_expression(
+                df, group["intervention"]
             )
+
+            # expressions like "Eq(a+b+c, 1)" (at least one criterion) yield boolean columns and must
+            # be converted to IntervalType
+            if df[(f"p_{group_name}", "")].dtype == bool:
+                df[(f"p_{group_name}", "")] = df[(f"p_{group_name}", "")].map(
+                    {False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE}
+                )
+
+            if df[(f"i_{group_name}", "")].dtype == bool:
+                df[(f"i_{group_name}", "")] = df[(f"i_{group_name}", "")].map(
+                    {False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE}
+                )
 
             if "population_intervention" in group:
-                df[f"p_i_{group_name}"] = combine_dataframe_via_logical_expression(
-                    df, remove_comparators(group["population_intervention"])
+                df[
+                    (f"p_i_{group_name}", "")
+                ] = combine_dataframe_via_logical_expression(
+                    df, group["population_intervention"]
                 )
             else:
-                df[f"p_i_{group_name}"] = elementwise_and(
-                    df[f"p_{group_name}"], df[f"i_{group_name}"]
+                df[(f"p_i_{group_name}", "")] = elementwise_and(
+                    df[(f"p_{group_name}", "")], df[(f"i_{group_name}", "")]
                 )
 
-        df["p"] = reduce(
+        df[("p", "")] = reduce(
             elementwise_or,
             [
                 df[c]
                 for c in df.columns
-                if c.startswith("p_") and not c.startswith("p_i_")
+                if c[0].startswith("p_") and not c[0].startswith("p_i_")
             ],
         )
 
-        df["i"] = reduce(
-            elementwise_or, [df[c] for c in df.columns if c.startswith("i_")]
+        df[("i", "")] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c[0].startswith("i_")]
         )
 
-        df["p_i"] = reduce(
-            elementwise_or, [df[c] for c in df.columns if c.startswith("p_i_")]
+        df[("p_i", "")] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c[0].startswith("p_i_")]
         )
 
         assert len(df_base) == len(df)
@@ -605,23 +752,38 @@ class TestRecommendationBase(ABC):
         # &-combine all criteria with the base criterion to make sure that each criterion is only valid when the base
         # criterion is valid
         df = pd.merge(df_base, df, on=["person_id", "date"], how="left", validate="1:1")
-        df = df.set_index(["person_id", "date"])
 
-        mask = df["BASE"].astype(bool)
+        mask = df[("BASE", "")].astype(bool)
         fill_value = np.repeat(np.array(IntervalType.NEGATIVE, dtype=object), len(df))
         df = df.apply(lambda x: np.where(mask, x, fill_value))
 
-        df = df.drop(columns="BASE")
+        df = df.drop(columns=("BASE", ""))
 
         return df.reset_index()
 
     @staticmethod
-    def expand_dataframe_by_date(
+    def expand_dataframe_to_daily_observations(
         df: pd.DataFrame, observation_window: TimeRange
     ) -> pd.DataFrame:
         """
-        Expand a dataframe with one row per person and one column per concept to a dataframe with one row per person and
-        per day and one column per concept between `observation_start_date` and `observation_end_date`.
+        Expands a DataFrame to detail daily observations for each person within a specified observation window.
+
+        This function transforms an input DataFrame, which contains one row per person and one column per concept, into
+        an expanded DataFrame where each row corresponds to a single day's observation of a person for the specified
+        time range. The expansion is based on the `observation_window`, which defines the start and end dates for the
+        observations.
+
+        Parameters:
+            df (pd.DataFrame): The input DataFrame with columns indicating different concepts and rows representing
+                               individual observations per person.
+            observation_window (TimeRange): An object with `start` and `end` attributes specifying the date range for
+                                            which to expand the observations.
+
+        Returns:
+            pd.DataFrame: An expanded DataFrame where each row represents an observation for a person on a specific day
+                          within the observation window. The DataFrame's columns correspond to the original concepts,
+                          expanded to indicate the presence or absence of each concept per person per day.
+
         """
         df = df.copy()
 
@@ -632,14 +794,14 @@ class TestRecommendationBase(ABC):
         df["start_datetime"] = pd.to_datetime(df["start_datetime"], utc=True)
 
         types = (
-            df[["concept", "type"]]
+            df[["concept", "comparator", "type"]]
             .drop_duplicates()
-            .set_index("concept")["type"]
+            .set_index(["concept", "comparator"])["type"]
             .to_dict()
         )
 
         types_missing_data = {}
-        for parameter_name, parameter_type in types.items():
+        for (parameter_name, comparator), parameter_type in types.items():
             if hasattr(parameter, parameter_name):
                 criterion_def = getattr(parameter, parameter_name)
             else:
@@ -667,15 +829,17 @@ class TestRecommendationBase(ABC):
             )
         ]
 
-        df_expanded.drop(["start_datetime", "end_datetime"], axis=1, inplace=True)
+        df_expanded.drop(
+            ["start_datetime", "end_datetime", "type"], axis=1, inplace=True
+        )
 
         # Pivot operation (remains the same if already efficient)
         df_pivot = df_expanded.pivot_table(
-            index=["person_id", "date"], columns="concept", aggfunc=len, fill_value=0
+            index=["person_id", "date"],
+            columns=["concept", "comparator"],
+            aggfunc=len,
+            fill_value=0,
         )
-
-        # Flatten the multi-level column index
-        df_pivot.columns = [col[1] for col in df_pivot.columns.values]
 
         # Reset index to make 'person_id' and 'date' regular columns
         df_pivot.reset_index(inplace=True)
@@ -688,45 +852,72 @@ class TestRecommendationBase(ABC):
         # Efficient merge with an auxiliary DataFrame
         aux_df = pd.DataFrame(
             itertools.product(df["person_id"].unique(), date_range),
-            columns=["person_id", "date"],
+            columns=pd.MultiIndex.from_tuples([("person_id", ""), ("date", "")]),
         )
+        df_pivot = df_pivot.sort_index(
+            axis=1
+        )  # Sort columns to avoid performance warning
         merged_df = pd.merge(aux_df, df_pivot, on=["person_id", "date"], how="left")
+        merged_df.set_index(["person_id", "date"], inplace=True)
 
-        output_df = pd.DataFrame(index=merged_df.index)
-        for i in range(2):
-            output_df[merged_df.columns[i]] = merged_df.iloc[:, i]
+        merged_df.columns = pd.MultiIndex.from_tuples(merged_df.columns)
+        output_df = merged_df.copy()
 
         # Apply types_missing_data
-        for column in merged_df.columns[2:]:
+        for column in merged_df.columns:
             idx_positive = merged_df[column].astype(bool) & merged_df[column].notnull()
-            output_df[column] = types_missing_data[column]
+            output_df[column] = types_missing_data[column[0]]
             output_df.loc[idx_positive, column] = IntervalType.POSITIVE
+
+        assert len(output_df.columns) == len(merged_df.columns), "Column count changed"
 
         return output_df
 
-    @staticmethod
+    @pytest.fixture(scope="function", autouse=True)
+    def setup_testdata(self, db_session, run_slow_tests):
+        df_combinations = self.generate_criteria_combinations(
+            run_slow_tests=run_slow_tests
+        )
+        # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
+        #   rows = persons, columns = criteria
+
+        df_criterion_entries = self.generate_criterion_entries_from_criteria(
+            df_combinations
+        )
+        # df_criterion_entries is dataframe of all criteria that are to be performed
+        #   rows = single actual criteria (with date, value etc.)
+        #   columns = person_id, type, concept, start_datetime, end_datetime, value
+
+        self.insert_criteria_into_database(db_session, df_criterion_entries)
+
+        df_expected = self.assemble_daily_recommendation_evaluation(
+            df_criterion_entries
+        )
+
+        yield df_expected
+
     def recommendation_test_runner(
-        recommendation_url: str,
-        observation_window: TimeRange,
-        criteria_extended: pd.DataFrame,
-        recommendation_package_version: str,
+        self,
+        df_expected: pd.DataFrame,
     ) -> None:
         from execution_engine.clients import omopdb
         from execution_engine.execution_engine import ExecutionEngine
 
         e = ExecutionEngine(verbose=False)
 
+        recommendation_url = self.recommendation_base_url + self.recommendation_url
+
         print(recommendation_url)
         recommendation = e.load_recommendation(
             recommendation_url,
-            recommendation_package_version=recommendation_package_version,
+            recommendation_package_version=self.recommendation_package_version,
             force_reload=False,
         )
 
         e.execute(
             recommendation,
-            start_datetime=observation_window.start,
-            end_datetime=observation_window.end,
+            start_datetime=self.observation_window.start,
+            end_datetime=self.observation_window.end,
         )
 
         def get_query(t, category):
@@ -793,9 +984,7 @@ class TestRecommendationBase(ABC):
         df_result = pd.concat([df_result_p_i, df_result_pi])
         df_result = process_result(df_result)
 
-        result_expected = RecommendationCriteriaCombination(
-            name="expected", df=criteria_extended
-        )
+        result_expected = ResultComparator(name="expected", df=df_expected)
         result_db = result_expected.derive_database_result(df=df_result)
 
         assert result_db == result_expected

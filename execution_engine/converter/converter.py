@@ -3,6 +3,7 @@ from typing import Tuple, Type
 
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.element import Element
+from fhir.resources.extension import Extension
 from fhir.resources.fhirtypes import Boolean
 from fhir.resources.quantity import Quantity
 from fhir.resources.range import Range
@@ -34,7 +35,7 @@ def parse_code_value(
     code: CodeableConcept, value_parent: Element, value_prefix: str
 ) -> Tuple[Concept, Value]:
     """
-    Parses a code and value from a FHIR element.
+    Parses a code and value from a FHIR CodeableConcept into OMOP concepts and values.
     """
     return parse_code(code), parse_value(value_parent, value_prefix)
 
@@ -158,3 +159,29 @@ class CriterionConverterFactory:
         if fhir.id is not None:
             message += f' (id="{fhir.id}")'
         raise ValueError(message)
+
+
+def get_extension_by_url(element: Element, url: str) -> Extension:
+    """
+    Retrieves an Extension object from a list of extensions based on the provided URL.
+
+    Args:
+        element: The FHIR element containing the extensions.
+        url (str): The URL to match in the Extension objects.
+
+    Returns:
+        Optional[Extension]: The Extension object matching the URL if found, else None.
+
+    Raises:
+        ValueError: If no extensions match the URL or more than one extension matches the URL.
+    """
+    matching_extensions = [ext for ext in element.extension if ext.url == url]
+
+    if len(matching_extensions) == 0:
+        raise ValueError(f"No extension found with URL: {url}")
+    elif len(matching_extensions) > 1:
+        raise ValueError(
+            f"Multiple extensions found with URL: {url}, expected only one."
+        )
+
+    return matching_extensions[0]

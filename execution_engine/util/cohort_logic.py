@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Callable, cast
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
@@ -9,6 +9,30 @@ class BaseExpr(ABC):
     """
     Base class for expressions and symbols, defining common properties.
     """
+
+    args: tuple
+
+    @classmethod
+    def _recreate(cls, args: Any, kwargs: dict) -> "Expr":
+        """
+        Recreate an expression from its arguments and category.
+        """
+        return cast(Expr, cls(*args, **kwargs))
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "BaseExpr":
+        """
+        Initialize a new instance of the class.
+        """
+        new_self = super().__new__(cls)
+
+        # we must not allow the __init__ function because of possible infinite recursion when using the __new__ function
+        # (see https://pdarragh.github.io/blog/2017/05/22/oddities-in-pythons-new-method/)
+        if "__init__" in cls.__dict__:
+            raise AttributeError(
+                f"__init__ is not allowed in subclass {cls.__name__} of BaseExpr"
+            )
+
+        return new_self
 
     @abstractmethod
     def __eq__(self, other: Any) -> bool:
@@ -48,15 +72,30 @@ class Expr(BaseExpr):
     Class for expressions that require a category.
     """
 
-    def __init__(self, *args: Any, category: CohortCategory):
+    category: CohortCategory
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (self._recreate, (self.args, {"category": self.category}))
+
+    def __new__(cls, *args: Any, category: CohortCategory) -> "Expr":
         """
         Initialize an expression with given arguments and a mandatory category.
 
         :param args: Arguments for the expression.
         :param category: Mandatory category of the expression.
         """
+        self = cast(Expr, super().__new__(cls, *args))
         self.args = args
         self.category = category
+
+        return self
 
     def __repr__(self) -> str:
         """
@@ -107,14 +146,27 @@ class Symbol(BaseExpr):
 
     criterion: Criterion
 
-    def __init__(self, criterion: Criterion) -> None:
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (self._recreate, (self.args, {"criterion": self.criterion}))
+
+    def __new__(cls, criterion: Criterion) -> "Symbol":
         """
         Initialize a symbol.
 
         :param criterion: The criterion of the symbol.
         """
+        self = cast(Symbol, super().__new__(cls))
         self.args = ()
         self.criterion = criterion
+
+        return self
 
     def __eq__(self, other: Any) -> bool:
         """
@@ -235,7 +287,7 @@ class Or(BooleanFunction):
         if len(args) == 1 and isinstance(args[0], BaseExpr):
             return args[0]
 
-        return super().__new__(cls)
+        return super().__new__(cls, *args, **kwargs)
 
 
 class And(BooleanFunction):
@@ -247,11 +299,12 @@ class And(BooleanFunction):
 
     def __new__(cls, *args: Any, **kwargs: Any) -> BaseExpr:
         """
-        Create a new Or object.
+        Create a new And object.
         """
         if len(args) == 1 and isinstance(args[0], BaseExpr):
             return args[0]
-        return super().__new__(cls)
+
+        return super().__new__(cls, *args, **kwargs)
 
 
 class Not(BooleanFunction):
@@ -272,18 +325,33 @@ class Not(BooleanFunction):
         if len(args) > 1:
             raise ValueError("Not can only have one argument")
 
-        return super().__new__(cls)
+        return cast(Not, super().__new__(cls, *args, **kwargs))
 
 
-class Count(BooleanFunction):
+class Count(BooleanFunction, ABC):
     """
     Class representing a logical COUNT operation.
 
     Adds a "threshold" parameter of type int.
+
+    This class should not be instantiated directly, but rather through one of its subclasses.
     """
 
     count_min: int | None = None
     count_max: int | None = None
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (self.args, {"category": self.category, "threshold": self.count_min}),
+        )
 
 
 class MinCount(Count):
@@ -291,9 +359,13 @@ class MinCount(Count):
     Class representing a logical MIN_COUNT operation.
     """
 
-    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+    def __new__(cls, *args: Any, threshold: int | None, **kwargs: Any) -> "MinCount":
+        """
+        Create a new MinCount object.
+        """
+        self = cast(MinCount, super().__new__(cls, *args, **kwargs))
         self.count_min = threshold
-        super().__init__(*args, **kwargs)
+        return self
 
     def __repr__(self) -> str:
         """
@@ -307,9 +379,13 @@ class MaxCount(Count):
     Class representing a logical MAX_COUNT operation.
     """
 
-    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+    def __new__(cls, *args: Any, threshold: int | None, **kwargs: Any) -> "MaxCount":
+        """
+        Create a new MaxCount object.
+        """
+        self = cast(MaxCount, super().__new__(cls, *args, **kwargs))
         self.count_max = threshold
-        super().__init__(*args, **kwargs)
+        return self
 
     def __repr__(self) -> str:
         """
@@ -323,10 +399,14 @@ class ExactCount(Count):
     Class representing a logical EXACT_COUNT operation.
     """
 
-    def __init__(self, *args: Any, threshold: int | None, **kwargs: Any):
+    def __new__(cls, *args: Any, threshold: int | None, **kwargs: Any) -> "ExactCount":
+        """
+        Create a new ExactCount object.
+        """
+        self = cast(ExactCount, super().__new__(cls, *args, **kwargs))
         self.count_min = threshold
         self.count_max = threshold
-        super().__init__(*args, **kwargs)
+        return self
 
     def __repr__(self) -> str:
         """
@@ -376,7 +456,7 @@ class NonSimplifiableAnd(BooleanFunction):
         """
         Create a new NonSimplifiableAnd object.
         """
-        return super().__new__(cls)
+        return cast(NonSimplifiableAnd, super().__new__(cls, *args, **kwargs))
 
 
 # todo: can we rename to more meaningful name?
@@ -392,7 +472,7 @@ class NoDataPreservingAnd(BooleanFunction):
         """
         Create a new NoDataPreservingAnd object.
         """
-        return super().__new__(cls)
+        return cast(NoDataPreservingAnd, super().__new__(cls, *args, **kwargs))
 
 
 class NoDataPreservingOr(BooleanFunction):
@@ -407,7 +487,7 @@ class NoDataPreservingOr(BooleanFunction):
         """
         Create a new NoDataPreservingOr object.
         """
-        return super().__new__(cls)
+        return cast(NoDataPreservingOr, super().__new__(cls, *args, **kwargs))
 
 
 class LeftDependentToggle(BooleanFunction):
@@ -416,11 +496,13 @@ class LeftDependentToggle(BooleanFunction):
     otherwise it returns NOT_APPLICABLE.
     """
 
-    def __init__(self, left: BaseExpr, right: BaseExpr, **kwargs: Any) -> None:
+    def __new__(
+        cls, left: BaseExpr, right: BaseExpr, **kwargs: Any
+    ) -> "LeftDependentToggle":
         """
         Initialize a LeftDependentToggle object.
         """
-        super().__init__(left, right, **kwargs)
+        return cast(LeftDependentToggle, super().__new__(cls, left, right, **kwargs))
 
     @property
     def left(self) -> Expr:
