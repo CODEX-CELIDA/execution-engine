@@ -162,13 +162,11 @@ def pytest_assertrepr_compare(
     """
     Custom error message for RecommendationCriteriaCombination.
     """
-    from tests.recommendation.test_recommendation_base import (
-        RecommendationCriteriaCombination,
-    )
+    from tests.recommendation.utils.result_comparator import ResultComparator
 
     if (
-        isinstance(left, RecommendationCriteriaCombination)
-        and isinstance(right, RecommendationCriteriaCombination)
+        isinstance(left, ResultComparator)
+        and isinstance(right, ResultComparator)
         and op == "=="
     ):
         return left.comparison_report(right)

@@ -1,3 +1,5 @@
+import itertools
+
 from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
     Base,
     metadata,
@@ -30,6 +32,61 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_4(TestRecommendationBas
             "intervention": "FONDAPARINUX_PROPHYLACTIC=",
         },
     }
+
+    combinations = (
+        [
+            # Population: All combinations
+            # Intervention: All prophylactic anticoagulations criteria (each optional)
+            " ".join(pair)
+            for pair in itertools.product(
+                ["?COVID19 ?HIT2 ?HEPARIN_ALLERGY ?HEPARINOID_ALLERGY"],
+                [
+                    "?DALTEPARIN=",
+                    "?ENOXAPARIN=",
+                    "?NADROPARIN_LOW_WEIGHT=",
+                    "?NADROPARIN_HIGH_WEIGHT=",
+                    "?CERTOPARIN=",
+                    "?TINZAPARIN=",
+                    "?HEPARIN_SUBCUTANEOUS=",
+                    "?FONDAPARINUX_PROPHYLACTIC=",
+                ],
+            )
+        ]
+        + [
+            # Population: The inclusion and one exclusion criterion (all combinations)
+            # Intervention: All therapeutic anticoagulation criteria (each optional)
+            " ".join(pair)
+            for pair in itertools.product(
+                ["?COVID19 ?HIT2"],
+                [
+                    "?DALTEPARIN>",
+                    "?ENOXAPARIN>",
+                    "?NADROPARIN_LOW_WEIGHT>",
+                    "?NADROPARIN_HIGH_WEIGHT>",
+                    "?CERTOPARIN>",
+                    "?HEPARIN=",
+                    "?ARGATROBAN=",
+                ],
+            )
+        ]
+        + [
+            # Population: The inclusion criterion
+            # Intervention: One prophylatic criterion (always) + all therapeutic anticoagulation (each optional)
+            " ".join(pair)
+            for pair in itertools.product(
+                ["COVID19 ENOXAPARIN="],
+                [
+                    "?DALTEPARIN>",
+                    "?ENOXAPARIN>",
+                    "?NADROPARIN_LOW_WEIGHT>",
+                    "?NADROPARIN_HIGH_WEIGHT>",
+                    "?CERTOPARIN>",
+                    "?HEPARIN=",
+                    "?ARGATROBAN=",
+                ],
+            )
+        ]
+    )
 
     invalid_combinations = "(NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>) | (NADROPARIN_HIGH_WEIGHT= & NADROPARIN_LOW_WEIGHT=)"
 

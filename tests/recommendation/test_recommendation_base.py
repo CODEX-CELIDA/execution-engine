@@ -34,7 +34,11 @@ from tests.recommendation.utils.dataframe_operations import (
     elementwise_and,
     elementwise_or,
 )
-from tests.recommendation.utils.expression_parsing import CRITERION_PATTERN
+from tests.recommendation.utils.expression_parsing import (
+    CRITERION_PATTERN,
+    criteria_combination_str_to_df,
+)
+from tests.recommendation.utils.result_comparator import ResultComparator
 
 MISSING_DATA_TYPE = {
     "condition": IntervalType.NEGATIVE,
@@ -44,154 +48,6 @@ MISSING_DATA_TYPE = {
     "measurement": IntervalType.NO_DATA,
     "procedure": IntervalType.NEGATIVE,
 }
-
-
-class RecommendationCriteriaCombination:
-    def __init__(self, name, df):
-        if name not in ["db", "expected"]:
-            raise ValueError(f"Invalid name '{name}' for RecommendationCriteriaResult")
-        self.name = name
-
-        if df.index.names != ["person_id", "date"]:
-            self.df = df.set_index(["person_id", "date"])
-        else:
-            self.df = df
-
-        # only if there are two levels in the columns
-        if isinstance(self.df.columns, pd.MultiIndex):
-            # flatten columns
-            self.df.columns = ["".join(col) for col in self.df.columns]
-
-        # make NO_DATA and NOT_APPLICABLE equal to False
-        with IntervalType.custom_bool_true(
-            [IntervalType.POSITIVE, IntervalType.NOT_APPLICABLE]
-        ):
-            self.df = self.df.astype(bool)
-
-    def __getitem__(self, item):
-        return self.df[item]
-
-    @property
-    def plan_names(self):
-        return [col[2:] for col in self.df.columns if col.startswith("i_")]
-
-    def plan_name_column_names(self):
-        cols = [
-            "_".join(i) for i in itertools.product(["p", "i", "p_i"], self.plan_names)
-        ]
-        return cols + ["p", "i", "p_i"]
-
-    def derive_database_result(self, df):
-        df = df.copy()
-        df.loc[
-            :, [c for c in self.plan_name_column_names() if c not in df.columns]
-        ] = False
-
-        return RecommendationCriteriaCombination(name="db", df=df)
-
-    def __eq__(self, other):
-        assert isinstance(other, RecommendationCriteriaCombination)
-
-        df1, df2 = self.__order_dfs(other)
-
-        def compare_series(name):
-            s1 = df1[name]
-            s2 = df2[name]
-
-            # align the series to make sure they have the same index
-            s1, s2 = s1.align(s2)
-            # replacement for s1.align(s2, fill_value=False) as this raises a warning in pandas 2.2.0
-            s1 = s1.astype(bool) & s1.notnull()
-            s2 = s2.astype(bool) & s2.notnull()
-
-            return s1.equals(s2)
-
-        return all([compare_series(col) for col in self.plan_name_column_names()])
-
-    def __order_dfs(self, other):
-        if self.name == "expected":
-            df1, df2 = self.df, other.df
-        elif other.name == "expected":
-            df1, df2 = other.df, self.df
-        else:
-            raise ValueError(
-                "Cannot compare two RecommendationCriteriaCombination objects that are both not 'expected'"
-            )
-        return df1, df2
-
-    def comparison_report(self, other) -> list[str]:
-        if not isinstance(other, RecommendationCriteriaCombination):
-            raise ValueError(
-                "Can only compare RecommendationCriteriaCombination objects"
-            )
-
-        if self == other:
-            return ["Results match"]
-
-        df1, df2 = self.__order_dfs(other)
-
-        overlapping_cols = self.plan_name_column_names()
-
-        # Find the "other" columns in df1
-        other_cols = list(set(df1.columns) - set(overlapping_cols))
-
-        reports = ["Results do not match"]
-
-        # Loop over each person_id
-        for person_id in df1.index.get_level_values("person_id").unique():
-            df1_subset = df1.loc[person_id]
-
-            if person_id in df2.index.get_level_values("person_id"):
-                df2_subset = df2.loc[person_id]
-            else:
-                df2_subset = pd.DataFrame(
-                    index=df1_subset.index, columns=df1_subset.columns, data=False
-                )
-
-            # Splitting and sorting the conditions
-            true_cols = sorted(
-                col for col, val in df1_subset[other_cols].any().items() if val
-            )
-            false_cols = sorted(
-                col for col, val in df1_subset[other_cols].any().items() if not val
-            )
-
-            # Constructing the logical expressions
-            true_expression = " & ".join(true_cols)
-            false_expression = " & ".join(f"~{col}" for col in false_cols)
-
-            mismatch_reported = False
-            # Loop over each overlapping column
-            for col in overlapping_cols:
-                # Find dates where the column doesn't match
-                s1 = df1_subset[col]
-                s2 = df2_subset[col]
-                s1, s2 = s1.align(s2, fill_value=False)
-                mismatches = s1[s1 != s2]
-
-                # If any mismatches exist, add a report for this column
-                if not mismatches.empty:
-                    if not mismatch_reported:
-                        person_id_str = f"person_id '{person_id}'"
-                        reports.append(f"{person_id_str} - TRUE:  {true_expression}")
-                        reports.append(
-                            f"{' ' * len(person_id_str)} - FALSE: {false_expression}"
-                        )
-                        mismatch_reported = True
-
-                    mismatch_reports = []
-                    for date, value in mismatches.items():
-                        expected_value = value
-                        actual_value = s2.loc[date]
-                        mismatch_reports.append(
-                            f"{date.date()} (expected: {expected_value}, actual: {actual_value})"
-                        )
-
-                    reports.append(
-                        f"Column '{col}' does not match on dates: {', '.join(mismatch_reports)}"
-                    )
-
-        return reports
 
 
 @pytest.mark.recommendation
@@ -249,6 +105,15 @@ class TestRecommendationBase(ABC):
         "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
     """
 
+    recommendation_package_version = None
+    """
+    The version of the recommendation FHIR package being used.Required to allow different versions of the
+    recommendation package to be tested.
+
+    Example:
+        "v1.4.0-snapshot"
+    """
+
     recommendation_expression = None
     """
     The symbolic expression of the recommendation, specifying the population and intervention criteria.
@@ -282,13 +147,32 @@ class TestRecommendationBase(ABC):
         }
     """
 
-    recommendation_package_version = None
+    combinations: list[str | None] = None
     """
-    The version of the recommendation FHIR package being used.Required to allow different versions of the
-    recommendation package to be tested.
+    Specifies the criteria combinations for recommendation evaluation.
+
+    `combinations`: Can take two types of values:
+      1. `None`: Indicates that all possible combinations of criteria listed in the 'recommendation_expression'
+                 variable are to be used. Note: This approach is exponential in the number of combinations.
+      2. `List[str]`: A list where each string defines a specific set of criteria combinations to be included or
+                      excluded in the evaluation. These strings must be formatted according to the
+                      'criteria_combination_str_to_df' function, detailing criteria with their names and comparators.
+                      Criteria can be marked as always present (no prefix), always absent ('!'), or optional ('?').
+
+    String Format Details:
+    - Criteria Representation: Each criterion within a string is represented by its
+      name followed by a comparator ('<', '>', '=').
+        - Prefix '!' indicates the criterion must always be absent in the combination.
+        - Prefix '?' marks the criterion as optional.
+        - Criteria without a prefix are considered always present.
+    - Multiple Criteria: Criteria are separated by spaces.
+    - The criterion names and comparators must match those in the `recommendation_expression` variable.
 
     Example:
-        "v1.4.0-snapshot"
+        combinations = ["A>= !B<= ?C=", "!D> E< ?F="]
+        # This specifies two combinations to be evaluated:
+        # 1. 'A' must be present and at least as great as, 'B' must be absent, 'C' is optional.
+        # 2. 'D' must be absent and greater than, 'E' must be present and less than, 'F' is optional.
     """
 
     invalid_combinations = ""
@@ -946,11 +830,30 @@ class TestRecommendationBase(ABC):
     def setup_testdata(self, db_session, run_slow_tests):
         criteria = self.get_criteria_name_and_comparator()
 
-        # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
-        #   rows = persons, columns = criteria
-        df_combinations = self.generate_criteria_combinations(
-            criteria, run_slow_tests=run_slow_tests
-        )
+        if self.combinations is None:
+            # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
+            #   rows = persons, columns = criteria
+            df_combinations = self.generate_criteria_combinations(
+                criteria, run_slow_tests=run_slow_tests
+            )
+        else:
+            # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
+            #   rows = persons, columns = criteria
+            df_combinations = []
+            for combination_str in self.combinations:
+                df_combination = criteria_combination_str_to_df(combination_str)
+                # assert that each column name is in the criteria list
+                assert all(
+                    [c in criteria for c in df_combination.columns]
+                ), "All criteria must be in the criteria list"
+                df_combinations.append(df_combination)
+            df_combinations = (
+                pd.concat(df_combinations).fillna(False).reset_index(drop=True)
+            )
+
+        assert set(df_combinations.columns) == set(
+            criteria
+        ), "All criteria must be present in test combinations"
 
         #   rows = single actual criteria (with date, value etc.)
         #   columns = person_id, type, concept, start_datetime, end_datetime, value
@@ -1054,9 +957,7 @@ class TestRecommendationBase(ABC):
         df_result = pd.concat([df_result_p_i, df_result_pi])
         df_result = process_result(df_result)
 
-        result_expected = RecommendationCriteriaCombination(
-            name="expected", df=df_expected
-        )
+        result_expected = ResultComparator(name="expected", df=df_expected)
         result_db = result_expected.derive_database_result(df=df_result)
 
         assert result_db == result_expected
