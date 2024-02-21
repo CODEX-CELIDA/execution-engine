@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 
 from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
@@ -20,6 +22,42 @@ class TestRecommendation18NoTherapeuticAnticoagulation(TestRecommendationBase):
             "intervention": "~(DALTEPARIN> | ENOXAPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | CERTOPARIN> | (HEPARIN & APTT>) | (ARGATROBAN & APTT>))",
         },
     }
+
+    combinations = [
+        # Population: All combinations
+        # Intervention: All therapeutic anticoagulation criteria (each optional)
+        " ".join(pair)
+        for pair in itertools.product(
+            [
+                "?COVID19 ?ICU ?PULMONARY_EMBOLISM ?VENOUS_THROMBOSIS ?ATRIAL_FIBRILLATION"
+            ],
+            [
+                "?DALTEPARIN>",
+                "?ENOXAPARIN>",
+                "?NADROPARIN_LOW_WEIGHT>",
+                "?NADROPARIN_HIGH_WEIGHT>",
+                "?CERTOPARIN>",
+                "?HEPARIN ?APTT>",
+                "?ARGATROBAN ?APTT>",
+            ],
+        )
+    ] + [
+        # Population: All combinations
+        # Intervention: Some double combinations
+        " ".join(pair)
+        for pair in itertools.product(
+            [
+                "?COVID19 ?ICU ?PULMONARY_EMBOLISM ?VENOUS_THROMBOSIS ?ATRIAL_FIBRILLATION"
+            ],
+            [
+                "?HEPARIN ?APTT> ?ARGATROBAN",
+                "DALTEPARIN> NADROPARIN_LOW_WEIGHT>",
+                "NADROPARIN_HIGH_WEIGHT> ENOXAPARIN>",
+                "CERTOPARIN> ?HEPARIN ?APTT>",
+                "NADROPARIN_HIGH_WEIGHT> ARGATROBAN ?APTT>",
+            ],
+        )
+    ]
 
     invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
 

@@ -843,9 +843,11 @@ class TestRecommendationBase(ABC):
             for combination_str in self.combinations:
                 df_combination = criteria_combination_str_to_df(combination_str)
                 # assert that each column name is in the criteria list
-                assert all(
-                    [c in criteria for c in df_combination.columns]
-                ), "All criteria must be in the criteria list"
+                for c in df_combination.columns:
+                    if c not in criteria:
+                        raise ValueError(
+                            f"Criterion {''.join(c)} not in recommendation criteria"
+                        )
                 df_combinations.append(df_combination)
             df_combinations = (
                 pd.concat(df_combinations).fillna(False).reset_index(drop=True)
