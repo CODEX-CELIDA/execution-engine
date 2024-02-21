@@ -1,3 +1,5 @@
+import itertools
+
 import pytest
 
 from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
@@ -20,6 +22,39 @@ class TestRecommendation17TherapeuticAnticoagulation(TestRecommendationBase):
             "intervention": "(HEPARIN & APTT>) | DALTEPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | ENOXAPARIN> | CERTOPARIN> | FONDAPARINUX_THERAPEUTIC= | (ARGATROBAN & APTT>)",
         },
     }
+
+    combinations = [
+        # Population: All combinations
+        # Intervention: All therapeutic anticoagulation criteria (each optional)
+        " ".join(pair)
+        for pair in itertools.product(
+            ["?COVID19 ?ICU ?D_DIMER"],
+            [
+                "?HEPARIN ?APTT>",
+                "?DALTEPARIN>",
+                "?NADROPARIN_LOW_WEIGHT>",
+                "?NADROPARIN_HIGH_WEIGHT>",
+                "?ENOXAPARIN>",
+                "?CERTOPARIN>",
+                "?FONDAPARINUX_THERAPEUTIC=",
+                "?ARGATROBAN ?APTT>",
+            ],
+        )
+    ] + [
+        # Population: All combinations
+        # Intervention: Some double combinations
+        " ".join(pair)
+        for pair in itertools.product(
+            ["?COVID19 ?ICU ?D_DIMER"],
+            [
+                "?HEPARIN ?APTT> ?ARGATROBAN",
+                "DALTEPARIN> NADROPARIN_LOW_WEIGHT>",
+                "NADROPARIN_HIGH_WEIGHT> ENOXAPARIN>",
+                "CERTOPARIN> FONDAPARINUX_THERAPEUTIC=",
+                "FONDAPARINUX_THERAPEUTIC= ARGATROBAN ?APTT>",
+            ],
+        )
+    ]
 
     invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
 
@@ -49,6 +84,40 @@ class TestRecommendation17TherapeuticAnticoagulation_v1_2(TestRecommendationBase
             "intervention": "(HEPARIN & APTT>) | DALTEPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | ENOXAPARIN> | CERTOPARIN> | FONDAPARINUX_THERAPEUTIC= | (ARGATROBAN & APTT>)",
         },
     }
+
+    combinations = [
+        # Population: All combinations
+        # Intervention: All therapeutic anticoagulation criteria (each optional)
+        " ".join(pair)
+        for pair in itertools.product(
+            ["?COVID19 ?ICU ?VENOUS_THROMBOSIS ?D_DIMER"],
+            [
+                "?HEPARIN ?APTT>",
+                "?DALTEPARIN>",
+                "?NADROPARIN_LOW_WEIGHT>",
+                "?NADROPARIN_HIGH_WEIGHT>",
+                "?ENOXAPARIN>",
+                "?CERTOPARIN>",
+                "?FONDAPARINUX_THERAPEUTIC=",
+                "?ARGATROBAN ?APTT>",
+            ],
+        )
+    ] + [
+        # Population: All combinations
+        # Intervention: Some double combinations
+        " ".join(pair)
+        for pair in itertools.product(
+            ["?COVID19 ?ICU ?VENOUS_THROMBOSIS ?D_DIMER"],
+            [
+                "?HEPARIN ?APTT> ?ARGATROBAN",
+                "DALTEPARIN> NADROPARIN_LOW_WEIGHT>",
+                "NADROPARIN_HIGH_WEIGHT> ENOXAPARIN>",
+                "CERTOPARIN> FONDAPARINUX_THERAPEUTIC=",
+                "FONDAPARINUX_THERAPEUTIC= ARGATROBAN ?APTT>",
+            ],
+        )
+    ]
+
     invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
 
     def test_recommendation_17_therapeutic_anticoagulation(
