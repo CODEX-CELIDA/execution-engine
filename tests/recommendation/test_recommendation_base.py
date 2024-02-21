@@ -186,7 +186,59 @@ class TestRecommendationBase(ABC):
         "NADROPARIN_HIGH_WEIGHT & NADROPARIN_LOW_WEIGHT"
     """
 
-    def generate_criteria_combinations(
+    def generate_criteria_combinations(self, run_slow_tests: bool) -> pd.DataFrame:
+        # list of all criteria in the recommendation
+        criteria = self.get_criteria_name_and_comparator()
+
+        if self.combinations is None:
+            # no explicit combinations provided, generate all possible combinations
+            df_combinations = self.generate_cartesian_criteria_combinations(
+                criteria, run_slow_tests=run_slow_tests
+            )
+        else:
+            # combinations are provided, generate from list
+            df_combinations = self.generate_criteria_combinations_from_list(
+                self.combinations, criteria
+            )
+
+        assert set(df_combinations.columns) == set(
+            criteria
+        ), "All criteria must be present in test combinations"
+
+        return df_combinations
+
+    def remove_invalid_criterion_combinations(self, df: pd.DataFrame) -> pd.DataFrame:
+        # Remove invalid combinations
+        if self.invalid_combinations:
+            idx_invalid = combine_dataframe_via_logical_expression(
+                df, self.invalid_combinations
+            )
+            df = df[~idx_invalid].copy()
+
+        return df
+
+    def generate_criteria_combinations_from_list(
+        self, combinations: list[str], criteria: list[str]
+    ) -> pd.DataFrame:
+        df_combinations = []
+        for combination_str in combinations:
+            df_combination = criteria_combination_str_to_df(combination_str)
+            # assert that each column name is in the criteria list
+            for c in df_combination.columns:
+                if c not in criteria:
+                    raise ValueError(
+                        f"Criterion {''.join(c)} not in recommendation criteria"
+                    )
+            df_combinations.append(df_combination)
+        df_combinations = (
+            pd.concat(df_combinations).fillna(False).reset_index(drop=True)
+        )
+
+        df_combinations = self.remove_invalid_criterion_combinations(df_combinations)
+
+        return df_combinations
+
+    def generate_cartesian_criteria_combinations(
         self, criteria: set[str], run_slow_tests: bool
     ) -> pd.DataFrame:
         """
@@ -213,12 +265,7 @@ class TestRecommendationBase(ABC):
         """
         df = generate_binary_combinations_dataframe(criteria)
 
-        # Remove invalid combinations
-        if self.invalid_combinations:
-            idx_invalid = combine_dataframe_via_logical_expression(
-                df, self.invalid_combinations
-            )
-            df = df[~idx_invalid].copy()
+        df = self.remove_invalid_criterion_combinations(df)
 
         if not run_slow_tests:
             n = 50
@@ -828,40 +875,18 @@ class TestRecommendationBase(ABC):
 
     @pytest.fixture(scope="function", autouse=True)
     def setup_testdata(self, db_session, run_slow_tests):
-        criteria = self.get_criteria_name_and_comparator()
+        df_combinations = self.generate_criteria_combinations(
+            run_slow_tests=run_slow_tests
+        )
+        # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
+        #   rows = persons, columns = criteria
 
-        if self.combinations is None:
-            # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
-            #   rows = persons, columns = criteria
-            df_combinations = self.generate_criteria_combinations(
-                criteria, run_slow_tests=run_slow_tests
-            )
-        else:
-            # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
-            #   rows = persons, columns = criteria
-            df_combinations = []
-            for combination_str in self.combinations:
-                df_combination = criteria_combination_str_to_df(combination_str)
-                # assert that each column name is in the criteria list
-                for c in df_combination.columns:
-                    if c not in criteria:
-                        raise ValueError(
-                            f"Criterion {''.join(c)} not in recommendation criteria"
-                        )
-                df_combinations.append(df_combination)
-            df_combinations = (
-                pd.concat(df_combinations).fillna(False).reset_index(drop=True)
-            )
-
-        assert set(df_combinations.columns) == set(
-            criteria
-        ), "All criteria must be present in test combinations"
-
-        #   rows = single actual criteria (with date, value etc.)
-        #   columns = person_id, type, concept, start_datetime, end_datetime, value
         df_criterion_entries = self.generate_criterion_entries_from_criteria(
             df_combinations
         )
+        # df_criterion_entries is dataframe of all criteria that are to be performed
+        #   rows = single actual criteria (with date, value etc.)
+        #   columns = person_id, type, concept, start_datetime, end_datetime, value
 
         self.insert_criteria_into_database(db_session, df_criterion_entries)
 
