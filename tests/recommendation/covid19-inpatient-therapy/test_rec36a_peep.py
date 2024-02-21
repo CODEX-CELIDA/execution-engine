@@ -1,4 +1,5 @@
 import copy
+import itertools
 
 import pandas as pd
 import pytest
@@ -61,6 +62,30 @@ class TestRecommendation36aPeep(TestRecommendationBase):
             "population_intervention": "COVID19 & VENTILATED & FiO2_100 & PEEP_18>",
         },
     }
+
+    combinations = [
+        # Population: All combinations
+        # Intervention: All PEEP criteria (each optional)
+        " ".join(pair)
+        for pair in itertools.product(
+            ["?COVID19 ?VENTILATED"],
+            [
+                "?FiO2_30 ?PEEP_5> ?PEEP_8> ?PEEP_18>",
+                "?FiO2_40 ?PEEP_5> ?PEEP_8> ?PEEP_18>",
+                "?FiO2_50 ?PEEP_8> ?PEEP_18>",
+                "?FiO2_60 ?PEEP_10> ?PEEP_18>",
+                "?FiO2_70 ?PEEP_10> ?PEEP_18>",
+                "?FiO2_80 ?PEEP_14> ?PEEP_18>",
+                "?FiO2_90 ?PEEP_14> ?PEEP_18>",
+                "?FiO2_100 ?PEEP_18>",
+                "FiO2_30 FiO2_40 ?PEEP_5> ?PEEP_8> ?PEEP_18>",
+                "FiO2_50 FiO2_60 ?PEEP_8> ?PEEP_10>",
+                "FiO2_70 FiO2_80 ?PEEP_10> ?PEEP_14>",
+                "FiO2_90 FiO2_100 ?PEEP_14> ?PEEP_18>",
+                "FiO2_30 FiO2_40 FiO2_50 FiO2_60 ?PEEP_5> ?PEEP_8> ?PEEP_10> ?PEEP_18>",
+            ],
+        )
+    ]
 
     invalid_combinations = (
         "(PEEP_18> & PEEP_14>) | "
