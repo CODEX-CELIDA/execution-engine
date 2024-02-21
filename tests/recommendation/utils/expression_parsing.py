@@ -64,6 +64,9 @@ def criteria_combination_str_to_df(criteria_str: str) -> pd.DataFrame:
         elif comparator not in ("<", ">", "="):
             raise ValueError(f"Invalid comparator: {comparator}")
 
+        if (criterion_name, comparator) in [c[1:] for c in split_criteria]:
+            raise ValueError(f"Duplicate criterion: {criterion_name}")
+
         split_criteria.append((condition, criterion_name, comparator))
 
     always_present = []

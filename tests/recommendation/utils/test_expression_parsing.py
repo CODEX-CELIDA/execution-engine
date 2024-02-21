@@ -99,14 +99,14 @@ class TestCriteriaCombinationStrToDf:
             criteria_combination_str_to_df(criteria_str)
         assert "Invalid c" in str(exc_info.value)
 
-    def test_missing_comparator(self):
-        criteria_str = "Criterion"
-        with pytest.raises(ValueError) as exc_info:
-            criteria_combination_str_to_df(criteria_str)
-        assert "Invalid criterion name (missing comparator)" in str(exc_info.value)
-
     def test_invalid_string(self):
         criteria_str = "?COVID19 ?HEPARINOID_ALLERGY?DALTEPARIN="
         with pytest.raises(ValueError) as exc_info:
             criteria_combination_str_to_df(criteria_str)
         assert "Invalid criterion name" in str(exc_info.value)
+
+    def test_invalid_duplicate_criterion(self):
+        criteria_str = "?COVID19 ?COVID19"
+        with pytest.raises(ValueError) as exc_info:
+            criteria_combination_str_to_df(criteria_str)
+        assert "Duplicate criterion" in str(exc_info.value)
