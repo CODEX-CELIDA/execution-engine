@@ -18,7 +18,8 @@ Collection of static clinical variables.
 The values of these variables are considered constant over the observation period.
 """
 STATIC_CLINICAL_CONCEPTS = [
-    int(OMOPConcepts.BODY_WEIGHT.value),
+    int(OMOPConcepts.BODY_WEIGHT_LOINC.value),
+    int(OMOPConcepts.BODY_WEIGHT_SNOMED.value),
     int(OMOPConcepts.BODY_HEIGHT.value),
 ]  # type: list[int]
 # TODO: Only use weight etc from the current encounter/visit!

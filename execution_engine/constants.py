@@ -56,14 +56,17 @@ class OMOPConcepts(Enum):
     """
 
     VISIT_TYPE_STILL_PATIENT = 32220
-    BODY_HEIGHT = 3036277  # Body height (observation)
-    BODY_WEIGHT = 3025315  # Body weight (observation)
+    BODY_HEIGHT = 3036277  # Body height (observation; from LOINC)
+    BODY_WEIGHT_LOINC = 3025315  # Body weight (maps to LOINC code)
+    BODY_WEIGHT_SNOMED = 4099154  # Body weight (maps to SNOMED code)
     GENDER_FEMALE = 8532
     GENDER_MALE = 8507
     TIDAL_VOLUME_ON_VENTILATOR = 21490854
     ALLERGY = 43021170
     UNIT_ML_PER_KG = 9571
     UNIT_KG = 9529
+    UNIT_IU_PER_KG = 9335
+    UNIT_MG_PER_KG = 9562
 
     def __str__(self) -> str:
         """

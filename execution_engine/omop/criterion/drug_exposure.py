@@ -1,10 +1,10 @@
 import logging
 from typing import Any, Dict
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import Column, and_, case, func, select, true
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory
+from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     SQL_ONE_SECOND,
@@ -70,6 +70,19 @@ class DrugExposure(Criterion):
         """Get the concept of the ingredient associated with this DrugExposure"""
         return self._ingredient_concept
 
+    def is_weight_related(self) -> bool:
+        """
+        Check if the criterion is weight related.
+        """
+        if self._dose is None or self._dose.dose is None:
+            return False
+
+        return self._dose.dose.unit.concept_id in [
+            OMOPConcepts.UNIT_IU_PER_KG.value,
+            OMOPConcepts.UNIT_MG_PER_KG.value,
+            OMOPConcepts.UNIT_ML_PER_KG.value,
+        ]
+
     def _sql_filter_concept(self, query: Select) -> Select:
         """
         Return the SQL to filter the data for the criterion.
@@ -128,6 +141,36 @@ class DrugExposure(Criterion):
 
         return query
 
+    def _quantity_weight_related(self, query: Select) -> tuple[Select, Column]:
+        measurement = omop.Measurement.__table__.alias("m_weight")
+        latest_measurement = (
+            select(measurement.c.value_as_number)
+            .where(measurement.c.person_id == self._table.c.person_id)
+            .where(
+                measurement.c.measurement_concept_id.in_(
+                    [
+                        OMOPConcepts.BODY_WEIGHT_LOINC.value,
+                        OMOPConcepts.BODY_WEIGHT_SNOMED.value,
+                    ]
+                )
+            )
+            .where(
+                measurement.c.measurement_datetime
+                <= self._table.c.drug_exposure_start_datetime
+            )
+            .order_by(measurement.c.measurement_datetime.desc())
+            .limit(1)
+            .lateral("latest_measurement")
+        )
+
+        c_quantity = (
+            self._table.c.quantity / latest_measurement.c.value_as_number
+        ).label("quantity")
+
+        query = query.select_from(self._table.join(latest_measurement, true()))
+
+        return query, c_quantity
+
     def _create_query(self) -> Select:
         query = select(
             self._table.c.person_id,
@@ -140,12 +183,18 @@ class DrugExposure(Criterion):
 
         query = self._filter_base_persons(query)
 
+        if self.is_weight_related():
+            query, c_quantity = self._quantity_weight_related(query)
+        else:
+            c_quantity = self._table.c.quantity.label("quantity")
+
         # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
         interval = self._dose.interval.to_sql_interval()
 
         interval_starts = self.cte_interval_starts(
-            query, interval, add_columns=[self._table.c.quantity.label("quantity")]
+            query, interval, add_columns=[c_quantity]
         )
+
         date_ranges = self.cte_date_ranges(
             interval_starts, interval, add_columns=[interval_starts.c.quantity]
         )
