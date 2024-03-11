@@ -1,5 +1,5 @@
 pytest==8.0.2
-pytest-postgresql==5.1.0
+pytest-postgresql==6.0.0
 tqdm==4.66.2
 pytest-cov==4.1.0
 pytest-env==1.1.3
