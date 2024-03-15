@@ -14,7 +14,7 @@ class TestRecommendation18NoTherapeuticAnticoagulation(TestRecommendationBase):
     recommendation_url = (
         "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation"
     )
-    recommendation_package_version = "latest"
+    recommendation_package_version = "v1.4.0"
 
     recommendation_expression = {
         "Anticoagulation_Plan_No_Specific_Indication": {

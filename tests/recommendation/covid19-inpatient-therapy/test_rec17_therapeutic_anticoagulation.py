@@ -10,11 +10,11 @@ from tests.recommendation.test_recommendation_base import TestRecommendationBase
 
 
 @pytest.mark.recommendation
-class TestRecommendation17TherapeuticAnticoagulation(TestRecommendationBase):
+class TestRecommendation17TherapeuticAnticoagulation_v1_4(TestRecommendationBase):
     recommendation_url = (
         "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation"
     )
-    recommendation_package_version = "latest"
+    recommendation_package_version = "v1.4.0"
 
     recommendation_expression = {
         "Therapeutic_Anticoagulation_No_Renal_Function_Impairment": {
