@@ -51,8 +51,8 @@ class DrugAdministrationAction(AbstractAction):
         """
 
         dose: Dosage
-        route: Concept | None
-        extensions: list[ExtensionType] | None
+        route: Concept | None = None
+        extensions: list[ExtensionType] | None = None
 
     def __init__(
         self,
@@ -298,10 +298,10 @@ class DrugAdministrationAction(AbstractAction):
                 category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=dosage["dose"],
-                route=dosage["route"],
+                route=dosage.get("route", None),
             )
 
-            if dosage["extensions"] is None:
+            if dosage.get("extensions", None) is None:
                 drug_actions.append(drug_action)
             else:
                 comb = CriterionCombination(
@@ -314,7 +314,7 @@ class DrugAdministrationAction(AbstractAction):
 
                 comb.add(drug_action)
 
-                for extension in dosage["extensions"]:
+                for extension in dosage["extensions"]:  # type: ignore # (extension is not None as per the if-block)
                     comb.add(
                         PointInTimeCriterion(
                             name=f"{self._name}_ext_{extension['code'].concept_name}",
