@@ -59,7 +59,7 @@ class DrugExposure(Criterion):
                 f"No frequency specified in {self.description()}, using default 'Any / day'"
             )
             # set period first, otherwise validation error is triggered
-            dose.period = 1 * TimeUnit.DAY
+            dose.interval = 1 * TimeUnit.DAY
             dose.frequency = ValueCount(value_min=1)
 
         self._dose = dose
