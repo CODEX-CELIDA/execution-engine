@@ -118,30 +118,12 @@ def evaluate_expression(
         return df[str(expr)]
     elif isinstance(expr, CompositeDataGenerator):
         if isinstance(expr, AndGenerator):
-            # For an AND operation, recursively evaluate each generator and combine with &
-            # result = pd.Series(True, index=df.index)
-            # for generator in expr.generators:
-            #    result &= evaluate_expression(generator, df)
-
-            result = reduce(elementwise_and, map(eval_expr, expr.generators))
-
-            return result
+            return reduce(elementwise_and, map(eval_expr, expr.generators))
         elif isinstance(expr, OrGenerator):
-            # For an OR operation, recursively evaluate each generator and combine with |
-            # result = pd.Series(False, index=df.index)
-            # for generator in expr.generators:
-            #     result |= evaluate_expression(generator, df)
-
-            result = reduce(elementwise_or, map(eval_expr, expr.generators))
-
-            return result
+            return reduce(elementwise_or, map(eval_expr, expr.generators))
         elif isinstance(expr, NotGenerator):
-            # For a NOT operation, recursively evaluate the generator and apply negation
-            # return ~evaluate_expression(expr.generator, df)
             return elementwise_not(eval_expr(expr.generator))
         elif isinstance(expr, ExactlyOneGenerator):
-            # Implement the ExactlyOne logic here, as an example:
-            # Exactly one true value among generators
             result = (
                 reduce(
                     elementwise_add,
@@ -152,11 +134,9 @@ def evaluate_expression(
                 )
                 == 1
             ).map({False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE})
+
             return result
         elif isinstance(expr, AtLeastOneGenerator):
-            # Implement the AtLeastOne logic here:
-            # At least one true value among generators
-
             result = (
                 reduce(
                     elementwise_add,
