@@ -4,20 +4,18 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     Base,
     metadata,
 )
-from execution_engine.util.value import ValueNumber
-from tests._fixtures import concept
 from tests._testdata.generator.generators import (
     ARDS,
     COVID19,
+    HeightByIdealBodyWeight,
     PPlateau,
     TidalVolume,
     Ventilated,
-    Weight,
 )
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 from tests.recommendation.test_recommendation_base_v2 import TestRecommendationBaseV2
 
-Weight70kg = Weight(ValueNumber(value=70, unit=concept.concept_unit_kg), comparator=">")
+HeightFor70kgIdealBodyWeight = HeightByIdealBodyWeight(ideal_body_weight=70)
 
 
 class TestRecommendation35TidalVolumeV2(TestRecommendationBaseV2):
@@ -29,15 +27,20 @@ class TestRecommendation35TidalVolumeV2(TestRecommendationBaseV2):
     recommendation_expression = {
         "Ventilation_Plan": {
             "population": COVID19() & Ventilated() & ARDS(),
-            "intervention": TidalVolume(weight=Weight70kg) & PPlateau(comparator="<"),
+            "intervention": TidalVolume(
+                weight=HeightFor70kgIdealBodyWeight.ideal_body_weight
+            )
+            & PPlateau(comparator="<")
+            & HeightFor70kgIdealBodyWeight,
         },
     }
 
     combinations = [
         COVID19()
         | Ventilated()
+        | HeightFor70kgIdealBodyWeight
         | ARDS()
-        | TidalVolume(weight=Weight70kg)
+        | TidalVolume(weight=HeightFor70kgIdealBodyWeight.ideal_body_weight)
         | PPlateau(comparator="<"),
     ]
 

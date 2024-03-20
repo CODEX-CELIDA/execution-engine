@@ -1,5 +1,8 @@
 from datetime import timedelta
 
+from execution_engine.omop.criterion.custom import (
+    TidalVolumePerIdealBodyWeight as TVPIBW,
+)
 from execution_engine.util.value import ValueNumber
 from tests._fixtures import concept
 from tests._testdata import concepts
@@ -67,11 +70,27 @@ class AtrialFibrillation(ConditionGenerator):
     static = True
 
 
-class Weight(ObservationGenerator):
+class Weight(MeasurementGenerator):
     name = "WEIGHT"
     concept_id = concepts.BODY_WEIGHT
     static = True
     value = ValueNumber(value=70, unit=concept.concept_unit_kg)
+
+
+class HeightByIdealBodyWeight(MeasurementGenerator):
+    name = "HEIGHT"
+    concept_id = concepts.BODY_HEIGHT
+    comparator = "="
+    static = True
+
+    def __init__(self, ideal_body_weight: float):
+        self.ideal_body_weight = ideal_body_weight
+        self.value = ValueNumber(
+            value=TVPIBW.height_for_predicted_body_weight_ardsnet("female", 70),
+            unit=concept.concept_unit_cm,
+        )
+
+        super().__init__()
 
 
 class Dalteparin(DrugExposureGenerator):
@@ -179,10 +198,9 @@ class TidalVolume(MeasurementGenerator):
     concept_id = concepts.TIDAL_VOLUME
     comparator = "<"
 
-    def __init__(self, weight: Weight):
-        self.value = ValueNumber(
-            value=6 * weight.value.value, unit=concept.concept_unit_ml
-        )
+    def __init__(self, weight: float):
+        self.weight = weight
+        self.value = ValueNumber(value=6 * weight, unit=concept.concept_unit_ml)
 
         super().__init__()
 

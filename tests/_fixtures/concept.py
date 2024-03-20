@@ -105,6 +105,17 @@ concept_unit_ug_l = Concept(
     invalid_reason=None,
 )
 
+concept_unit_cm = Concept(
+    concept_id=concepts.UNIT_CM,
+    concept_name="centimeter",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="cm",
+    invalid_reason=None,
+)
+
 concept_unit_ml = Concept(
     concept_id=concepts.UNIT_ML,
     concept_name="milliliter",

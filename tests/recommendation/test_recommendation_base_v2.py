@@ -9,13 +9,21 @@ from execution_engine.omop.db.omop.tables import Person
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import TimeRange
 from tests._testdata import concepts
-from tests._testdata.generator.composite import AndGenerator, OrGenerator
+from tests._testdata.generator.composite import (
+    AndGenerator,
+    AtLeastOneGenerator,
+    CompositeDataGenerator,
+    ExactlyOneGenerator,
+    NotGenerator,
+    OrGenerator,
+)
 from tests._testdata.generator.data_generator import BaseDataGenerator
 from tests.functions import create_visit
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 from tests.recommendation.utils.dataframe_operations import (
-    combine_dataframe_via_logical_expression,
+    elementwise_add,
     elementwise_and,
+    elementwise_not,
     elementwise_or,
 )
 
@@ -48,6 +56,124 @@ def generate_combinations(generator):
                 combined_dict.update(dict_)
             all_combinations.append(combined_dict)
         return all_combinations
+
+
+def evaluate_expression(
+    expr: BaseDataGenerator | CompositeDataGenerator, df: pd.DataFrame
+) -> pd.Series:
+    """
+    Evaluates a composite data generator expression on a pandas DataFrame and returns the result as a pandas Series.
+
+    The function recursively traverses through the expression, which can be composed of BaseDataGenerator instances and
+    CompositeDataGenerator instances (such as AndGenerator, OrGenerator, NotGenerator, etc.). It evaluates the expression
+    by performing the corresponding logical operations on the DataFrame columns associated with each BaseDataGenerator.
+
+    Parameters
+    ----------
+    expr : Union[BaseDataGenerator, CompositeDataGenerator]
+     The composite data generator expression to evaluate. This can be a single BaseDataGenerator, representing a
+     DataFrame column, or a CompositeDataGenerator, which combines multiple generators through logical operations.
+
+    df : pd.DataFrame
+     The pandas DataFrame on which the expression is to be evaluated. The DataFrame should contain columns corresponding
+     to the names of the BaseDataGenerator instances within the expression. The column names are expected to match
+     the `name` property of each BaseDataGenerator.
+
+    Returns
+    -------
+    pd.Series
+     A pandas Series representing the result of evaluating the expression on the DataFrame. The Series contains boolean
+     values, where each value corresponds to a row in the DataFrame and indicates the result of the expression for that
+     row.
+
+    Raises
+    ------
+    NotImplementedError
+     If the function encounters a CompositeDataGenerator subclass that hasn't been implemented in the evaluation logic.
+
+    TypeError
+     If the `expr` argument is not an instance of BaseDataGenerator or CompositeDataGenerator.
+
+    Example
+    -------
+    >>> # Assuming Gen1, Gen2, Gen3, and Gen4 are defined BaseDataGenerator subclasses
+    >>> expr = AndGenerator(Gen1(), Gen2(), OrGenerator(Gen3(), Gen4()))
+    >>> df = pd.DataFrame({...})
+    >>> result = evaluate_expression(expr, df)
+    >>> print(result)
+
+    Notes
+    -----
+    - The function supports logical AND (&), OR (|), and NOT (~) operations through AndGenerator, OrGenerator, and
+    NotGenerator, respectively. Extend the function as necessary to include other types of composite generators.
+    - The evaluation of ExactlyOneGenerator and AtLeastOneGenerator is based on counting the number of true values among
+    the evaluated generators and applying the corresponding logic. Adjust these implementations as needed.
+    """
+
+    def eval_expr(x):
+        return evaluate_expression(x, df)
+
+    if isinstance(expr, BaseDataGenerator):
+        # Base case: Return the corresponding DataFrame column
+        return df[str(expr)]
+    elif isinstance(expr, CompositeDataGenerator):
+        if isinstance(expr, AndGenerator):
+            # For an AND operation, recursively evaluate each generator and combine with &
+            # result = pd.Series(True, index=df.index)
+            # for generator in expr.generators:
+            #    result &= evaluate_expression(generator, df)
+
+            result = reduce(elementwise_and, map(eval_expr, expr.generators))
+
+            return result
+        elif isinstance(expr, OrGenerator):
+            # For an OR operation, recursively evaluate each generator and combine with |
+            # result = pd.Series(False, index=df.index)
+            # for generator in expr.generators:
+            #     result |= evaluate_expression(generator, df)
+
+            result = reduce(elementwise_or, map(eval_expr, expr.generators))
+
+            return result
+        elif isinstance(expr, NotGenerator):
+            # For a NOT operation, recursively evaluate the generator and apply negation
+            # return ~evaluate_expression(expr.generator, df)
+            return elementwise_not(eval_expr(expr.generator))
+        elif isinstance(expr, ExactlyOneGenerator):
+            # Implement the ExactlyOne logic here, as an example:
+            # Exactly one true value among generators
+            result = (
+                reduce(
+                    elementwise_add,
+                    map(
+                        lambda col: df[str(expr)].astype(bool).astype(int),
+                        expr.generators,
+                    ),
+                )
+                == 1
+            ).map({False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE})
+            return result
+        elif isinstance(expr, AtLeastOneGenerator):
+            # Implement the AtLeastOne logic here:
+            # At least one true value among generators
+
+            result = (
+                reduce(
+                    elementwise_add,
+                    map(
+                        lambda col: df[str(expr)].astype(bool).astype(int),
+                        expr.generators,
+                    ),
+                )
+                >= 1
+            ).map({False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE})
+
+            return result
+
+        else:
+            raise NotImplementedError(f"Operation {type(expr)} is not implemented")
+    else:
+        raise TypeError(f"Unsupported type: {type(expr)}")
 
 
 class TestRecommendationBaseV2(TestRecommendationBase):
@@ -192,6 +318,8 @@ class TestRecommendationBaseV2(TestRecommendationBase):
         df_entries.loc[idx_static, "start_datetime"] = self.observation_window.start
         df_entries.loc[idx_static, "end_datetime"] = self.observation_window.end
 
+        df_entries = df_entries[df_entries["valid"]]
+
         df = self.expand_dataframe_to_daily_observations(
             df_entries[
                 [
@@ -224,51 +352,45 @@ class TestRecommendationBaseV2(TestRecommendationBase):
         # df = self._modify_criteria_hook(df)
 
         for group_name, group in self.recommendation_expression.items():
-            df[(f"p_{group_name}", "")] = combine_dataframe_via_logical_expression(
-                df, group["population"]
-            )
-            df[(f"i_{group_name}", "")] = combine_dataframe_via_logical_expression(
-                df, group["intervention"]
-            )
+            df[f"p_{group_name}"] = evaluate_expression(group["population"], df)
+            df[f"i_{group_name}"] = evaluate_expression(group["intervention"], df)
 
             # expressions like "Eq(a+b+c, 1)" (at least one criterion) yield boolean columns and must
             # be converted to IntervalType
-            if df[(f"p_{group_name}", "")].dtype == bool:
-                df[(f"p_{group_name}", "")] = df[(f"p_{group_name}", "")].map(
+            if df[f"p_{group_name}"].dtype == bool:
+                df[f"p_{group_name}"] = df[f"p_{group_name}"].map(
                     {False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE}
                 )
 
-            if df[(f"i_{group_name}", "")].dtype == bool:
-                df[(f"i_{group_name}", "")] = df[(f"i_{group_name}", "")].map(
+            if df[f"i_{group_name}"].dtype == bool:
+                df[f"i_{group_name}"] = df[f"i_{group_name}"].map(
                     {False: IntervalType.NEGATIVE, True: IntervalType.POSITIVE}
                 )
 
             if "population_intervention" in group:
-                df[
-                    (f"p_i_{group_name}", "")
-                ] = combine_dataframe_via_logical_expression(
-                    df, group["population_intervention"]
+                df[f"p_i_{group_name}"] = evaluate_expression(
+                    group["population_intervention"], df
                 )
             else:
-                df[(f"p_i_{group_name}", "")] = elementwise_and(
-                    df[(f"p_{group_name}", "")], df[(f"i_{group_name}", "")]
+                df[f"p_i_{group_name}"] = elementwise_and(
+                    df[f"p_{group_name}"], df[f"i_{group_name}"]
                 )
 
-        df[("p", "")] = reduce(
+        df["p"] = reduce(
             elementwise_or,
             [
                 df[c]
                 for c in df.columns
-                if c[0].startswith("p_") and not c[0].startswith("p_i_")
+                if c.startswith("p_") and not c.startswith("p_i_")
             ],
         )
 
-        df[("i", "")] = reduce(
-            elementwise_or, [df[c] for c in df.columns if c[0].startswith("i_")]
+        df["i"] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c.startswith("i_")]
         )
 
-        df[("p_i", "")] = reduce(
-            elementwise_or, [df[c] for c in df.columns if c[0].startswith("p_i_")]
+        df["p_i"] = reduce(
+            elementwise_or, [df[c] for c in df.columns if c.startswith("p_i_")]
         )
 
         assert len(df_base) == len(df)
@@ -277,11 +399,11 @@ class TestRecommendationBaseV2(TestRecommendationBase):
         # criterion is valid
         df = pd.merge(df_base, df, on=["person_id", "date"], how="left", validate="1:1")
 
-        mask = df[("BASE", "")].astype(bool)
+        mask = df["BASE"].astype(bool)
         fill_value = np.repeat(np.array(IntervalType.NEGATIVE, dtype=object), len(df))
         df = df.apply(lambda x: np.where(mask, x, fill_value))
 
-        df = df.drop(columns=("BASE", ""))
+        df = df.drop(columns="BASE")
 
         return df.reset_index()
 
