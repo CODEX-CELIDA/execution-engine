@@ -184,12 +184,23 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             db_session.add_all([p, vo])
 
             for generator, valid in combination.items():
-                db_session.add_all(generator.generate_data(vo, valid))
+                data = generator.generate_data(vo, valid)
 
-                # todo: add hooks
-                # self._insert_criteria_hook(person_entries, entry, row)
+                self._insert_criteria_hook(generator, data)
+
+                db_session.add_all(data)
 
             db_session.commit()
+
+    def _insert_criteria_hook(self, generator: BaseDataGenerator, data: list):
+        """
+        A hook method intended for subclass overriding, providing a way to customize the behavior of
+        `insert_criteria_into_database`.
+
+        This method is called for each criteria entry before it is added to the list of entries to be inserted into the
+        database. Subclasses can override this method to implement custom logic, such as filtering certain entries or
+        modifying them before insertion.
+        """
 
     def generate_criterion_entries(
         self, combinations: list[dict[BaseDataGenerator, bool]]
@@ -327,9 +338,7 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             self.observation_window,
         )
 
-        # todo : add missing data ?
-        # todo: modify criteria hook
-        # df = self._modify_criteria_hook(df)
+        df = self._modify_criteria_hook(df)
 
         for group_name, group in self.recommendation_expression.items():
             df[f"p_{group_name}"] = evaluate_expression(group["population"], df)

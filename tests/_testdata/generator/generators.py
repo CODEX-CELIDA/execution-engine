@@ -291,4 +291,4 @@ class PEEP_18(PEEPBase):
 class OxygenationIndex(MeasurementGenerator):
     concept_id = concepts.LAB_HOROWITZ
     value = ValueNumber(value=150, unit=concept.concept_unit_mm_hg)
-    comparator = ">"
+    comparator = "<"

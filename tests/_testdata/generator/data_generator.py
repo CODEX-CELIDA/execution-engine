@@ -109,9 +109,10 @@ class ProcedureGenerator(BaseDataGenerator):
             add = 1 if valid else -1
 
             start_datetime = self.start_datetime
-            end_datetime = self.start_datetime(
-                datetime.timedelta(hours=self.duration_threshold_hours + add)
+            end_datetime = self.start_datetime + timedelta(
+                hours=self.duration_threshold_hours + add
             )
+
         else:
             if valid:
                 start_datetime = self.start_datetime
