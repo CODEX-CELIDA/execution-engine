@@ -7,6 +7,95 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 
 
+class TestRecommendation15ProphylacticAnticoagulation_v1_5(TestRecommendationBase):
+    """
+    Test the recommendation for prophylactic anticoagulation.
+
+    This class tests the v1.5 version of the recommendation 15.
+    """
+
+    recommendation_url = (
+        "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
+    )
+    recommendation_package_version = "v1.5.0-snapshot"
+
+    recommendation_expression = {
+        "AntithromboticProphylaxisWithLWMH": {
+            "population": "COVID19 & ~(HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
+            "intervention": "Eq("
+            "DALTEPARIN= + ENOXAPARIN= + NADROPARIN_LOW_WEIGHT= + NADROPARIN_HIGH_WEIGHT= + CERTOPARIN= + TINZAPARIN= + HEPARIN_SUBCUTANEOUS=, "
+            "1) & "
+            "~(DALTEPARIN> | ENOXAPARIN> | NADROPARIN_LOW_WEIGHT> | NADROPARIN_HIGH_WEIGHT> | CERTOPARIN> | HEPARIN= | ARGATROBAN=)",
+        },
+        "AntithromboticProphylaxisWithFondaparinux": {
+            "population": "COVID19 & (HIT2 | HEPARIN_ALLERGY | HEPARINOID_ALLERGY)",
+            "intervention": "FONDAPARINUX_PROPHYLACTIC=",
+        },
+    }
+
+    combinations = (
+        [
+            # Population: All combinations
+            # Intervention: All prophylactic anticoagulations criteria (each optional)
+            " ".join(pair)
+            for pair in itertools.product(
+                ["?COVID19 ?HIT2 ?HEPARIN_ALLERGY ?HEPARINOID_ALLERGY"],
+                [
+                    "?DALTEPARIN=",
+                    "?ENOXAPARIN=",
+                    "?NADROPARIN_LOW_WEIGHT=",
+                    "?NADROPARIN_HIGH_WEIGHT=",
+                    "?CERTOPARIN=",
+                    "?TINZAPARIN=",
+                    "?HEPARIN_SUBCUTANEOUS=",
+                    "?FONDAPARINUX_PROPHYLACTIC=",
+                ],
+            )
+        ]
+        + [
+            # Population: The inclusion and one exclusion criterion (all combinations)
+            # Intervention: All therapeutic anticoagulation criteria (each optional)
+            " ".join(pair)
+            for pair in itertools.product(
+                ["?COVID19 ?HIT2"],
+                [
+                    "?DALTEPARIN>",
+                    "?ENOXAPARIN>",
+                    "?NADROPARIN_LOW_WEIGHT>",
+                    "?NADROPARIN_HIGH_WEIGHT>",
+                    "?CERTOPARIN>",
+                    "?HEPARIN=",
+                    "?ARGATROBAN=",
+                ],
+            )
+        ]
+        + [
+            # Population: The inclusion criterion
+            # Intervention: One prophylatic criterion (always) + all therapeutic anticoagulation (each optional)
+            " ".join(pair)
+            for pair in itertools.product(
+                ["COVID19 ENOXAPARIN="],
+                [
+                    "?DALTEPARIN>",
+                    "?ENOXAPARIN>",
+                    "?NADROPARIN_LOW_WEIGHT>",
+                    "?NADROPARIN_HIGH_WEIGHT>",
+                    "?CERTOPARIN>",
+                    "?HEPARIN=",
+                    "?ARGATROBAN=",
+                ],
+            )
+        ]
+    )
+
+    invalid_combinations = "(NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>) | (NADROPARIN_HIGH_WEIGHT= & NADROPARIN_LOW_WEIGHT=)"
+
+    def test_recommendation_15_prophylactic_anticoagulation(
+        self, setup_testdata
+    ) -> None:
+        self.recommendation_test_runner(setup_testdata)
+
+
 class TestRecommendation15ProphylacticAnticoagulation_v1_4(TestRecommendationBase):
     """
     Test the recommendation for prophylactic anticoagulation.
