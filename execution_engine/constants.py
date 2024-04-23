@@ -17,6 +17,8 @@ SCT_LAB_FINDINGS_SURVEILLANCE = (
     "410394004"  # Lab findings surveillance (regime/therapy)
 )
 
+SCT_ASSESSMENT_SCALE = "273249006"  # Assessment scales (assessment scale)
+
 CS_PLAN_DEFINITION_TYPE = "http://terminology.hl7.org/CodeSystem/plan-definition-type"
 EXT_DOSAGE_CONDITION = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/StructureDefinition/ext-dosage-condition"
 EXT_ACTION_COMBINATION_METHOD = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/StructureDefinition/ext-action-combination-method"
