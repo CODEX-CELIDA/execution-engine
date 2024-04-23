@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 
 import pendulum
@@ -72,6 +73,20 @@ class BaseDataGenerator:
     def to_dict(self, vo: VisitOccurrence, valid=True) -> list[dict]:
         raise NotImplementedError("Must be implemented by subclass.")
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        return hash(self) == hash(other)
+
+    def __hash__(self):
+        all_properties = dir(self)
+        attributes = {
+            prop: str(getattr(self, prop))
+            for prop in all_properties
+            if not prop.startswith("__") and not callable(getattr(self, prop))
+        }
+        return hash((self.__class__, json.dumps(attributes)))
+
     def __and__(self, other):
         from tests._testdata.generator.composite import AndGenerator
 
@@ -127,6 +142,7 @@ class ProcedureGenerator(BaseDataGenerator):
             start_datetime=start_datetime,
             end_datetime=end_datetime,
         )
+
         return [procedure]
 
     def to_dict(self, vo: VisitOccurrence, valid=True) -> list[dict]:
@@ -218,15 +234,23 @@ class MeasurementGenerator(BaseDataGenerator):
     ) -> list[Measurement]:
         value = self._get_value(self.value, valid)
 
-        measurement = create_measurement(
-            vo=vo,
-            measurement_concept_id=self.concept_id,
-            measurement_datetime=self.start_datetime,
-            value_as_number=value,
-            unit_concept_id=self.value.unit.concept_id,
-        )
+        start_datetimes = self.start_datetime
 
-        return [measurement]
+        if not isinstance(start_datetimes, (list, tuple, set)):
+            start_datetimes = [start_datetimes]
+
+        measurement = [
+            create_measurement(
+                vo=vo,
+                measurement_concept_id=self.concept_id,
+                measurement_datetime=start_datetime,
+                value_as_number=value,
+                unit_concept_id=self.value.unit.concept_id,
+            )
+            for start_datetime in start_datetimes
+        ]
+
+        return measurement
 
     def to_dict(self, vo: VisitOccurrence, valid=True) -> list[dict]:
         measurements = self.generate_data(vo, valid=valid)

@@ -1,5 +1,6 @@
 import itertools
 from functools import reduce
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -59,7 +60,9 @@ def generate_combinations(generator):
 
 
 def evaluate_expression(
-    expr: BaseDataGenerator | CompositeDataGenerator, df: pd.DataFrame
+    expr: BaseDataGenerator | CompositeDataGenerator,
+    df: pd.DataFrame,
+    default_value: Any = IntervalType.NEGATIVE,
 ) -> pd.Series:
     """
     Evaluates a composite data generator expression on a pandas DataFrame and returns the result as a pandas Series.
@@ -115,7 +118,11 @@ def evaluate_expression(
 
     if isinstance(expr, BaseDataGenerator):
         # Base case: Return the corresponding DataFrame column
-        return df[str(expr)]
+        key = str(expr)
+        if key in df:
+            return df[key]
+        else:
+            return pd.Series(index=df.index, name=key, data=default_value)
     elif isinstance(expr, CompositeDataGenerator):
         if isinstance(expr, AndGenerator):
             return reduce(elementwise_and, map(eval_expr, expr.generators))
@@ -157,6 +164,20 @@ def evaluate_expression(
 
 
 class TestRecommendationBaseV2(TestRecommendationBase):
+    def distinct_criteria(self) -> set[str]:
+        criteria = set()
+
+        for plan in self.recommendation_expression.values():
+            for type_ in ["population", "intervention"]:
+                if isinstance(plan[type_], CompositeDataGenerator):
+                    criteria |= plan[type_].flatten()
+                elif isinstance(plan[type_], BaseDataGenerator):
+                    criteria.add(plan[type_])
+                else:
+                    raise ValueError(f"Invalid type {type(plan[type_])}")
+
+        return criteria
+
     def insert_criteria_into_database(
         self, db_session, combinations: list[dict[BaseDataGenerator, bool]]
     ):
@@ -338,6 +359,13 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             self.observation_window,
         )
 
+        criteria = self.distinct_criteria()
+
+        missings = [c for c in criteria if str(c) not in df.columns]
+
+        for gen in missings:
+            df[str(gen)] = gen.missing_data_type
+
         df = self._modify_criteria_hook(df)
 
         for group_name, group in self.recommendation_expression.items():
@@ -401,10 +429,6 @@ class TestRecommendationBaseV2(TestRecommendationBase):
         combinations = [
             item for c in self.combinations for item in generate_combinations(c)
         ]
-        # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
-        #   rows = persons, columns = criteria
-
-        # df_combinations = pd.DataFrame(combinations).reset_index().rename(columns={"index": "person_id"})
 
         self.insert_criteria_into_database(db_session, combinations)
 

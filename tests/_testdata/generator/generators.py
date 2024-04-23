@@ -215,7 +215,7 @@ class PPlateau(MeasurementGenerator):
 class FiO2Base(MeasurementGenerator):
     concept_id = concepts.INHALED_OXYGEN_CONCENTRATION
     # value = ValueNumber(value=0.6, unit=concept.concept_unit_percent)
-    comparator = "<"
+    comparator = "="
 
 
 class FiO2_30(FiO2Base):
