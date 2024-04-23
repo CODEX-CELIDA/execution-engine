@@ -3,7 +3,7 @@ python-dotenv==1.0.1
 pyyaml==6.0.1
 git+https://github.com/glichtner/fhir.resources#R5
 sympy==1.12
-pandas==2.2.1
+pandas==2.2.2
 psycopg[binary]==3.1.18
 sqlalchemy==2.0.29
 pydantic<3.0.0
