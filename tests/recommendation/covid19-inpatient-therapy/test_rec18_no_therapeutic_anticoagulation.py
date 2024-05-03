@@ -9,15 +9,31 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
 from tests._testdata.generator.generators import (
     COVID19,
     AtrialFibrillation,
+    Dalteparin100ie70kg2xd,
     Dalteparin200ie70kg1xd,
-    Dalteparin200ie70kg2xd,
+    Dalteparin10000ie50kg1xd,
+    Dalteparin12500ie57kg1xd,
+    Dalteparin15000ie82kg1xd,
+    Dalteparin18000ie83kg1xd,
     IntensiveCare,
     PulmonaryEmbolism,
     VenousThrombosis,
+    Weight50kg,
+    Weight57kg,
     Weight70kg,
+    Weight82kg,
+    Weight83kg,
 )
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 from tests.recommendation.test_recommendation_base_v2 import TestRecommendationBaseV2
+
+rec18_population_combination = (
+    COVID19()
+    | IntensiveCare()
+    | ~PulmonaryEmbolism()
+    | ~VenousThrombosis()
+    | ~AtrialFibrillation()
+)
 
 
 @pytest.mark.recommendation
@@ -27,11 +43,6 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_5(TestRecommendationBa
     )
     recommendation_package_version = "v1.5.0-snapshot"
 
-    # TODO:
-    #   - NOT operator for OrGenerator doesn't seem to exist (see "intervention" below)
-    #   - Is it correct to list Dalteparin200ie70kg1xd and Dalteparin200ie70kg2xd here? Are these the actual criteria?
-    #       They are defined for a specific weight - is this what I intend to do here?
-    #   - In general, all drug criteria should be defined only once, as they are the same for all recommendations (I think)
     recommendation_expression = {
         "Anticoagulation_Plan_No_Specific_Indication": {
             "population": COVID19()
@@ -40,7 +51,12 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_5(TestRecommendationBa
             & ~VenousThrombosis()
             & ~AtrialFibrillation(),
             "intervention": ~(
-                Dalteparin200ie70kg1xd | Dalteparin200ie70kg2xd
+                Dalteparin200ie70kg1xd
+                | Dalteparin100ie70kg2xd
+                | Dalteparin10000ie50kg1xd
+                | Dalteparin12500ie57kg1xd
+                | Dalteparin15000ie82kg1xd
+                | Dalteparin18000ie83kg1xd
             ),  # | Enoxaparin() | NadroparinLowWeight() | NadroparinHighWeight() | Certoparin() | (Heparin() & APTT()) | (Argatroban() & APTT())),
         },
     }
@@ -48,24 +64,12 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_5(TestRecommendationBa
     combinations = [
         # Population: All combinations
         # Intervention: All therapeutic anticoagulation criteria (each optional)
-        Weight70kg
-        & (
-            COVID19()
-            | IntensiveCare()
-            | ~PulmonaryEmbolism()
-            | ~VenousThrombosis()
-            | ~AtrialFibrillation()
-            | Dalteparin200ie70kg1xd
-        ),
-        Weight70kg
-        & (
-            COVID19()
-            | IntensiveCare()
-            | ~PulmonaryEmbolism()
-            | ~VenousThrombosis()
-            | ~AtrialFibrillation()
-            | Dalteparin200ie70kg2xd
-        ),
+        Weight70kg & (rec18_population_combination | Dalteparin200ie70kg1xd),
+        Weight70kg & (rec18_population_combination | Dalteparin100ie70kg2xd),
+        Weight50kg & (rec18_population_combination | Dalteparin10000ie50kg1xd),
+        Weight57kg & (rec18_population_combination | Dalteparin12500ie57kg1xd),
+        Weight82kg & (rec18_population_combination | Dalteparin15000ie82kg1xd),
+        Weight83kg & (rec18_population_combination | Dalteparin18000ie83kg1xd),
         # COVID19() | IntensiveCare() | ~PulmonaryEmbolism() | ~VenousThrombosis() | ~AtrialFibrillation() | Enoxaparin(),
         # COVID19() | IntensiveCare() | ~PulmonaryEmbolism() | ~VenousThrombosis() | ~AtrialFibrillation() | NadroparinLowWeight(),
         # COVID19() | IntensiveCare() | ~PulmonaryEmbolism() | ~VenousThrombosis() | ~AtrialFibrillation() | NadroparinHighWeight(),

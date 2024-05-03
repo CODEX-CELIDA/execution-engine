@@ -326,9 +326,26 @@ class OxygenationIndex(MeasurementGenerator):
     comparator = "<"
 
 
+Weight50kg = Weight(
+    value=ValueNumber(value=50, unit=concept.concept_unit_kg), comparator="="
+)
+
+Weight57kg = Weight(
+    value=ValueNumber(value=57, unit=concept.concept_unit_kg), comparator="="
+)
+
+Weight82kg = Weight(
+    value=ValueNumber(value=82, unit=concept.concept_unit_kg), comparator="="
+)
+
+Weight83kg = Weight(
+    value=ValueNumber(value=83, unit=concept.concept_unit_kg), comparator="="
+)
+
 Weight70kg = Weight(
     value=ValueNumber(value=70, unit=concept.concept_unit_kg), comparator="="
 )
+
 Dalteparin200ie70kg1xd = Dalteparin(
     quantity=ValueNumber(
         value=Weight70kg.value.value * 200, unit=concept.concept_unit_ie
@@ -336,10 +353,34 @@ Dalteparin200ie70kg1xd = Dalteparin(
     comparator="=",
     doses_per_day=1,
 )
-Dalteparin200ie70kg2xd = Dalteparin(
+Dalteparin100ie70kg2xd = Dalteparin(
     quantity=ValueNumber(
         value=Weight70kg.value.value * 100, unit=concept.concept_unit_ie
     ),
     comparator="=",
     doses_per_day=2,
+)
+
+Dalteparin10000ie50kg1xd = Dalteparin(
+    quantity=ValueNumber(value=10000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Dalteparin12500ie57kg1xd = Dalteparin(
+    quantity=ValueNumber(value=12500, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Dalteparin15000ie82kg1xd = Dalteparin(
+    quantity=ValueNumber(value=15000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Dalteparin18000ie83kg1xd = Dalteparin(
+    quantity=ValueNumber(value=18000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
 )
