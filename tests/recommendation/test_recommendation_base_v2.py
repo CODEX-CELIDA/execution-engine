@@ -18,7 +18,7 @@ from tests._testdata.generator.composite import (
     NotGenerator,
     OrGenerator,
 )
-from tests._testdata.generator.data_generator import BaseDataGenerator
+from tests._testdata.generator.data_generator import BaseDataGenerator, VisitGenerator
 from tests.functions import create_visit
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 from tests.recommendation.utils.dataframe_operations import (
@@ -36,6 +36,10 @@ def contains_invalid_combinations(
     """
     Check if a combination of criteria contains any invalid combinations based on the provided invalid_combinations.
     """
+
+    if not invalid_combinations:
+        return False
+
     valid_criteria = [k for k, v in combination.items() if v]
 
     if isinstance(invalid_combinations, OrGenerator):
@@ -49,6 +53,11 @@ def contains_invalid_combinations(
         ), "Only BaseDataGenerator instances are supported in invalid_combinations AndGenerator"
         if set(invalid_combinations.generators) <= set(valid_criteria):
             return True
+    elif isinstance(invalid_combinations, NotGenerator):
+        # we just ignore the NOT operator
+        return contains_invalid_combinations(
+            combination, invalid_combinations.generator
+        )
     else:
         raise NotImplementedError(
             f"Unsupported generator type: {type(invalid_combinations)}"
@@ -57,21 +66,28 @@ def contains_invalid_combinations(
     return False
 
 
-def generate_combinations(generator, invalid_combinations):
+def generate_combinations(generator, invalid_combinations, default_value: bool = True):
     gens = []
 
     if isinstance(generator, BaseDataGenerator):
-        return [{generator: True}]
+        return [{generator: default_value}]
 
     elif isinstance(generator, AndGenerator) or isinstance(generator, OrGenerator):
         for gen in generator.generators:
             if isinstance(gen, BaseDataGenerator):
                 if isinstance(generator, AndGenerator):
-                    gens.append([{gen: True}])
+                    gens.append([{gen: default_value}])
                 else:  # OrGenerator logic simplified
-                    gens.append([{gen: True}, {gen: False}])
+                    gens.append([{gen: default_value}, {gen: not default_value}])
             elif isinstance(gen, (AndGenerator, OrGenerator)):
-                sub_combinations = generate_combinations(gen, invalid_combinations)
+                sub_combinations = generate_combinations(
+                    gen, invalid_combinations, default_value
+                )
+                gens.append(sub_combinations)
+            elif isinstance(gen, NotGenerator):
+                sub_combinations = generate_combinations(
+                    gen.generator, invalid_combinations, not default_value
+                )
                 gens.append(sub_combinations)
             else:
                 raise NotImplementedError(f"Unsupported generator type: {type(gen)}")
@@ -228,6 +244,26 @@ class TestRecommendationBaseV2(TestRecommendationBase):
                 race_concept_id=0,
                 ethnicity_concept_id=0,
             )
+
+            visit_gen_found = False
+            for generator in combination:
+                if isinstance(generator, VisitGenerator):
+                    if visit_gen_found:
+                        raise ValueError(
+                            "Only one VisitGenerator is allowed per combination"
+                        )
+                    visit_gen_found = True
+                    vo = generator.generate_data(
+                        person_id, valid=combination[generator]
+                    )
+                    assert (
+                        len(vo) == 1
+                    ), "VisitGenerator must return exactly one VisitOccurrence"
+                    vo = vo[0]
+                    db_session.add(vo)
+
+            # add a default visit if no visit generator was found
+            # always add the default visit as well
             vo = create_visit(
                 person_id=p.person_id,
                 visit_start_datetime=self.visit_datetime.start,
@@ -237,6 +273,10 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             db_session.add_all([p, vo])
 
             for generator, valid in combination.items():
+                if isinstance(generator, VisitGenerator):
+                    # skip the visit generator, as it has already been processed
+                    continue
+
                 data = generator.generate_data(vo, valid)
 
                 # the generator may return no data to insert, e.g. in the FiO2 cases, where an invalid value of
@@ -275,7 +315,7 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             )
 
             for generator, valid in combination.items():
-                data = generator.to_dict(vo=vo, valid=valid)
+                data = generator.to_dict(vo, valid=valid)
                 df = pd.DataFrame(data).assign(person_id=person_id, name=str(generator))
                 dfs.append(df)
 
