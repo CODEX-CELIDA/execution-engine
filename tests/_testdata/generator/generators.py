@@ -167,6 +167,7 @@ class EnoxaparinTherapeutic(DrugExposureGenerator):
 class IntensiveCare(VisitGenerator):
     name = "INTENSIVE_CARE"
     concept_id = concepts.INTENSIVE_CARE
+    invalid_concept_id = concepts.INPATIENT_VISIT
 
 
 class Proning(ProcedureGenerator):
@@ -323,3 +324,22 @@ class OxygenationIndex(MeasurementGenerator):
     concept_id = concepts.LAB_HOROWITZ
     value = ValueNumber(value=150, unit=concept.concept_unit_mm_hg)
     comparator = "<"
+
+
+Weight70kg = Weight(
+    value=ValueNumber(value=70, unit=concept.concept_unit_kg), comparator="="
+)
+Dalteparin200ie70kg1xd = Dalteparin(
+    quantity=ValueNumber(
+        value=Weight70kg.value.value * 200, unit=concept.concept_unit_ie
+    ),
+    comparator="=",
+    doses_per_day=1,
+)
+Dalteparin200ie70kg2xd = Dalteparin(
+    quantity=ValueNumber(
+        value=Weight70kg.value.value * 100, unit=concept.concept_unit_ie
+    ),
+    comparator="=",
+    doses_per_day=2,
+)
