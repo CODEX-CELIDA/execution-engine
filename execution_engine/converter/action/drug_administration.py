@@ -282,6 +282,7 @@ class DrugAdministrationAction(AbstractAction):
         drug_actions: list[Criterion | CriterionCombination] = []
 
         if not self._dosages:
+            # no dosages, just return the drug exposure
             return DrugExposure(
                 name=self._name,
                 exclude=self._exclude,
@@ -332,7 +333,7 @@ class DrugAdministrationAction(AbstractAction):
         else:
             comb = CriterionCombination(
                 name=f"{self._name}_dosages",
-                exclude=self._exclude,
+                exclude=False,  # if the dosages are to be excluded, they already contain the exclude flag - we must not set it again in the combination
                 category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("OR"),
             )
