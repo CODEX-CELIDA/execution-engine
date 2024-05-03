@@ -295,7 +295,7 @@ class DrugAdministrationAction(AbstractAction):
         for dosage in self._dosages:
             drug_action = DrugExposure(
                 name=self._name,
-                exclude=self._exclude,
+                exclude=False,  # first set to False, as the exclude flag is pulled up into the combination
                 category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=dosage["dose"],
@@ -329,11 +329,13 @@ class DrugAdministrationAction(AbstractAction):
                 drug_actions.append(comb)
 
         if len(drug_actions) == 1:
+            # set the exclude flag to the value of the action, as this is the only action
+            drug_actions[0].exclude = self._exclude
             return drug_actions[0]
         else:
             comb = CriterionCombination(
                 name=f"{self._name}_dosages",
-                exclude=False,  # if the dosages are to be excluded, they already contain the exclude flag - we must not set it again in the combination
+                exclude=self._exclude,
                 category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("OR"),
             )
