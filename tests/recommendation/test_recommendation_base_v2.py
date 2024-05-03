@@ -29,7 +29,35 @@ from tests.recommendation.utils.dataframe_operations import (
 )
 
 
-def generate_combinations(generator):
+def contains_invalid_combinations(
+    combination: dict[BaseDataGenerator, bool],
+    invalid_combinations: OrGenerator | AndGenerator,
+) -> bool:
+    """
+    Check if a combination of criteria contains any invalid combinations based on the provided invalid_combinations.
+    """
+    valid_criteria = [k for k, v in combination.items() if v]
+
+    if isinstance(invalid_combinations, OrGenerator):
+        for gen in invalid_combinations.generators:
+            if contains_invalid_combinations(combination, gen):
+                return True
+    elif isinstance(invalid_combinations, AndGenerator):
+        assert all(
+            isinstance(gen, BaseDataGenerator)
+            for gen in invalid_combinations.generators
+        ), "Only BaseDataGenerator instances are supported in invalid_combinations AndGenerator"
+        if set(invalid_combinations.generators) <= set(valid_criteria):
+            return True
+    else:
+        raise NotImplementedError(
+            f"Unsupported generator type: {type(invalid_combinations)}"
+        )
+
+    return False
+
+
+def generate_combinations(generator, invalid_combinations):
     gens = []
 
     if isinstance(generator, BaseDataGenerator):
@@ -43,7 +71,7 @@ def generate_combinations(generator):
                 else:  # OrGenerator logic simplified
                     gens.append([{gen: True}, {gen: False}])
             elif isinstance(gen, (AndGenerator, OrGenerator)):
-                sub_combinations = generate_combinations(gen)
+                sub_combinations = generate_combinations(gen, invalid_combinations)
                 gens.append(sub_combinations)
             else:
                 raise NotImplementedError(f"Unsupported generator type: {type(gen)}")
@@ -55,6 +83,8 @@ def generate_combinations(generator):
             for dict_ in combination:
                 # print(combined_dict, dict_)
                 combined_dict.update(dict_)
+            if contains_invalid_combinations(combined_dict, invalid_combinations):
+                continue
             all_combinations.append(combined_dict)
         return all_combinations
 
@@ -164,6 +194,8 @@ def evaluate_expression(
 
 
 class TestRecommendationBaseV2(TestRecommendationBase):
+    invalid_combinations = []
+
     def distinct_criteria(self) -> set[str]:
         criteria = set()
 
@@ -206,6 +238,12 @@ class TestRecommendationBaseV2(TestRecommendationBase):
 
             for generator, valid in combination.items():
                 data = generator.generate_data(vo, valid)
+
+                # the generator may return no data to insert, e.g. in the FiO2 cases, where an invalid value of
+                # one FiO2 interval (e.g. FiO2_30, from 30%-39.999% - where the invalid value would be 29% (=30-1))
+                # would be a valid value for another interval(e.g. FiO2_20, from 20%-29.999%)
+                if not data:
+                    continue
 
                 self._insert_criteria_hook(generator, data)
 
@@ -427,7 +465,9 @@ class TestRecommendationBaseV2(TestRecommendationBase):
     @pytest.fixture(scope="function", autouse=True)
     def setup_testdata(self, db_session, run_slow_tests):
         combinations = [
-            item for c in self.combinations for item in generate_combinations(c)
+            item
+            for c in self.combinations
+            for item in generate_combinations(c, self.invalid_combinations)
         ]
 
         self.insert_criteria_into_database(db_session, combinations)
