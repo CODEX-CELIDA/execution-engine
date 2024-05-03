@@ -3,6 +3,7 @@ from datetime import timedelta
 from execution_engine.omop.criterion.custom import (
     TidalVolumePerIdealBodyWeight as TVPIBW,
 )
+from execution_engine.omop.db.omop.tables import Measurement, VisitOccurrence
 from execution_engine.util.value import ValueNumber
 from tests._fixtures import concept
 from tests._testdata import concepts
@@ -217,6 +218,21 @@ class FiO2Base(MeasurementGenerator):
     # value = ValueNumber(value=0.6, unit=concept.concept_unit_percent)
     comparator = "="
 
+    def generate_data(
+        self, vo: VisitOccurrence, valid: bool = True
+    ) -> list[Measurement]:
+        """
+        Generate FiO2 measurements for the given visit occurrence.
+
+        If valid == False, we must not generate any data, as invalid data for one FiO2 category may be a valid
+        value for another FiO2 category. E.g. the invalid value for FiO2_30 = 30-39% is 29%, and this is the valid
+        value for FiO2_20 = 20-29%. This messes up the expected results in the test.
+        """
+        if valid:
+            return super().generate_data(vo, valid)
+        else:
+            return []
+
 
 class FiO2_30(FiO2Base):
     value = ValueNumber(value=30, unit=concept.concept_unit_percent)
@@ -261,6 +277,21 @@ class FiO2_100(FiO2Base):
 class PEEPBase(MeasurementGenerator):
     concept_id = concepts.PEEP
     comparator = ">"
+
+    def generate_data(
+        self, vo: VisitOccurrence, valid: bool = True
+    ) -> list[Measurement]:
+        """
+        Generate PEEP measurements for the given visit occurrence.
+
+        If valid == False, we must not generate any data, as invalid data for one PEEP category may be a valid
+        value for another PEEP category. This messes up the expected results in the test.
+        """
+
+        if valid:
+            return super().generate_data(vo, valid)
+        else:
+            return []
 
 
 class PEEP_5(PEEPBase):
