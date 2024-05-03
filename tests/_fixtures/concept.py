@@ -149,6 +149,17 @@ concept_unit_kg = Concept(
     invalid_reason=None,
 )
 
+concept_unit_ie = Concept(
+    concept_id=concepts.UNIT_IE,
+    concept_name="international unit",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="IU",
+    invalid_reason=None,
+)
+
 concept_unit_mm_hg = Concept(
     concept_id=concepts.UNIT_MM_HG,
     concept_name="millimeter of mercury",
