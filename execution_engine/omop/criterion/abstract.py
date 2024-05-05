@@ -207,6 +207,52 @@ class AbstractCriterion(Serializable, ABC):
 
         return f"{self.name}{exclude_str}_{hash_}"
 
+    # TODO: remove .name() altogether? The problem - also why the code below is used - is that the same
+    # criterion for body weight in two different drugs gets two different names, and is then treated as two different
+    # criteria, but in the end, they are exactly the same. this is detected because the tasks created from the criteria
+    # do not use the name when comparing whether two tasks are equal.
+    def json(self) -> bytes:
+        """
+        Get a JSON representation of the object.
+
+        The json excludes the id, as this is auto-inserted by the database
+        and not known during the creation of the object.
+        """
+
+        s_json = self.dict()
+
+        if "id" in s_json:
+            del s_json["id"]
+
+        if "name" in s_json:
+            del s_json["name"]
+
+        return json.dumps(s_json, sort_keys=True).encode()
+
+    def __eq__(self, other: Any) -> bool:
+        """
+        Check if two objects are equal.
+        """
+        if not isinstance(other, self.__class__):
+            return False
+
+        s_dict = self.dict()
+        o_dict = other.dict()
+
+        if "name" in s_dict:
+            del s_dict["name"]
+
+        if "name" in o_dict:
+            del o_dict["name"]
+
+        return s_dict == o_dict
+
+    def __hash__(self) -> int:
+        """
+        Get the hash of the object.
+        """
+        return hash(self.json())
+
 
 class Criterion(AbstractCriterion):
     """A criterion in a recommendation."""
