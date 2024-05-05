@@ -106,20 +106,10 @@ class Enoxaparin(DrugExposureGenerator):
     route_concept_id = concepts.ROUTE_SUBCUTANEOUS
 
 
-class NadroparinLowWeight(DrugExposureGenerator):
-    name = "NADROPARIN_LOW_WEIGHT"
+class Nadroparin(DrugExposureGenerator):
+    name = "NADROPARIN"
     concept_id = concepts.NADROPARIN
     route_concept_id = concepts.ROUTE_SUBCUTANEOUS
-
-    # todo: add weight
-
-
-class NadroparinHighWeight(DrugExposureGenerator):
-    name = "NADROPARIN_HIGH_WEIGHT"
-    concept_id = concepts.NADROPARIN
-    route_concept_id = concepts.ROUTE_SUBCUTANEOUS
-
-    # todo: add weight
 
 
 class Certoparin(DrugExposureGenerator):
@@ -140,8 +130,8 @@ class HeparinSubcutaneous(DrugExposureGenerator):
     route_concept_id = concepts.ROUTE_SUBCUTANEOUS
 
 
-class FondaparinuxProphylactic(DrugExposureGenerator):
-    name = "FONDAPARINUX_PROPHYLACTIC"
+class Fondaparinux(DrugExposureGenerator):
+    name = "FONDAPARINUX"
     concept_id = concepts.FONDAPARINUX
     route_concept_id = concepts.ROUTE_SUBCUTANEOUS
 
@@ -152,7 +142,7 @@ class Argatroban(DrugExposureGenerator):
     route_concept_id = concepts.ROUTE_INTRAVENOUS
 
 
-class Heparin(DrugExposureGenerator):
+class HeparinIntravenous(DrugExposureGenerator):
     name = "HEPARIN"
     concept_id = concepts.HEPARIN
     route_concept_id = concepts.ROUTE_INTRAVENOUS
@@ -326,12 +316,25 @@ class OxygenationIndex(MeasurementGenerator):
     comparator = "<"
 
 
+Weight40kg = Weight(
+    value=ValueNumber(value=40, unit=concept.concept_unit_kg), comparator="="
+)
+
+
 Weight50kg = Weight(
     value=ValueNumber(value=50, unit=concept.concept_unit_kg), comparator="="
 )
 
 Weight57kg = Weight(
     value=ValueNumber(value=57, unit=concept.concept_unit_kg), comparator="="
+)
+
+Weight65kg = Weight(
+    value=ValueNumber(value=65, unit=concept.concept_unit_kg), comparator="="
+)
+
+Weight70kg = Weight(
+    value=ValueNumber(value=70, unit=concept.concept_unit_kg), comparator="="
 )
 
 Weight82kg = Weight(
@@ -342,8 +345,12 @@ Weight83kg = Weight(
     value=ValueNumber(value=83, unit=concept.concept_unit_kg), comparator="="
 )
 
-Weight70kg = Weight(
-    value=ValueNumber(value=70, unit=concept.concept_unit_kg), comparator="="
+Weight92kg = Weight(
+    value=ValueNumber(value=92, unit=concept.concept_unit_kg), comparator="="
+)
+
+Weight110kg = Weight(
+    value=ValueNumber(value=110, unit=concept.concept_unit_kg), comparator="="
 )
 
 Dalteparin200ie70kg1xd = Dalteparin(
@@ -381,6 +388,101 @@ Dalteparin15000ie82kg1xd = Dalteparin(
 
 Dalteparin18000ie83kg1xd = Dalteparin(
     quantity=ValueNumber(value=18000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Enoxaparin70kg1xd = Enoxaparin(
+    quantity=ValueNumber(
+        value=Weight70kg.value.value * 1.5, unit=concept.concept_unit_mg
+    ),
+    comparator="=",
+    doses_per_day=1,
+)
+Enoxaparin70kg2xd = Enoxaparin(
+    quantity=ValueNumber(
+        value=Weight70kg.value.value * 1, unit=concept.concept_unit_mg
+    ),
+    comparator="=",
+    doses_per_day=2,
+)
+
+Nadroparinlt50kg2xd = Nadroparin(
+    quantity=ValueNumber(value=3800, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+Nadroparin50_59kg2xd = Nadroparin(
+    quantity=ValueNumber(value=4750, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+Nadroparin60_69kg2xd = Nadroparin(
+    quantity=ValueNumber(value=5700, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+Nadroparin70_79kg2xd = Nadroparin(
+    quantity=ValueNumber(value=6650, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+Nadroparin80_89kg2xd = Nadroparin(
+    quantity=ValueNumber(value=7600, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+Nadroparingt90kg2xd = Nadroparin(
+    quantity=ValueNumber(value=8550, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+CertoparinTherapeutic = Certoparin(
+    quantity=ValueNumber(value=8000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+TinzaparinTherapeutic70kg1xd = Tinzaparin(
+    quantity=ValueNumber(
+        value=Weight70kg.value.value * 175, unit=concept.concept_unit_ie
+    ),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Fondaparinux_lt50kg1xd = Fondaparinux(
+    quantity=ValueNumber(value=5, unit=concept.concept_unit_mg),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Fondaparinux50_100kg1xd = Fondaparinux(
+    quantity=ValueNumber(value=7.5, unit=concept.concept_unit_mg),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Fondaparinuxgt100kg1xd = Fondaparinux(
+    quantity=ValueNumber(value=10, unit=concept.concept_unit_mg),
+    comparator="=",
+    doses_per_day=1,
+)
+
+HeparinIV100ie = HeparinIntravenous(
+    quantity=ValueNumber(value=100, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Argatroban100mg = Argatroban(
+    quantity=ValueNumber(value=100, unit=concept.concept_unit_mg),
     comparator="=",
     doses_per_day=1,
 )
