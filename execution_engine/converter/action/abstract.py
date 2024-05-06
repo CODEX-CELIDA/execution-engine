@@ -40,8 +40,8 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
     _concept_vocabulary: Type[AbstractVocabulary]
     _goals: list[Goal]
 
-    def __init__(self, name: str, exclude: bool):
-        super().__init__(name=name, exclude=exclude)
+    def __init__(self, exclude: bool):
+        super().__init__(exclude=exclude)
         self._goals = []
 
     @classmethod
@@ -154,7 +154,6 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
         if self.goals:
             combination = CriterionCombination(
-                name=f"{self._name}_plus_goals",
                 exclude=self._exclude,  # need to pull up the exclude flag from the criterion into the combination
                 category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("AND"),

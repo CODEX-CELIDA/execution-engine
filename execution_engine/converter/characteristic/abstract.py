@@ -37,8 +37,8 @@ class AbstractCharacteristic(CriterionConverter, ABC):
     _type: Concept
     _value: Value
 
-    def __init__(self, name: str, exclude: bool) -> None:
-        super().__init__(name=name, exclude=exclude)
+    def __init__(self, exclude: bool) -> None:
+        super().__init__(exclude=exclude)
 
     @classmethod
     @abstractmethod

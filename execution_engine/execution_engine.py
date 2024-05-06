@@ -285,7 +285,6 @@ class ExecutionEngine:
                     insert(result_db.Criterion)
                     .values(
                         criterion_hash=crit_hash,
-                        criterion_name=criterion.unique_name(),
                         criterion_description=criterion.description(),
                     )
                     .returning(result_db.Criterion.criterion_id)

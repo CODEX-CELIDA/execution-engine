@@ -66,10 +66,10 @@ class PopulationInterventionPair(Serializable):
         """
         if criteria is None:
             criteria = CriterionCombination(
-                name="root",
                 exclude=False,
                 category=category,
                 operator=CriterionCombination.Operator("AND"),
+                root_combination=True,
             )
         else:
             assert isinstance(

@@ -35,7 +35,6 @@ def characteristic_to_criterion(
             characteristic.code, characteristic.threshold
         )
         comb = CriterionCombination(
-            name="characteristics_combination",
             category=CohortCategory.POPULATION,
             exclude=characteristic.exclude,
             operator=operator,
