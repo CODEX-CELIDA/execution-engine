@@ -148,11 +148,37 @@ class Argatroban(DrugExposureGenerator):
     concept_id = concepts.ARGATROBAN
     route_concept_id = concepts.ROUTE_INTRAVENOUS
 
+    def generate_data(
+        self, vo: VisitOccurrence, valid: bool = True
+    ) -> list[Measurement]:
+        """
+        Generate Argatroban drug_exposures for the given visit occurrence.
+
+        If valid == False, we must not generate any data, as the criterion for Argatroban is "any dose"
+        """
+        if valid:
+            return super().generate_data(vo, valid)
+        else:
+            return []
+
 
 class HeparinIntravenous(DrugExposureGenerator):
     name = "HEPARIN"
     concept_id = concepts.HEPARIN
     route_concept_id = concepts.ROUTE_INTRAVENOUS
+
+    def generate_data(
+        self, vo: VisitOccurrence, valid: bool = True
+    ) -> list[Measurement]:
+        """
+        Generate Heparin drug_exposures for the given visit occurrence.
+
+        If valid == False, we must not generate any data, as the criterion for heparin is "any dose"
+        """
+        if valid:
+            return super().generate_data(vo, valid)
+        else:
+            return []
 
 
 class EnoxaparinTherapeutic(DrugExposureGenerator):
