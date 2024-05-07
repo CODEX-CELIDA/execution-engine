@@ -4,6 +4,7 @@ from execution_engine.omop.criterion.custom import (
     TidalVolumePerIdealBodyWeight as TVPIBW,
 )
 from execution_engine.omop.db.omop.tables import Measurement, VisitOccurrence
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.value import ValueNumber
 from tests._fixtures import concept
 from tests._testdata import concepts
@@ -39,12 +40,18 @@ class HeparinAllergy(ObservationGenerator):
     name = "HEPARIN_ALLERGY"
     concept_id = concepts.ALLERGY_HEPARIN
     static = True
+    missing_data_type = (
+        IntervalType.NEGATIVE
+    )  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
 
 
 class HeparinoidAllergy(ObservationGenerator):
     name = "HEPARINOID_ALLERGY"
     concept_id = concepts.ALLERGY_HEPARINOID
     static = True
+    missing_data_type = (
+        IntervalType.NEGATIVE
+    )  # is stored in observation_occurrence, but resembles condition (see AllergyCharacteristic)
 
 
 class Thrombocytopenia(ConditionGenerator):
@@ -352,6 +359,72 @@ Weight92kg = Weight(
 Weight110kg = Weight(
     value=ValueNumber(value=110, unit=concept.concept_unit_kg), comparator="="
 )
+
+# Prophylactic dosages
+
+Dalteparin2500ie1xd = Dalteparin(
+    quantity=ValueNumber(value=2500, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Dalteparin5000ie1xd = Dalteparin(
+    quantity=ValueNumber(value=5000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+
+NadroparinProphylactic3800ie1xd = Nadroparin(
+    quantity=ValueNumber(value=3800, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+NadroparinProphylactic5700ie1xd = Nadroparin(
+    quantity=ValueNumber(value=5700, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Certoparin3000ie1xd = Certoparin(
+    quantity=ValueNumber(value=3000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+Tinzaparin3500ie1xd = Tinzaparin(
+    quantity=ValueNumber(value=3500, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=1,
+)
+
+HeparinSubcutaneous5000ie2xd = HeparinSubcutaneous(
+    quantity=ValueNumber(value=5000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+HeparinSubcutaneous5000ie3xd = HeparinSubcutaneous(
+    quantity=ValueNumber(value=5000, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=3,
+)
+
+HeparinSubcutaneous75002xd = HeparinSubcutaneous(
+    quantity=ValueNumber(value=7500, unit=concept.concept_unit_ie),
+    comparator="=",
+    doses_per_day=2,
+)
+
+Fondaparinux2_5mg1xd = Fondaparinux(
+    quantity=ValueNumber(value=2.5, unit=concept.concept_unit_mg),
+    comparator="=",
+    doses_per_day=1,
+)
+
+
+# Therapeutic dosages
 
 Dalteparin200ie70kg1xd = Dalteparin(
     quantity=ValueNumber(
