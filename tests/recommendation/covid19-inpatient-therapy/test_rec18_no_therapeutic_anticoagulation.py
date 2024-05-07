@@ -165,7 +165,7 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_4(TestRecommendationBa
                 "?COVID19 ?ICU ?PULMONARY_EMBOLISM ?VENOUS_THROMBOSIS ?ATRIAL_FIBRILLATION"
             ],
             [
-                "?Dalteparin()",
+                "?DALTEPARIN",
                 "?ENOXAPARIN>",
                 "?NADROPARIN_LOW_WEIGHT>",
                 "?NADROPARIN_HIGH_WEIGHT>",
