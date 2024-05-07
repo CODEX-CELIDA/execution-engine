@@ -34,7 +34,6 @@ class TestDrugExposure(TestCriterion):
             route: Concept | None,
         ) -> pd.DataFrame:
             criterion = DrugExposure(
-                name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
                 ingredient_concept=ingredient_concept,

@@ -53,23 +53,17 @@ class TestCriterionCombination:
     def test_criterion_combination_init(self, mock_criteria):
         operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
         combination = CriterionCombination(
-            "combination",
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
 
-        assert (
-            combination.name
-            == "CriterionCombination(AND).POPULATION_INTERVENTION.combination(exclude=False)"
-        )
         assert combination.operator == operator
         assert len(combination) == 0
 
     def test_criterion_combination_add(self, mock_criteria):
         operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
         combination = CriterionCombination(
-            "combination",
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -86,7 +80,6 @@ class TestCriterionCombination:
     def test_criterion_combination_dict(self, mock_criteria):
         operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
         combination = CriterionCombination(
-            "combination",
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -97,7 +90,6 @@ class TestCriterionCombination:
 
         combination_dict = combination.dict()
         assert combination_dict == {
-            "name": "combination",
             "exclude": False,
             "operator": "AND",
             "threshold": None,
@@ -111,7 +103,6 @@ class TestCriterionCombination:
     def test_criterion_combination_from_dict(self, mock_criteria):
         operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
         combination_data = {
-            "name": "combination",
             "exclude": False,
             "operator": "AND",
             "threshold": None,
@@ -129,10 +120,6 @@ class TestCriterionCombination:
 
         combination = CriterionCombination.from_dict(combination_data)
 
-        assert (
-            combination.name
-            == "CriterionCombination(AND).POPULATION_INTERVENTION.combination(exclude=False)"
-        )
         assert combination.operator == operator
         assert len(combination) == len(mock_criteria)
 
@@ -170,7 +157,6 @@ class TestCriterionCombination:
     def test_repr(self):
         operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
         combination = CriterionCombination(
-            "combination",
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -178,13 +164,12 @@ class TestCriterionCombination:
 
         assert (
             repr(combination)
-            == "CriterionCombination(AND).POPULATION_INTERVENTION.combination(exclude=False)"
+            == "CriterionCombination(AND).POPULATION_INTERVENTION(exclude=False)"
         )
 
     def test_add_all(self):
         operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
         combination = CriterionCombination(
-            "combination",
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -214,7 +199,6 @@ class TestCriterionCombinationDatabase(TestCriterion):
     @pytest.fixture
     def criteria(self, db_session):
         c1 = DrugExposure(
-            name="test",
             exclude=False,
             category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
@@ -227,14 +211,12 @@ class TestCriterionCombinationDatabase(TestCriterion):
         )
 
         c2 = ConditionOccurrence(
-            name="test",
             exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_covid19,
         )
 
         c3 = ProcedureOccurrence(
-            name="test",
             exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_artificial_respiration,
@@ -306,7 +288,6 @@ class TestCriterionCombinationDatabase(TestCriterion):
                     raise ValueError(f"Unknown criterion {arg.args[0].name}")
 
         comb = CriterionCombination(
-            "combination",
             exclude=exclude,
             category=CohortCategory.POPULATION,
             operator=CriterionCombination.Operator(operator, threshold=threshold),

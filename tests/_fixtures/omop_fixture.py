@@ -184,7 +184,6 @@ def celida_recommendation(
 
         criterion = Criterion(
             criterion_id=criterion_id,
-            criterion_name="my_criterion",
             criterion_description="my_description",
             criterion_hash=hash("my_criterion"),
         )
