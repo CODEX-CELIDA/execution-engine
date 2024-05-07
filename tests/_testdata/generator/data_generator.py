@@ -283,17 +283,46 @@ class ObservationGenerator(MeasurementGenerator):
 
     start_datetime = pendulum.parse("2023-03-15 12:00:00+01:00")
 
+    def __init__(
+        self,
+        value: ValueNumber | str | ValueConcept | None = None,
+        comparator: str | None = None,
+    ):
+        if value is not None:
+            self.value = value
+
+        if comparator is not None:
+            self.comparator = comparator
+
+        if isinstance(self.value, ValueNumber):
+            if self.comparator not in ["<", "<=", ">", ">=", "="]:
+                raise ValueError(f"Invalid comparator: {comparator}")
+        elif isinstance(self.value, (ValueConcept, str)):
+            if self.comparator is not None:
+                raise ValueError("Comparator must be None for ValueConcept")
+
     def generate_data(
         self, vo: VisitOccurrence, valid: bool = True
     ) -> list[Observation]:
-        value = self._get_value(self.value, valid)
+        if valid:
+            value = self.value
+        else:
+            if self.value is None:
+                # this is just a concept, so we can't generate an invalid value
+                return []
+            else:
+                value = self._get_value(self.value, valid)
+
+        unit_concept_id = (
+            value.unit.concept_id if isinstance(value, ValueNumber) else None
+        )
 
         observation = create_observation(
             vo=vo,
             observation_concept_id=self.concept_id,
             observation_datetime=self.start_datetime,
             value_as_number=value,
-            unit_concept_id=self.value.unit.concept_id,
+            unit_concept_id=unit_concept_id,
         )
 
         return [observation]
