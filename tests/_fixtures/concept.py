@@ -94,6 +94,17 @@ concept_unit_percent = Concept(
     invalid_reason=None,
 )
 
+concept_unit_mg_l = Concept(
+    concept_id=concepts.UNIT_MG_PER_L,
+    concept_name="milligram per liter",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mg/L",
+    invalid_reason=None,
+)
+
 concept_unit_ug_l = Concept(
     concept_id=concepts.UNIT_UG_PER_L,
     concept_name="microgram per liter",

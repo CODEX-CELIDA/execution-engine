@@ -181,7 +181,7 @@ class Ventilated(ProcedureGenerator):
 class DDimer(MeasurementGenerator):
     name = "D_DIMER"
     concept_id = concepts.LAB_DDIMER
-    value = ValueNumber(value=2, unit=concept.concept_unit_ug_l)
+    value = ValueNumber(value=2, unit=concept.concept_unit_mg_l)
     comparator = ">="
 
 
