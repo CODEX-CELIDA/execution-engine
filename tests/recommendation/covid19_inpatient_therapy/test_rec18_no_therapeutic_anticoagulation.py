@@ -6,41 +6,7 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     Base,
     metadata,
 )
-from tests._testdata.generator.generators import (
-    COVID19,
-    AtrialFibrillation,
-    CertoparinTherapeutic,
-    Dalteparin100ie70kg2xd,
-    Dalteparin200ie70kg1xd,
-    Dalteparin10000ie50kg1xd,
-    Dalteparin12500ie57kg1xd,
-    Dalteparin15000ie82kg1xd,
-    Dalteparin18000ie83kg1xd,
-    Enoxaparin70kg1xd,
-    Enoxaparin70kg2xd,
-    Fondaparinux50_100kg1xd,
-    Fondaparinux_lt50kg1xd,
-    Fondaparinuxgt100kg1xd,
-    IntensiveCare,
-    Nadroparin50_59kg2xd,
-    Nadroparin60_69kg2xd,
-    Nadroparin70_79kg2xd,
-    Nadroparin80_89kg2xd,
-    Nadroparingt90kg2xd,
-    Nadroparinlt50kg2xd,
-    PulmonaryEmbolism,
-    TinzaparinTherapeutic70kg1xd,
-    VenousThrombosis,
-    Weight40kg,
-    Weight50kg,
-    Weight57kg,
-    Weight65kg,
-    Weight70kg,
-    Weight82kg,
-    Weight83kg,
-    Weight92kg,
-    Weight110kg,
-)
+from tests._testdata.generator.generators import *
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 from tests.recommendation.test_recommendation_base_v2 import TestRecommendationBaseV2
 
@@ -50,6 +16,30 @@ rec18_population_combination = (
     | ~PulmonaryEmbolism()
     | ~VenousThrombosis()
     | ~AtrialFibrillation()
+)
+
+intervention_therapeutic_anticoagulation = (
+    Dalteparin200ie70kg1xd
+    | Dalteparin100ie70kg2xd
+    | Dalteparin10000ie50kg1xd
+    | Dalteparin12500ie57kg1xd
+    | Dalteparin15000ie82kg1xd
+    | Dalteparin18000ie83kg1xd
+    | Enoxaparin70kg1xd
+    | Enoxaparin70kg2xd
+    | Nadroparinlt50kg2xd
+    | Nadroparin50_59kg2xd
+    | Nadroparin60_69kg2xd
+    | Nadroparin70_79kg2xd
+    | Nadroparin80_89kg2xd
+    | Nadroparingt90kg2xd
+    | CertoparinTherapeutic
+    | TinzaparinTherapeutic70kg1xd
+    | Fondaparinux_lt50kg1xd
+    | Fondaparinux50_100kg1xd
+    | Fondaparinuxgt100kg1xd
+    | (HeparinIV100ie & APTT(comparator=">"))
+    | (Argatroban100mg & APTT(comparator=">"))
 )
 
 
@@ -67,27 +57,7 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_5(TestRecommendationBa
             & ~PulmonaryEmbolism()
             & ~VenousThrombosis()
             & ~AtrialFibrillation(),
-            intervention=~(
-                Dalteparin200ie70kg1xd
-                | Dalteparin100ie70kg2xd
-                | Dalteparin10000ie50kg1xd
-                | Dalteparin12500ie57kg1xd
-                | Dalteparin15000ie82kg1xd
-                | Dalteparin18000ie83kg1xd
-                | Enoxaparin70kg1xd
-                | Enoxaparin70kg2xd
-                | Nadroparinlt50kg2xd
-                | Nadroparin50_59kg2xd
-                | Nadroparin60_69kg2xd
-                | Nadroparin70_79kg2xd
-                | Nadroparin80_89kg2xd
-                | Nadroparingt90kg2xd
-                | CertoparinTherapeutic
-                | TinzaparinTherapeutic70kg1xd
-                | Fondaparinux_lt50kg1xd
-                | Fondaparinux50_100kg1xd
-                | Fondaparinuxgt100kg1xd
-            ),
+            intervention=~intervention_therapeutic_anticoagulation,
         ),
     }
 
@@ -165,7 +135,7 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_4(TestRecommendationBa
                 "?COVID19 ?ICU ?PULMONARY_EMBOLISM ?VENOUS_THROMBOSIS ?ATRIAL_FIBRILLATION"
             ],
             [
-                "?DALTEPARIN",
+                "?DALTEPARIN>",
                 "?ENOXAPARIN>",
                 "?NADROPARIN_LOW_WEIGHT>",
                 "?NADROPARIN_HIGH_WEIGHT>",

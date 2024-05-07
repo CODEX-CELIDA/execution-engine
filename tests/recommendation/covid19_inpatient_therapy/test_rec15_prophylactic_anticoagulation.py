@@ -5,6 +5,9 @@ from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - nee
     metadata,
 )
 from tests._testdata.generator.generators import *
+from tests.recommendation.covid19_inpatient_therapy.test_rec18_no_therapeutic_anticoagulation import (
+    intervention_therapeutic_anticoagulation,
+)
 from tests.recommendation.test_recommendation_base import TestRecommendationBase
 from tests.recommendation.test_recommendation_base_v2 import TestRecommendationBaseV2
 
@@ -44,24 +47,7 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_5(TestRecommendationBas
                     | HeparinSubcutaneous5000ie3xd
                     | HeparinSubcutaneous75002xd
                 )
-                & ~(
-                    Dalteparin200ie70kg1xd
-                    | Dalteparin100ie70kg2xd
-                    | Dalteparin10000ie50kg1xd
-                    | Dalteparin12500ie57kg1xd
-                    | Dalteparin15000ie82kg1xd
-                    | Dalteparin18000ie83kg1xd
-                    | Enoxaparin70kg1xd
-                    | Enoxaparin70kg2xd
-                    | Nadroparinlt50kg2xd
-                    | Nadroparin50_59kg2xd
-                    | Nadroparin60_69kg2xd
-                    | Nadroparin70_79kg2xd
-                    | Nadroparin80_89kg2xd
-                    | Nadroparingt90kg2xd
-                    | CertoparinTherapeutic
-                    | TinzaparinTherapeutic70kg1xd
-                )
+                & ~intervention_therapeutic_anticoagulation
             ),
         ),
         "AntithromboticProphylaxisWithFondaparinux": dict(
