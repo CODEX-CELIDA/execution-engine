@@ -22,7 +22,6 @@ class BodyPositioningAction(AbstractAction):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         code: Concept,
         timing: Timing | None = None,
@@ -30,7 +29,7 @@ class BodyPositioningAction(AbstractAction):
         """
         Initialize the drug administration action.
         """
-        super().__init__(name=name, exclude=exclude)
+        super().__init__(exclude=exclude)
         self._code = code
         self._timing = timing
 
@@ -46,13 +45,12 @@ class BodyPositioningAction(AbstractAction):
 
         exclude = action_def.activity_definition_fhir.doNotPerform
 
-        return cls(name=code.concept_name, exclude=exclude, code=code, timing=timing)
+        return cls(exclude=exclude, code=code, timing=timing)
 
     def _to_criterion(self) -> Criterion | CriterionCombination | None:
         """Converts this characteristic to a Criterion."""
 
         return ProcedureOccurrence(
-            name=self._name,
             exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             concept=self._code,

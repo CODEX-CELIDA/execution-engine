@@ -45,23 +45,27 @@ class DrugAdministrationAction(AbstractAction):
     _concept_code = "432102000"  # Administration of substance (procedure)
     _concept_vocabulary = SNOMEDCT
 
+    class DosageDefinition(TypedDict):
+        """
+        A type for the dosage definition dictionary.
+        """
+
+        dose: Dosage
+        route: Concept | None = None
+        extensions: list[ExtensionType] | None = None
+
     def __init__(
         self,
-        name: str,
         exclude: bool,
         ingredient_concept: Concept,
-        dose: Dosage | None = None,
-        route: Concept | None = None,
-        extensions: list[ExtensionType] | None = None,
+        dosages: list[DosageDefinition] | None = None,
     ) -> None:
         """
         Initialize the drug administration action.
         """
-        super().__init__(name=name, exclude=exclude)
+        super().__init__(exclude=exclude)
         self._ingredient_concept = ingredient_concept
-        self._dose = dose
-        self._route = route
-        self._extensions = extensions
+        self._dosages = dosages
 
     @classmethod
     def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
@@ -72,7 +76,6 @@ class DrugAdministrationAction(AbstractAction):
 
         ingredient = cls.get_ingredient_concept(action_def.activity_definition_fhir)
 
-        name = f"drug_{ingredient.concept_name}"
         exclude = (
             action_def.activity_definition_fhir.doNotPerform
             if action_def.activity_definition_fhir.doNotPerform is not None
@@ -87,28 +90,35 @@ class DrugAdministrationAction(AbstractAction):
             # must return criterion according to goal
             # return combination of drug criterion (any application !) and goal criterion
             action = cls(
-                name,
                 exclude,
                 ingredient_concept=ingredient,
             )
 
+            return action
+
         else:
             # has dosage
-            dosage = action_def.activity_definition_fhir.dosage[
-                0
-            ]  # dosage is bound to 0..1 by drug-administration-action profile
-            dose = cls.process_dosage(dosage)
-            route = cls.process_route(dosage)
 
-            extensions = cls.process_dosage_extensions(dosage)
+            dosages = []
+
+            for dosage in action_def.activity_definition_fhir.dosage:
+                if dosage.doseAndRate is None:
+                    raise NotImplementedError(
+                        "Dosage without doseAndRate is not supported"
+                    )
+                dose = cls.process_dosage(dosage)
+                route = cls.process_route(dosage)
+
+                extensions = cls.process_dosage_extensions(dosage)
+
+                dosages.append(
+                    cls.DosageDefinition(dose=dose, route=route, extensions=extensions)
+                )
 
             action = cls(
-                name=name,
                 exclude=exclude,
                 ingredient_concept=ingredient,
-                dose=dose,
-                route=route,
-                extensions=extensions,
+                dosages=dosages,
             )
 
         return action
@@ -265,39 +275,60 @@ class DrugAdministrationAction(AbstractAction):
         Returns a criterion that represents this action.
         """
 
-        drug_action = DrugExposure(
-            name=self._name,
-            exclude=self._exclude,
-            category=CohortCategory.INTERVENTION,
-            ingredient_concept=self._ingredient_concept,
-            dose=self._dose,
-            route=self._route,
-        )
+        drug_actions: list[Criterion | CriterionCombination] = []
 
-        if self._extensions:
-            comb = CriterionCombination(
-                name=f"{self._name}_extensions",
-                exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
+        if not self._dosages:
+            # no dosages, just return the drug exposure
+            return DrugExposure(
+                exclude=self._exclude,
                 category=CohortCategory.INTERVENTION,
-                operator=CriterionCombination.Operator("AND"),
-            )
-            drug_action.exclude = (
-                False  # reset the exclude flag, as it is now part of the combination
+                ingredient_concept=self._ingredient_concept,
+                dose=None,
+                route=None,
             )
 
-            comb.add(drug_action)
+        for dosage in self._dosages:
+            drug_action = DrugExposure(
+                exclude=False,  # first set to False, as the exclude flag is pulled up into the combination
+                category=CohortCategory.INTERVENTION,
+                ingredient_concept=self._ingredient_concept,
+                dose=dosage["dose"],
+                route=dosage.get("route", None),
+            )
 
-            for extension in self._extensions:
-                comb.add(
-                    PointInTimeCriterion(
-                        name=f"{self._name}_ext_{extension['code'].concept_name}",
-                        exclude=False,  # extensions are always included (at least for now)
-                        category=CohortCategory.INTERVENTION,
-                        concept=extension["code"],
-                        value=extension["value"],
-                    )
+            if dosage.get("extensions", None) is None:
+                drug_actions.append(drug_action)
+            else:
+                comb = CriterionCombination(
+                    exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
+                    category=CohortCategory.INTERVENTION,
+                    operator=CriterionCombination.Operator("AND"),
                 )
+                drug_action.exclude = False  # reset the exclude flag, as it is now part of the combination
 
+                comb.add(drug_action)
+
+                for extension in dosage["extensions"]:  # type: ignore # (extension is not None as per the if-block)
+                    comb.add(
+                        PointInTimeCriterion(
+                            exclude=False,  # extensions are always included (at least for now)
+                            category=CohortCategory.INTERVENTION,
+                            concept=extension["code"],
+                            value=extension["value"],
+                        )
+                    )
+
+                drug_actions.append(comb)
+
+        if len(drug_actions) == 1:
+            # set the exclude flag to the value of the action, as this is the only action
+            drug_actions[0].exclude = self._exclude
+            return drug_actions[0]
+        else:
+            comb = CriterionCombination(
+                exclude=self._exclude,
+                category=CohortCategory.INTERVENTION,
+                operator=CriterionCombination.Operator("OR"),
+            )
+            comb.add_all(drug_actions)
             return comb
-
-        return drug_action

@@ -161,10 +161,10 @@ class Recommendation(Serializable):
         Get the criteria of the recommendation.
         """
         criteria = CriterionCombination(
-            name="root",
             exclude=False,
             category=CohortCategory.BASE,
             operator=CriterionCombination.Operator("OR"),
+            root_combination=True,
         )
 
         for pi_pair in self._pi_pairs:

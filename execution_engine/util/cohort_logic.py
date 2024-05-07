@@ -268,7 +268,7 @@ class BooleanFunction(Expr):
         Represent the BooleanFunction in a readable format.
         """
         if self._repr_join_str is not None:
-            return f" {self._repr_join_str} ".join(map(repr, self.args))
+            return "(" + f" {self._repr_join_str} ".join(map(repr, self.args)) + ")"
         else:
             return super().__repr__()
 

@@ -109,11 +109,7 @@ class CriterionConverter(ABC):
     An instance of this class performs the conversion of some FHIR element to an OMOP criterion.
     """
 
-    def __init__(self, name: str, exclude: bool):
-        # todo : name not required (it is set to the concept_name of the related concepts in all implementations
-        #        anyway. we can just automatically set it from that concept.
-        self._name = name
-
+    def __init__(self, exclude: bool):
         # todo: is exclude still required?
         self._exclude = exclude
 

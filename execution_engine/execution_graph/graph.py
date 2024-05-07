@@ -272,7 +272,7 @@ class ExecutionGraph(nx.DiGraph):
             """
             Convert the criterion's operator into a logical conjunction (And or Or)
             """
-            if comb.raw_name == "root":
+            if comb.is_root():
                 # This is a hack to make the root node an non-simplifiable And node - otherwise, using the
                 #   logic.And, the root node would be simplified to the criterion if there is only one criterion.
                 #   The problem is that we need a non-criterion sink node of the intervention and population in order

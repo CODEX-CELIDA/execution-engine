@@ -1,6 +1,8 @@
 import pytest
 
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
+from tests._testdata import concepts
 
 
 @pytest.fixture
@@ -60,6 +62,17 @@ concept_unit_mg = Concept(
     invalid_reason=None,
 )
 
+concept_unit_mg_kg = Concept(
+    concept_id=OMOPConcepts.UNIT_MG_PER_KG.value,
+    concept_name="milligram per kilogram",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mg/kg",
+    invalid_reason=None,
+)
+
 concept_unit_hour = Concept(
     concept_id=8505,
     concept_name="hour",
@@ -68,6 +81,116 @@ concept_unit_hour = Concept(
     concept_class_id="Unit",
     standard_concept="S",
     concept_code="h",
+    invalid_reason=None,
+)
+
+concept_unit_sec = Concept(
+    concept_id=concepts.UNIT_SECOND,
+    concept_name="second",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="s",
+    invalid_reason=None,
+)
+
+concept_unit_percent = Concept(
+    concept_id=concepts.UNIT_PERCENT,
+    concept_name="percent",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="%",
+    invalid_reason=None,
+)
+
+concept_unit_mg_l = Concept(
+    concept_id=concepts.UNIT_MG_PER_L,
+    concept_name="milligram per liter",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mg/L",
+    invalid_reason=None,
+)
+
+concept_unit_ug_l = Concept(
+    concept_id=concepts.UNIT_UG_PER_L,
+    concept_name="microgram per liter",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="ug/L",
+    invalid_reason=None,
+)
+
+concept_unit_cm = Concept(
+    concept_id=concepts.UNIT_CM,
+    concept_name="centimeter",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="cm",
+    invalid_reason=None,
+)
+
+concept_unit_ml = Concept(
+    concept_id=concepts.UNIT_ML,
+    concept_name="milliliter",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mL",
+    invalid_reason=None,
+)
+
+concept_unit_cm_h2o = Concept(
+    concept_id=concepts.UNIT_CM_H2O,
+    concept_name="centimeter of water",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="cm[H2O]",
+    invalid_reason=None,
+)
+
+concept_unit_kg = Concept(
+    concept_id=concepts.UNIT_KG,
+    concept_name="kilogram",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="kg",
+    invalid_reason=None,
+)
+
+concept_unit_ie = Concept(
+    concept_id=concepts.UNIT_IE,
+    concept_name="international unit",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="IU",
+    invalid_reason=None,
+)
+
+concept_unit_mm_hg = Concept(
+    concept_id=concepts.UNIT_MM_HG,
+    concept_name="millimeter of mercury",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mm[Hg]",
     invalid_reason=None,
 )
 
@@ -81,6 +204,7 @@ concept_heparin_ingredient = Concept(
     concept_code="5224",
     invalid_reason=None,
 )
+
 
 concept_route_subcutaneous = Concept(
     concept_id=4142048,

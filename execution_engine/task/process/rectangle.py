@@ -553,9 +553,13 @@ def mask_intervals(
     result = {}
     for person_id in data:
         # intersect every interval in data with every interval in mask
-        result[person_id] = _impl.intersect_interval_lists(
+        person_result = _impl.intersect_interval_lists(
             data[person_id], person_mask[person_id]
         )
+        if not person_result:
+            continue
+
+        result[person_id] = person_result
 
     return result
 

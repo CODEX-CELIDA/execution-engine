@@ -84,7 +84,7 @@ class TestAnd:
         assert isinstance(and_expr, And)
 
         assert (
-            str(and_expr) == "MockCriterion[x] & MockCriterion[y] & ~MockCriterion[z]"
+            str(and_expr) == "(MockCriterion[x] & MockCriterion[y] & ~MockCriterion[z])"
         )
         assert and_expr.args[0] == x
         assert and_expr.args[1] == y
@@ -109,7 +109,9 @@ class TestOr:
         )
         assert isinstance(or_expr, Or)
 
-        assert str(or_expr) == "MockCriterion[x] | MockCriterion[y] | ~MockCriterion[z]"
+        assert (
+            str(or_expr) == "(MockCriterion[x] | MockCriterion[y] | ~MockCriterion[z])"
+        )
         assert or_expr.args[0] == x
         assert or_expr.args[1] == y
         assert or_expr.args[2] == Not(z, category=CohortCategory.POPULATION)

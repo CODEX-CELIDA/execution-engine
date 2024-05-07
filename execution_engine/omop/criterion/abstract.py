@@ -1,7 +1,4 @@
 import copy
-import hashlib
-import json
-import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Type, TypedDict, cast
 
@@ -97,9 +94,8 @@ class AbstractCriterion(Serializable, ABC):
     Abstract base class for Criterion and CriterionCombination.
     """
 
-    def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
+    def __init__(self, exclude: bool, category: CohortCategory) -> None:
         self._id = None
-        self._name: str = re.sub(r"[ \t]", "-", name)
         self._exclude: bool = exclude
 
         assert isinstance(
@@ -130,13 +126,6 @@ class AbstractCriterion(Serializable, ABC):
         """
         return self.__class__.__name__
 
-    @property
-    def name(self) -> str:
-        """
-        Get the name of the criterion.
-        """
-        return self.type + "_" + self._name
-
     def copy(self) -> "AbstractCriterion":
         """
         Copy the criterion.
@@ -155,19 +144,24 @@ class AbstractCriterion(Serializable, ABC):
             criterion._exclude = not criterion._exclude
             return criterion
 
+    @abstractmethod
+    def description(self) -> str:
+        """
+        Return a description of the criterion.
+        """
+        raise NotImplementedError()
+
     def __repr__(self) -> str:
         """
         Get the representation of the criterion.
         """
-        return (
-            f"{self.type}.{self._category.name}.{self._name}(exclude={self._exclude})"
-        )
+        return f"{self.type}.{self._category.name}.{self.description()}(exclude={self._exclude})"
 
     def __str__(self) -> str:
         """
         Get the name of the criterion.
         """
-        return self.name
+        return self.description()
 
     def clear_exclude(self, inplace: bool = False) -> "AbstractCriterion":
         """
@@ -182,30 +176,6 @@ class AbstractCriterion(Serializable, ABC):
             return self
         else:
             return self.invert_exclude(inplace=inplace)
-
-    # todo: remove function? I don't think it is really needed anymore.
-    def unique_name(self) -> str:
-        """
-        Get a unique name for the criterion.
-
-        The name is based on the JSON representation of the criterion, i.e. multiple objects with the same parameters
-        will have the same name (in that sense, the uniqueness is related to the parameters, not the object itself).
-        """
-        # exclusion is only performed during combination of criteria, and therefore criteria behave the same
-        # independent of whether they are excluded or not. this should be reflected in the name (therefore we remove
-        # the exclude flag from the name)
-        criterion_dict = self.dict()
-        criterion_dict.pop("exclude", None)
-
-        s = json.dumps(self.dict(), sort_keys=True)
-
-        hash_ = hashlib.md5(  # nosec (just used for naming, not security related)
-            s.encode()
-        ).hexdigest()
-
-        exclude_str = "(NOT)" if self.exclude else ""
-
-        return f"{self.name}{exclude_str}_{hash_}"
 
 
 class Criterion(AbstractCriterion):
@@ -278,8 +248,8 @@ class Criterion(AbstractCriterion):
     Flag to indicate whether the filter_datetime function has been called.
     """
 
-    def __init__(self, name: str, exclude: bool, category: CohortCategory) -> None:
-        super().__init__(name=name, exclude=exclude, category=category)
+    def __init__(self, exclude: bool, category: CohortCategory) -> None:
+        super().__init__(exclude=exclude, category=category)
 
     def _set_omop_variables_from_domain(self, domain_id: str) -> None:
         """
@@ -692,13 +662,6 @@ class Criterion(AbstractCriterion):
     def from_dict(cls, data: Dict[str, Any]) -> "Criterion":
         """
         Create a criterion from a JSON object.
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def description(self) -> str:
-        """
-        Return a description of the criterion.
         """
         raise NotImplementedError()
 

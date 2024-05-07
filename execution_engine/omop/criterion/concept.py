@@ -18,7 +18,8 @@ Collection of static clinical variables.
 The values of these variables are considered constant over the observation period.
 """
 STATIC_CLINICAL_CONCEPTS = [
-    int(OMOPConcepts.BODY_WEIGHT.value),
+    int(OMOPConcepts.BODY_WEIGHT_LOINC.value),
+    int(OMOPConcepts.BODY_WEIGHT_SNOMED.value),
     int(OMOPConcepts.BODY_HEIGHT.value),
 ]  # type: list[int]
 # TODO: Only use weight etc from the current encounter/visit!
@@ -36,7 +37,6 @@ class ConceptCriterion(Criterion, ABC):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         category: CohortCategory,
         concept: Concept,
@@ -44,7 +44,7 @@ class ConceptCriterion(Criterion, ABC):
         static: bool | None = None,
         timing: Timing | None = None,
     ):
-        super().__init__(name=name, exclude=exclude, category=category)
+        super().__init__(exclude=exclude, category=category)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
@@ -116,7 +116,6 @@ class ConceptCriterion(Criterion, ABC):
         Get a JSON representation of the criterion.
         """
         return {
-            "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
             "concept": self._concept.dict(),
@@ -136,7 +135,6 @@ class ConceptCriterion(Criterion, ABC):
         """
 
         return cls(
-            name=data["name"],
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),

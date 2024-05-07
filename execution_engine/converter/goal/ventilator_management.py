@@ -32,7 +32,6 @@ class VentilatorManagementGoal(Goal):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         code: Concept,
         value: Value,
@@ -40,7 +39,7 @@ class VentilatorManagementGoal(Goal):
         """
         Initialize the goal.
         """
-        super().__init__(name=name, exclude=exclude)
+        super().__init__(exclude=exclude)
         self._code = code
         self._value = value
         self._criterion_class = Measurement
@@ -58,7 +57,7 @@ class VentilatorManagementGoal(Goal):
         value = parse_value(target, value_prefix="detail")
         code = parse_code(target.measure)
 
-        return cls(code.concept_name, exclude=False, code=code, value=value)
+        return cls(exclude=False, code=code, value=value)
 
     def to_criterion(self) -> Criterion:
         """
@@ -67,7 +66,6 @@ class VentilatorManagementGoal(Goal):
         if self._code in CUSTOM_GOALS:
             cls = CUSTOM_GOALS[self._code]
             return cls(
-                name=self._code.concept_name,
                 exclude=False,
                 category=CohortCategory.INTERVENTION,
                 concept=self._code,
@@ -75,7 +73,6 @@ class VentilatorManagementGoal(Goal):
             )
 
         return Measurement(
-            name=self._name,
             exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             concept=self._code,

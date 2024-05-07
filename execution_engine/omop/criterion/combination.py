@@ -66,19 +66,20 @@ class CriterionCombination(AbstractCriterion):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         operator: Operator,
         category: CohortCategory,
         criteria: Sequence[Union[Criterion, "CriterionCombination"]] | None = None,
+        root_combination: bool = False,
     ):
         """
         Initialize the criterion combination.
         """
-        super().__init__(name=name, exclude=exclude, category=category)
+        super().__init__(exclude=exclude, category=category)
         self._operator = operator
 
         self._criteria: list[Union[Criterion, CriterionCombination]]
+        self._root = root_combination
 
         if criteria is None:
             self._criteria = []
@@ -99,19 +100,11 @@ class CriterionCombination(AbstractCriterion):
         """
         self._criteria.extend(criteria)
 
-    @property
-    def name(self) -> str:
+    def __str__(self) -> str:
         """
         Get the name of the criterion combination.
         """
-        return f"CriterionCombination({self.operator}).{self.category.value}.{self._name}(exclude={self._exclude})"
-
-    @property
-    def raw_name(self) -> str:
-        """
-        Get the name of the criterion combination.
-        """
-        return self._name
+        return f"CriterionCombination({self.operator}).{self.category.value}(exclude={self._exclude})"
 
     @property
     def operator(self) -> "CriterionCombination.Operator":
@@ -119,6 +112,12 @@ class CriterionCombination(AbstractCriterion):
         Get the operator of the criterion combination (i.e. the type of combination, e.g. AND, OR, AT_LEAST, etc.).
         """
         return self._operator
+
+    def is_root(self) -> bool:
+        """
+        Returns whether this criterion combination is at the root of a tree of criteria / combinations.
+        """
+        return self._root
 
     def __iter__(self) -> Iterator[Union[Criterion, "CriterionCombination"]]:
         """
@@ -145,12 +144,17 @@ class CriterionCombination(AbstractCriterion):
         """
         return str(self)
 
+    def description(self) -> str:
+        """
+        Description of this combination.
+        """
+        return str(self)
+
     def dict(self) -> dict[str, Any]:
         """
         Get the dictionary representation of the criterion combination.
         """
         return {
-            "name": self._name,
             "exclude": self._exclude,
             "operator": self._operator.operator,
             "threshold": self._operator.threshold,
@@ -166,7 +170,6 @@ class CriterionCombination(AbstractCriterion):
         Invert the criterion combination.
         """
         return CriterionCombination(
-            name=self._name,
             exclude=not self._exclude,
             operator=self._operator,
             category=self._category,
@@ -193,7 +196,6 @@ class CriterionCombination(AbstractCriterion):
         category = CohortCategory(data["category"])
 
         combination = cls(
-            name=data["name"],
             exclude=data["exclude"],
             operator=operator,
             category=category,
