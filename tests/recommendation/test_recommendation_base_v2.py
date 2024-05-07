@@ -72,23 +72,40 @@ def generate_combinations(generator, invalid_combinations, default_value: bool =
     if isinstance(generator, BaseDataGenerator):
         return [{generator: default_value}]
 
-    elif isinstance(generator, AndGenerator) or isinstance(generator, OrGenerator):
+    elif isinstance(generator, (AndGenerator, OrGenerator)):
         for gen in generator.generators:
-            if isinstance(gen, BaseDataGenerator):
-                if isinstance(generator, AndGenerator):
-                    gens.append([{gen: default_value}])
-                else:  # OrGenerator logic simplified
-                    gens.append([{gen: default_value}, {gen: not default_value}])
+            if isinstance(gen, (BaseDataGenerator, NotGenerator)):
+                if isinstance(gen, NotGenerator):
+                    assert isinstance(
+                        gen.generator, BaseDataGenerator
+                    ), "Only BaseDataGenerator instances are supported in NotGenerator"
+                    if isinstance(generator, AndGenerator):
+                        gens.append([{gen.generator: not default_value}])
+                    else:  # OrGenerator logic simplified
+                        gens.append(
+                            [
+                                {gen.generator: default_value},
+                                {gen.generator: not default_value},
+                            ]
+                        )
+                else:
+                    if isinstance(generator, AndGenerator):
+                        gens.append([{gen: default_value}])
+                    else:  # OrGenerator logic simplified
+                        gens.append([{gen: default_value}, {gen: not default_value}])
             elif isinstance(gen, (AndGenerator, OrGenerator)):
                 sub_combinations = generate_combinations(
                     gen, invalid_combinations, default_value
                 )
                 gens.append(sub_combinations)
             elif isinstance(gen, NotGenerator):
-                sub_combinations = generate_combinations(
-                    gen.generator, invalid_combinations, not default_value
+                # sub_combinations = generate_combinations(
+                #     gen.generator, invalid_combinations, not default_value
+                # )
+                # gens.append(sub_combinations)
+                raise NotImplementedError(
+                    "NotGenerator inside AndGenerator/OrGenerator"
                 )
-                gens.append(sub_combinations)
             else:
                 raise NotImplementedError(f"Unsupported generator type: {type(gen)}")
 
