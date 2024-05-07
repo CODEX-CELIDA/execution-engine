@@ -1,5 +1,6 @@
 import pytest
 
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from tests._testdata import concepts
 
@@ -58,6 +59,17 @@ concept_unit_mg = Concept(
     concept_class_id="Unit",
     standard_concept="S",
     concept_code="mg",
+    invalid_reason=None,
+)
+
+concept_unit_mg_kg = Concept(
+    concept_id=OMOPConcepts.UNIT_MG_PER_KG.value,
+    concept_name="milligram per kilogram",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mg/kg",
     invalid_reason=None,
 )
 
