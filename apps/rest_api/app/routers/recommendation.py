@@ -49,7 +49,6 @@ async def recommendation_criteria(
     for c in recommendation.flatten():
         data.append(
             {
-                "unique_name": c.unique_name(),
                 "description": c.description(),
                 "cohort_category": c.category,
             }
