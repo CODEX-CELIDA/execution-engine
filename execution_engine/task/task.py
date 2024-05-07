@@ -415,7 +415,7 @@ class Task:
         :param observation_window: The observation window.
         :return: None.
         """
-        if len(result) == 0:
+        if not result:
             return
 
         if base_data is not None:
@@ -424,6 +424,9 @@ class Task:
                 result,
                 mask=base_data,
             )
+
+            if not result:
+                return
 
         pi_pair_id = bind_params.get("pi_pair_id", None)
         criterion_id = self.criterion.id if self.expr.is_Atom else None  # type: ignore # when expr.is_Atom, criterion is not None

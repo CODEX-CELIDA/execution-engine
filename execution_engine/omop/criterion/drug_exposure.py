@@ -29,7 +29,6 @@ class DrugExposure(Criterion):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         category: CohortCategory,
         ingredient_concept: Concept,
@@ -39,7 +38,7 @@ class DrugExposure(Criterion):
         """
         Initialize the drug administration action.
         """
-        super().__init__(name=name, exclude=exclude, category=category)
+        super().__init__(exclude=exclude, category=category)
         self._set_omop_variables_from_domain("drug")
         self._ingredient_concept = ingredient_concept
 
@@ -339,7 +338,6 @@ class DrugExposure(Criterion):
         Return a dictionary representation of the criterion.
         """
         return {
-            "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
             "ingredient_concept": self._ingredient_concept.dict(),
@@ -360,7 +358,6 @@ class DrugExposure(Criterion):
         assert dose is None or isinstance(dose, Dosage), "Dose must be a Dosage or None"
 
         return cls(
-            name=data["name"],
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
             ingredient_concept=Concept(**data["ingredient_concept"]),

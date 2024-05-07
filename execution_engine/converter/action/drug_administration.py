@@ -56,7 +56,6 @@ class DrugAdministrationAction(AbstractAction):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         ingredient_concept: Concept,
         dosages: list[DosageDefinition] | None = None,
@@ -64,7 +63,7 @@ class DrugAdministrationAction(AbstractAction):
         """
         Initialize the drug administration action.
         """
-        super().__init__(name=name, exclude=exclude)
+        super().__init__(exclude=exclude)
         self._ingredient_concept = ingredient_concept
         self._dosages = dosages
 
@@ -77,7 +76,6 @@ class DrugAdministrationAction(AbstractAction):
 
         ingredient = cls.get_ingredient_concept(action_def.activity_definition_fhir)
 
-        name = f"drug_{ingredient.concept_name}"
         exclude = (
             action_def.activity_definition_fhir.doNotPerform
             if action_def.activity_definition_fhir.doNotPerform is not None
@@ -92,7 +90,6 @@ class DrugAdministrationAction(AbstractAction):
             # must return criterion according to goal
             # return combination of drug criterion (any application !) and goal criterion
             action = cls(
-                name,
                 exclude,
                 ingredient_concept=ingredient,
             )
@@ -119,7 +116,6 @@ class DrugAdministrationAction(AbstractAction):
                 )
 
             action = cls(
-                name=name,
                 exclude=exclude,
                 ingredient_concept=ingredient,
                 dosages=dosages,
@@ -282,8 +278,8 @@ class DrugAdministrationAction(AbstractAction):
         drug_actions: list[Criterion | CriterionCombination] = []
 
         if not self._dosages:
+            # no dosages, just return the drug exposure
             return DrugExposure(
-                name=self._name,
                 exclude=self._exclude,
                 category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
@@ -293,8 +289,7 @@ class DrugAdministrationAction(AbstractAction):
 
         for dosage in self._dosages:
             drug_action = DrugExposure(
-                name=self._name,
-                exclude=self._exclude,
+                exclude=False,  # first set to False, as the exclude flag is pulled up into the combination
                 category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=dosage["dose"],
@@ -305,7 +300,6 @@ class DrugAdministrationAction(AbstractAction):
                 drug_actions.append(drug_action)
             else:
                 comb = CriterionCombination(
-                    name=f"{self._name}_extensions",
                     exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
                     category=CohortCategory.INTERVENTION,
                     operator=CriterionCombination.Operator("AND"),
@@ -317,7 +311,6 @@ class DrugAdministrationAction(AbstractAction):
                 for extension in dosage["extensions"]:  # type: ignore # (extension is not None as per the if-block)
                     comb.add(
                         PointInTimeCriterion(
-                            name=f"{self._name}_ext_{extension['code'].concept_name}",
                             exclude=False,  # extensions are always included (at least for now)
                             category=CohortCategory.INTERVENTION,
                             concept=extension["code"],
@@ -328,10 +321,11 @@ class DrugAdministrationAction(AbstractAction):
                 drug_actions.append(comb)
 
         if len(drug_actions) == 1:
+            # set the exclude flag to the value of the action, as this is the only action
+            drug_actions[0].exclude = self._exclude
             return drug_actions[0]
         else:
             comb = CriterionCombination(
-                name=f"{self._name}_dosages",
                 exclude=self._exclude,
                 category=CohortCategory.INTERVENTION,
                 operator=CriterionCombination.Operator("OR"),

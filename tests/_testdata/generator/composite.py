@@ -15,8 +15,17 @@ class CompositeDataGenerator:
     def __or__(self, other: Union[BaseDataGenerator, "CompositeDataGenerator"]):
         return OrGenerator(self, other)
 
+    def __invert__(self):
+        return NotGenerator(self)
+
     def flatten(self):
         flat_set = set()
+        if isinstance(self, NotGenerator):
+            if isinstance(self.generator, CompositeDataGenerator):
+                flat_set.update(self.generator.flatten())
+            else:
+                flat_set.add(self.generator)
+            return flat_set  # NotGenerator has only one generator
         for generator in self.generators:
             if isinstance(generator, CompositeDataGenerator):
                 flat_set.update(generator.flatten())

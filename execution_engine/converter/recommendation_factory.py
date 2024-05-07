@@ -49,7 +49,7 @@ class FhirToRecommendationFactory:
 
         pi_pairs: list[PopulationInterventionPair] = []
 
-        base_criterion = PatientsActiveDuringPeriod(name="active_patients")
+        base_criterion = PatientsActiveDuringPeriod()
 
         for rec_plan in rec.plans():
             pi_pair = PopulationInterventionPair(

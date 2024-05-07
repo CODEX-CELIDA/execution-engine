@@ -24,7 +24,6 @@ class ProcedureOccurrence(ContinuousCriterion):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         category: CohortCategory,
         concept: Concept,
@@ -33,7 +32,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         static: bool | None = None,
     ) -> None:
         super().__init__(
-            name=name,
             exclude=exclude,
             category=category,
             concept=concept,
@@ -158,7 +156,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         Return a dictionary representation of the criterion.
         """
         return {
-            "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
             "concept": self._concept.dict(),
@@ -187,7 +184,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         ), "timing must be a ValueNumber"
 
         return cls(
-            name=data["name"],
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),

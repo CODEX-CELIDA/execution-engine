@@ -80,7 +80,6 @@ class Criterion(Base):  # noqa: D101
         index=True,
     )
     # todo: add link to recommendation or 1:n to population/intervention pair?
-    criterion_name: Mapped[str]
     criterion_description: Mapped[str]
     criterion_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
 

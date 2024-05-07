@@ -21,7 +21,6 @@ class TestDrugAdministration:
         dosage_def = DrugAdministrationAction.DosageDefinition(dose=dosage)
 
         action = DrugAdministrationAction(
-            name="test",
             exclude=False,
             ingredient_concept=concept.concept_heparin_ingredient,
             dosages=[dosage_def],
@@ -58,7 +57,6 @@ class TestDrugAdministration:
         ]
 
         action = DrugAdministrationAction(
-            name="test",
             exclude=False,
             ingredient_concept=concept.concept_heparin_ingredient,
             dosages=[

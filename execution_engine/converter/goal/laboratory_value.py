@@ -20,7 +20,6 @@ class LaboratoryValueGoal(Goal):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         code: Concept,
         value: Value,
@@ -28,7 +27,7 @@ class LaboratoryValueGoal(Goal):
         """
         Initialize the goal.
         """
-        super().__init__(name=name, exclude=exclude)
+        super().__init__(exclude=exclude)
         self._code = code
         self._value = value
 
@@ -45,14 +44,13 @@ class LaboratoryValueGoal(Goal):
 
         code, value = parse_code_value(target.measure, target, value_prefix="detail")
 
-        return cls(code.concept_name, exclude=False, code=code, value=value)
+        return cls(exclude=False, code=code, value=value)
 
     def to_criterion(self) -> Criterion:
         """
         Converts the goal to a criterion.
         """
         return Measurement(
-            name=self._name,
             exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             concept=self._code,

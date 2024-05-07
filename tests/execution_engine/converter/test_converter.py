@@ -147,7 +147,7 @@ class TestCriterionConverter:
     class MockCriterionConverter(CriterionConverter):
         @classmethod
         def from_fhir(cls, fhir_definition: Element) -> "CriterionConverter":
-            return cls(name="MockConverter", exclude=False)
+            return cls(exclude=False)
 
         @classmethod
         def valid(cls, fhir_definition: Element) -> bool:

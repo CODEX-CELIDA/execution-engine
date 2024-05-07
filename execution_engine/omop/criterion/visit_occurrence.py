@@ -21,8 +21,7 @@ class ActivePatients(VisitOccurrence):
     Select only patients who are still hospitalized.
     """
 
-    def __init__(self, name: str):
-        self._name = name
+    def __init__(self) -> None:
         self._exclude = False
         self._category = CohortCategory.BASE
         self._set_omop_variables_from_domain("visit")
@@ -68,14 +67,14 @@ class ActivePatients(VisitOccurrence):
         """
         Get a JSON representation of the criterion.
         """
-        return {"class_name": self.__class__.__name__, "data": {"name": self._name}}
+        return {"class_name": self.__class__.__name__, "data": {}}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ActivePatients":
         """
         Create a criterion from a JSON representation.
         """
-        return cls(data["name"])
+        return cls()
 
 
 class PatientsActiveDuringPeriod(ActivePatients):

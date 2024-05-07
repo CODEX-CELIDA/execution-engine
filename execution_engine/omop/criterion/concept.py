@@ -37,7 +37,6 @@ class ConceptCriterion(Criterion, ABC):
 
     def __init__(
         self,
-        name: str,
         exclude: bool,
         category: CohortCategory,
         concept: Concept,
@@ -45,7 +44,7 @@ class ConceptCriterion(Criterion, ABC):
         static: bool | None = None,
         timing: Timing | None = None,
     ):
-        super().__init__(name=name, exclude=exclude, category=category)
+        super().__init__(exclude=exclude, category=category)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
@@ -117,7 +116,6 @@ class ConceptCriterion(Criterion, ABC):
         Get a JSON representation of the criterion.
         """
         return {
-            "name": self._name,
             "exclude": self._exclude,
             "category": self._category.value,
             "concept": self._concept.dict(),
@@ -137,7 +135,6 @@ class ConceptCriterion(Criterion, ABC):
         """
 
         return cls(
-            name=data["name"],
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),

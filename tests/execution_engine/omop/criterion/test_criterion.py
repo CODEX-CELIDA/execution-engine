@@ -193,7 +193,6 @@ class TestCriterion:
         if not exists:
             new_criterion = celida_tables.Criterion(
                 criterion_id=criterion.id,
-                criterion_name=criterion.description(),
                 criterion_description=criterion.description(),
                 criterion_hash=hash(criterion),
             )
@@ -225,7 +224,7 @@ class TestCriterion:
 
     @pytest.fixture
     def base_criterion(self, db_session):
-        c = PatientsActiveDuringPeriod("TestActivePatients")
+        c = PatientsActiveDuringPeriod()
         c.id = -1
         self.register_criterion(c, db_session)
 
@@ -390,7 +389,6 @@ class TestCriterion:
             value: ValueNumber | ValueConcept | None = None,
         ) -> pd.DataFrame:
             criterion = criterion_class(
-                name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,

@@ -15,11 +15,12 @@ from tests._fixtures.concept import (
     concept_route_intravenous,
     concept_route_subcutaneous,
     concept_unit_mg,
+    concept_unit_mg_kg,
     concepts_heparin_other,
 )
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
-from tests.functions import create_drug_exposure
+from tests.functions import create_drug_exposure, create_measurement
 
 
 class TestDrugExposure(TestCriterion):
@@ -34,7 +35,6 @@ class TestDrugExposure(TestCriterion):
             route: Concept | None,
         ) -> pd.DataFrame:
             criterion = DrugExposure(
-                name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
                 ingredient_concept=ingredient_concept,
@@ -1528,4 +1528,90 @@ class TestDrugExposure(TestCriterion):
             dosage,
             expected,
             route,
+        )
+
+    @pytest.mark.parametrize(
+        "drug_exposures",
+        [
+            [
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-01 09:36:24+01:00",
+                    "end_datetime": "2023-03-01 10:36:24+01:00",
+                    "quantity": 63 * 100,
+                    "route_concept_id": concepts.ROUTE_SUBCUTANEOUS,
+                },
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-02 09:36:24+01:00",
+                    "end_datetime": "2023-03-02 10:36:24+01:00",
+                    "quantity": 70 * 100,
+                    "route_concept_id": concepts.ROUTE_INTRAVENOUS,
+                },
+                {
+                    "drug_concept_id": concept_heparin_ingredient.concept_id,
+                    "start_datetime": "2023-03-04 09:36:24+01:00",
+                    "end_datetime": "2023-03-04 10:36:24+01:00",
+                    "quantity": 110 * 100,
+                    "route_concept_id": concepts.ROUTE_INTRAVENOUS,
+                },
+            ]
+        ],
+    )
+    @pytest.mark.parametrize(
+        "dosage",
+        [
+            Dosage(
+                dose=ValueNumber(value=100, unit=concept_unit_mg_kg),
+                frequency=ValueCount(value_min=1),
+                interval=TimeUnit.DAY,
+            )
+        ],
+    )
+    @pytest.mark.parametrize(
+        "weight_kg,expected",
+        [
+            (62, {}),
+            (
+                63,
+                {
+                    "2023-03-01",
+                },
+            ),
+            (70, {"2023-03-02"}),
+            (
+                110,
+                {
+                    "2023-03-04",
+                },
+            ),
+        ],
+    )
+    def test_drug_exposure_weight_related(
+        self,
+        person_visit,
+        db_session,
+        execute_drug_exposure_criterion,
+        drug_exposures,
+        dosage,
+        weight_kg,
+        expected,
+    ):
+        _, vo = person_visit[0]
+        weight_measurement = create_measurement(
+            vo=vo,
+            measurement_concept_id=concepts.BODY_WEIGHT,
+            measurement_datetime=pendulum.parse("2023-03-01 09:36:24+01:00"),
+            value_as_number=weight_kg,
+        )
+
+        db_session.add(weight_measurement)
+
+        self.perform_test(
+            db_session,
+            person_visit,
+            execute_drug_exposure_criterion,
+            drug_exposures,
+            dosage,
+            expected,
         )

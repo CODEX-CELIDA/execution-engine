@@ -27,9 +27,7 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
             value_parent=characteristic.definitionByTypeAndValue, value_prefix="value"
         )
 
-        c: AbstractCharacteristic = cls(
-            name=type_omop_concept.concept_name, exclude=characteristic.exclude
-        )
+        c: AbstractCharacteristic = cls(exclude=characteristic.exclude)
         c.type = type_omop_concept
         c.value = value
 
@@ -38,7 +36,6 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
     def to_criterion(self) -> ConceptCriterion:
         """Converts this characteristic to a Criterion."""
         return self._criterion_class(
-            name=self._name,
             exclude=self._exclude,
             category=CohortCategory.POPULATION,
             concept=self.type,

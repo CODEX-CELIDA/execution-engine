@@ -66,7 +66,7 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
 
         class_ = cls.get_class_from_concept(omop_concept)
 
-        c = class_(name=omop_concept.concept_name, exclude=characteristic.exclude)
+        c = class_(exclude=characteristic.exclude)
         c.value = omop_concept
 
         return c
@@ -74,7 +74,6 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
     def to_criterion(self) -> Criterion:
         """Converts this characteristic to a Criterion."""
         return self._criterion_class(
-            name=self._name,
             exclude=self._exclude,
             category=CohortCategory.POPULATION,
             concept=self.value,

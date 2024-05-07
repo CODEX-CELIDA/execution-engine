@@ -64,7 +64,6 @@ class TestProcedureOccurrence(Occurrence):
             timing = Timing(duration=2 * TimeUnit.HOUR)
 
             criterion = ProcedureOccurrence(
-                name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
@@ -232,7 +231,6 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
@@ -325,7 +323,6 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                name="test",
                 exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,

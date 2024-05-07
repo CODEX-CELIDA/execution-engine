@@ -59,7 +59,6 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
                 raise ValueError(f"Invalid action combination method: {method_code}")
 
         return CriterionCombination(
-            name="intervention_actions",
             category=CohortCategory.INTERVENTION,
             exclude=False,
             operator=operator,

@@ -174,7 +174,6 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                 f"Selection behavior {str(selection_behavior.code)} not implemented."
             )
         return CriterionCombination(
-            name="intervention_actions",
             category=CohortCategory.INTERVENTION,
             exclude=False,
             operator=operator,

@@ -25,6 +25,12 @@ from tests.functions import (
 
 
 class BaseDataGenerator:
+    """
+    A base class for generating test data for various entities in the software.
+    Intended to be subclassed for generating specific types of data.
+    Contains common attributes and methods useful for generating data.
+    """
+
     concept_id: int
     static: bool = False
     start_datetime: datetime
@@ -277,17 +283,46 @@ class ObservationGenerator(MeasurementGenerator):
 
     start_datetime = pendulum.parse("2023-03-15 12:00:00+01:00")
 
+    def __init__(
+        self,
+        value: ValueNumber | str | ValueConcept | None = None,
+        comparator: str | None = None,
+    ):
+        if value is not None:
+            self.value = value
+
+        if comparator is not None:
+            self.comparator = comparator
+
+        if isinstance(self.value, ValueNumber):
+            if self.comparator not in ["<", "<=", ">", ">=", "="]:
+                raise ValueError(f"Invalid comparator: {comparator}")
+        elif isinstance(self.value, (ValueConcept, str)):
+            if self.comparator is not None:
+                raise ValueError("Comparator must be None for ValueConcept")
+
     def generate_data(
         self, vo: VisitOccurrence, valid: bool = True
     ) -> list[Observation]:
-        value = self._get_value(self.value, valid)
+        if valid:
+            value = self.value
+        else:
+            if self.value is None:
+                # this is just a concept, so we can't generate an invalid value
+                return []
+            else:
+                value = self._get_value(self.value, valid)
+
+        unit_concept_id = (
+            value.unit.concept_id if isinstance(value, ValueNumber) else None
+        )
 
         observation = create_observation(
             vo=vo,
             observation_concept_id=self.concept_id,
             observation_datetime=self.start_datetime,
             value_as_number=value,
-            unit_concept_id=self.value.unit.concept_id,
+            unit_concept_id=unit_concept_id,
         )
 
         return [observation]
@@ -317,11 +352,11 @@ class DrugExposureGenerator(BaseDataGenerator):
     end_datetime = pendulum.parse("2023-03-03 12:00:00+01:00")
     quantity: ValueNumber
     route_concept_id: int | None = None
-    doses_per_day: int = 1
+    doses_per_day: int
 
     missing_data_type = IntervalType.NEGATIVE
 
-    def __init__(self, quantity: ValueNumber, comparator: str, doses_per_day: int):
+    def __init__(self, quantity: ValueNumber, comparator: str, doses_per_day: int = 1):
         self.quantity = quantity
         self.comparator = comparator
         self.doses_per_day = doses_per_day
@@ -334,13 +369,13 @@ class DrugExposureGenerator(BaseDataGenerator):
 
         drug_exposures = []
 
-        for _ in self.doses_per_day:
+        for _ in range(self.doses_per_day):
             drug_exposures.append(
                 create_drug_exposure(
                     vo=vo,
                     drug_concept_id=self.concept_id,
-                    drug_exposure_start_datetime=self.start_datetime,
-                    drug_exposure_end_datetime=self.end_datetime,
+                    start_datetime=self.start_datetime,
+                    end_datetime=self.end_datetime,
                     quantity=quantity,
                     route_concept_id=self.route_concept_id,
                 )
@@ -372,21 +407,19 @@ class VisitGenerator(BaseDataGenerator):
     start_datetime = pendulum.parse("2023-03-02 12:00:00+01:00")
     end_datetime = pendulum.parse("2023-03-18 12:00:00+01:00")
     missing_data_type = IntervalType.NEGATIVE
+    invalid_concept_id: int
 
     def generate_data(self, person_id: int, valid=True) -> list[VisitOccurrence]:
         if valid:
-            start_datetime = self.start_datetime
-            end_datetime = self.end_datetime
+            concept_id = self.concept_id
         else:
-            # Logic for generating invalid condition data (example)
-            start_datetime = self.end_datetime + timedelta(days=1)
-            end_datetime = start_datetime + timedelta(days=1)
+            concept_id = self.invalid_concept_id
 
         visit = create_visit(
             person_id=person_id,
-            visit_start_datetime=start_datetime,
-            visit_end_datetime=end_datetime,
-            visit_concept_id=self.concept_id,
+            visit_start_datetime=self.start_datetime,
+            visit_end_datetime=self.end_datetime,
+            visit_concept_id=concept_id,
         )
         return [visit]
 
@@ -396,9 +429,9 @@ class VisitGenerator(BaseDataGenerator):
         return [
             {
                 "person_id": visit.person_id,
-                "concept_id": visit.procedure_concept_id,
-                "start_datetime": visit.procedure_datetime,
-                "end_datetime": visit.procedure_end_datetime,
+                "concept_id": visit.visit_concept_id,
+                "start_datetime": visit.visit_start_datetime,
+                "end_datetime": visit.visit_end_datetime,
                 "valid": valid,
                 "static": self.static,
                 "missing_data_type": self.missing_data_type,

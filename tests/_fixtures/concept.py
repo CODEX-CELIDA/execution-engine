@@ -1,5 +1,6 @@
 import pytest
 
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from tests._testdata import concepts
 
@@ -61,6 +62,17 @@ concept_unit_mg = Concept(
     invalid_reason=None,
 )
 
+concept_unit_mg_kg = Concept(
+    concept_id=OMOPConcepts.UNIT_MG_PER_KG.value,
+    concept_name="milligram per kilogram",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mg/kg",
+    invalid_reason=None,
+)
+
 concept_unit_hour = Concept(
     concept_id=8505,
     concept_name="hour",
@@ -91,6 +103,17 @@ concept_unit_percent = Concept(
     concept_class_id="Unit",
     standard_concept="S",
     concept_code="%",
+    invalid_reason=None,
+)
+
+concept_unit_mg_l = Concept(
+    concept_id=concepts.UNIT_MG_PER_L,
+    concept_name="milligram per liter",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="mg/L",
     invalid_reason=None,
 )
 
@@ -146,6 +169,17 @@ concept_unit_kg = Concept(
     concept_class_id="Unit",
     standard_concept="S",
     concept_code="kg",
+    invalid_reason=None,
+)
+
+concept_unit_ie = Concept(
+    concept_id=concepts.UNIT_IE,
+    concept_name="international unit",
+    domain_id="Unit",
+    vocabulary_id="UCUM",
+    concept_class_id="Unit",
+    standard_concept="S",
+    concept_code="IU",
     invalid_reason=None,
 )
 
