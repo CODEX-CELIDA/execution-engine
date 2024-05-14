@@ -1,0 +1,57 @@
+# CHANGELOG
+
+{% if context.history.unreleased | length > 0 %}
+{# UNRELEASED #}
+## Unreleased
+
+{% set types = ["feature", "fix"] %}
+{% for type_ in types %}
+{% if context.history.unreleased[type_] is defined and context.history.unreleased[type_]|length > 0 %}
+### {{ type_ | capitalize }}
+{% for commit in context.history.unreleased[type_] %}
+{% if not commit.message.startswith("Merge pull request") and not commit.message.startswith("Merge branch") %}
+* {{ commit.message.split('\n')[0].rstrip() }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+{% for type_, commits in context.history.unreleased | dictsort %}
+{% if type_ not in types and commits|length > 0 %}
+### {{ type_ | capitalize }}
+{% for commit in commits %}
+{% if not commit.message.startswith("Merge pull request") and not commit.message.startswith("Merge branch") %}
+* {{ commit.message.split('\n')[0].rstrip() }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% for version, release in context.history.released.items() %}
+{# RELEASED #}
+## {{ version.as_semver_tag() }} ({{ release.tagged_date.strftime("%Y-%m-%d") }})
+
+{% set types = ["feature", "fix"] %}
+{% for type_ in types %}
+{% if release["elements"][type_] is defined and release["elements"][type_]|length > 0 %}
+### {{ type_ | capitalize }}
+{% for commit in release["elements"][type_] %}
+{% if not commit.message.startswith("Merge pull request") and not commit.message.startswith("Merge branch") %}
+* {{ commit.message.split('\n')[0].rstrip() }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+{% for type_, commits in release["elements"] | dictsort %}
+{% if type_ not in types and commits|length > 0 %}
+### {{ type_ | capitalize }}
+{% for commit in commits %}
+{% if not commit.message.startswith("Merge pull request") and not commit.message.startswith("Merge branch") %}
+* {{ commit.message.split('\n')[0].rstrip() }} ([`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }}))
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endfor %}
