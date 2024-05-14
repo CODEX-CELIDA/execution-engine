@@ -1,4 +1,5 @@
 from pydantic import validator
+from pydantic.functional_validators import field_validator
 from pydantic.types import NonNegativeInt
 from sqlalchemy import ColumnClause, ColumnElement
 from sqlalchemy import Interval as SQLInterval
@@ -24,11 +25,11 @@ class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
     value_min: None = None
     value_max: None = None
 
-    _validate_value = validator("value", pre=True, allow_reuse=True)(check_int)
-    _validate_no_value_min = validator("value_min", pre=True, allow_reuse=True)(
+    _validate_value = field_validator("value", mode="before")(check_int)
+    _validate_no_value_min = field_validator("value_min", mode="before")(
         check_value_min_max_none
     )
-    _validate_no_value_max = validator("value_max", pre=True, allow_reuse=True)(
+    _validate_no_value_max = field_validator("value_max", mode="before")(
         check_value_min_max_none
     )
 

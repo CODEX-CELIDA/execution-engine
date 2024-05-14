@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class OMOPSettings(BaseModel):
@@ -13,13 +13,7 @@ class OMOPSettings(BaseModel):
     password: str
     database: str
     db_schema: str = Field(alias="schema")
-
-    class Config:
-        """
-        Pydantic config.
-        """
-
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Settings(BaseSettings):  # type: ignore
@@ -28,16 +22,12 @@ class Settings(BaseSettings):  # type: ignore
     timezone: str
 
     omop: OMOPSettings
-
-    class Config:
-        """
-        Configuration for the settings.
-        """
-
-        env_file = "../.env"
-        env_file_encoding = "utf-8"
-        env_nested_delimiter = "__"
-        env_prefix = "celida_ee_"
+    model_config = SettingsConfigDict(
+        env_file="../.env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        env_prefix="celida_ee_",
+    )
 
 
 config = Settings()

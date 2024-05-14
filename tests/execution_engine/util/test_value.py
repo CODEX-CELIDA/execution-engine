@@ -2,6 +2,7 @@ import json
 
 import pytest
 from pydantic import ValidationError
+from pydantic.functional_validators import model_validator
 from sqlalchemy import Column, ColumnClause, MetaData, Table
 
 from execution_engine.omop.concepts import Concept
@@ -60,15 +61,12 @@ def test_table():
 class TestValueNumber:
     @pytest.fixture
     def value_number_root_validator_disabled(self):
-        vn_class = type(
-            "ValueNumberValidatorDisabled",
-            ValueNumber.__bases__,
-            dict(ValueNumber.__dict__),
-        )
-        post_validators = ValueNumber.__post_root_validators__
-        vn_class.__post_root_validators__ = []
-        yield vn_class
-        assert ValueNumber.__post_root_validators__ == post_validators
+        class ValueNumberValidatorDisabled(ValueNumber):
+            @model_validator(mode="after")
+            def validate_value(cls, values: "ValueNumber") -> "ValueNumber":
+                return values  # Override with no validation logic
+
+        yield ValueNumberValidatorDisabled
 
     def test_validate_value(self, unit_concept):
         with pytest.raises(

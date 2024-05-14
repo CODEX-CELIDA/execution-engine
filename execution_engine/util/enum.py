@@ -29,7 +29,7 @@ class TimeUnit(StrEnum):
         """
         return self.name
 
-    def __rmul__(self, other: Any) -> ValueNumeric:
+    def __rmul__(self, other: Any) -> Any:
         """
         Multiply a number by a TimeUnit.
 

@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.types import Dosage, TimeRange, Timing
 from execution_engine.util.value import ValueNumber
-from execution_engine.util.value.time import ValueDuration, ValuePeriod
+from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 from tests._fixtures.concept import concept_unit_mg
 
 
@@ -104,7 +104,7 @@ class TestTiming:
 
     def test_frequency_is_set_for_interval(self):
         timing = Timing(count=5, frequency=None, interval=TimeUnit.DAY)
-        assert timing.frequency == 1
+        assert timing.frequency == ValueCount(value=1)
 
     def test_convert_to_value_period(self):
         timing = Timing(
@@ -152,7 +152,9 @@ class TestTiming:
 
         timing.interval = 1 * TimeUnit.DAY
         assert timing.interval == ValuePeriod(value=1, unit=TimeUnit.DAY)
-        assert timing.frequency == 1  # Frequency is set to 1 when interval is set
+        assert timing.frequency == ValueCount(
+            value=1
+        )  # Frequency is set to 1 when interval is set
 
         timing.frequency = 10
         assert timing.frequency.value == 10
