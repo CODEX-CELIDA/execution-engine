@@ -28,7 +28,7 @@ class AssessmentScaleGoal(Goal):
         """
         Initialize the goal.
         """
-        super().__init__(name=name, exclude=exclude)
+        super().__init__(exclude=exclude)
         self._code = code
         self._value = value
 
@@ -52,7 +52,6 @@ class AssessmentScaleGoal(Goal):
         Converts the goal to a criterion.
         """
         return Measurement(
-            name=self._name,
             exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             concept=self._code,

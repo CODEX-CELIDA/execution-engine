@@ -188,6 +188,7 @@ class DrugExposure(Criterion):
             c_quantity = self._table.c.quantity.label("quantity")
 
         # todo: this won't work if no interval is specified (e.g. when just looking for a single dose)
+        assert self._dose.interval is not None, "Interval must be set"
         interval = self._dose.interval.to_sql_interval()
 
         interval_starts = self.cte_interval_starts(
@@ -247,6 +248,11 @@ class DrugExposure(Criterion):
         c_interval_count = func.count().label("interval_count")
 
         if self._dose.dose is not None:
+
+            assert (
+                self._dose.frequency is not None
+            ), "Frequency must be set if dose is set"
+
             conditional_interval_column = create_conditional_interval_column(
                 condition=and_(
                     self._dose.dose.to_sql(column_name=c_interval_quantity),
@@ -341,9 +347,9 @@ class DrugExposure(Criterion):
             "exclude": self._exclude,
             "category": self._category.value,
             "ingredient_concept": self._ingredient_concept.dict(),
-            "dose": self._dose.dict(include_meta=True)
-            if self._dose is not None
-            else None,
+            "dose": (
+                self._dose.dict(include_meta=True) if self._dose is not None else None
+            ),
             "route": self._route.dict() if self._route is not None else None,
         }
 

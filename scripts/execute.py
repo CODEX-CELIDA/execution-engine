@@ -32,6 +32,7 @@ Note:
     - The time range for execution is hardcoded and may need adjustments as per requirements.
     - The execution_engine package expects a couple of environment variables to be set (see README.md).
 """
+
 import logging
 import os
 import re
@@ -60,12 +61,15 @@ if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", result_schema):
 
 # Optional: Truncate all tables before execution
 with omopdb.begin() as con:
-    schema_exists = con.execute(
-        text(
-            "SELECT count(*) FROM information_schema.schemata WHERE schema_name = :schema_name;"
-        ),
-        {"schema_name": result_schema},
-    ).fetchone()
+    schema_exists = (
+        con.execute(
+            text(
+                "SELECT count(*) FROM information_schema.schemata WHERE schema_name = :schema_name;"
+            ),
+            {"schema_name": result_schema},
+        ).fetchone()[0]
+        > 0
+    )
 
     # If the schema exists, proceed to truncate tables
     if schema_exists:
