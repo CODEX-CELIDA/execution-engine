@@ -228,6 +228,28 @@ concept_route_intravenous = Concept(
     invalid_reason=None,
 )
 
+concept_heparin_allergy = Concept(
+    concept_id=4169185,
+    concept_name="Allergy to heparin",
+    domain_id="Observation",
+    vocabulary_id="SNOMED",
+    concept_class_id="Clinical Finding",
+    standard_concept="S",
+    concept_code="294872001",
+    invalid_reason=None,
+)
+
+concept_tidal_volume = Concept(
+    concept_id=21490854,
+    concept_name="Tidal volume Ventilator --on ventilator",
+    domain_id="Measurement",
+    vocabulary_id="LOINC",
+    concept_class_id="Clinical Observation",
+    standard_concept="S",
+    concept_code="76222-9",
+    invalid_reason=None,
+)
+
 """
 The following list of concepts are heparin drugs and all of them directly map to heparin as ingredient (via ancestor,
 not relationship !)
