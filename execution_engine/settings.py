@@ -1,7 +1,8 @@
 import os
 from typing import Any
 
-from pydantic import BaseModel, BaseSettings, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class OMOPSettings(BaseModel):
@@ -16,13 +17,7 @@ class OMOPSettings(BaseModel):
     database: str
     db_data_schema: str = Field(alias="data_schema", default="cds_cdm")
     db_result_schema: str = Field(alias="result_schema", default="celida")
-
-    class Config:
-        """
-        Pydantic config.
-        """
-
-        allow_population_by_field_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Settings(BaseSettings):  # type: ignore
@@ -37,16 +32,12 @@ class Settings(BaseSettings):  # type: ignore
     multiprocessing_pool_size: int = -1
 
     omop: OMOPSettings
-
-    class Config:
-        """
-        Configuration for the settings.
-        """
-
-        env_file = os.environ.get("ENV_FILE", ".env")
-        env_file_encoding = "utf-8"
-        env_nested_delimiter = "__"
-        env_prefix = "celida_ee_"
+    model_config = SettingsConfigDict(
+        env_file=os.environ.get("ENV_FILE", ".env"),
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        env_prefix="celida_ee_",
+    )
 
 
 _current_config = None

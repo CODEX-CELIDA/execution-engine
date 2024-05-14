@@ -8,6 +8,10 @@ on:
     tags:
       - v*
   pull_request:
+    branches:
+      - master
+      - main
+      - dev
 
 jobs:
   pytest:
@@ -106,3 +110,30 @@ jobs:
         uses: codecov/codecov-action@v4
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  release:
+    if: github.ref == 'refs/heads/main'
+    needs: pytest
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Dependencies
+        run: pip install python-semantic-release
+
+      - name: Python Semantic Release
+        uses: python-semantic-release/python-semantic-release@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
