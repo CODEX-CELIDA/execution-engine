@@ -20,10 +20,10 @@ class Interval(BaseModel):
     """
 
     person_id: int
-    pi_pair_id: int | None
-    criterion_id: int | None
-    pi_pair_name: str | None
-    criterion_name: str | None
+    pi_pair_id: int | None = None
+    criterion_id: int | None = None
+    pi_pair_name: str | None = None
+    criterion_name: str | None = None
     interval_type: str
     interval_start: datetime
     interval_end: datetime
