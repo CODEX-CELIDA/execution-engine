@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Generic, Type, TypeVar, cast
 
-from pydantic import BaseModel, root_validator
-from pydantic.generics import GenericModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy import (
     ColumnClause,
     ColumnElement,
@@ -24,6 +23,7 @@ __all__ = [
 
 ValueT = TypeVar("ValueT")
 UnitT = TypeVar("UnitT")
+ValueNumericClassT = TypeVar("ValueNumericClassT", bound="ValueNumeric")
 
 
 def check_int(cls: BaseModel, v: int | float | None) -> int | None:
@@ -90,7 +90,7 @@ def get_precision(value: float | int) -> int:
     )  # the number of digits after the decimal point is the precision
 
 
-class Value(GenericModel, ABC):
+class Value(BaseModel, ABC):
     """A value in a criterion."""
 
     @staticmethod
@@ -166,28 +166,23 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
     #     use_enum_values = True
     #     """ Use enum values instead of names (of e.g. TimeUnit, when populating). """
 
-    @root_validator  # type: ignore
-    def validate_value(cls, values: dict) -> dict:
+    @model_validator(mode="after")
+    @classmethod
+    def validate_value(cls, values: Any) -> dict:
         """
         Validate that value or value_min/value_max is set.
         """
 
-        if values.get("value") is None:
-            if values.get("value_min") is None and values.get("value_max") is None:
+        if values.value is None:
+            if values.value_min is None and values.value_max is None:
                 raise ValueError("Either value or value_min and value_max must be set.")
-            if (
-                values.get("value_min") is not None
-                and values.get("value_max") is not None
-            ):
-                if values.get("value_min") > values.get("value_max"):  # type: ignore
+            if values.value_min is not None and values.value_max is not None:
+                if values.value_min > values.value_max:  # type: ignore
                     raise ValueError(
                         "value_min must be less than or equal to value_max."
                     )
         else:
-            if (
-                values.get("value_min") is not None
-                or values.get("value_max") is not None
-            ):
+            if values.value_min is not None or values.value_max is not None:
                 raise ValueError(
                     "value and value_min/value_max are mutually exclusive."
                 )
@@ -215,7 +210,9 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
         return s
 
     @classmethod
-    def parse(cls, s: str, unit: UnitT | None = None) -> "ValueNumber":
+    def parse(
+        cls: Type[ValueNumericClassT], s: str, unit: UnitT | None = None
+    ) -> ValueNumericClassT:
         """
         Parse a string representation of a value.
         """
