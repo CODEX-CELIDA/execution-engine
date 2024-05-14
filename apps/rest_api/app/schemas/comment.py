@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CommentBase(BaseModel):
@@ -8,8 +8,8 @@ class CommentBase(BaseModel):
     CommentBase is used to define the data in the database
     """
 
-    recommendation_id: int | None = Field(None, index=True)
-    person_id: int = Field(..., index=True)
+    recommendation_id: int | None = Field(None)
+    person_id: int = Field(...)
     text: str
     datetime: datetime
 
@@ -25,11 +25,5 @@ class CommentRead(CommentBase):
     CommentRead is used to read the data from the database
     """
 
-    comment_id: int = Field(..., index=True)
-
-    class Config:
-        """
-        orm_mode = True allows to read the data from the database
-        """
-
-        orm_mode = True
+    comment_id: int = Field(...)
+    model_config = ConfigDict(from_attributes=True)

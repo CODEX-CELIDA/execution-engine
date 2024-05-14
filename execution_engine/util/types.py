@@ -2,7 +2,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 import pendulum
-from pydantic import BaseModel, root_validator, validator
+import pytz
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import (
@@ -10,7 +11,7 @@ from execution_engine.util.interval import (
     IntervalType,
     interval_datetime,
 )
-from execution_engine.util.value import ValueNumber
+from execution_engine.util.value import ValueNumber, ValueNumeric
 from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 
 PersonIntervals = dict[int, Any]
@@ -23,15 +24,21 @@ class TimeRange(BaseModel):
 
     start: datetime
     end: datetime
-    name: str | None
+    name: str | None = None
 
-    @validator("start", "end", pre=False, each_item=False)
+    @field_validator("start", "end")
     def check_timezone(cls, v: datetime) -> datetime:
         """
         Check that the start, end parameters are timezone-aware.
         """
         if not v.tzinfo:
             raise ValueError("Datetime object must be timezone-aware")
+
+        # workaround to fix pd.testing.assert_frame_equal errors when tzinfo is of type
+        # pydantic_core._pydantic_core.TzInfo, which somehow triggers an error when comparing a dataframe with a that
+        # tz in a datetime column vs a pytz.UTC tz column.
+        if v.tzinfo == pytz.UTC:
+            return v.astimezone(pytz.utc)
 
         return v
 
@@ -98,22 +105,14 @@ class Timing(BaseModel):
         satisfied 'frequency' times).
     """
 
-    count: ValueCount | None
-    duration: ValueDuration | None  # from duration OR boundsRange
-    frequency: ValueCount | None
-    interval: ValuePeriod | None
+    count: ValueCount | None = None
+    duration: ValueDuration | None = None  # from duration OR boundsRange
+    frequency: ValueCount | None = None
+    interval: ValuePeriod | None = None
+    model_config = ConfigDict(validate_assignment=True, use_enum_values=True)
 
-    class Config:
-        """
-        Pydantic configuration.
-        """
-
-        validate_assignment = True
-        use_enum_values = True
-        """ Use enum values instead of names (of TimeUnit, when converting to dict. """
-
-    @validator("count", "frequency", pre=True)
-    def convert_to_value_count(cls, v: Any) -> ValueCount:
+    @field_validator("count", "frequency", mode="before")
+    def convert_to_value_count(cls, v: ValueCount | int | str) -> ValueCount:
         """
         Convert the count and frequency to ValueFrequency when they are integers.
 
@@ -125,30 +124,50 @@ class Timing(BaseModel):
             return ValueCount.parse(v)
         return v
 
-    @validator("interval", pre=True)
+    @field_validator("interval", mode="before")
     def convert_to_value_period(cls, v: Any) -> ValuePeriod:
         """
-        Convert the count and frequency to ValueFrequency when they are integers.
+        Convert the interval to ValuePeriod when it is an integer or ValueNumeric.
 
         Possible under the assumption that a single value is value, not value_min or value_max.
         """
+        if isinstance(v, ValuePeriod):
+            return v
         if isinstance(v, (TimeUnit, str)):
             return ValuePeriod(value=1, unit=v)
+        if isinstance(v, ValueNumeric):
+            return ValuePeriod(value=v.value, unit=v.unit)
 
         return v
 
-    @root_validator  # type: ignore
-    def validate_value(cls, values: dict) -> dict:
+    @field_validator("duration", mode="before")
+    def convert_to_value_duration(cls, v: Any) -> ValueDuration:
+        """
+        Convert the duration to ValueDuration when it is an integer or ValueNumeric.
+
+        Possible under the assumption that a single value is value, not value_min or value_max.
+        """
+        if isinstance(v, ValueDuration):
+            return v
+        if isinstance(v, (TimeUnit, str)):
+            return ValueDuration(value=1, unit=v)
+        if isinstance(v, ValueNumeric):
+            return ValueDuration(value=v.value, unit=v.unit)
+
+        return v
+
+    @model_validator(mode="after")
+    def validate_value(cls, values: Any) -> dict:
         """
         Validate interval is set when frequency is set; set frequency when interval is set.
         """
 
-        if values.get("interval") is None:
-            if values.get("frequency") is not None:
+        if values.interval is None:
+            if values.frequency is not None:
                 raise ValueError("interval must be set when frequency is set.")
         else:
-            if values.get("frequency") is None:
-                values["frequency"] = 1
+            if values.frequency is None:
+                values.frequency = 1
 
         return values
 
@@ -198,16 +217,8 @@ class Dosage(Timing):
     A dosage consisting of a dose in addition to the Timing fields.
     """
 
-    dose: ValueNumber | None
-
-    class Config:
-        """
-        Pydantic configuration.
-        """
-
-        # todo: why is this needed? Remove it or comment why it's needed.
-        use_enum_values = True
-        """ Use enum values instead of names. """
+    dose: ValueNumber | None = None
+    model_config = ConfigDict(use_enum_values=True)
 
     def __str_components__(self) -> list[str]:
         """
