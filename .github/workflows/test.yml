@@ -113,7 +113,7 @@ jobs:
 
   release:
     if: github.ref == 'refs/heads/main'
-    needs: tests
+    needs: pytest
     runs-on: ubuntu-latest
     concurrency: release
     permissions:
