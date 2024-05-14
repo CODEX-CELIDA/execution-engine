@@ -1,0 +1,27 @@
+## What's Changed
+{%- set types = ["feature", "fix"] -%}
+{% for type_ in types %}
+{%- if release["elements"][type_] is defined and release["elements"][type_]|length > 0 %}
+### {{ type_ | capitalize }}
+{% for commit in release["elements"][type_] %}
+{%- if not commit.message.startswith("Merge pull request") and not commit.message.startswith("Merge branch") -%}
+* {{ commit.descriptions[0] }} in [`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }})
+{% endif -%}
+{%- endfor -%}
+{%- endif -%}
+{%- endfor -%}
+
+{%- for type_, commits in release["elements"] | dictsort %}
+{%- if type_ not in types and commits|length > 0 %}
+### {{ type_ | capitalize }}
+{% for commit in commits %}
+{%- if not commit.message.startswith("Merge pull request") and not commit.message.startswith("Merge branch") -%}
+{%- if type_ != "unknown" -%}
+* {{ commit.descriptions[0] }} in [`{{ commit.short_hash }}`]({{ commit.hexsha | commit_hash_url }})
+{% else -%}
+ * {{ commit.commit.message.split('\n')[0].rstrip() }} in [`{{ commit.commit.hexsha[:7] }}`]({{ commit.commit.hexsha | commit_hash_url }})
+{% endif -%}
+{% endif %}
+{%- endfor -%}
+{%- endif -%}
+{%- endfor -%}
