@@ -14,19 +14,17 @@ tag_format = "v{version}"
 
 [tool.semantic_release.branches.main]
 match = "(main|master)"
-prerelease_token = "rc"
 prerelease = false
 
-[tool.semantic_release.branches.feat]
-match = "^feat/"
+[tool.semantic_release.branches.dev]
+match = "^dev$"
 prerelease = true
 prerelease_token = "rc"
 
-[tool.semantic_release.branches.ci]
-match = "^ci/"
+[tool.semantic_release.branches.other]
+match = ".*"
 prerelease = true
-prerelease_token = "rc"
-
+prerelease_token = "snapshot"
 
 [tool.semantic_release.changelog]
 template_dir = "templates"
