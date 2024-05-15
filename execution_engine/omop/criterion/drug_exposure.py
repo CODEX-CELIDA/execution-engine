@@ -142,7 +142,7 @@ class DrugExposure(Criterion):
 
     def _quantity_weight_related(self, query: Select) -> tuple[Select, Column]:
         measurement = omop.Measurement.__table__.alias("m_weight")
-        latest_measurement = (
+        latest_weight = (
             select(measurement.c.value_as_number)
             .where(measurement.c.person_id == self._table.c.person_id)
             .where(
@@ -162,11 +162,14 @@ class DrugExposure(Criterion):
             .lateral("latest_measurement")
         )
 
-        c_quantity = (
-            self._table.c.quantity / latest_measurement.c.value_as_number
-        ).label("quantity")
+        c_quantity = (self._table.c.quantity / latest_weight.c.value_as_number).label(
+            "quantity"
+        )
 
-        query = query.select_from(self._table.join(latest_measurement, true()))
+        query = query.select_from(self._table.join(latest_weight, true()))
+
+        # Only take drug exposures where the weight is greater than 0, otherwise we would divide by 0
+        query = query.where(latest_weight.c.value_as_number > 0)
 
         return query, c_quantity
 
