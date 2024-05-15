@@ -1,0 +1,74 @@
+name: Release Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      releaseType:
+        description: 'Type of release (major, minor, patch, prerelease). Set "auto" for automatic determination.'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+        - auto
+        - prerelease
+        - patch
+        - minor
+        - major
+      noop:
+        type: boolean
+        description: 'Run in dry-run mode? Set to "true" to enable.'
+        required: true
+        default: false
+      prerelease_token:
+        type: string
+        description: 'Prerelease token to use for prerelease versions.'
+        required: false
+        default: 'rc'
+      add_branch_date:
+        type: boolean
+        description: 'Add branch and data to release name.'
+        required: false
+        default: false
+
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Dependencies
+        run: pip install python-semantic-release
+
+      - name: Get Current Date
+        id: get-date
+        run: echo "CURRENT_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+
+      - name: Python Semantic Release
+        uses: glichtner/python-semantic-release@master
+        with:
+          root_options: ${{ github.event.inputs.noop == 'true' && '--noop' || '' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          force: ${{ github.event.inputs.releaseType != 'auto' && github.event.inputs.releaseType || '' }}
+          prerelease_token: ${{ github.event.inputs.prerelease_token }}
+          git_committer_name: ${{ github.actor }}
+          commit: 'true'
+          tag: 'true'
+          push: 'true'
+          changelog: 'true'
+          vcs_release: 'true'
+          build_metadata: ${{ github.event.inputs.add_branch_date == 'true' && format('{0}.{1}', github.ref_name, env.CURRENT_DATE) || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
