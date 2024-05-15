@@ -25,6 +25,7 @@ if "PROCESS_RECTANGLE_VERSION" not in globals() or PROCESS_RECTANGLE_VERSION == 
         module_name = ".rectangle_cython"
     except ImportError:
         logging.info("Cython rectangle module not found, using python module")
+        module_name = ".rectangle_python"
 elif PROCESS_RECTANGLE_VERSION == "cython":
     module_name = ".rectangle_cython"
 elif PROCESS_RECTANGLE_VERSION == "python":

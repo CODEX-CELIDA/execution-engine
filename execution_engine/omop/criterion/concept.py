@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from sqlalchemy.sql import Select
 
@@ -119,13 +119,15 @@ class ConceptCriterion(Criterion, ABC):
             "exclude": self._exclude,
             "category": self._category.value,
             "concept": self._concept.dict(),
-            "value": self._value.dict(include_meta=True)
-            if self._value is not None
-            else None,
+            "value": (
+                self._value.dict(include_meta=True) if self._value is not None else None
+            ),
             "static": self._static,
-            "timing": self._timing.dict(include_meta=True)
-            if self._timing is not None
-            else None,
+            "timing": (
+                self._timing.dict(include_meta=True)
+                if self._timing is not None
+                else None
+            ),
         }
 
     @classmethod
@@ -138,7 +140,11 @@ class ConceptCriterion(Criterion, ABC):
             exclude=data["exclude"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
-            value=value_factory(**data["value"]) if data["value"] is not None else None,
+            value=(
+                cast(Value, value_factory(**data["value"]))
+                if data["value"] is not None
+                else None
+            ),
             static=data["static"],
             timing=Timing(**data["timing"]) if data["timing"] is not None else None,
         )

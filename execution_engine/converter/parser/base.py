@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from fhir.resources.evidencevariable import EvidenceVariable
 
 from execution_engine import fhir
+from execution_engine.converter.action.assessment import AssessmentAction
 from execution_engine.converter.action.body_positioning import BodyPositioningAction
 from execution_engine.converter.action.drug_administration import (
     DrugAdministrationAction,
@@ -24,6 +25,7 @@ from execution_engine.converter.characteristic.laboratory import (
 from execution_engine.converter.characteristic.procedure import ProcedureCharacteristic
 from execution_engine.converter.characteristic.radiology import RadiologyCharacteristic
 from execution_engine.converter.converter import CriterionConverterFactory
+from execution_engine.converter.goal.assessment_scale import AssessmentScaleGoal
 from execution_engine.converter.goal.laboratory_value import LaboratoryValueGoal
 from execution_engine.converter.goal.ventilator_management import (
     VentilatorManagementGoal,
@@ -59,6 +61,7 @@ class FhirRecommendationParserInterface(ABC):
         af.register(DrugAdministrationAction)
         af.register(VentilatorManagementAction)
         af.register(BodyPositioningAction)
+        af.register(AssessmentAction)
 
         return af
 
@@ -70,6 +73,7 @@ class FhirRecommendationParserInterface(ABC):
         gf = CriterionConverterFactory()
         gf.register(LaboratoryValueGoal)
         gf.register(VentilatorManagementGoal)
+        gf.register(AssessmentScaleGoal)
 
         return gf
 

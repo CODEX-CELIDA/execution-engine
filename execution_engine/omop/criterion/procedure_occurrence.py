@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from sqlalchemy import case, func, select
 from sqlalchemy.sql import Select
@@ -159,12 +159,14 @@ class ProcedureOccurrence(ContinuousCriterion):
             "exclude": self._exclude,
             "category": self._category.value,
             "concept": self._concept.dict(),
-            "value": self._value.dict(include_meta=True)
-            if self._value is not None
-            else None,
-            "timing": self._timing.dict(include_meta=True)
-            if self._timing is not None
-            else None,
+            "value": (
+                self._value.dict(include_meta=True) if self._value is not None else None
+            ),
+            "timing": (
+                self._timing.dict(include_meta=True)
+                if self._timing is not None
+                else None
+            ),
         }
 
     @classmethod
@@ -188,5 +190,5 @@ class ProcedureOccurrence(ContinuousCriterion):
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=value,
-            timing=timing,
+            timing=cast(Timing, timing),
         )

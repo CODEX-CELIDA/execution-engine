@@ -3,7 +3,7 @@ from execution_engine.util.value.time import ValueDuration, ValuePeriod
 from execution_engine.util.value.value import Value, ValueConcept, ValueNumber
 
 
-def value_factory(class_name: str, data: dict) -> Value:
+def value_factory(class_name: str, data: dict) -> Value | Timing | Dosage:
     """
     Get a value object from a class name and data.
 
