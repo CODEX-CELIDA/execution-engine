@@ -184,8 +184,8 @@ class Task:
             self.status = TaskStatus.FAILED
             exception_type = type(e).__name__  # Get the type of the exception
             raise TaskError(
-                f"Task '{self.name()}' failed with error: {exception_type}('{e}')"
-            )
+                f"Task '{self.name()}' failed with error: {exception_type}"
+            ) from e
 
         self.status = TaskStatus.COMPLETED
 

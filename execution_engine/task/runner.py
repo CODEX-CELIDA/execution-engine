@@ -1,7 +1,9 @@
 import logging
 import multiprocessing
 import queue
+import sys
 import time
+import traceback
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import (
@@ -235,8 +237,9 @@ class ParallelTaskRunner(TaskRunner):
         self.manager = multiprocessing.Manager()
         self._shared_results = self.manager.dict()
         self._lock = self.manager.Lock()
-        self._queue: multiprocessing.Queue = multiprocessing.Queue()
-        self.stop_event = multiprocessing.Event()
+        self._queue: multiprocessing.Queue = self.manager.Queue()
+        self._error_queue: multiprocessing.Queue = self.manager.Queue()
+        self.stop_event = self.manager.Event()
         self.workers: list[multiprocessing.Process] = []
 
     @property
@@ -291,9 +294,11 @@ class ParallelTaskRunner(TaskRunner):
                     logging.info(f"Finished task {task.name()}")
                 except TaskError as ex:
                     logging.error(ex)
+                    self._error_queue.put(traceback.format_exc())
                     self.stop_event.set()
                 except Exception as ex:
                     logging.error(f"Task {task.name()} failed: {ex}")
+                    self._error_queue.put(traceback.format_exc())
                     self.stop_event.set()
 
             logging.info("Worker process stopped.")
@@ -303,7 +308,7 @@ class ParallelTaskRunner(TaskRunner):
         try:
             while len(self.completed_tasks) < len(self.tasks):
                 if self.stop_event.is_set():
-                    raise TaskError("Task execution failed.")
+                    break
 
                 self.enqueue_ready_tasks()
 
@@ -323,7 +328,6 @@ class ParallelTaskRunner(TaskRunner):
 
         except Exception as e:
             logging.error(f"An error occurred: {e}")
-            raise TaskError(str(e))
         finally:
             self.stop_workers()
 
@@ -367,3 +371,20 @@ class ParallelTaskRunner(TaskRunner):
                 w.join()
 
         logging.info("All worker processes stopped.")
+
+        if not self._error_queue.empty():
+            logging.error("Errors occurred during task execution.")
+            self.print_errors()
+            self.manager.shutdown()
+            sys.exit(1)
+
+    def print_errors(self) -> None:
+        """
+        Print errors from the error queue.
+
+        :return: None.
+        """
+
+        while not self._error_queue.empty():
+            error_trace = self._error_queue.get()
+            print(error_trace, file=sys.stderr)
