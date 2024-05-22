@@ -1,4 +1,5 @@
 from execution_engine import fhir
+from execution_engine.builder import ExecutionEngineBuilder
 from execution_engine.converter.parser.factory import FhirRecommendationParserFactory
 from execution_engine.fhir.client import FHIRClient
 from execution_engine.fhir_omop_mapping import characteristic_to_criterion
@@ -15,6 +16,9 @@ class FhirToRecommendationFactory:
     into OMOP cohort objects, such as PopulationInterventionPair and Recommendation. The parsed objects include
     characteristics, actions, goals, and other relevant metadata.
     """
+
+    def __init__(self, builder: ExecutionEngineBuilder | None = None):
+        self.builder = builder
 
     def parse_recommendation_from_url(
         self, url: str, package_version: str, fhir_client: FHIRClient
@@ -39,7 +43,9 @@ class FhirToRecommendationFactory:
             ValueError: If an action within a recommendation plan is None, indicating incomplete or invalid data.
         """
 
-        parser = FhirRecommendationParserFactory().get_parser(package_version)
+        parser = FhirRecommendationParserFactory(builder=self.builder).get_parser(
+            package_version
+        )
 
         rec = fhir.Recommendation(
             url,

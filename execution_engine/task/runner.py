@@ -14,6 +14,7 @@ from typing import (
     MutableMapping,
     Protocol,
     TypeVar,
+    cast,
 )
 
 from execution_engine.execution_graph import ExecutionGraph
@@ -237,8 +238,12 @@ class ParallelTaskRunner(TaskRunner):
         self.manager = multiprocessing.Manager()
         self._shared_results = self.manager.dict()
         self._lock = self.manager.Lock()
-        self._queue: multiprocessing.Queue = self.manager.Queue()
-        self._error_queue: multiprocessing.Queue = self.manager.Queue()
+        self._queue: multiprocessing.Queue = cast(
+            multiprocessing.Queue, self.manager.Queue()
+        )
+        self._error_queue: multiprocessing.Queue = cast(
+            multiprocessing.Queue, self.manager.Queue()
+        )
         self.stop_event = self.manager.Event()
         self.workers: list[multiprocessing.Process] = []
 

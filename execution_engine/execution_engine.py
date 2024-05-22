@@ -7,6 +7,7 @@ import sqlalchemy
 from sqlalchemy import and_, insert, select
 
 from execution_engine import __version__
+from execution_engine.builder import ExecutionEngineBuilder
 from execution_engine.clients import fhir_client, omopdb
 from execution_engine.converter.recommendation_factory import (
     FhirToRecommendationFactory,
@@ -28,7 +29,11 @@ class ExecutionEngine:
 
     # todo: improve documentation
 
-    def __init__(self, verbose: bool = False) -> None:
+    def __init__(
+        self,
+        builder: ExecutionEngineBuilder | None = None,
+        verbose: bool = False,
+    ) -> None:
         # late import to allow pytest to set env variables first
         from execution_engine.settings import get_config
 
@@ -38,6 +43,7 @@ class ExecutionEngine:
         self._db.init()
 
         self._config = get_config()
+        self.fhir_parser = FhirToRecommendationFactory(builder)
 
     @staticmethod
     def setup_logging(verbose: bool = False) -> None:
@@ -88,7 +94,7 @@ class ExecutionEngine:
                 )
                 return recommendation
 
-        recommendation = FhirToRecommendationFactory().parse_recommendation_from_url(
+        recommendation = self.fhir_parser.parse_recommendation_from_url(
             url=recommendation_url,
             package_version=recommendation_package_version,
             fhir_client=self._fhir,
