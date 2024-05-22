@@ -121,7 +121,7 @@ class Value(BaseModel, ABC):
         Get the SQL representation of the value.
         """
 
-    def dict(
+    def model_dump(
         self, *args: Any, include_meta: bool = False, **kwargs: Any
     ) -> dict[str, Any]:
         """
@@ -130,7 +130,7 @@ class Value(BaseModel, ABC):
         :param include_meta: Whether to include the class name in the dictionary.
         :return: The dictionary representation of the value.
         """
-        data = super().dict(*args, **kwargs)
+        data = super().model_dump(*args, **kwargs)
         if include_meta:
             return {
                 "class_name": self.__class__.__name__,

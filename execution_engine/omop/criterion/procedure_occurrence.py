@@ -158,12 +158,14 @@ class ProcedureOccurrence(ContinuousCriterion):
         return {
             "exclude": self._exclude,
             "category": self._category.value,
-            "concept": self._concept.dict(),
+            "concept": self._concept.model_dump(),
             "value": (
-                self._value.dict(include_meta=True) if self._value is not None else None
+                self._value.model_dump(include_meta=True)
+                if self._value is not None
+                else None
             ),
             "timing": (
-                self._timing.dict(include_meta=True)
+                self._timing.model_dump(include_meta=True)
                 if self._timing is not None
                 else None
             ),
