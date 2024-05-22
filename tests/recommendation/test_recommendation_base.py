@@ -231,7 +231,7 @@ class TestRecommendationBase(ABC):
                     )
             df_combinations.append(df_combination)
         df_combinations = (
-            pd.concat(df_combinations).fillna(False).reset_index(drop=True)
+            pd.concat(df_combinations).fillna(0).astype(bool).reset_index(drop=True)
         )
 
         df_combinations = self.remove_invalid_criterion_combinations(df_combinations)
@@ -522,9 +522,11 @@ class TestRecommendationBase(ABC):
                         start_datetime=row["start_datetime"],
                         end_datetime=row["end_datetime"],
                         quantity=row["quantity"],
-                        route_concept_id=row["route_concept_id"]
-                        if not pd.isna(row["route_concept_id"])
-                        else None,
+                        route_concept_id=(
+                            row["route_concept_id"]
+                            if not pd.isna(row["route_concept_id"])
+                            else None
+                        ),
                     )
                 elif row["type"] == "visit":
                     entry = create_visit(
@@ -720,10 +722,10 @@ class TestRecommendationBase(ABC):
                 )
 
             if "population_intervention" in group:
-                df[
-                    (f"p_i_{group_name}", "")
-                ] = combine_dataframe_via_logical_expression(
-                    df, group["population_intervention"]
+                df[(f"p_i_{group_name}", "")] = (
+                    combine_dataframe_via_logical_expression(
+                        df, group["population_intervention"]
+                    )
                 )
             else:
                 df[(f"p_i_{group_name}", "")] = elementwise_and(
@@ -944,9 +946,11 @@ class TestRecommendationBase(ABC):
                 }
             )
             df_result["name"] = df_result.apply(
-                lambda row: row["name"]
-                if row["pi_pair_name"] is None
-                else f"{row['name']}_{row['pi_pair_name']}",
+                lambda row: (
+                    row["name"]
+                    if row["pi_pair_name"] is None
+                    else f"{row['name']}_{row['pi_pair_name']}"
+                ),
                 axis=1,
             )
 
