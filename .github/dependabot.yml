@@ -6,10 +6,10 @@ updates:
       interval: "monthly"
     commit-message:
       prefix: "ci(dependabot):"
-    target-branch: "dev"
+    target-branch: "main"
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-    target-branch: "dev"
+    target-branch: "main"
