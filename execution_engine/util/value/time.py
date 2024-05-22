@@ -1,4 +1,3 @@
-from pydantic import validator
 from pydantic.functional_validators import field_validator
 from pydantic.types import NonNegativeInt
 from sqlalchemy import ColumnClause, ColumnElement
@@ -60,10 +59,10 @@ class ValueCount(ValueNumeric[NonNegativeInt, None]):
 
     unit: None = None
 
-    _validate_value = validator("value", pre=True, allow_reuse=True)(check_int)
-    _validate_value_min = validator("value_min", pre=True, allow_reuse=True)(check_int)
-    _validate_value_max = validator("value_max", pre=True, allow_reuse=True)(check_int)
-    _validate_no_unit = validator("unit", pre=True, allow_reuse=True)(check_unit_none)
+    _validate_value = field_validator("value", mode="before")(check_int)
+    _validate_value_min = field_validator("value_min", mode="before")(check_int)
+    _validate_value_max = field_validator("value_max", mode="before")(check_int)
+    _validate_no_unit = field_validator("unit", mode="before")(check_unit_none)
 
 
 class ValueDuration(ValueNumeric[float, TimeUnit]):

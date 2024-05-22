@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 connection_string = (
     "postgresql+psycopg://{user}:{password}@{host}:{port}/{database}".format(
-        **get_config().omop.dict()
+        **get_config().omop.model_dump()
     )
 )
 

@@ -194,7 +194,7 @@ class DrugAdministrationAction(AbstractAction):
 
         timing = cls.process_timing(dosage.timing)
 
-        return Dosage(dose=dose, **timing.dict())
+        return Dosage(dose=dose, **timing.model_dump())
 
     @classmethod
     def process_dosage_extensions(cls, dosage: FHIRDosage) -> list[ExtensionType]:

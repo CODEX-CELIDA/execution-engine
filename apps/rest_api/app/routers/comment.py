@@ -24,7 +24,7 @@ def create_comment(comment: CommentCreate, db: Session = Depends(get_db)) -> Com
     """
     Create a new comment in the database.
     """
-    db_comment = Comment(**comment.dict())
+    db_comment = Comment(**comment.model_dump())
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
