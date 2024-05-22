@@ -88,7 +88,7 @@ class TestCriterion:
 
     @pytest.fixture
     def observation_window(self, visit_datetime: TimeRange) -> TimeRange:
-        dt = visit_datetime.copy()
+        dt = visit_datetime.model_copy()
         dt.name = "observation"
         return dt
 
@@ -152,7 +152,7 @@ class TestCriterion:
 
         db_session.execute(
             query,
-            params={"run_id": cls.run_id} | observation_window.dict(),
+            params={"run_id": cls.run_id} | observation_window.model_dump(),
         )
 
         db_session.commit()
@@ -256,7 +256,7 @@ class TestCriterion:
         query = criterion.create_query()
 
         result = db_session.connection().execute(
-            query, parameters=observation_window.dict() | {"run_id": self.run_id}
+            query, parameters=observation_window.model_dump() | {"run_id": self.run_id}
         )
 
         # merge overlapping/adjacent intervals to reduce the number of intervals - but NEGATIVE is dominant over
@@ -304,7 +304,7 @@ class TestCriterion:
 
         graph.set_sink_nodes_store(bind_params={"pi_pair_id": self.pi_pair_id})
 
-        params = observation_window.dict() | {"run_id": self.run_id}
+        params = observation_window.model_dump() | {"run_id": self.run_id}
 
         task_runner = runner.SequentialTaskRunner(graph)
         task_runner.run(params)

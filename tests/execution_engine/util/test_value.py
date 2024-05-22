@@ -35,12 +35,12 @@ def test_get_precision():
 
 
 def assert_serialization(value):
-    json_str = json.dumps(value.dict())
+    json_str = json.dumps(value.model_dump())
     dict_from_str = json.loads(json_str)
 
     assert value.__class__(**dict_from_str) == value
 
-    json_str = json.dumps(value.dict(include_meta=True))
+    json_str = json.dumps(value.model_dump(include_meta=True))
     dict_from_str = json.loads(json_str)
 
     assert value_factory(**dict_from_str) == value
@@ -322,7 +322,7 @@ class TestValueConcept:
     def test_dict(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
 
-        json_representation = value_concept.dict()
+        json_representation = value_concept.model_dump()
         assert json_representation == {
             "value": {
                 "concept_class_id": "test",
@@ -339,7 +339,7 @@ class TestValueConcept:
     def test_dict_meta(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
 
-        json_representation = value_concept.dict(include_meta=True)
+        json_representation = value_concept.model_dump(include_meta=True)
         assert json_representation == {
             "class_name": "ValueConcept",
             "data": {

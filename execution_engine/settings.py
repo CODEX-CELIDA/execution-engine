@@ -64,8 +64,8 @@ def update_config(**kwargs: Any) -> None:
     if _current_config is None:
         _current_config = Settings()
 
-    current_config_dict = _current_config.dict()
+    current_config_dict = _current_config.model_dump()
 
     updated_config_dict = {**current_config_dict, **kwargs}
 
-    _current_config = Settings.parse_obj(updated_config_dict)
+    _current_config = Settings.model_validate(updated_config_dict)

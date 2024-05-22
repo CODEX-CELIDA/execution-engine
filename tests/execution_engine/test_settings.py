@@ -30,13 +30,13 @@ class TestSettings:
         os.environ["CELIDA_EE_MULTIPROCESSING_USE"] = "0"
 
         initial_config = get_config()
-        initial_dict = initial_config.dict()
+        initial_dict = initial_config.model_dump()
 
         assert not initial_config.multiprocessing_use
 
         update_config(multiprocessing_use=True)
         updated_config = get_config()
-        updated_dict = updated_config.dict()
+        updated_dict = updated_config.model_dump()
         assert updated_dict[
             "multiprocessing_use"
         ], "update_config should update the configuration"

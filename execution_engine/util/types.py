@@ -80,7 +80,7 @@ class TimeRange(BaseModel):
         """
         return interval_datetime(self.start, self.end, type_=type_)
 
-    def dict(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
+    def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, datetime]:
         """
         Get the dictionary representation of the time range.
         """
@@ -194,7 +194,7 @@ class Timing(BaseModel):
             f"{self.__class__.__name__}(" + ", ".join(self.__str_components__()) + ")"
         )
 
-    def dict(
+    def model_dump(
         self, *args: Any, include_meta: bool = False, **kwargs: Any
     ) -> dict[str, Any]:
         """
@@ -203,7 +203,7 @@ class Timing(BaseModel):
         :param include_meta: Whether to include the class name in the dictionary.
         :return: The dictionary representation of the value.
         """
-        data = super().dict(*args, **kwargs)
+        data = super().model_dump(*args, **kwargs)
         if include_meta:
             return {
                 "class_name": self.__class__.__name__,

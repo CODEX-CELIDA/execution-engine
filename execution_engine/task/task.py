@@ -23,7 +23,7 @@ def get_engine() -> OMOPSQLClient:
     Returns a OMOPSQLClient object.
     """
     return OMOPSQLClient(
-        **get_config().omop.dict(by_alias=True),
+        **get_config().omop.model_dump(by_alias=True),
         timezone=get_config().timezone,
     )
 

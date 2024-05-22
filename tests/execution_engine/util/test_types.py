@@ -47,7 +47,10 @@ class TestTimeRange:
         start = pendulum.now("UTC")
         end = start.add(hours=1)
         tr = TimeRange(start=start, end=end, name="Test")
-        assert tr.dict() == {"Test_start_datetime": start, "Test_end_datetime": end}
+        assert tr.model_dump() == {
+            "Test_start_datetime": start,
+            "Test_end_datetime": end,
+        }
 
 
 class TestDosage:
@@ -91,7 +94,7 @@ class TestDosage:
             interval=1 * TimeUnit.HOUR,
         )
 
-        json_str = json.dumps(dosage.dict())
+        json_str = json.dumps(dosage.model_dump())
         dict_from_str = json.loads(json_str)
 
         assert Dosage(**dict_from_str) == dosage
@@ -174,7 +177,7 @@ class TestTiming:
             duration=1.5 * TimeUnit.HOUR,
         )
 
-        json_str = json.dumps(timing.dict())
+        json_str = json.dumps(timing.model_dump())
         dict_from_str = json.loads(json_str)
 
         assert Timing(**dict_from_str) == timing

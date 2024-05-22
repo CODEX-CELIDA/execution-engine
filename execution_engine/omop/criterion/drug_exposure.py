@@ -349,11 +349,13 @@ class DrugExposure(Criterion):
         return {
             "exclude": self._exclude,
             "category": self._category.value,
-            "ingredient_concept": self._ingredient_concept.dict(),
+            "ingredient_concept": self._ingredient_concept.model_dump(),
             "dose": (
-                self._dose.dict(include_meta=True) if self._dose is not None else None
+                self._dose.model_dump(include_meta=True)
+                if self._dose is not None
+                else None
             ),
-            "route": self._route.dict() if self._route is not None else None,
+            "route": self._route.model_dump() if self._route is not None else None,
         }
 
     @classmethod

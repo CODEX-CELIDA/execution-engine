@@ -6,5 +6,5 @@ from execution_engine.settings import get_config
 tx_client = FHIRTerminologyClient(get_config().fhir_terminology_server_url)
 fhir_client = FHIRClient(get_config().fhir_base_url)
 omopdb = OMOPSQLClient(
-    **get_config().omop.dict(by_alias=True), timezone=get_config().timezone
+    **get_config().omop.model_dump(by_alias=True), timezone=get_config().timezone
 )
