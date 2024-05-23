@@ -58,6 +58,7 @@ class ExecutionEngine:
         recommendation_url: str,
         recommendation_package_version: str = "latest",
         force_reload: bool = False,
+        parser_version: int = 2,
     ) -> cohort.Recommendation:
         """
         Processes a single recommendation and creates a Recommendation object from it.
@@ -80,6 +81,8 @@ class ExecutionEngine:
         :param recommendation_package_version: The version of the recommendation.
         :param force_reload: If True, the recommendation is recreated from the FHIR source even if it is already
                              stored in the database.
+        :param parser_version: The version of the FHIR parser to use. Currently, only version 1 and 2 (default) are
+            supported.
         :return: The Recommendation object.
         """
 
@@ -97,6 +100,7 @@ class ExecutionEngine:
         recommendation = self.fhir_parser.parse_recommendation_from_url(
             url=recommendation_url,
             package_version=recommendation_package_version,
+            parser_version=parser_version,
             fhir_client=self._fhir,
         )
 

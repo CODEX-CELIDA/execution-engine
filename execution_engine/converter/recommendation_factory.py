@@ -21,7 +21,11 @@ class FhirToRecommendationFactory:
         self.builder = builder
 
     def parse_recommendation_from_url(
-        self, url: str, package_version: str, fhir_client: FHIRClient
+        self,
+        url: str,
+        package_version: str,
+        fhir_client: FHIRClient,
+        parser_version: int = 2,
     ) -> cohort.Recommendation:
         """
         Creates a Recommendation object by fetching and parsing recommendation data from a given URL.
@@ -34,6 +38,7 @@ class FhirToRecommendationFactory:
             url (str): The URL from which to fetch the recommendation data.
             package_version (str): The version of the recommendation package to be used.
             fhir_client (FHIRClient): An instance of FHIRClient used to connect to and fetch data from a FHIR server.
+            parser_version (int): The version of the FHIR parser to be used. Defaults to 2.
 
         Returns:
             cohort.Recommendation: An instance of the Recommendation class populated with the parsed recommendation data,
@@ -44,7 +49,7 @@ class FhirToRecommendationFactory:
         """
 
         parser = FhirRecommendationParserFactory(builder=self.builder).get_parser(
-            package_version
+            parser_version
         )
 
         rec = fhir.Recommendation(

@@ -1,5 +1,3 @@
-from typing import Type
-
 from execution_engine.builder import ExecutionEngineBuilder
 from execution_engine.converter.action.assessment import AssessmentAction
 from execution_engine.converter.action.body_positioning import BodyPositioningAction
@@ -28,7 +26,6 @@ from execution_engine.converter.goal.ventilator_management import (
 from execution_engine.converter.parser.base import FhirRecommendationParserInterface
 from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
 from execution_engine.converter.parser.fhir_parser_v2 import FhirRecommendationParserV2
-from execution_engine.util import version
 
 
 class FhirRecommendationParserFactory:
@@ -90,30 +87,22 @@ class FhirRecommendationParserFactory:
 
         return gf
 
-    def get_parser(self, version_str: str) -> FhirRecommendationParserInterface:
+    def get_parser(self, parser_version: int) -> FhirRecommendationParserInterface:
         """
         Return the correct FhirParser based on the version string.
         """
-        version_map: dict[str, Type[FhirRecommendationParserInterface]] = {
-            "1.3": FhirRecommendationParserV1,
-            "1.4": FhirRecommendationParserV2,
-            "latest": FhirRecommendationParserV2,
-        }
+        match parser_version:
+            case 1:
+                parser_class = FhirRecommendationParserV1
+            case 2:
+                parser_class = FhirRecommendationParserV2
+            case _:
+                raise ValueError(
+                    f"No parser available for FHIR version {parser_version}"
+                )
 
-        if version_str in version_map:
-            pass
-        elif version.is_version_below(version_str, "1.4"):
-            version_str = "1.3"
-        else:
-            version_str = "1.4"
-
-        parser_class = version_map.get(version_str)
-
-        if parser_class:
-            return parser_class(
-                characteristic_converters=self.characteristic_converters,
-                action_converters=self.action_converters,
-                goal_converters=self.goal_converters,
-            )
-        else:
-            raise ValueError(f"No parser available for FHIR version {version_str}")
+        return parser_class(
+            characteristic_converters=self.characteristic_converters,
+            action_converters=self.action_converters,
+            goal_converters=self.goal_converters,
+        )
