@@ -34,7 +34,6 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
     def parse_characteristics(self, ev: EvidenceVariable) -> CharacteristicCombination:
         """Parses the characteristics of an EvidenceVariable and returns a CharacteristicCombination."""
-        cf = self.init_characteristics_factory()
 
         def get_characteristic_combination(
             characteristic: EvidenceVariableCharacteristic,
@@ -57,7 +56,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                 if c.definitionByCombination is not None:
                     sub = get_characteristics(*get_characteristic_combination(c))
                 else:
-                    sub = cf.get(c)
+                    sub = self.characteristics_converters.get(c)
                     sub = cast(
                         AbstractCharacteristic, sub
                     )  # only for mypy, doesn't do anything at runtime
@@ -90,8 +89,6 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
         corresponding action selection behavior.
         """
-        af = self.init_action_factory()
-        gf = self.init_goal_factory()
 
         def action_to_combination(
             actions_def: list[fhir.RecommendationPlan.Action],
@@ -109,13 +106,13 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                     )
                     actions.append(action_combination)
                 else:
-                    action_conv = af.get(action_def)
+                    action_conv = self.action_converters.get(action_def)
                     action_conv = cast(
                         AbstractAction, action_conv
                     )  # only for mypy, doesn't do anything at runtime
 
                     for goal_def in action_def.goals_fhir:
-                        goal = gf.get(goal_def)
+                        goal = self.goal_converters.get(goal_def)
                         goal = cast(Goal, goal)
                         action_conv.goals.append(goal)
 
