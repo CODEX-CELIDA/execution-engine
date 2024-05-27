@@ -2,11 +2,10 @@ import requests
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
 from execution_engine.clients import tx_client
+from execution_engine.constants import VS_LABORATORY_OBSERVATIONS_DOWNLOAD_URL
 from execution_engine.converter.characteristic.value import AbstractValueCharacteristic
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.criterion.measurement import Measurement
-
-VALUESET_URI = "https://ceosys.github.io/cpg-on-ebm-on-fhir/ValueSet-vs-laboratory-observations.json"
 
 
 class ObservationCharacteristic(AbstractValueCharacteristic):
@@ -24,7 +23,7 @@ class ObservationCharacteristic(AbstractValueCharacteristic):
         """
         if ObservationCharacteristic._valueset is None:
             ObservationCharacteristic._valueset = requests.get(
-                VALUESET_URI,
+                VS_LABORATORY_OBSERVATIONS_DOWNLOAD_URL,
                 timeout=10,
             ).json()
 

@@ -17,6 +17,9 @@ from execution_engine.converter.characteristic.laboratory import (
 )
 from execution_engine.converter.characteristic.procedure import ProcedureCharacteristic
 from execution_engine.converter.characteristic.radiology import RadiologyCharacteristic
+from execution_engine.converter.characteristic.ventilation_observable import (
+    VentilationObservableCharacteristic,
+)
 from execution_engine.converter.converter import CriterionConverterFactory
 from execution_engine.converter.goal.assessment_scale import AssessmentScaleGoal
 from execution_engine.converter.goal.laboratory_value import LaboratoryValueGoal
@@ -38,7 +41,7 @@ class FhirRecommendationParserFactory:
             RadiologyCharacteristic,
             ProcedureCharacteristic,
             EpisodeOfCareCharacteristic,
-            # VentilationObservableCharacteristic, # fixme: implement (valueset retrieval / caching)
+            VentilationObservableCharacteristic,
             ObservationCharacteristic,
         ],
         "action": [

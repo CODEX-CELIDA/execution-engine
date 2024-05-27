@@ -8,7 +8,11 @@ SCT_PROCEDURE = "71388002"  # Procedure (procedure)
 SCT_VENTILATOR_OBSERVABLE = "364698001"  # Ventilator observable (observable entity)
 
 VS_VENTILATOR_OBSERVATIONS = "https://medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
+VS_VENTILATOR_OBSERVATIONS_DOWNLOAD_URL = "https://raw.githubusercontent.com/medizininformatik-initiative/kerndatensatzmodul-intensivmedizin/master/ValueSet/vs-mii-icu-code-observation-beatmung-loinc.json"
+
 VS_LABORATORY_OBSERVATIONS = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/ValueSet/vs-laboratory-observations"
+VS_LABORATORY_OBSERVATIONS_DOWNLOAD_URL = "https://ceosys.github.io/cpg-on-ebm-on-fhir/ValueSet-vs-laboratory-observations.json"
+
 
 SCT_VENTILATOR_CARE_AND_ADJUSTMENT = (
     "385857005"  # Ventilator care and adjustment (regime/therapy)
