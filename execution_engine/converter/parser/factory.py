@@ -13,7 +13,7 @@ from execution_engine.converter.characteristic.episode_of_care import (
     EpisodeOfCareCharacteristic,
 )
 from execution_engine.converter.characteristic.laboratory import (
-    LaboratoryCharacteristic,
+    ObservationCharacteristic,
 )
 from execution_engine.converter.characteristic.procedure import ProcedureCharacteristic
 from execution_engine.converter.characteristic.radiology import RadiologyCharacteristic
@@ -31,10 +31,29 @@ from execution_engine.converter.parser.fhir_parser_v2 import FhirRecommendationP
 class FhirRecommendationParserFactory:
     """Factory to instantiate the correct FhirParser based on the version string."""
 
+    default_converters = {
+        "characteristic": [
+            ConditionCharacteristic,
+            AllergyCharacteristic,
+            RadiologyCharacteristic,
+            ProcedureCharacteristic,
+            EpisodeOfCareCharacteristic,
+            # VentilationObservableCharacteristic, # fixme: implement (valueset retrieval / caching)
+            ObservationCharacteristic,
+        ],
+        "action": [
+            DrugAdministrationAction,
+            VentilatorManagementAction,
+            BodyPositioningAction,
+            AssessmentAction,
+        ],
+        "goal": [LaboratoryValueGoal, VentilatorManagementGoal, AssessmentScaleGoal],
+    }
+
     def __init__(self, builder: ExecutionEngineBuilder | None = None):
-        self.characteristic_converters = self.init_characteristics_factory()
-        self.action_converters = self.init_action_factory()
-        self.goal_converters = self.init_goal_factory()
+        self.characteristic_converters = CriterionConverterFactory()
+        self.action_converters = CriterionConverterFactory()
+        self.goal_converters = CriterionConverterFactory()
 
         if builder is not None:
             for converter in builder.characteristic_converters:
@@ -45,47 +64,6 @@ class FhirRecommendationParserFactory:
 
             for converter in builder.goal_converters:
                 self.goal_converters.register(converter)
-
-    @staticmethod
-    def init_characteristics_factory() -> CriterionConverterFactory:
-        """
-        Initialize the characteristic factory with the characteristics that are supported by the parser.
-        """
-        cf = CriterionConverterFactory()
-        cf.register(ConditionCharacteristic)
-        cf.register(AllergyCharacteristic)
-        cf.register(RadiologyCharacteristic)
-        cf.register(ProcedureCharacteristic)
-        cf.register(EpisodeOfCareCharacteristic)
-        # cf.register(VentilationObservableCharacteristic) # fixme: implement (valueset retrieval / caching)
-        cf.register(LaboratoryCharacteristic)
-
-        return cf
-
-    @staticmethod
-    def init_action_factory() -> CriterionConverterFactory:
-        """
-        Initialize the action factory with the actions that are supported by the parser.
-        """
-        af = CriterionConverterFactory()
-        af.register(DrugAdministrationAction)
-        af.register(VentilatorManagementAction)
-        af.register(BodyPositioningAction)
-        af.register(AssessmentAction)
-
-        return af
-
-    @staticmethod
-    def init_goal_factory() -> CriterionConverterFactory:
-        """
-        Initialize the goal factory with the goals that are supported by the parser.
-        """
-        gf = CriterionConverterFactory()
-        gf.register(LaboratoryValueGoal)
-        gf.register(VentilatorManagementGoal)
-        gf.register(AssessmentScaleGoal)
-
-        return gf
 
     def get_parser(self, parser_version: int) -> FhirRecommendationParserInterface:
         """
