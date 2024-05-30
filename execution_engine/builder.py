@@ -1,6 +1,9 @@
 from typing import TYPE_CHECKING
 
+from execution_engine.converter.action.abstract import AbstractAction
+from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.converter.converter import CriterionConverter
+from execution_engine.converter.goal.abstract import Goal
 
 if TYPE_CHECKING:
     from execution_engine.execution_engine import ExecutionEngine
@@ -29,6 +32,12 @@ class ExecutionEngineBuilder:
         :param converters: The characteristic converters to set.
         :return: The builder instance.
         """
+        for converter in converters:
+            if not isinstance(converter, AbstractCharacteristic):
+                raise ValueError(
+                    f"Invalid Characteristic converter type: {type(converter)}"
+                )
+
         self.characteristic_converters = converters
         return self
 
@@ -41,6 +50,10 @@ class ExecutionEngineBuilder:
         :param converters: The action converters to set.
         :return: The builder instance.
         """
+        for converter in converters:
+            if not isinstance(converter, AbstractAction):
+                raise ValueError(f"Invalid Action converter type: {type(converter)}")
+
         self.action_converters = converters
         return self
 
@@ -53,6 +66,10 @@ class ExecutionEngineBuilder:
         :param converters: The goal converters to set.
         :return: The builder instance.
         """
+        for converter in converters:
+            if not isinstance(converter, Goal):
+                raise ValueError(f"Invalid Goal converter type: {type(converter)}")
+
         self.goal_converters = converters
         return self
 
