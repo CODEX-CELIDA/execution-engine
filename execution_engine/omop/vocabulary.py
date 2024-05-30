@@ -243,6 +243,12 @@ class StandardVocabulary:
     def __init__(self) -> None:
         self._vf = VocabularyFactory()
 
+    def register(self, vocabulary: Type[AbstractVocabulary]) -> None:
+        """
+        Register a vocabulary.
+        """
+        self._vf.register(vocabulary)
+
     def get_standard_concept(self, system_uri: str, concept: str) -> Concept:
         """
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
