@@ -12,7 +12,7 @@ from execution_engine.converter.characteristic.condition import ConditionCharact
 from execution_engine.converter.characteristic.episode_of_care import (
     EpisodeOfCareCharacteristic,
 )
-from execution_engine.converter.characteristic.laboratory import (
+from execution_engine.converter.characteristic.observation import (
     ObservationCharacteristic,
 )
 from execution_engine.converter.characteristic.procedure import ProcedureCharacteristic
