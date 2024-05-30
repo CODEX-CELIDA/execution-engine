@@ -31,6 +31,7 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_5(TestRecommendationBas
         "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
     )
     recommendation_package_version = "v1.5.0-snapshot"
+    recommendation_parser_version = 2  # for recommendation package version >= 1.4
 
     recommendation_expression = {
         "AntithromboticProphylaxisWithLWMH": dict(
@@ -137,6 +138,7 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_4(TestRecommendationBas
         "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
     )
     recommendation_package_version = "v1.4.0-snapshot"
+    recommendation_parser_version = 2  # for recommendation package version >= 1.4
 
     recommendation_expression = {
         "AntithromboticProphylaxisWithLWMH": {
@@ -227,6 +229,7 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_3(TestRecommendationBas
         "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
     )
     recommendation_package_version = "v1.3.1"
+    recommendation_parser_version = 1  # for recommendation package version < 1.4
 
     recommendation_expression = {
         "AntithromboticProphylaxisWithLWMH": {
@@ -259,6 +262,7 @@ class TestRecommendation15ProphylacticAnticoagulation_v1_2(TestRecommendationBas
         "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation"
     )
     recommendation_package_version = "v1.2.2"
+    recommendation_parser_version = 1  # for recommendation package version < 1.4
 
     recommendation_expression = {
         "AntithromboticProphylaxisWithLWMH": {

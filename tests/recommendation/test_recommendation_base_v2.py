@@ -229,6 +229,8 @@ def evaluate_expression(
 class TestRecommendationBaseV2(TestRecommendationBase):
     invalid_combinations = []
 
+    recommendation_parser_version = 2
+
     def distinct_criteria(self) -> set[str]:
         criteria = set()
 

@@ -2,6 +2,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Column,
     Date,
     DateTime,
@@ -554,6 +555,7 @@ class Person(Base):  # noqa: D101
     __table_args__ = {"schema": SCHEMA_NAME}
 
     person_id: Mapped[int] = mapped_column(
+        BigInteger(),
         primary_key=True,
         index=True,
     )

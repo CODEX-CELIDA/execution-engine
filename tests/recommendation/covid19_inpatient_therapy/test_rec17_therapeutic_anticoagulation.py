@@ -22,6 +22,7 @@ class TestRecommendation17TherapeuticAnticoagulation_1_5(TestRecommendationBaseV
         "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation"
     )
     recommendation_package_version = "v1.5.0-snapshot"
+    recommendation_parser_version = 2  # for recommendation package version >= 1.4
 
     recommendation_expression = {
         "Therapeutic_Anticoagulation_No_Renal_Function_Impairment": dict(
@@ -84,6 +85,7 @@ class TestRecommendation17TherapeuticAnticoagulation_v1_4(TestRecommendationBase
         "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation"
     )
     recommendation_package_version = "v1.4.0"
+    recommendation_parser_version = 2  # for recommendation package version >= 1.4
 
     recommendation_expression = {
         "Therapeutic_Anticoagulation_No_Renal_Function_Impairment": {
@@ -146,6 +148,7 @@ class TestRecommendation17TherapeuticAnticoagulation_v1_2(TestRecommendationBase
         "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation"
     )
     recommendation_package_version = "v1.2.2"
+    recommendation_parser_version = 1  # for recommendation package version < 1.4
 
     recommendation_expression = {
         "Therapeutic_Anticoagulation_No_Renal_Function_Impairment": {

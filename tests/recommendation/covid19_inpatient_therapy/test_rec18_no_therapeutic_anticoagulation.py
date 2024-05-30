@@ -49,6 +49,7 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_5(TestRecommendationBa
         "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation"
     )
     recommendation_package_version = "v1.5.0-snapshot"
+    recommendation_parser_version = 2  # for recommendation package version >= 1.4
 
     recommendation_expression = {
         "Anticoagulation_Plan_No_Specific_Indication": dict(
@@ -118,6 +119,7 @@ class TestRecommendation18NoTherapeuticAnticoagulation_v1_4(TestRecommendationBa
         "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation"
     )
     recommendation_package_version = "v1.4.0"
+    recommendation_parser_version = 2  # for recommendation package version >= 1.4
 
     recommendation_expression = {
         "Anticoagulation_Plan_No_Specific_Indication": {
