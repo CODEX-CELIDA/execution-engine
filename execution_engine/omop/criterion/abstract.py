@@ -1,6 +1,6 @@
 import copy
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Type, TypedDict, cast
+from typing import Any, Dict, Self, Type, TypedDict, cast
 
 import pandas as pd
 import sqlalchemy
@@ -183,7 +183,7 @@ class Criterion(AbstractCriterion):
 
     _OMOP_TABLE: Type[Base]
     _OMOP_COLUMN_PREFIX: str
-    _OMOP_VALUE_REQUIRED: bool
+    _OMOP_VALUE_REQUIRED: bool = False
     _OMOP_DOMAIN: str
 
     _static: bool
@@ -501,8 +501,8 @@ class Criterion(AbstractCriterion):
             # but we need to add the observation range as the valid range
 
             query = query.add_columns(
-                observation_start_datetime.label("valid_from"),
-                observation_end_datetime.label("valid_to"),
+                observation_start_datetime.label("interval_start"),
+                observation_end_datetime.label("interval_end"),
             )
 
             return query
@@ -656,7 +656,7 @@ class Criterion(AbstractCriterion):
 
     @classmethod
     @abstractmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Criterion":
+    def from_dict(cls, data: Dict[str, Any]) -> Self:
         """
         Create a criterion from a JSON object.
         """
