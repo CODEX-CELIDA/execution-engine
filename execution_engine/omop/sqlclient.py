@@ -344,7 +344,10 @@ class OMOPSQLClient:
 
         df = self.query(query)
 
-        assert len(df) == 1, f"Expected 1 Concept, got {len(df)}"
+        if not len(df) == 1:
+            raise ValueError(
+                f"Expected exactly one concept for {vocabulary}#{code} ({name}), got {len(df)}"
+            )
 
         c = Concept.from_series(df.iloc[0])
 
