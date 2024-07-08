@@ -139,7 +139,7 @@ class FHIRTerminologyClient:
         }
 
         response = requests.post(
-            f"{self.server_url}/r5/ValueSet/$validate-code",
+            f"{self.server_url}/ValueSet/$validate-code",
             json=data,
             headers=headers,
             timeout=30,
@@ -154,5 +154,11 @@ class FHIRTerminologyClient:
                     return param.get("valueBoolean", False)
             return False
         else:
-            print(f"Error validating code: HTTP Status {response.status_code}")
-            return False
+            issues = [
+                issue["severity"] + ": " + issue["details"]["text"]
+                for issue in json_response["issue"]
+            ]
+            issue_str = "\n".join(issues)
+            raise FHIRTerminologyServerException(
+                f"Error validating code: HTTP Status {response.status_code}\n{issue_str}"
+            )
