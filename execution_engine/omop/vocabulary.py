@@ -137,7 +137,7 @@ class UCUM(AbstractStandardVocabulary):
 
 class AbstractMappedVocabulary(AbstractVocabulary):
     """
-    Base class for vocabularies that are not included in the OMOP Standard Vocabulary.
+    Base class for vocabularies that are not included in the OMOP Standard Vocabulary, but have a mapping to it.
 
     This class defines a mapping from the vocabulary to the OMOP Standard Vocabulary.
     """
