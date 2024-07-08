@@ -7,8 +7,11 @@ LOINC_EPISODE_OF_CARE_TYPE = "78030-4"  # Episode of care Type
 SCT_PROCEDURE = "71388002"  # Procedure (procedure)
 SCT_VENTILATOR_OBSERVABLE = "364698001"  # Ventilator observable (observable entity)
 
-VS_VENTILATOR_OBSERVATIONS = "https://medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
-VS_VENTILATOR_OBSERVATIONS_DOWNLOAD_URL = "https://raw.githubusercontent.com/medizininformatik-initiative/kerndatensatzmodul-intensivmedizin/master/ValueSet/vs-mii-icu-code-observation-beatmung-loinc.json"
+VS_VENTILATOR_OBSERVATIONS_MII = "https://www.medizininformatik-initiative.de/fhir/ext/modul-icu/ValueSet/Code-Observation-Beatmung-LOINC"
+VS_VENTILATOR_OBSERVATIONS_MII_DOWNLOAD_URL = "https://raw.githubusercontent.com/medizininformatik-initiative/kerndatensatzmodul-intensivmedizin/master/ValueSet/vs-mii-icu-code-observation-beatmung-loinc.json"
+
+VS_VENTILATOR_OBSERVATIONS_SCT = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/ValueSet/vs-ventilation-observable-sct"
+VS_VENTILATOR_OBSERVATIONS_SCT_DOWNLOAD_URL = "https://ceosys.github.io/cpg-on-ebm-on-fhir/ValueSet-vs-ventilation-observable-sct.json"
 
 VS_LABORATORY_OBSERVATIONS = "https://www.netzwerk-universitaetsmedizin.de/fhir/cpg-on-ebm-on-fhir/ValueSet/vs-observations"
 VS_LABORATORY_OBSERVATIONS_DOWNLOAD_URL = (
