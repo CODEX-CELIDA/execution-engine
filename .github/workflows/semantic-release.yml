@@ -57,7 +57,7 @@ jobs:
         run: echo "CURRENT_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
 
       - name: Python Semantic Release
-        uses: glichtner/python-semantic-release@master
+        uses: python-semantic-release/python-semantic-release@master
         with:
           root_options: ${{ github.event.inputs.noop == 'true' && '--noop' || '' }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -66,9 +66,21 @@ jobs:
           git_committer_name: ${{ github.actor }}
           commit: 'true'
           tag: 'true'
-          push: 'true'
+          push: 'false'
           changelog: 'true'
           vcs_release: 'true'
           build_metadata: ${{ github.event.inputs.add_branch_date == 'true' && format('{0}.{1}', github.ref_name, env.CURRENT_DATE) || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git and push changes
+        env:
+          REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+        run: |
+          git config user.name 'github-actions'
+          git config user.email 'github-actions@github.com'
+
+          # Inject the token directly into the remote URL securely
+          git remote set-url origin https://${{ github.actor }}:${REPO_ACCESS_TOKEN}@github.com/${{ github.repository }}.git
+
+          git push
