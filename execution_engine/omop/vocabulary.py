@@ -137,7 +137,7 @@ class UCUM(AbstractStandardVocabulary):
 
 class AbstractMappedVocabulary(AbstractVocabulary):
     """
-    Base class for vocabularies that are not included in the OMOP Standard Vocabulary.
+    Base class for vocabularies that are not included in the OMOP Standard Vocabulary, but have a mapping to it.
 
     This class defines a mapping from the vocabulary to the OMOP Standard Vocabulary.
     """
@@ -242,6 +242,12 @@ class StandardVocabulary:
 
     def __init__(self) -> None:
         self._vf = VocabularyFactory()
+
+    def register(self, vocabulary: Type[AbstractVocabulary]) -> None:
+        """
+        Register a vocabulary.
+        """
+        self._vf.register(vocabulary)
 
     def get_standard_concept(self, system_uri: str, concept: str) -> Concept:
         """

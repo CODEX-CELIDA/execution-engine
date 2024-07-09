@@ -37,12 +37,13 @@ class ConceptCriterion(Criterion, ABC):
 
     def __init__(
         self,
-        exclude: bool,
         category: CohortCategory,
         concept: Concept,
         value: Value | None = None,
         static: bool | None = None,
         timing: Timing | None = None,
+        exclude: bool = False,
+        override_value_required: bool | None = None,
     ):
         super().__init__(exclude=exclude, category=category)
 
@@ -59,6 +60,11 @@ class ConceptCriterion(Criterion, ABC):
         else:
             # if static is None, then the criterion is static if the concept is in the STATIC_CLINICAL_CONCEPTS list
             self._static = concept.concept_id in STATIC_CLINICAL_CONCEPTS
+
+        if override_value_required is not None and isinstance(
+            override_value_required, bool
+        ):
+            self._OMOP_VALUE_REQUIRED = override_value_required
 
     @property
     def concept(self) -> Concept:
