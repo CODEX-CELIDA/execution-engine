@@ -88,6 +88,111 @@ class CriterionCombination(AbstractCriterion):
                 list[Union[Criterion, "CriterionCombination"]], criteria
             )
 
+    @classmethod
+    def And(
+        cls,
+        *criteria: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+        exclude: bool = False,
+    ) -> "CriterionCombination":
+        """
+        Create an AND combination of criteria.
+        """
+        return cls(
+            exclude=exclude,
+            operator=cls.Operator(cls.Operator.AND),
+            category=category,
+            criteria=criteria,
+        )
+
+    @classmethod
+    def Or(
+        cls,
+        *criteria: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+        exclude: bool = False,
+    ) -> "CriterionCombination":
+        """
+        Create an OR combination of criteria.
+        """
+        return cls(
+            exclude=exclude,
+            operator=cls.Operator(cls.Operator.OR),
+            category=category,
+            criteria=criteria,
+        )
+
+    @classmethod
+    def AtLeast(
+        cls,
+        *criteria: Union[Criterion, "CriterionCombination"],
+        threshold: int,
+        category: CohortCategory,
+        exclude: bool = False,
+    ) -> "CriterionCombination":
+        """
+        Create an AT_LEAST combination of criteria.
+        """
+        return cls(
+            exclude=exclude,
+            operator=cls.Operator(cls.Operator.AT_LEAST, threshold=threshold),
+            category=category,
+            criteria=criteria,
+        )
+
+    @classmethod
+    def AtMost(
+        cls,
+        *criteria: Union[Criterion, "CriterionCombination"],
+        threshold: int,
+        category: CohortCategory,
+        exclude: bool = False,
+    ) -> "CriterionCombination":
+        """
+        Create an AT_MOST combination of criteria.
+        """
+        return cls(
+            exclude=exclude,
+            operator=cls.Operator(cls.Operator.AT_MOST, threshold=threshold),
+            category=category,
+            criteria=criteria,
+        )
+
+    @classmethod
+    def Exactly(
+        cls,
+        *criteria: Union[Criterion, "CriterionCombination"],
+        threshold: int,
+        category: CohortCategory,
+        exclude: bool = False,
+    ) -> "CriterionCombination":
+        """
+        Create an EXACTLY combination of criteria.
+        """
+        return cls(
+            exclude=exclude,
+            operator=cls.Operator(cls.Operator.EXACTLY, threshold=threshold),
+            category=category,
+            criteria=criteria,
+        )
+
+    @classmethod
+    def AllOrNone(
+        cls,
+        *criteria: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+        exclude: bool = False,
+    ) -> "CriterionCombination":
+        """
+        Create an ALL_OR_NONE combination of criteria.
+        """
+        return cls(
+            exclude=exclude,
+            operator=cls.Operator(cls.Operator.ALL_OR_NONE),
+            category=category,
+            criteria=criteria,
+        )
+
     def add(self, criterion: Union[Criterion, "CriterionCombination"]) -> None:
         """
         Add a criterion to the combination.

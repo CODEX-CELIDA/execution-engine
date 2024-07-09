@@ -109,3 +109,56 @@ class FHIRTerminologyClient:
             c["code"]
             for c in json["entry"][0]["resource"]["compose"]["include"][0]["concept"]
         ]
+
+    def code_in_valueset(
+        self, valueset_definition: dict, code: str, system: str
+    ) -> bool:
+        """
+        Validate if a code is in a ValueSet using the FHIR $validate-code operation with an embedded ValueSet definition.
+
+        :param valueset_definition: JSON object representing the ValueSet
+        :param code: The concept code to validate
+        :param system: The coding system the code belongs to
+        :return: True if the code is valid within the ValueSet, False otherwise
+        """
+        # Prepare the request data
+        data = {
+            "resourceType": "Parameters",
+            "parameter": [
+                {
+                    "name": "valueSet",
+                    "resource": valueset_definition,  # Embedding the ValueSet resource
+                },
+                {"name": "code", "valueCode": code},
+                {"name": "system", "valueUri": system},
+            ],
+        }
+        headers = {
+            "Content-Type": "application/fhir+json",
+            "Accept": "application/fhir+json",
+        }
+
+        response = requests.post(
+            f"{self.server_url}/ValueSet/$validate-code",
+            json=data,
+            headers=headers,
+            timeout=30,
+        )
+
+        json_response = response.json()
+
+        if response.status_code == 200:
+            # Look for a parameter named 'result' and check if its value is True
+            for param in json_response.get("parameter", []):
+                if param.get("name") == "result":
+                    return param.get("valueBoolean", False)
+            return False
+        else:
+            issues = [
+                issue["severity"] + ": " + issue["details"]["text"]
+                for issue in json_response["issue"]
+            ]
+            issue_str = "\n".join(issues)
+            raise FHIRTerminologyServerException(
+                f"Error validating code: HTTP Status {response.status_code}\n{issue_str}"
+            )

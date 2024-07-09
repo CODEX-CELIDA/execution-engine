@@ -25,7 +25,7 @@ class AppState:
             "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
         )
 
-        recommendation_package_version = "v1.3.1"
+        recommendation_package_version = "v1.5.0"
 
         urls = [
             "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",

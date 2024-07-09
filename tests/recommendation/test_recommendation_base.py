@@ -913,6 +913,7 @@ class TestRecommendationBase(ABC):
         recommendation = e.load_recommendation(
             recommendation_url,
             recommendation_package_version=self.recommendation_package_version,
+            parser_version=self.recommendation_parser_version,
             force_reload=False,
         )
 

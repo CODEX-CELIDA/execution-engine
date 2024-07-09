@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    BigInteger,
     Connection,
     Enum,
     ForeignKey,
@@ -155,7 +156,7 @@ class ResultInterval(Base):  # noqa: D101
     )
     cohort_category = mapped_column(CohortCategoryEnum)
     person_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{OMOP_SCHEMA_NAME}.person.person_id"), index=True
+        BigInteger(), ForeignKey(f"{OMOP_SCHEMA_NAME}.person.person_id"), index=True
     )
     interval_start: Mapped[datetime]
     interval_end: Mapped[datetime]
@@ -214,7 +215,7 @@ class Comment(Base):  # noqa: D101
     )
 
     person_id: Mapped[int] = mapped_column(
-        ForeignKey(f"{OMOP_SCHEMA_NAME}.person.person_id"), index=True
+        BigInteger(), ForeignKey(f"{OMOP_SCHEMA_NAME}.person.person_id"), index=True
     )
 
     text: Mapped[str]

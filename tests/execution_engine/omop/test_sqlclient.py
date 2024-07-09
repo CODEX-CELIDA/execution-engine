@@ -13,6 +13,9 @@ from tests._fixtures.concept import (
 
 
 class TestSQLClient:
+
+    error_pattern = "Expected exactly one concept for .*, got 0"
+
     @pytest.fixture
     def sql_client(self, db_setup):
         return OMOPSQLClient(
@@ -22,7 +25,7 @@ class TestSQLClient:
         )
 
     def test_get_concept_info(self, sql_client):
-        with pytest.raises(AssertionError, match="Expected 1 Concept, got 0"):
+        with pytest.raises(AssertionError, match=self.error_pattern):
             sql_client.get_concept_info(-1)
 
         c = sql_client.get_concept_info(concept_covid19.concept_id)
@@ -37,7 +40,7 @@ class TestSQLClient:
         )
         assert c == concept_covid19
 
-        with pytest.raises(AssertionError, match="Expected 1 Concept, got 0"):
+        with pytest.raises(ValueError, match=self.error_pattern):
             sql_client.get_concept(vocabulary=SNOMEDCT.omop_vocab_name, code="invalid")
 
         c = sql_client.get_concept(
@@ -45,7 +48,7 @@ class TestSQLClient:
         )
         assert c == concept_covid19
 
-        with pytest.raises(AssertionError, match="Expected 1 Concept, got 0"):
+        with pytest.raises(ValueError, match=self.error_pattern):
             sql_client.get_concept(
                 vocabulary=SNOMEDCT.omop_vocab_name, code="840539006", name="invalid"
             )
@@ -66,7 +69,7 @@ class TestSQLClient:
         )
         assert c.concept_id == 4022726
 
-        with pytest.raises(AssertionError, match="Expected 1 Concept, got 0"):
+        with pytest.raises(ValueError, match=self.error_pattern):
             sql_client.get_concept(
                 vocabulary=SNOMEDCT.omop_vocab_name,
                 code="116508003",
