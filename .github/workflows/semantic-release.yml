@@ -43,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false  # Do not store credentials as they will be configured manually
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -83,4 +84,4 @@ jobs:
           # Inject the token directly into the remote URL securely
           git remote set-url origin https://${{ github.actor }}:${REPO_ACCESS_TOKEN}@github.com/${{ github.repository }}.git
 
-          git push
+          git push origin --tags
