@@ -24,21 +24,22 @@
 * fix: removed name from assessment ([`b5f5b94`](https://github.com/CODEX-CELIDA/execution-engine/commit/b5f5b9414b23860c5a47fa5aab973fe986f56be7))
 
 ### Chore
-* chore(deps): bump braces from 3.0.2 to 3.0.3 in /apps/viz-frontend ([`45eb49f`](https://github.com/CODEX-CELIDA/execution-engine/commit/45eb49fbdd7eb2b0e08bc6b1ae0d9038a3f8765d))
+* chore(deps): bump braces from 3.0.2 to 3.0.3 in /apps/viz-frontend ([`9fbf591`](https://github.com/CODEX-CELIDA/execution-engine/commit/9fbf5914c610af13137b9e1d3d4487f961433908))
+* chore(deps): bump pydantic from 2.7.1 to 2.8.2 ([`84c4c6b`](https://github.com/CODEX-CELIDA/execution-engine/commit/84c4c6b1661939a4a3bfdf7e83ffd5cb905754f2))
 * chore(deps): bump sympy from 1.12 to 1.13.0 ([`8882bc4`](https://github.com/CODEX-CELIDA/execution-engine/commit/8882bc4031632e287a7928ef9673763d681cdb18))
-* chore(deps): bump pydantic from 2.7.1 to 2.8.2 ([`484b7be`](https://github.com/CODEX-CELIDA/execution-engine/commit/484b7be9a1c8b2ca8746c23f94d5fdb35c28ddec))
 * chore: update requirements ([`f47e74d`](https://github.com/CODEX-CELIDA/execution-engine/commit/f47e74d5b0d3c5d19df77814e263662c00cc3508))
 * chore(pandas): prevent downcasting warning ([`6a9e1e1`](https://github.com/CODEX-CELIDA/execution-engine/commit/6a9e1e10a3fd303360903d75365f08d0757d4f05))
 * chore(pydantic): updated use of deprecated methods ([`c675ebc`](https://github.com/CODEX-CELIDA/execution-engine/commit/c675ebc13e0c84d210002fc0098241a603a1b52b))
 * chore: update pre-commit ([`8f5bd42`](https://github.com/CODEX-CELIDA/execution-engine/commit/8f5bd42ed2902cdb25bd9fb70a64f5a8aa72c83a))
 
 ### Ci
-* ci: fix semantic-release push ([`ab40766`](https://github.com/CODEX-CELIDA/execution-engine/commit/ab40766158414e2789e3221251d16d74cdf853cf))
+* ci: fix semantic-release ([`81cda94`](https://github.com/CODEX-CELIDA/execution-engine/commit/81cda94fe582e479ca86f973d04f47ee0a8e2012))
 * ci(depandabot): set main target branch ([`73d6c37`](https://github.com/CODEX-CELIDA/execution-engine/commit/73d6c378cc0ae99b2e61b7a1a1f977d5d730cf20))
 * ci: manual triggering of workflow ([`194cc53`](https://github.com/CODEX-CELIDA/execution-engine/commit/194cc53efb86186e65667d151d6b26dcddeb54cf))
 * ci: fixed workflow ([`10b1503`](https://github.com/CODEX-CELIDA/execution-engine/commit/10b150310d715b28721768cdbe3781e71f494ab1))
 
 ### Refactor
+* refactor: removed ventilation-observable characteristic ([`0cb5ab2`](https://github.com/CODEX-CELIDA/execution-engine/commit/0cb5ab23fa997356c1f7a1f6693c2719f3ec648e))
 * refactor: removed abstract methods from Criterion ([`a7ac65d`](https://github.com/CODEX-CELIDA/execution-engine/commit/a7ac65d7009278cbfac38ef02faa0a8aa861bdf3))
 * refactor: add type check for converters ([`ffb2672`](https://github.com/CODEX-CELIDA/execution-engine/commit/ffb2672461edfaa3d980fcf0551930d97b92b6bd))
 * refactor: parser version independent from recommendation ([`c7df6b2`](https://github.com/CODEX-CELIDA/execution-engine/commit/c7df6b24edcb1177306591a9fe0aa2f6b64b970b))
@@ -49,19 +50,6 @@
 * test: add builder test ([`c43f938`](https://github.com/CODEX-CELIDA/execution-engine/commit/c43f9380421a7171e5da69c8c9a1b6a5222ae8ad))
 
 ### Unknown
-* Update semantic-release.yml ([`a0fb36b`](https://github.com/CODEX-CELIDA/execution-engine/commit/a0fb36b00b95f99680267f8c0a9a3ce25e766f6a))
-* Update semantic-release.yml ([`382716c`](https://github.com/CODEX-CELIDA/execution-engine/commit/382716c9ca2074562b45e45cca5588b3e42ce0b2))
-* Update semantic-release.yml ([`0e409b0`](https://github.com/CODEX-CELIDA/execution-engine/commit/0e409b06cfedb7fa9c925f8cf514c4a162407064))
-* Update semantic-release.yml ([`d60438b`](https://github.com/CODEX-CELIDA/execution-engine/commit/d60438b12d3eb34f703aa3bafc0af1e8d9a5d2b4))
-* Update semantic-release.yml ([`f8ea293`](https://github.com/CODEX-CELIDA/execution-engine/commit/f8ea293e91f76aa843201ee1f418553c2b85d5d2))
-* Update pyproject.toml ([`dd5c479`](https://github.com/CODEX-CELIDA/execution-engine/commit/dd5c4790a3f39d4abfb16b19acfcad663d4fbad0))
-* Update semantic-release.yml ([`f16ede4`](https://github.com/CODEX-CELIDA/execution-engine/commit/f16ede490fc4a403bfe05fe9cb283c7d65cdf1ee))
-* Update semantic-release.yml ([`16e0a4d`](https://github.com/CODEX-CELIDA/execution-engine/commit/16e0a4d1b08c60982a3f305f47e0aeb2dea6bbd6))
-* Update pyproject.toml ([`7541fdd`](https://github.com/CODEX-CELIDA/execution-engine/commit/7541fddbc5605f2cecb377e44681f9651d9dcde7))
-* Update semantic-release.yml ([`f2f006d`](https://github.com/CODEX-CELIDA/execution-engine/commit/f2f006dfc5c58a17cc9ca39c14974ffdf274c0ae))
-* Update semantic-release.yml ([`fa5f6e4`](https://github.com/CODEX-CELIDA/execution-engine/commit/fa5f6e45dbec2faf125f72a469bbda10ec1a162a))
-* Update semantic-release.yml ([`c931e15`](https://github.com/CODEX-CELIDA/execution-engine/commit/c931e1567104f7006dc61ee014bf11d502416d6a))
-* Update semantic-release.yml ([`a4d993f`](https://github.com/CODEX-CELIDA/execution-engine/commit/a4d993f7cd8f7cb01417662569425bb926057c18))
 *  ([`d310ae0`](https://github.com/CODEX-CELIDA/execution-engine/commit/d310ae09925850b58b8baa98bc26f817c3308d66))
 *  ([`892074b`](https://github.com/CODEX-CELIDA/execution-engine/commit/892074bc01478a2103f69d8f9dbb8663660caa83))
 *  ([`5d1ed1d`](https://github.com/CODEX-CELIDA/execution-engine/commit/5d1ed1d660455949e05e750d7c0a34a426268fd2))
