@@ -43,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false  # Do not store credentials as they will be configured manually
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -56,19 +57,31 @@ jobs:
         id: get-date
         run: echo "CURRENT_DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
 
+      - name: Configure git
+        env:
+          REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+        run: |
+          git config user.name 'github-actions'
+          git config user.email 'github-actions@github.com'##
+
+          # Inject the token directly into the remote URL securely
+          git remote set-url origin https://${{ github.actor }}:${REPO_ACCESS_TOKEN}@github.com/${{ github.repository }}.git
+
       - name: Python Semantic Release
-        uses: glichtner/python-semantic-release@master
+        uses: python-semantic-release/python-semantic-release@master
         with:
           root_options: ${{ github.event.inputs.noop == 'true' && '--noop' || '' }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${GH_TOKEN}
+          git_committer_name: ${{ github.actor }}
           force: ${{ github.event.inputs.releaseType != 'auto' && github.event.inputs.releaseType || '' }}
           prerelease_token: ${{ github.event.inputs.prerelease_token }}
-          git_committer_name: ${{ github.actor }}
           commit: 'true'
           tag: 'true'
           push: 'true'
           changelog: 'true'
           vcs_release: 'true'
+          ignore_token_for_push: true
           build_metadata: ${{ github.event.inputs.add_branch_date == 'true' && format('{0}.{1}', github.ref_name, env.CURRENT_DATE) || '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
