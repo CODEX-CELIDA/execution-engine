@@ -16,7 +16,10 @@ import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.serializable import Serializable
 from execution_engine.util.sql import SelectInto
@@ -64,22 +67,20 @@ class PopulationInterventionPair(Serializable):
         :param category: The category of the criteria.
         :param criteria: The criteria.
         """
-        if criteria is None:
-            criteria = CriterionCombination(
-                exclude=False,
-                category=category,
-                operator=CriterionCombination.Operator("AND"),
-                root_combination=True,
-            )
-        else:
-            assert isinstance(
-                criteria, CriterionCombination
-            ), f"Invalid criteria - expected CriterionCombination, got {type(criteria)}"
+
+        root_combination = LogicalCriterionCombination(
+            exclude=False,
+            category=category,
+            operator=LogicalCriterionCombination.Operator("AND"),
+            root_combination=True,
+        )
+        if criteria is not None:
+            root_combination.add(criteria)
 
         if category == CohortCategory.POPULATION:
-            self._population = criteria
+            self._population = root_combination
         elif category == CohortCategory.INTERVENTION:
-            self._intervention = criteria
+            self._intervention = root_combination
         else:
             raise ValueError(f"Invalid category {category}")
 

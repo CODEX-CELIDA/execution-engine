@@ -6,7 +6,7 @@ from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
 )
 from execution_engine.omop.criterion.combination.temporal import (
-    TemporalCriterionCombination,
+    TemporalIndicatorCombination,
 )
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
@@ -28,7 +28,7 @@ __all__ = ["criterion_factory", "register_criterion_class"]
 class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
     "ConceptCriterion": ConceptCriterion,
     "LogicalCriterionCombination": LogicalCriterionCombination,
-    "TemporalCriterionCombination": TemporalCriterionCombination,
+    "TemporalCriterionCombination": TemporalIndicatorCombination,
     "ConditionOccurrence": ConditionOccurrence,
     "DrugExposure": DrugExposure,
     "Measurement": Measurement,

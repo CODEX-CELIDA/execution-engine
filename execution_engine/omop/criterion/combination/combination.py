@@ -35,9 +35,9 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             Get the string representation of the operator.
             """
             if self.operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-                return f'CriterionCombination.Operator("{self.operator}", threshold={self.threshold})'
+                return f'{self.__class__.__name__}.Operator("{self.operator}", threshold={self.threshold})'
             else:
-                return f'CriterionCombination.Operator("{self.operator}")'
+                return f'{self.__class__.__name__}.Operator("{self.operator}")'
 
         def __eq__(self, other: object) -> bool:
             """
@@ -89,7 +89,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         Get the name of the criterion combination.
         """
-        return f"CriterionCombination({self.operator}).{self.category.value}(exclude={self._exclude})"
+        return f"{self.__class__.__name__}({self.operator}).{self.category.value}(exclude={self._exclude})"
 
     @property
     def operator(self) -> "CriterionCombination.Operator":

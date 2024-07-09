@@ -532,7 +532,8 @@ def mask_intervals(
     """
     Masks the intervals in the dict per key.
 
-    The intervals in data are intersected with the intervals in mask on a key-wise basis. The intervals outside the mask
+    The intervals in data are intersected with the intervals in mask on a key-wise basis.
+    The intervals outside the mask are removed.
 
     :param data: The dict with intervals that should be masked
     :param mask: A dict with intervals that should be used for masking.
@@ -587,3 +588,80 @@ def filter_dicts_by_common_keys(
     filtered_dicts = [{k: d[k] for k in common_keys} for d in data]
 
     return filtered_dicts
+
+
+def create_time_intervals(
+    start_datetime: datetime.datetime,
+    end_datetime: datetime.datetime,
+    start_time: datetime.time,
+    end_time: datetime.time,
+    interval_type: IntervalType,
+) -> list[Interval]:
+    """
+    Create intervals for a given time range.
+
+    :param start_datetime: The start datetime.
+    :param end_datetime: The end datetime.
+    :param start_time: The start time.
+    :param end_time: The end time.
+    :param interval_type: The type of the intervals.
+    """
+    if start_datetime.tzinfo is not None or end_datetime.tzinfo is not None:
+        if start_datetime.tzinfo != end_datetime.tzinfo:
+            raise ValueError(
+                "start_datetime and end_datetime must have the same timezone"
+            )
+        timezone = start_datetime.tzinfo
+    else:
+        # use local timezone if no timezone is provided
+        timezone = datetime.datetime.now().astimezone().tzinfo
+
+    if start_datetime.tzinfo is None:
+        start_datetime = start_datetime.astimezone(timezone)
+    if end_datetime.tzinfo is None:
+        end_datetime = end_datetime.astimezone(timezone)
+
+    # Prepare to collect intervals
+    intervals = []
+
+    # Current date to process
+    current_date = start_datetime.date()
+
+    # Loop over each day from start_datetime to end_datetime
+    while current_date <= end_datetime.date():
+        # Calculate the datetime for the start time on the current date
+        start_interval = datetime.datetime.combine(
+            current_date, start_time, tzinfo=timezone
+        )
+
+        # Determine if the end time is on the next day
+        if end_time <= start_time:
+            end_interval = datetime.datetime.combine(
+                current_date + datetime.timedelta(days=1), end_time, tzinfo=timezone
+            )
+        else:
+            end_interval = datetime.datetime.combine(
+                current_date, end_time, tzinfo=timezone
+            )
+
+        # Ensure the start of the interval is not before start_datetime and end of interval is not after end_datetime
+        if start_interval < start_datetime:
+            start_interval = start_datetime
+        if end_interval > end_datetime:
+            end_interval = end_datetime
+
+        # Create the interval if it falls within the main datetime range
+        if (
+            start_interval < end_interval
+        ):  # Ensures we don't create an interval where start equals end due to adjustments
+            interval = Interval(
+                lower=start_interval.timestamp(),
+                upper=end_interval.timestamp(),
+                type=interval_type,
+            )
+            intervals.append(interval)
+
+        # Move to the next day
+        current_date += datetime.timedelta(days=1)
+
+    return intervals

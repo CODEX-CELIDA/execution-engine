@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import logging
 from enum import Enum, auto
@@ -173,6 +174,8 @@ class Task:
                     result = self.handle_no_data_preserving_operator(
                         data, base_data, observation_window
                     )
+                elif isinstance(self.expr, logic.TemporalCount):
+                    result = self.handle_temporal_operator(data, observation_window)
                 else:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
@@ -399,6 +402,48 @@ class Task:
         result = process.concat_intervals([result, result_no_data])
 
         return result
+
+    def handle_temporal_operator(
+        self, data: list[PersonIntervals], observation_window: TimeRange
+    ) -> PersonIntervals:
+        """
+        Handles a TemporalCount operator.
+
+        May be used to aggregate multiple criteria in a temporal manner, e.g. to count the number of times a certain
+        condition is met within a certain time frame (e.g. morning shift).
+
+        :param data: The input data.
+        :return: A DataFrame with the merged intervals.
+        """
+
+        data_p = process.select_type(data[0], IntervalType.POSITIVE)
+        data_p = {key: val for key, val in data_p.items() if val}
+
+        # todo: set to correct values
+        start_time = datetime.datetime.strptime("06:00:00", "%H:%M:%S").time()
+        end_time = datetime.datetime.strptime("14:00:00", "%H:%M:%S").time()
+
+        # construct time intervals and copy them to each person
+        time_intervals = process.create_time_intervals(
+            start_datetime=observation_window.start,
+            end_datetime=observation_window.end,
+            start_time=start_time,
+            end_time=end_time,
+            interval_type=IntervalType.POSITIVE,
+        )
+
+        indicator_windows: PersonIntervals = {
+            person_id: time_intervals.copy()
+            for person_id in data_p.keys()
+            if data_p[person_id]
+        }
+
+        result = process.mask_intervals(data_p, mask=indicator_windows)
+        result = process.count_intervals([result, indicator_windows])
+
+        # todo: not sure if we actually need masking here: we could just count the intervals
+
+        raise NotImplementedError("TemporalCount is not implemented yet.")
 
     def store_result_in_db(
         self,

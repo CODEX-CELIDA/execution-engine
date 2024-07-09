@@ -5,7 +5,13 @@ import networkx as nx
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
+from execution_engine.omop.criterion.combination.temporal import (
+    TemporalIndicatorCombination,
+)
 
 
 class ExecutionGraph(nx.DiGraph):
@@ -21,7 +27,7 @@ class ExecutionGraph(nx.DiGraph):
 
     @classmethod
     def from_criterion_combination(
-        cls, combination: CriterionCombination, base_criterion: Criterion
+        cls, combination: LogicalCriterionCombination, base_criterion: Criterion
     ) -> "ExecutionGraph":
         """
         Create a graph from a population and intervention criterion combination.
@@ -272,51 +278,124 @@ class ExecutionGraph(nx.DiGraph):
             """
             Convert the criterion's operator into a logical conjunction (And or Or)
             """
-            if comb.is_root():
-                # This is a hack to make the root node an non-simplifiable And node - otherwise, using the
-                #   logic.And, the root node would be simplified to the criterion if there is only one criterion.
-                #   The problem is that we need a non-criterion sink node of the intervention and population in order
-                #   to store the results to the database without the criterion_id (as the result of the whole
-                #   intervention or population of this population/intervention pair).
-                assert comb.operator.operator == CriterionCombination.Operator.AND, (
-                    f"Invalid operator {str(comb.operator)} for root node. "
-                    f"Expected {CriterionCombination.Operator.AND}"
-                )
-                return logic.NonSimplifiableAnd
-            elif comb.operator.operator == CriterionCombination.Operator.AND:
-                return logic.And
-            elif comb.operator.operator == CriterionCombination.Operator.OR:
-                return logic.Or
-            elif comb.operator.operator == CriterionCombination.Operator.ALL_OR_NONE:
-                return logic.AllOrNone
-            elif comb.operator.operator == CriterionCombination.Operator.AT_LEAST:
-                if comb.operator.threshold is None:
-                    raise ValueError(
-                        f"Threshold must be set for operator {comb.operator.operator}"
+            if isinstance(comb, LogicalCriterionCombination):
+                if comb.is_root():
+                    # This is a hack to make the root node a non-simplifiable And node - otherwise, using the
+                    #   logic.And, the root node would be simplified to the criterion if there is only one criterion.
+                    #   The problem is that we need a non-criterion sink node of the intervention and population in order
+                    #   to store the results to the database without the criterion_id (as the result of the whole
+                    #   intervention or population of this population/intervention pair).
+                    assert (
+                        comb.operator.operator
+                        == LogicalCriterionCombination.Operator.AND
+                    ), (
+                        f"Invalid operator {str(comb.operator)} for root node. "
+                        f"Expected {LogicalCriterionCombination.Operator.AND}"
                     )
-                return lambda *args, category: logic.MinCount(
-                    *args, threshold=comb.operator.threshold, category=category  # type: ignore
-                )
-            elif comb.operator.operator == CriterionCombination.Operator.AT_MOST:
-                if comb.operator.threshold is None:
-                    raise ValueError(
-                        f"Threshold must be set for operator {comb.operator.operator}"
+                    return logic.NonSimplifiableAnd
+                elif comb.operator.operator == LogicalCriterionCombination.Operator.AND:
+                    return logic.And
+                elif comb.operator.operator == LogicalCriterionCombination.Operator.OR:
+                    return logic.Or
+                elif (
+                    comb.operator.operator
+                    == LogicalCriterionCombination.Operator.ALL_OR_NONE
+                ):
+                    return logic.AllOrNone
+                elif (
+                    comb.operator.operator
+                    == LogicalCriterionCombination.Operator.AT_LEAST
+                ):
+                    if comb.operator.threshold is None:
+                        raise ValueError(
+                            f"Threshold must be set for operator {comb.operator.operator}"
+                        )
+                    return lambda *args, category: logic.MinCount(
+                        *args, threshold=comb.operator.threshold, category=category  # type: ignore
                     )
-                return lambda *args, category: logic.MaxCount(
-                    *args, threshold=comb.operator.threshold, category=category  # type: ignore
-                )
-            elif comb.operator.operator == CriterionCombination.Operator.EXACTLY:
-                if comb.operator.threshold is None:
-                    raise ValueError(
-                        f"Threshold must be set for operator {comb.operator.operator}"
+                elif (
+                    comb.operator.operator
+                    == LogicalCriterionCombination.Operator.AT_MOST
+                ):
+                    if comb.operator.threshold is None:
+                        raise ValueError(
+                            f"Threshold must be set for operator {comb.operator.operator}"
+                        )
+                    return lambda *args, category: logic.MaxCount(
+                        *args, threshold=comb.operator.threshold, category=category  # type: ignore
                     )
-                return lambda *args, category: logic.ExactCount(
-                    *args, threshold=comb.operator.threshold, category=category  # type: ignore
-                )
+                elif (
+                    comb.operator.operator
+                    == LogicalCriterionCombination.Operator.EXACTLY
+                ):
+                    if comb.operator.threshold is None:
+                        raise ValueError(
+                            f"Threshold must be set for operator {comb.operator.operator}"
+                        )
+                    return lambda *args, category: logic.ExactCount(
+                        *args, threshold=comb.operator.threshold, category=category  # type: ignore
+                    )
+                else:
+                    raise NotImplementedError(
+                        f'Operator "{str(comb.operator)}" not implemented'
+                    )
+
+            elif isinstance(comb, TemporalIndicatorCombination):
+                if (
+                    comb.operator.operator
+                    == TemporalIndicatorCombination.Operator.AT_LEAST
+                ):
+                    if comb.operator.threshold is None:
+                        raise ValueError(
+                            f"Threshold must be set for operator {comb.operator.operator}"
+                        )
+                    return lambda *args, category: logic.TemporalMinCount(
+                        *args,
+                        threshold=comb.operator.threshold,
+                        category=category,
+                        start_time=comb.start_time,
+                        end_time=comb.end_time,
+                        interval_type=comb.interval_type,  # type: ignore
+                    )
+                elif (
+                    comb.operator.operator
+                    == TemporalIndicatorCombination.Operator.AT_MOST
+                ):
+                    if comb.operator.threshold is None:
+                        raise ValueError(
+                            f"Threshold must be set for operator {comb.operator.operator}"
+                        )
+                    return lambda *args, category: logic.TemporalMaxCount(
+                        *args,
+                        threshold=comb.operator.threshold,
+                        category=category,  # type: ignore
+                        start_time=comb.start_time,
+                        end_time=comb.end_time,
+                        interval_type=comb.interval_type,  # type: ignore
+                    )
+                elif (
+                    comb.operator.operator
+                    == TemporalIndicatorCombination.Operator.EXACTLY
+                ):
+                    if comb.operator.threshold is None:
+                        raise ValueError(
+                            f"Threshold must be set for operator {comb.operator.operator}"
+                        )
+                    return lambda *args, category: logic.TemporalExactCount(
+                        *args,
+                        threshold=comb.operator.threshold,
+                        category=category,
+                        start_time=comb.start_time,
+                        end_time=comb.end_time,
+                        interval_type=comb.interval_type,
+                        # type: ignore
+                    )
+                else:
+                    raise NotImplementedError(
+                        f'Operator "{str(comb.operator)}" not implemented'
+                    )
             else:
-                raise NotImplementedError(
-                    f'Operator "{str(comb.operator)}" not implemented'
-                )
+                raise ValueError(f"Invalid combination type: {type(comb)}")
 
         def _traverse(comb: CriterionCombination) -> logic.Expr:
             """
@@ -329,7 +408,7 @@ class ExecutionGraph(nx.DiGraph):
             for entry in comb:
                 if isinstance(entry, CriterionCombination):
                     components.append(_traverse(entry))
-                else:
+                elif isinstance(entry, Criterion):
                     # Remove the exclude criterion from the symbol, as it is handled by the Not operator
                     s = logic.Symbol(
                         criterion=cast(Criterion, entry.clear_exclude(inplace=False))
@@ -339,6 +418,8 @@ class ExecutionGraph(nx.DiGraph):
                         s = logic.Not(s, category=entry.category)
 
                     components.append(s)
+                else:
+                    raise ValueError(f"Invalid entry type: {type(entry)}")
 
             c = conjunction(*components, category=comb.category)
 

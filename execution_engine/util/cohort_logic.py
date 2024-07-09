@@ -84,7 +84,7 @@ class Expr(BaseExpr):
 
         :return: Tuple of the class, arguments, and category.
         """
-        return (self._recreate, (self.args, {"category": self.category}))
+        return self._recreate, (self.args, {"category": self.category})
 
     def __new__(cls, *args: Any, category: CohortCategory) -> "Expr":
         """
@@ -156,7 +156,7 @@ class Symbol(BaseExpr):
 
         :return: Tuple of the class, arguments, and category.
         """
-        return (self._recreate, (self.args, {"criterion": self.criterion}))
+        return self._recreate, (self.args, {"criterion": self.criterion})
 
     def __new__(cls, criterion: Criterion) -> "Symbol":
         """
@@ -342,70 +342,6 @@ class Count(BooleanFunction, ABC):
     count_min: int | None = None
     count_max: int | None = None
 
-    def __reduce__(self) -> tuple[Callable, tuple]:
-        """
-        Reduce the expression to its arguments and category.
-
-        Required for pickling (e.g. when using multiprocessing).
-
-        :return: Tuple of the class, arguments, and category.
-        """
-        return (
-            self._recreate,
-            (self.args, {"category": self.category, "threshold": self.count_min}),
-        )
-
-
-class TemporalCount(BooleanFunction, ABC):
-    """
-    Class representing a logical COUNT operation.
-
-    Adds a "threshold" parameter of type int.
-
-    This class should not be instantiated directly, but rather through one of its subclasses.
-    """
-
-    count_min: int | None = None
-    count_max: int | None = None
-    start_time: time | None = None
-    end_time: time | None = None
-    interval_type: TimeIntervalType | None = None
-
-    def __reduce__(self) -> tuple[Callable, tuple]:
-        """
-        Reduce the expression to its arguments and category.
-
-        Required for pickling (e.g. when using multiprocessing).
-
-        :return: Tuple of the class, arguments, and category.
-        """
-        return (
-            self._recreate,
-            (self.args, {"category": self.category, "threshold": self.count_min}),
-        )
-
-
-class TemporalMinCount(TemporalCount):
-    """
-    Class representing a logical MIN_COUNT operation.
-    """
-
-    def __new__(
-        cls, *args: Any, threshold: int | None, **kwargs: Any
-    ) -> "TemporalMinCount":
-        """
-        Create a new MinCount object.
-        """
-        self = cast(TemporalMinCount, super().__new__(cls, *args, **kwargs))
-        self.count_min = threshold
-        return self
-
-    def __repr__(self) -> str:
-        """
-        Represent the expression in a readable format.
-        """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
-
 
 class MinCount(Count):
     """
@@ -419,6 +355,19 @@ class MinCount(Count):
         self = cast(MinCount, super().__new__(cls, *args, **kwargs))
         self.count_min = threshold
         return self
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (self.args, {"category": self.category, "threshold": self.count_min}),
+        )
 
     def __repr__(self) -> str:
         """
@@ -439,6 +388,19 @@ class MaxCount(Count):
         self = cast(MaxCount, super().__new__(cls, *args, **kwargs))
         self.count_max = threshold
         return self
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (self.args, {"category": self.category, "threshold": self.count_max}),
+        )
 
     def __repr__(self) -> str:
         """
@@ -461,6 +423,19 @@ class ExactCount(Count):
         self.count_max = threshold
         return self
 
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (self.args, {"category": self.category, "threshold": self.count_min}),
+        )
+
     def __repr__(self) -> str:
         """
         Represent the expression in a readable format.
@@ -472,6 +447,182 @@ class AllOrNone(BooleanFunction):
     """
     Class representing a logical ALL_OR_NONE operation.
     """
+
+
+class TemporalCount(BooleanFunction, ABC):
+    """
+    Class representing a logical COUNT operation.
+
+    Adds a "threshold" parameter of type int.
+
+    This class should not be instantiated directly, but rather through one of its subclasses.
+    """
+
+    count_min: int | None = None
+    count_max: int | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    interval_type: TimeIntervalType | None = None
+
+
+class TemporalMinCount(TemporalCount):
+    """
+    Class representing a logical temporal MIN_COUNT operation.
+    """
+
+    def __new__(
+        cls,
+        *args: Any,
+        threshold: int | None,
+        start_time: time | None,
+        end_time: time | None,
+        interval_type: TimeIntervalType | None,
+        **kwargs: Any,
+    ) -> "TemporalMinCount":
+        """
+        Create a new MinCount object.
+        """
+        self = cast(TemporalMinCount, super().__new__(cls, *args, **kwargs))
+        self.count_min = threshold
+        self.start_time = start_time
+        self.end_time = end_time
+        self.interval_type = interval_type
+        return self
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (
+                self.args,
+                {
+                    "category": self.category,
+                    "threshold": self.count_min,
+                    "start_time": self.start_time,
+                    "end_time": self.end_time,
+                    "interval_type": self.interval_type,
+                },
+            ),
+        )
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+
+class TemporalMaxCount(TemporalCount):
+    """
+    Class representing a logical MAX_COUNT operation.
+    """
+
+    def __new__(
+        cls,
+        *args: Any,
+        threshold: int | None,
+        start_time: time | None,
+        end_time: time | None,
+        interval_type: TimeIntervalType | None,
+        **kwargs: Any,
+    ) -> "TemporalMaxCount":
+        """
+        Create a new MaxCount object.
+        """
+        self = cast(TemporalMaxCount, super().__new__(cls, *args, **kwargs))
+        self.count_max = threshold
+        self.start_time = start_time
+        self.end_time = end_time
+        self.interval_type = interval_type
+        return self
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (
+                self.args,
+                {
+                    "category": self.category,
+                    "threshold": self.count_max,
+                    "start_time": self.start_time,
+                    "end_time": self.end_time,
+                    "interval_type": self.interval_type,
+                },
+            ),
+        )
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_max}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+
+class TemporalExactCount(TemporalCount):
+    """
+    Class representing a logical EXACT_COUNT operation.
+    """
+
+    def __new__(
+        cls,
+        *args: Any,
+        threshold: int | None,
+        start_time: time | None,
+        end_time: time | None,
+        interval_type: TimeIntervalType | None,
+        **kwargs: Any,
+    ) -> "TemporalExactCount":
+        """
+        Create a new ExactCount object.
+        """
+        self = cast(TemporalExactCount, super().__new__(cls, *args, **kwargs))
+        self.count_min = threshold
+        self.count_max = threshold
+        self.start_time = start_time
+        self.end_time = end_time
+        self.interval_type = interval_type
+        return self
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (
+                self.args,
+                {
+                    "category": self.category,
+                    "threshold": self.count_min,
+                    "start_time": self.start_time,
+                    "end_time": self.end_time,
+                    "interval_type": self.interval_type,
+                },
+            ),
+        )
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
 
 
 class NonSimplifiableAnd(BooleanFunction):

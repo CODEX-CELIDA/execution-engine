@@ -1,3 +1,5 @@
+from datetime import time
+
 import pandas as pd
 import pendulum
 import pytest
@@ -3123,3 +3125,100 @@ class TestIntervalFilling(ProcessTest):
         ]
 
         self.assert_equal(data, expected)
+
+
+class TestCreateTimeIntervals(ProcessTest):
+    # Helper to create timezone-aware datetime objects using pendulum
+    def tz_aware_datetime(self, date_str, timezone):
+        return pendulum.parse(date_str, tz=timezone)
+
+    def test_naive_datetimes(self):
+        start_datetime = pendulum.parse("2023-07-01 12:00:00").naive()
+        end_datetime = pendulum.parse("2023-07-03 12:00:00").naive()
+        start_time = time(9, 0)
+        end_time = time(17, 0)
+        intervals = self.process.create_time_intervals(
+            start_datetime, end_datetime, start_time, end_time
+        )
+        assert len(intervals) == 3  # Expecting intervals for July 1st and 2nd
+        assert (
+            intervals[0].lower
+            == pendulum.parse("2023-07-01 12:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[0].upper
+            == pendulum.parse("2023-07-01 17:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[1].lower
+            == pendulum.parse("2023-07-02 09:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[1].upper
+            == pendulum.parse("2023-07-02 17:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[2].lower
+            == pendulum.parse("2023-07-03 09:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[2].upper
+            == pendulum.parse("2023-07-03 12:00:00").naive().timestamp()
+        )
+
+    def test_aware_datetimes(self):
+        tz = "America/New_York"
+        start_datetime = self.tz_aware_datetime("2023-07-01 12:00:00", tz)
+        end_datetime = self.tz_aware_datetime("2023-07-03 12:00:00", tz)
+        start_time = time(22, 0)
+        end_time = time(6, 0)
+        intervals = self.process.create_time_intervals(
+            start_datetime, end_datetime, start_time, end_time
+        )
+        assert (
+            len(intervals) == 2
+        )  # Expecting intervals for the nights of July 1st and 2nd
+        assert (
+            intervals[0].lower
+            == self.tz_aware_datetime("2023-07-01 22:00:00", tz).timestamp()
+        )
+        assert (
+            intervals[0].upper
+            == self.tz_aware_datetime("2023-07-02 06:00:00", tz).timestamp()
+        )
+        assert (
+            intervals[1].lower
+            == self.tz_aware_datetime("2023-07-02 22:00:00", tz).timestamp()
+        )
+        assert (
+            intervals[1].upper
+            == self.tz_aware_datetime("2023-07-03 06:00:00", tz).timestamp()
+        )
+
+    def test_spanning_midnight_naive(self):
+        start_datetime = pendulum.parse("2023-07-01 12:00:00").naive()
+        end_datetime = pendulum.parse("2023-07-03 04:00:00").naive()
+        start_time = time(22, 0)
+        end_time = time(6, 0)
+        intervals = self.process.create_time_intervals(
+            start_datetime, end_datetime, start_time, end_time
+        )
+        assert (
+            len(intervals) == 2
+        )  # Expecting intervals for the nights of July 1st and 2nd
+        assert (
+            intervals[0].lower
+            == pendulum.parse("2023-07-01 22:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[0].upper
+            == pendulum.parse("2023-07-02 06:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[1].lower
+            == pendulum.parse("2023-07-02 22:00:00").naive().timestamp()
+        )
+        assert (
+            intervals[1].upper
+            == pendulum.parse("2023-07-03 04:00:00").naive().timestamp()
+        )
