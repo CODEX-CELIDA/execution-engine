@@ -68,20 +68,39 @@ jobs:
           git remote set-url origin https://${{ github.actor }}:${REPO_ACCESS_TOKEN}@github.com/${{ github.repository }}.git
 
       - name: Python Semantic Release
-        uses: python-semantic-release/python-semantic-release@master
-        with:
-          root_options: ${{ github.event.inputs.noop == 'true' && '--noop' || '' }}
-          github_token: ${GH_TOKEN}
-          git_committer_name: ${{ github.actor }}
-          force: ${{ github.event.inputs.releaseType != 'auto' && github.event.inputs.releaseType || '' }}
-          prerelease_token: ${{ github.event.inputs.prerelease_token }}
-          commit: 'true'
-          tag: 'true'
-          push: 'true'
-          changelog: 'true'
-          vcs_release: 'true'
-          ignore_token_for_push: true
-          build_metadata: ${{ github.event.inputs.add_branch_date == 'true' && format('{0}.{1}', github.ref_name, env.CURRENT_DATE) || '' }}
         env:
+          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}  # This ensures the token is safely injected from your repository secrets
           REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_DATE: $(date +%Y%m%d)  # Set the current date in the format YYYYMMDD
+        run: |
+          release_type="${{ github.event.inputs.releaseType }}"
+          prerelease_token="${{ github.event.inputs.prerelease_token }}"
+          add_branch_date="${{ github.event.inputs.add_branch_date }}"
+          # Set default flags
+          flags=""
+
+          # Add --noop if requested
+          if [[ "${{ github.event.inputs.noop }}" == "true" ]]; then
+            flags="$flags --noop"
+          fi
+
+          # Check releaseType and format accordingly
+          if [[ "$release_type" != "auto" ]]; then
+            flags="$flags --$release_type"
+          fi
+
+          # Check for prerelease token and add it if present
+          if [[ "$prerelease_token" != "" ]]; then
+            flags="$flags --prerelease-token $prerelease_token"
+          fi
+
+          # Add build metadata if add_branch_date is true
+          if [[ "$add_branch_date" == "true" ]]; then
+            metadata=$(echo $(basename $GITHUB_REF) | sed 's/refs\/heads\///')  # Extract branch name from GITHUB_REF
+            build_metadata="--build-metadata $metadata.$CURRENT_DATE"
+            flags="$flags $build_metadata"
+          fi
+
+          # Run semantic-release with the constructed flags
+          echo "Running semantic-release with flags: $flags"
+          GH_TOKEN=${REPO_ACCESS_TOKEN} semantic-release version $flags
