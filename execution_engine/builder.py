@@ -20,9 +20,6 @@ from execution_engine.converter.characteristic.observation import (
 )
 from execution_engine.converter.characteristic.procedure import ProcedureCharacteristic
 from execution_engine.converter.characteristic.radiology import RadiologyCharacteristic
-from execution_engine.converter.characteristic.ventilation_observable import (
-    VentilationObservableCharacteristic,
-)
 from execution_engine.converter.converter import CriterionConverter
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.converter.goal.assessment_scale import AssessmentScaleGoal
@@ -41,7 +38,6 @@ _default_converters: dict[str, list[type[CriterionConverter]]] = {
         RadiologyCharacteristic,
         ProcedureCharacteristic,
         EpisodeOfCareCharacteristic,
-        VentilationObservableCharacteristic,
         ObservationCharacteristic,
     ],
     "action": [
