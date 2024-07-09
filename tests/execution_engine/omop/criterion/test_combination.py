@@ -6,7 +6,9 @@ import pytest
 import sympy
 
 from execution_engine.constants import CohortCategory
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
@@ -51,8 +53,10 @@ class TestCriterionCombination:
         return [MockCriterion(f"c{i}") for i in range(1, 6)]
 
     def test_criterion_combination_init(self, mock_criteria):
-        operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
-        combination = CriterionCombination(
+        operator = LogicalCriterionCombination.Operator(
+            LogicalCriterionCombination.Operator.AND
+        )
+        combination = LogicalCriterionCombination(
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -62,8 +66,10 @@ class TestCriterionCombination:
         assert len(combination) == 0
 
     def test_criterion_combination_add(self, mock_criteria):
-        operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
-        combination = CriterionCombination(
+        operator = LogicalCriterionCombination.Operator(
+            LogicalCriterionCombination.Operator.AND
+        )
+        combination = LogicalCriterionCombination(
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -78,8 +84,10 @@ class TestCriterionCombination:
             assert criterion == mock_criteria[idx]
 
     def test_criterion_combination_dict(self, mock_criteria):
-        operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
-        combination = CriterionCombination(
+        operator = LogicalCriterionCombination.Operator(
+            LogicalCriterionCombination.Operator.AND
+        )
+        combination = LogicalCriterionCombination(
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -101,7 +109,9 @@ class TestCriterionCombination:
         }
 
     def test_criterion_combination_from_dict(self, mock_criteria):
-        operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
+        operator = LogicalCriterionCombination.Operator(
+            LogicalCriterionCombination.Operator.AND
+        )
         combination_data = {
             "exclude": False,
             "operator": "AND",
@@ -118,7 +128,7 @@ class TestCriterionCombination:
 
         factory.register_criterion_class("MockCriterion", MockCriterion)
 
-        combination = CriterionCombination.from_dict(combination_data)
+        combination = LogicalCriterionCombination.from_dict(combination_data)
 
         assert combination.operator == operator
         assert len(combination) == len(mock_criteria)
@@ -131,18 +141,18 @@ class TestCriterionCombination:
         with pytest.raises(
             AssertionError, match=f"Threshold must be set for operator {operator}"
         ):
-            CriterionCombination.Operator(operator)
+            LogicalCriterionCombination.Operator(operator)
 
     def test_operator(self):
         with pytest.raises(AssertionError, match=""):
-            CriterionCombination.Operator("invalid")
+            LogicalCriterionCombination.Operator("invalid")
 
     @pytest.mark.parametrize(
         "operator, threshold",
         [("AND", None), ("OR", None), ("AT_LEAST", 1), ("AT_MOST", 1), ("EXACTLY", 1)],
     )
     def test_operator_str(self, operator, threshold):
-        op = CriterionCombination.Operator(operator, threshold)
+        op = LogicalCriterionCombination.Operator(operator, threshold)
 
         if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
             assert (
@@ -155,8 +165,10 @@ class TestCriterionCombination:
             assert str(op) == f"{operator}"
 
     def test_repr(self):
-        operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
-        combination = CriterionCombination(
+        operator = LogicalCriterionCombination.Operator(
+            LogicalCriterionCombination.Operator.AND
+        )
+        combination = LogicalCriterionCombination(
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -168,8 +180,10 @@ class TestCriterionCombination:
         )
 
     def test_add_all(self):
-        operator = CriterionCombination.Operator(CriterionCombination.Operator.AND)
-        combination = CriterionCombination(
+        operator = LogicalCriterionCombination.Operator(
+            LogicalCriterionCombination.Operator.AND
+        )
+        combination = LogicalCriterionCombination(
             exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
@@ -254,21 +268,21 @@ class TestCriterionCombinationDatabase(TestCriterion):
         threshold = None
 
         if c.func == sympy.And:
-            operator = CriterionCombination.Operator.AND
+            operator = LogicalCriterionCombination.Operator.AND
         elif c.func == sympy.Or:
-            operator = CriterionCombination.Operator.OR
+            operator = LogicalCriterionCombination.Operator.OR
         elif isinstance(c.func, sympy.core.function.UndefinedFunction):
             assert args[0].is_number, "First argument must be a number (threshold)"
             threshold = args[0]
             args = args[1:]
             if c.func.name == "MinCount":
-                operator = CriterionCombination.Operator.AT_LEAST
+                operator = LogicalCriterionCombination.Operator.AT_LEAST
             elif c.func.name == "MaxCount":
-                operator = CriterionCombination.Operator.AT_MOST
+                operator = LogicalCriterionCombination.Operator.AT_MOST
             elif c.func.name == "ExactCount":
-                operator = CriterionCombination.Operator.EXACTLY
+                operator = LogicalCriterionCombination.Operator.EXACTLY
             elif c.func.name == "AllOrNone":
-                operator = CriterionCombination.Operator.ALL_OR_NONE
+                operator = LogicalCriterionCombination.Operator.ALL_OR_NONE
             else:
                 raise ValueError(f"Unknown operator {c.func}")
         else:
@@ -287,10 +301,12 @@ class TestCriterionCombinationDatabase(TestCriterion):
                 else:
                     raise ValueError(f"Unknown criterion {arg.args[0].name}")
 
-        comb = CriterionCombination(
+        comb = LogicalCriterionCombination(
             exclude=exclude,
             category=CohortCategory.POPULATION,
-            operator=CriterionCombination.Operator(operator, threshold=threshold),
+            operator=LogicalCriterionCombination.Operator(
+                operator, threshold=threshold
+            ),
         )
 
         for symbol in c.atoms():

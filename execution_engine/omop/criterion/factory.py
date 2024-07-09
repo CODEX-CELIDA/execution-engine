@@ -1,7 +1,13 @@
 from typing import Type
 
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
+from execution_engine.omop.criterion.combination.temporal import (
+    TemporalCriterionCombination,
+)
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.custom import TidalVolumePerIdealBodyWeight
@@ -21,7 +27,8 @@ __all__ = ["criterion_factory", "register_criterion_class"]
 
 class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
     "ConceptCriterion": ConceptCriterion,
-    "CriterionCombination": CriterionCombination,
+    "LogicalCriterionCombination": LogicalCriterionCombination,
+    "TemporalCriterionCombination": TemporalCriterionCombination,
     "ConditionOccurrence": ConditionOccurrence,
     "DrugExposure": DrugExposure,
     "Measurement": Measurement,
@@ -37,7 +44,8 @@ class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
 
 
 def register_criterion_class(
-    class_name: str, criterion_class: Type[Criterion] | Type[CriterionCombination]
+    class_name: str,
+    criterion_class: Type[Criterion] | Type[CriterionCombination],
 ) -> None:
     """
     Register a criterion class.

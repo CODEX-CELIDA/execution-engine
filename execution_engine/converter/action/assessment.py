@@ -6,7 +6,9 @@ from execution_engine.converter.converter import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.observation import Observation
@@ -59,7 +61,7 @@ class AssessmentAction(AbstractAction):
 
         return cls(exclude=exclude, code=code, timing=timing)
 
-    def _to_criterion(self) -> Criterion | CriterionCombination | None:
+    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
         """Converts this characteristic to a Criterion."""
 
         cls: Type[ConceptCriterion]

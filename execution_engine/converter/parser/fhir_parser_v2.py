@@ -6,7 +6,9 @@ from execution_engine.constants import CohortCategory
 from execution_engine.converter.converter import get_extension_by_url
 from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
 from execution_engine.fhir.util import get_coding
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 
 
 class FhirRecommendationParserV2(FhirRecommendationParserV1):
@@ -19,7 +21,7 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
 
     def parse_action_combination_method(
         self, action_parent: PlanDefinition | PlanDefinitionAction
-    ) -> CriterionCombination:
+    ) -> LogicalCriterionCombination:
         """
         Parses the action combination method from an extension to a PlanDefinition or PlanDefinitionAction.
         """
@@ -42,23 +44,27 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
 
         match method_code:
             case "all":
-                operator = CriterionCombination.Operator("AND")
+                operator = LogicalCriterionCombination.Operator("AND")
             case "any":
-                operator = CriterionCombination.Operator("OR")
+                operator = LogicalCriterionCombination.Operator("OR")
             case "at-most":
-                operator = CriterionCombination.Operator("AT_MOST", threshold=threshold)
+                operator = LogicalCriterionCombination.Operator(
+                    "AT_MOST", threshold=threshold
+                )
             case "exactly":
-                operator = CriterionCombination.Operator("EXACTLY", threshold=threshold)
+                operator = LogicalCriterionCombination.Operator(
+                    "EXACTLY", threshold=threshold
+                )
             case "at-least":
-                operator = CriterionCombination.Operator(
+                operator = LogicalCriterionCombination.Operator(
                     "AT_LEAST", threshold=threshold
                 )
             case "one-or-more":
-                operator = CriterionCombination.Operator("AT_LEAST", threshold=1)
+                operator = LogicalCriterionCombination.Operator("AT_LEAST", threshold=1)
             case _:
                 raise ValueError(f"Invalid action combination method: {method_code}")
 
-        return CriterionCombination(
+        return LogicalCriterionCombination(
             category=CohortCategory.INTERVENTION,
             exclude=False,
             operator=operator,

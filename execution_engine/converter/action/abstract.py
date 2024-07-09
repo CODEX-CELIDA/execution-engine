@@ -9,7 +9,9 @@ from execution_engine.converter.goal.abstract import Goal
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.vocabulary import AbstractVocabulary
 from execution_engine.util import AbstractPrivateMethods
 from execution_engine.util.types import Timing
@@ -136,12 +138,12 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
         )
 
     @abstractmethod
-    def _to_criterion(self) -> Criterion | CriterionCombination | None:
+    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
         """Converts this characteristic to a Criterion."""
         raise NotImplementedError()
 
     @final
-    def to_criterion(self) -> Criterion | CriterionCombination:
+    def to_criterion(self) -> Criterion | LogicalCriterionCombination:
         """
         Converts this action to a criterion.
         """
@@ -153,10 +155,10 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
             ), "Action without explicit criterion must have at least one goal"
 
         if self.goals:
-            combination = CriterionCombination(
+            combination = LogicalCriterionCombination(
                 exclude=self._exclude,  # need to pull up the exclude flag from the criterion into the combination
                 category=CohortCategory.INTERVENTION,
-                operator=CriterionCombination.Operator("AND"),
+                operator=LogicalCriterionCombination.Operator("AND"),
             )
             if action is not None:
                 action.exclude = False  # reset the exclude flag, as it is now part of the combination

@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
+from datetime import time
 from typing import Any, Callable, cast
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
 
 
 class BaseExpr(ABC):
@@ -352,6 +354,57 @@ class Count(BooleanFunction, ABC):
             self._recreate,
             (self.args, {"category": self.category, "threshold": self.count_min}),
         )
+
+
+class TemporalCount(BooleanFunction, ABC):
+    """
+    Class representing a logical COUNT operation.
+
+    Adds a "threshold" parameter of type int.
+
+    This class should not be instantiated directly, but rather through one of its subclasses.
+    """
+
+    count_min: int | None = None
+    count_max: int | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    interval_type: TimeIntervalType | None = None
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (self.args, {"category": self.category, "threshold": self.count_min}),
+        )
+
+
+class TemporalMinCount(TemporalCount):
+    """
+    Class representing a logical MIN_COUNT operation.
+    """
+
+    def __new__(
+        cls, *args: Any, threshold: int | None, **kwargs: Any
+    ) -> "TemporalMinCount":
+        """
+        Create a new MinCount object.
+        """
+        self = cast(TemporalMinCount, super().__new__(cls, *args, **kwargs))
+        self.count_min = threshold
+        return self
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
 
 
 class MinCount(Count):
