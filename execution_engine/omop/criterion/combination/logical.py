@@ -40,7 +40,7 @@ class LogicalCriterionCombination(CriterionCombination):
     @classmethod
     def And(
         cls,
-        *criteria: Union[Criterion, "LogicalCriterionCombination"],
+        *criteria: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
         exclude: bool = False,
     ) -> "LogicalCriterionCombination":
@@ -57,7 +57,7 @@ class LogicalCriterionCombination(CriterionCombination):
     @classmethod
     def Or(
         cls,
-        *criteria: Union[Criterion, "LogicalCriterionCombination"],
+        *criteria: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
         exclude: bool = False,
     ) -> "LogicalCriterionCombination":
@@ -74,7 +74,7 @@ class LogicalCriterionCombination(CriterionCombination):
     @classmethod
     def AtLeast(
         cls,
-        *criteria: Union[Criterion, "LogicalCriterionCombination"],
+        *criteria: Union[Criterion, "CriterionCombination"],
         threshold: int,
         category: CohortCategory,
         exclude: bool = False,
@@ -92,7 +92,7 @@ class LogicalCriterionCombination(CriterionCombination):
     @classmethod
     def AtMost(
         cls,
-        *criteria: Union[Criterion, "LogicalCriterionCombination"],
+        *criteria: Union[Criterion, "CriterionCombination"],
         threshold: int,
         category: CohortCategory,
         exclude: bool = False,
