@@ -2,7 +2,7 @@ import datetime
 import importlib
 import logging
 import os
-from typing import Callable
+from typing import Callable, cast
 
 import numpy as np
 import pytz
@@ -596,6 +596,7 @@ def create_time_intervals(
     start_time: datetime.time,
     end_time: datetime.time,
     interval_type: IntervalType,
+    timezone: pytz.tzinfo.DstTzInfo | str,
 ) -> list[Interval]:
     """
     Constructs a list of time intervals within a specified date range, each defined by daily start and end times.
@@ -615,6 +616,7 @@ def create_time_intervals(
             than the start time.
         interval_type (IntervalType): The type of intervals to be created, which could denote the purpose or nature of
             the intervals.
+        timezone (pytz.timezone): The timezone to use for the calculations.
 
     Returns:
         list[Interval]: A list of Interval namedtuples, each representing a time interval within the specified date
@@ -624,20 +626,21 @@ def create_time_intervals(
         ValueError: If start_datetime and end_datetime are not in the same timezone.
     """
 
-    if start_datetime.tzinfo is not None or end_datetime.tzinfo is not None:
-        if start_datetime.tzinfo != end_datetime.tzinfo:
-            raise ValueError(
-                "start_datetime and end_datetime must have the same timezone"
-            )
-        timezone = start_datetime.tzinfo
-    else:
-        # use local timezone if no timezone is provided
-        timezone = datetime.datetime.now().astimezone().tzinfo
+    # if start_datetime.tzinfo is not None or end_datetime.tzinfo is not None:
+    #     if start_datetime.tzinfo != end_datetime.tzinfo:
+    #         raise ValueError(
+    #             "start_datetime and end_datetime must have the same timezone"
+    #         )
+    #     timezone = start_datetime.tzinfo
+    # else:
+    #     # use local timezone if no timezone is provided
+    #     timezone = datetime.datetime.now().astimezone().tzinfo
 
-    if start_datetime.tzinfo is None:
-        start_datetime = start_datetime.astimezone(timezone)
-    if end_datetime.tzinfo is None:
-        end_datetime = end_datetime.astimezone(timezone)
+    if isinstance(timezone, str):
+        timezone = cast(pytz.tzinfo.DstTzInfo, pytz.timezone(timezone))
+
+    start_datetime = start_datetime.astimezone(timezone)
+    end_datetime = end_datetime.astimezone(timezone)
 
     # Prepare to collect intervals
     intervals = []
@@ -648,18 +651,20 @@ def create_time_intervals(
     # Loop over each day from start_datetime to end_datetime
     while current_date <= end_datetime.date():
         # Calculate the datetime for the start time on the current date
-        start_interval = datetime.datetime.combine(
-            current_date, start_time, tzinfo=timezone
+        start_interval = timezone.localize(
+            datetime.datetime.combine(current_date, start_time)
         )
 
         # Determine if the end time is on the next day
         if end_time <= start_time:
-            end_interval = datetime.datetime.combine(
-                current_date + datetime.timedelta(days=1), end_time, tzinfo=timezone
+            end_interval = timezone.localize(
+                datetime.datetime.combine(
+                    current_date + datetime.timedelta(days=1), end_time
+                )
             )
         else:
-            end_interval = datetime.datetime.combine(
-                current_date, end_time, tzinfo=timezone
+            end_interval = timezone.localize(
+                datetime.datetime.combine(current_date, end_time)
             )
 
         # Ensure the start of the interval is not before start_datetime and end of interval is not after end_datetime

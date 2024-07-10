@@ -344,7 +344,9 @@ def union_interval_lists(
     return union_rects(left + right)
 
 
-def find_overlapping_windows(windows: list[Interval], intervals: list[Interval]) -> list[Interval]:
+def find_overlapping_windows(
+    windows: list[Interval], intervals: list[Interval]
+) -> list[Interval]:
     """
     Returns a list of windows that overlap with any interval in the intervals list. A window is included in the
     result if it overlaps in any part with any of the given intervals, not just where they intersect. The entire
@@ -355,7 +357,7 @@ def find_overlapping_windows(windows: list[Interval], intervals: list[Interval])
     :return: A list of windows that have any overlap with the intervals.
     """
     # Convert all intervals and windows into events
-    window_events = intervals_to_events(windows)
+    window_events = intervals_to_events(windows, closing_offset=0)
     interval_events = intervals_to_events(intervals, closing_offset=0)
 
     # Use two pointers to traverse the sorted lists of events
@@ -366,21 +368,26 @@ def find_overlapping_windows(windows: list[Interval], intervals: list[Interval])
 
     while w_idx < len(window_events) and i_idx < len(interval_events):
 
-        if window_events[w_idx][0] <= interval_events[i_idx][0]:
-            # next event is a window event (we take precedence of window events over intervals events !)
+        if window_events[w_idx][0] <= interval_events[i_idx][0] and window_events[w_idx][1]:
+            # next event is an OPENING window event (we take precedence of window events over intervals events !)
             event_time, opening, window = window_events[w_idx]
             w_idx += 1
 
-            if opening:
-                # if an interval is currently open, we can add this window and proceed to the ending of the window
-                if active_intervals > 0:
-                    intersecting_windows.append(
-                        Interval(event_time, window_events[w_idx][0] - 1, window_events[w_idx][2]))
-                    w_idx += 1  # we can move on to the next window
-                else:
-                    active_window = True
+            # if an interval is currently open, we can add this window and proceed to the ending of the window
+            if active_intervals > 0:
+                intersecting_windows.append(
+                    Interval(
+                        event_time,
+                        window_events[w_idx][0],
+                        window_events[w_idx][2],
+                    )
+                )
+                w_idx += 1  # we can move on to the next window
             else:
-                active_window = False
+                active_window = True
+        elif window_events[w_idx][0] < interval_events[i_idx][0] and not window_events[w_idx][1]:
+            active_window = False
+            w_idx += 1
         else:
             event_time, opening, interval = interval_events[i_idx]
             i_idx += 1
@@ -394,7 +401,12 @@ def find_overlapping_windows(windows: list[Interval], intervals: list[Interval])
 
             if active_intervals > 0 and active_window:
                 intersecting_windows.append(
-                    Interval(window_events[w_idx - 1][0], window_events[w_idx][0] - 1, window_events[w_idx][2]))
+                    Interval(
+                        window_events[w_idx - 1][0],
+                        window_events[w_idx][0],
+                        window_events[w_idx][2],
+                    )
+                )
                 w_idx += 1  # we can move on to the next window
                 active_window = False
 

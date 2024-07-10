@@ -3358,6 +3358,8 @@ class TestFindOverlappingWindows(ProcessTest):
                 [(15, 25), (5, 10), (20, 30), (35, 45)],
                 [(10, 20), (30, 40)],
             ),
+            ([(10, 20), (21, 30)], [(5, 30)], [(10, 20), (21, 30)]),
+            ([(10, 20), (21, 30), (31, 40), (41, 50)], [(5, 30)], [(10, 20), (21, 30)]),
         ],
     )
     def test_intervals(self, windows, intervals, expected):
