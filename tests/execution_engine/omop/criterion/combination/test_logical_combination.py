@@ -155,13 +155,10 @@ class TestCriterionCombination:
         op = LogicalCriterionCombination.Operator(operator, threshold)
 
         if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-            assert (
-                repr(op)
-                == f'CriterionCombination.Operator("{operator}", threshold={threshold})'
-            )
+            assert repr(op) == f'Operator("{operator}", threshold={threshold})'
             assert str(op) == f"{operator}(threshold={threshold})"
         else:
-            assert repr(op) == f'CriterionCombination.Operator("{operator}")'
+            assert repr(op) == f'Operator("{operator}")'
             assert str(op) == f"{operator}"
 
     def test_repr(self):
@@ -176,7 +173,7 @@ class TestCriterionCombination:
 
         assert (
             repr(combination)
-            == "CriterionCombination(AND).POPULATION_INTERVENTION(exclude=False)"
+            == "LogicalCriterionCombination(AND).POPULATION_INTERVENTION(exclude=False)"
         )
 
     def test_add_all(self):
