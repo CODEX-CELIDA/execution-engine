@@ -598,14 +598,32 @@ def create_time_intervals(
     interval_type: IntervalType,
 ) -> list[Interval]:
     """
-    Create intervals for a given time range.
+    Constructs a list of time intervals within a specified date range, each defined by daily start and end times.
 
-    :param start_datetime: The start datetime.
-    :param end_datetime: The end datetime.
-    :param start_time: The start time.
-    :param end_time: The end time.
-    :param interval_type: The type of the intervals.
+    This function generates intervals for each day between the start and end datetimes, using specified start and end
+    times to define each interval's boundaries. If the end time is earlier than the start time, the interval is assumed
+    to span midnight. The function handles timezone differences and ensures that all calculations respect the time zone
+    of the start datetime if provided, otherwise it uses the local timezone.
+
+    If an interval is not fully contained within the specified date range, it is adjusted to fit within the boundaries.
+
+    Parameters:
+        start_datetime (datetime.datetime): The starting point of the date range for which intervals are created.
+        end_datetime (datetime.datetime): The ending point of the date range.
+        start_time (datetime.time): The daily start time for each interval.
+        end_time (datetime.time): The daily end time for each interval, which may be on the following day if earlier
+            than the start time.
+        interval_type (IntervalType): The type of intervals to be created, which could denote the purpose or nature of
+            the intervals.
+
+    Returns:
+        list[Interval]: A list of Interval namedtuples, each representing a time interval within the specified date
+            range, with its start and end timestamps and the specified type.
+
+    Raises:
+        ValueError: If start_datetime and end_datetime are not in the same timezone.
     """
+
     if start_datetime.tzinfo is not None or end_datetime.tzinfo is not None:
         if start_datetime.tzinfo != end_datetime.tzinfo:
             raise ValueError(
@@ -665,3 +683,20 @@ def create_time_intervals(
         current_date += datetime.timedelta(days=1)
 
     return intervals
+
+
+def find_overlapping_windows(
+    windows: list[Interval], data: PersonIntervals
+) -> PersonIntervals:
+    """
+    Returns a list of windows that overlap with any interval in the intervals list. A window is included in the
+    result if it overlaps in any part with any of the given intervals, not just where they intersect. The entire
+    window is returned, not just the overlapping segment.
+
+    Note that a single, common list of windows is used for all persons.
+
+    :param windows: A list of windows, where each window is defined as an interval.
+    :param data: The dict with intervals that are checked for overlap with the windows.
+    :return: A list of windows that have any overlap with the intervals.
+    """
+    return {key: _impl.find_overlapping_windows(windows, data[key]) for key in data}

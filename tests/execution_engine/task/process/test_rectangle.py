@@ -1,3 +1,4 @@
+import random
 from datetime import time
 
 import pandas as pd
@@ -3138,7 +3139,7 @@ class TestCreateTimeIntervals(ProcessTest):
         start_time = time(9, 0)
         end_time = time(17, 0)
         intervals = self.process.create_time_intervals(
-            start_datetime, end_datetime, start_time, end_time
+            start_datetime, end_datetime, start_time, end_time, interval_type=T.POSITIVE
         )
         assert len(intervals) == 3  # Expecting intervals for July 1st and 2nd
         assert (
@@ -3173,7 +3174,7 @@ class TestCreateTimeIntervals(ProcessTest):
         start_time = time(22, 0)
         end_time = time(6, 0)
         intervals = self.process.create_time_intervals(
-            start_datetime, end_datetime, start_time, end_time
+            start_datetime, end_datetime, start_time, end_time, interval_type=T.POSITIVE
         )
         assert (
             len(intervals) == 2
@@ -3201,7 +3202,7 @@ class TestCreateTimeIntervals(ProcessTest):
         start_time = time(22, 0)
         end_time = time(6, 0)
         intervals = self.process.create_time_intervals(
-            start_datetime, end_datetime, start_time, end_time
+            start_datetime, end_datetime, start_time, end_time, interval_type=T.POSITIVE
         )
         assert (
             len(intervals) == 2
@@ -3222,3 +3223,233 @@ class TestCreateTimeIntervals(ProcessTest):
             intervals[1].upper
             == pendulum.parse("2023-07-03 04:00:00").naive().timestamp()
         )
+
+
+class TestFindOverlappingWindows(ProcessTest):
+    def test_no_intersection(self):
+        windows = [Interval(10, 20, T.POSITIVE)]
+        intervals = {1: [Interval(1, 5, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == []
+
+    def test_full_overlap(self):
+        windows = [Interval(10, 20, T.POSITIVE)]
+        intervals = {1: [Interval(10, 20, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+    def test_partial_overlap_start(self):
+        windows = [Interval(10, 20, T.POSITIVE)]
+        intervals = {1: [Interval(5, 15, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+    def test_partial_overlap_end(self):
+        windows = [Interval(10, 20, T.POSITIVE)]
+        intervals = {1: [Interval(15, 25, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+    def test_multiple_overlapping_intervals(self):
+        windows = [Interval(10, 20, T.POSITIVE)]
+        intervals = {1: [Interval(5, 15, T.POSITIVE), Interval(15, 25, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+    def test_interval_exactly_on_window_boundaries(self):
+        windows = [Interval(10, 20, T.POSITIVE)]
+        intervals = {1: [Interval(20, 30, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+    def test_point_interval(self):
+        windows = [Interval(10, 20, T.POSITIVE)]
+
+        intervals = {1: [Interval(9, 9, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == []
+
+        intervals = {1: [Interval(10, 10, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(10, 10, T.POSITIVE)] * 10}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(11, 11, T.POSITIVE)] * 10}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(20, 20, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(20, 20, T.POSITIVE)] * 10}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(21, 21, T.POSITIVE)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == []
+
+    def test_multiple_opening_closing(self):
+        windows = [Interval(10, 20, T.POSITIVE), Interval(25, 35, T.POSITIVE)]
+
+        intervals = {1: [Interval(10, 10 + i, T.POSITIVE) for i in range(5)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(20, 20 + i, T.POSITIVE) for i in range(4)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(10 - i, 10, T.POSITIVE) for i in range(5)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {1: [Interval(20 - i, 20, T.POSITIVE) for i in range(5)]}
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {
+            1: [Interval(20 - i, 20, T.POSITIVE) for i in range(5)]
+            + [Interval(21, 24, T.POSITIVE)]
+        }
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE)
+        ]
+
+        intervals = {
+            1: [Interval(20 - i, 20 + i, T.POSITIVE) for i in range(5)]
+            + [Interval(21, 25, T.POSITIVE)]
+        }
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == [
+            Interval(10, 20, T.POSITIVE),
+            Interval(25, 35, T.POSITIVE),
+        ]
+
+    @pytest.mark.parametrize(
+        "windows,intervals,expected",
+        [
+            ([], [], []),
+            ([], [(10, 20)], []),
+            ([(10, 20)], [], []),
+            ([(10, 20)], [(5, 10)], [(10, 20)]),
+            ([(10, 20)], [(5, 15)], [(10, 20)]),
+            ([(10, 20)], [(5, 25)], [(10, 20)]),
+            ([(10, 20)], [(15, 25)], [(10, 20)]),
+            ([(10, 20)], [(15, 25), (5, 10)], [(10, 20)]),
+            ([(10, 20)], [(15, 25), (5, 10), (20, 30)], [(10, 20)]),
+            ([(10, 20), (30, 40)], [(15, 25), (5, 10), (20, 30)], [(10, 20), (30, 40)]),
+            (
+                [(10, 20), (30, 40)],
+                [(15, 25), (5, 10), (20, 30), (35, 45)],
+                [(10, 20), (30, 40)],
+            ),
+        ],
+    )
+    def test_intervals(self, windows, intervals, expected):
+
+        windows = [Interval(w[0], w[1], T.POSITIVE) for w in windows]
+        intervals = {1: [Interval(w[0], w[1], T.POSITIVE) for w in intervals]}
+        expected = [Interval(w[0], w[1], T.POSITIVE) for w in expected]
+
+        assert self.process.find_overlapping_windows(windows, intervals)[1] == expected
+
+    @pytest.mark.parametrize("seed", [None, 42, 99, 123])
+    def test_multiple_windows(self, seed):
+
+        windows = [Interval(i + 5, i + 8, "positive") for i in range(0, 150, 10)]
+        intervals = [
+            Interval(2, 20, "positive"),
+            Interval(26, 30, "positive"),
+            Interval(32, 37, "positive"),
+            Interval(46, 47, "positive"),
+            Interval(65, 69, "positive"),
+            Interval(75, 80, "positive"),
+            Interval(85, 86, "positive"),
+            Interval(95, 95, "positive"),
+            Interval(106, 106, "positive"),
+            Interval(116, 118, "positive"),
+            Interval(122, 128, "positive"),
+            Interval(138, 138, "positive"),
+        ]
+
+        expected = [
+            Interval(lower=5, upper=8, type="positive"),
+            Interval(lower=15, upper=18, type="positive"),
+            Interval(lower=25, upper=28, type="positive"),
+            Interval(lower=35, upper=38, type="positive"),
+            Interval(lower=45, upper=48, type="positive"),
+            Interval(lower=65, upper=68, type="positive"),
+            Interval(lower=75, upper=78, type="positive"),
+            Interval(lower=85, upper=88, type="positive"),
+            Interval(lower=95, upper=98, type="positive"),
+            Interval(lower=105, upper=108, type="positive"),
+            Interval(lower=115, upper=118, type="positive"),
+            Interval(lower=125, upper=128, type="positive"),
+            Interval(lower=135, upper=138, type="positive"),
+        ]
+
+        # Shuffle the windows and intervals list
+        if seed is not None:
+            random.seed(seed)  # Seed the random number generator for reproducibility
+            random.shuffle(windows)
+            random.shuffle(intervals)
+
+        assert (
+            self.process.find_overlapping_windows(windows, {1: intervals})[1]
+            == expected
+        )
+
+    @pytest.mark.parametrize("seed", [None, 42, 99, 123])
+    def test_multiple_windows_with_multiple_patients(self, seed):
+        # Define windows
+        windows = [Interval(i + 5, i + 8, T.POSITIVE) for i in range(0, 150, 10)]
+
+        # Define intervals for multiple patients
+        patient_intervals = {
+            1: [Interval(2, 20, T.POSITIVE), Interval(46, 47, T.POSITIVE)],
+            2: [Interval(75, 80, T.POSITIVE), Interval(85, 86, T.POSITIVE)],
+            3: [Interval(95, 95, T.POSITIVE), Interval(106, 106, T.POSITIVE)],
+        }
+
+        # Expected results for each patient
+        expected = {
+            1: [
+                Interval(5, 8, T.POSITIVE),
+                Interval(15, 18, T.POSITIVE),
+                Interval(45, 48, T.POSITIVE),
+            ],
+            2: [Interval(75, 78, T.POSITIVE), Interval(85, 88, T.POSITIVE)],
+            3: [Interval(95, 98, T.POSITIVE), Interval(105, 108, T.POSITIVE)],
+        }
+
+        # Optionally shuffle the windows and intervals list
+        if seed is not None:
+            random.seed(seed)
+            random.shuffle(windows)
+            for intervals in patient_intervals.values():
+                random.shuffle(intervals)
+
+        # Run the test
+        result = self.process.find_overlapping_windows(windows, patient_intervals)
+
+        # Sort results for comparison
+        for pid in expected:
+            result[pid].sort(key=lambda x: x.lower)
+            expected[pid].sort(key=lambda x: x.lower)
+
+        assert result == expected
