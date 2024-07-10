@@ -1,5 +1,5 @@
 from datetime import time
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Dict, Union
 
 from execution_engine.constants import CohortCategory
@@ -7,7 +7,7 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.combination import CriterionCombination
 
 
-class TimeIntervalType(Enum):
+class TimeIntervalType(StrEnum):
     """
     Types of time intervals to aggregate criteria over.
     """
