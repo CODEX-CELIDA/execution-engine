@@ -3139,7 +3139,12 @@ class TestCreateTimeIntervals(ProcessTest):
         start_time = time(9, 0)
         end_time = time(17, 0)
         intervals = self.process.create_time_intervals(
-            start_datetime, end_datetime, start_time, end_time, interval_type=T.POSITIVE
+            start_datetime,
+            end_datetime,
+            start_time,
+            end_time,
+            interval_type=T.POSITIVE,
+            timezone="Europe/Berlin",
         )
         assert len(intervals) == 3  # Expecting intervals for July 1st and 2nd
         assert (
@@ -3174,7 +3179,12 @@ class TestCreateTimeIntervals(ProcessTest):
         start_time = time(22, 0)
         end_time = time(6, 0)
         intervals = self.process.create_time_intervals(
-            start_datetime, end_datetime, start_time, end_time, interval_type=T.POSITIVE
+            start_datetime,
+            end_datetime,
+            start_time,
+            end_time,
+            interval_type=T.POSITIVE,
+            timezone=tz,
         )
         assert (
             len(intervals) == 2
@@ -3202,7 +3212,12 @@ class TestCreateTimeIntervals(ProcessTest):
         start_time = time(22, 0)
         end_time = time(6, 0)
         intervals = self.process.create_time_intervals(
-            start_datetime, end_datetime, start_time, end_time, interval_type=T.POSITIVE
+            start_datetime,
+            end_datetime,
+            start_time,
+            end_time,
+            interval_type=T.POSITIVE,
+            timezone="Europe/Berlin",
         )
         assert (
             len(intervals) == 2
