@@ -1,3 +1,4 @@
+import datetime
 import os
 from typing import Any
 
@@ -20,6 +21,28 @@ class OMOPSettings(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class TimeInterval(BaseModel):
+    """
+    Time interval.
+    """
+
+    start: datetime.time
+    end: datetime.time
+
+
+class TimeIntervalSettings(BaseModel):
+    """
+    Time interval settings.
+    """
+
+    morning_shift: TimeInterval
+    afternoon_shift: TimeInterval
+    night_shift: TimeInterval
+    day: TimeInterval = TimeInterval(
+        start=datetime.time(0, 0, 0), end=datetime.time(23, 59, 59)
+    )
+
+
 class Settings(BaseSettings):  # type: ignore
     """Application settings."""
 
@@ -32,6 +55,8 @@ class Settings(BaseSettings):  # type: ignore
     multiprocessing_pool_size: int = -1
 
     omop: OMOPSettings
+    time_intervals: TimeIntervalSettings
+
     model_config = SettingsConfigDict(
         env_file=os.environ.get("ENV_FILE", ".env"),
         env_file_encoding="utf-8",

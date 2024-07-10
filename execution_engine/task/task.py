@@ -9,6 +9,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlch
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
@@ -413,37 +414,48 @@ class Task:
         condition is met within a certain time frame (e.g. morning shift).
 
         :param data: The input data.
+        :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
         """
 
         data_p = process.select_type(data[0], IntervalType.POSITIVE)
-        data_p = {key: val for key, val in data_p.items() if val}
+        # data_p = {key: val for key, val in data_p.items() if val}
 
-        # todo: set to correct values
-        start_time = datetime.datetime.strptime("06:00:00", "%H:%M:%S").time()
-        end_time = datetime.datetime.strptime("14:00:00", "%H:%M:%S").time()
+        def get_start_end_from_interval_type(
+            type_: TimeIntervalType,
+        ) -> tuple[datetime.time, datetime.time]:
+            """
+            Returns the start and end time for a given TimeIntervalType, read from the configuration.
+            """
+            try:
+                cnf = getattr(get_config().time_intervals, type_.value)
+            except AttributeError:
+                raise ValueError(f"No time interval settings for {type_}")
+            return cnf.start, cnf.end
 
-        # construct time intervals and copy them to each person
-        time_intervals = process.create_time_intervals(
+        assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
+
+        if self.expr.interval_type is not None:
+            start_time, end_time = get_start_end_from_interval_type(
+                self.expr.interval_type
+            )
+        elif self.expr.start_time is not None and self.expr.end_time is not None:
+            start_time, end_time = self.expr.start_time, self.expr.end_time
+        else:
+            raise ValueError("Invalid time interval settings")
+
+        indicator_windows = process.create_time_intervals(
             start_datetime=observation_window.start,
             end_datetime=observation_window.end,
             start_time=start_time,
             end_time=end_time,
             interval_type=IntervalType.POSITIVE,
+            timezone=get_config().timezone,
         )
 
-        indicator_windows: PersonIntervals = {
-            person_id: time_intervals.copy()
-            for person_id in data_p.keys()
-            if data_p[person_id]
-        }
+        result = process.find_overlapping_windows(indicator_windows, data_p)
 
-        result = process.mask_intervals(data_p, mask=indicator_windows)
-        result = process.count_intervals([result, indicator_windows])
-
-        # todo: not sure if we actually need masking here: we could just count the intervals
-
-        raise NotImplementedError("TemporalCount is not implemented yet.")
+        return result
 
     def store_result_in_db(
         self,

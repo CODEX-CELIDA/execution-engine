@@ -1,6 +1,6 @@
 from datetime import time
 from enum import Enum
-from typing import Union
+from typing import Any, Dict, Union
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
@@ -95,6 +95,48 @@ class TemporalIndicatorCombination(CriterionCombination):
             return f"{super().__str__()} from {self.start_time.strftime('%H:%M:%S')} to {self.end_time.strftime('%H:%M:%S')}"
         else:
             return super().__str__()
+
+    def dict(self) -> Dict:
+        """
+        Get the dictionary representation of the criterion combination.
+        """
+
+        d = super().dict()
+        del d["exclude"]
+        d["start_time"] = self.start_time.isoformat() if self.start_time else None
+        d["end_time"] = self.end_time.isoformat() if self.end_time else None
+        d["interval_type"] = self.interval_type
+
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TemporalIndicatorCombination":
+        """
+        Create a criterion combination from a dictionary.
+        """
+
+        from execution_engine.omop.criterion.factory import (
+            criterion_factory,  # needs to be here to avoid circular import
+        )
+
+        operator = cls.Operator(data["operator"], data["threshold"])
+        category = CohortCategory(data["category"])
+
+        combination = cls(
+            operator=operator,
+            category=category,
+            interval_type=data["interval_type"],
+            # start_time and end_time is in isoformat !
+            start_time=(
+                time.fromisoformat(data["start_time"]) if data["start_time"] else None
+            ),
+            end_time=time.fromisoformat(data["end_time"]) if data["end_time"] else None,
+        )
+
+        for criterion in data["criteria"]:
+            combination.add(criterion_factory(**criterion))
+
+        return combination
 
     @classmethod
     def Presence(
