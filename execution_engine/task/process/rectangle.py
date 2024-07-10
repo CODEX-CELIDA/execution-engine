@@ -5,6 +5,7 @@ import os
 from typing import Callable, cast
 
 import numpy as np
+import pendulum
 import pytz
 from sqlalchemy import CursorResult
 
@@ -591,8 +592,8 @@ def filter_dicts_by_common_keys(
 
 
 def create_time_intervals(
-    start_datetime: datetime.datetime,
-    end_datetime: datetime.datetime,
+    start_datetime: datetime.datetime | pendulum.DateTime,
+    end_datetime: datetime.datetime | pendulum.DateTime,
     start_time: datetime.time,
     end_time: datetime.time,
     interval_type: IntervalType,
@@ -639,8 +640,28 @@ def create_time_intervals(
     if isinstance(timezone, str):
         timezone = cast(pytz.tzinfo.DstTzInfo, pytz.timezone(timezone))
 
-    start_datetime = start_datetime.astimezone(timezone)
-    end_datetime = end_datetime.astimezone(timezone)
+    # todo: do not use these checks, there must be a universal way
+    if isinstance(start_datetime, datetime.datetime) and not isinstance(
+        start_datetime, pendulum.DateTime
+    ):
+        if (
+            start_datetime.tzinfo is None
+            or start_datetime.tzinfo.utcoffset(start_datetime) is None
+        ):
+            start_datetime = timezone.localize(start_datetime)
+        else:
+            start_datetime = start_datetime.astimezone(timezone)
+        if (
+            end_datetime.tzinfo is None
+            or end_datetime.tzinfo.utcoffset(end_datetime) is None
+        ):
+            end_datetime = timezone.localize(end_datetime)
+        else:
+            end_datetime = end_datetime.astimezone(timezone)
+    elif isinstance(start_datetime, pendulum.DateTime):
+        assert isinstance(end_datetime, pendulum.DateTime)  # for mypy...
+        start_datetime = start_datetime.in_timezone(timezone)
+        end_datetime = end_datetime.in_timezone(timezone)
 
     # Prepare to collect intervals
     intervals = []

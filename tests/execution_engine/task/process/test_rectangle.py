@@ -3133,7 +3133,8 @@ class TestCreateTimeIntervals(ProcessTest):
     def tz_aware_datetime(self, date_str, timezone):
         return pendulum.parse(date_str, tz=timezone)
 
-    def test_naive_datetimes(self):
+    @pytest.mark.parametrize("timezone", ["America/New_York", "Europe/Berlin", "UTC"])
+    def test_naive_datetimes(self, timezone):
         start_datetime = pendulum.parse("2023-07-01 12:00:00").naive()
         end_datetime = pendulum.parse("2023-07-03 12:00:00").naive()
         start_time = time(9, 0)
@@ -3144,32 +3145,32 @@ class TestCreateTimeIntervals(ProcessTest):
             start_time,
             end_time,
             interval_type=T.POSITIVE,
-            timezone="Europe/Berlin",
+            timezone=timezone,
         )
         assert len(intervals) == 3  # Expecting intervals for July 1st and 2nd
         assert (
             intervals[0].lower
-            == pendulum.parse("2023-07-01 12:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-01 12:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[0].upper
-            == pendulum.parse("2023-07-01 17:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-01 17:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[1].lower
-            == pendulum.parse("2023-07-02 09:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-02 09:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[1].upper
-            == pendulum.parse("2023-07-02 17:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-02 17:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[2].lower
-            == pendulum.parse("2023-07-03 09:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-03 09:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[2].upper
-            == pendulum.parse("2023-07-03 12:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-03 12:00:00", tz=timezone).timestamp()
         )
 
     def test_aware_datetimes(self):
@@ -3206,9 +3207,10 @@ class TestCreateTimeIntervals(ProcessTest):
             == self.tz_aware_datetime("2023-07-03 06:00:00", tz).timestamp()
         )
 
-    def test_spanning_midnight_naive(self):
-        start_datetime = pendulum.parse("2023-07-01 12:00:00").naive()
-        end_datetime = pendulum.parse("2023-07-03 04:00:00").naive()
+    @pytest.mark.parametrize("timezone", ["America/New_York", "Europe/Berlin", "UTC"])
+    def test_spanning_midnight_naive(self, timezone):
+        start_datetime = pendulum.parse("2023-07-01 12:00:00", tz=timezone)
+        end_datetime = pendulum.parse("2023-07-03 04:00:00", tz=timezone)
         start_time = time(22, 0)
         end_time = time(6, 0)
         intervals = self.process.create_time_intervals(
@@ -3217,26 +3219,26 @@ class TestCreateTimeIntervals(ProcessTest):
             start_time,
             end_time,
             interval_type=T.POSITIVE,
-            timezone="Europe/Berlin",
+            timezone=timezone,
         )
         assert (
             len(intervals) == 2
         )  # Expecting intervals for the nights of July 1st and 2nd
         assert (
             intervals[0].lower
-            == pendulum.parse("2023-07-01 22:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-01 22:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[0].upper
-            == pendulum.parse("2023-07-02 06:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-02 06:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[1].lower
-            == pendulum.parse("2023-07-02 22:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-02 22:00:00", tz=timezone).timestamp()
         )
         assert (
             intervals[1].upper
-            == pendulum.parse("2023-07-03 04:00:00").naive().timestamp()
+            == pendulum.parse("2023-07-03 04:00:00", tz=timezone).timestamp()
         )
 
 
