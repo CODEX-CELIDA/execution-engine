@@ -16,7 +16,9 @@ from execution_engine.converter.converter import (
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
 from execution_engine.omop.vocabulary import (
@@ -270,12 +272,12 @@ class DrugAdministrationAction(AbstractAction):
 
         return df_filtered
 
-    def _to_criterion(self) -> Criterion | CriterionCombination | None:
+    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
         """
         Returns a criterion that represents this action.
         """
 
-        drug_actions: list[Criterion | CriterionCombination] = []
+        drug_actions: list[Criterion | LogicalCriterionCombination] = []
 
         if not self._dosages:
             # no dosages, just return the drug exposure
@@ -299,10 +301,10 @@ class DrugAdministrationAction(AbstractAction):
             if dosage.get("extensions", None) is None:
                 drug_actions.append(drug_action)
             else:
-                comb = CriterionCombination(
+                comb = LogicalCriterionCombination(
                     exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
                     category=CohortCategory.INTERVENTION,
-                    operator=CriterionCombination.Operator("AND"),
+                    operator=LogicalCriterionCombination.Operator("AND"),
                 )
                 drug_action.exclude = False  # reset the exclude flag, as it is now part of the combination
 
@@ -325,10 +327,10 @@ class DrugAdministrationAction(AbstractAction):
             drug_actions[0].exclude = self._exclude
             return drug_actions[0]
         else:
-            comb = CriterionCombination(
+            comb = LogicalCriterionCombination(
                 exclude=self._exclude,
                 category=CohortCategory.INTERVENTION,
-                operator=CriterionCombination.Operator("OR"),
+                operator=LogicalCriterionCombination.Operator("OR"),
             )
             comb.add_all(drug_actions)
             return comb

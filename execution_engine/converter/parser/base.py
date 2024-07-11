@@ -7,7 +7,9 @@ from execution_engine.converter.characteristic.combination import (
     CharacteristicCombination,
 )
 from execution_engine.converter.converter import CriterionConverterFactory
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 
 
 class FhirRecommendationParserInterface(ABC):
@@ -33,7 +35,7 @@ class FhirRecommendationParserInterface(ABC):
         self,
         actions_def: list[fhir.RecommendationPlan.Action],
         rec_plan: fhir.RecommendationPlan,
-    ) -> CriterionCombination:
+    ) -> LogicalCriterionCombination:
         """
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
         corresponding action selection behavior.

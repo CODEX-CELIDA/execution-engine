@@ -2,31 +2,33 @@ from .constants import CohortCategory
 from .converter.characteristic.abstract import AbstractCharacteristic
 from .converter.characteristic.combination import CharacteristicCombination
 from .omop.criterion.abstract import Criterion
-from .omop.criterion.combination import CriterionCombination
+from .omop.criterion.combination.logical import LogicalCriterionCombination
 
 
 def characteristic_code_to_criterion_combination_operator(
     code: CharacteristicCombination.Code, threshold: int | None = None
-) -> CriterionCombination.Operator:
+) -> LogicalCriterionCombination.Operator:
     """
     Convert a characteristic combination code (from FHIR) to a criterion combination operator (for OMOP).
     """
     mapping = {
-        CharacteristicCombination.Code.ALL_OF: CriterionCombination.Operator.AND,
-        CharacteristicCombination.Code.ANY_OF: CriterionCombination.Operator.OR,
-        CharacteristicCombination.Code.AT_LEAST: CriterionCombination.Operator.AT_LEAST,
-        CharacteristicCombination.Code.AT_MOST: CriterionCombination.Operator.AT_MOST,
-        CharacteristicCombination.Code.EXACTLY: CriterionCombination.Operator.EXACTLY,
+        CharacteristicCombination.Code.ALL_OF: LogicalCriterionCombination.Operator.AND,
+        CharacteristicCombination.Code.ANY_OF: LogicalCriterionCombination.Operator.OR,
+        CharacteristicCombination.Code.AT_LEAST: LogicalCriterionCombination.Operator.AT_LEAST,
+        CharacteristicCombination.Code.AT_MOST: LogicalCriterionCombination.Operator.AT_MOST,
+        CharacteristicCombination.Code.EXACTLY: LogicalCriterionCombination.Operator.EXACTLY,
     }
 
     if code not in mapping:
         raise NotImplementedError(f"Unknown CharacteristicCombination.Code: {code}")
-    return CriterionCombination.Operator(operator=mapping[code], threshold=threshold)
+    return LogicalCriterionCombination.Operator(
+        operator=mapping[code], threshold=threshold
+    )
 
 
 def characteristic_to_criterion(
     characteristic: AbstractCharacteristic | CharacteristicCombination,
-) -> Criterion | CriterionCombination:
+) -> Criterion | LogicalCriterionCombination:
     """
     Convert a characteristic to a criterion.
     """
@@ -34,7 +36,7 @@ def characteristic_to_criterion(
         operator = characteristic_code_to_criterion_combination_operator(
             characteristic.code, characteristic.threshold
         )
-        comb = CriterionCombination(
+        comb = LogicalCriterionCombination(
             category=CohortCategory.POPULATION,
             exclude=characteristic.exclude,
             operator=operator,

@@ -6,7 +6,9 @@ from execution_engine.converter.converter import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.vocabulary import SNOMEDCT
 from execution_engine.util.types import Timing
@@ -47,7 +49,7 @@ class BodyPositioningAction(AbstractAction):
 
         return cls(exclude=exclude, code=code, timing=timing)
 
-    def _to_criterion(self) -> Criterion | CriterionCombination | None:
+    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
         """Converts this characteristic to a Criterion."""
 
         return ProcedureOccurrence(

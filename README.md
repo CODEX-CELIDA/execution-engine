@@ -28,7 +28,7 @@ that can be used to execute the recommendations on patient data in OMOP CDM form
 
 > [!WARNING]
 > In contrast to the OMOP CDM 5.4 specification, the OMOP CDM database used for the execution engine
-> **must** implement all `*_datetime` fields as `TIMESTAMP WITH TIME ZONE NOT NULL`. 
+> **must** implement all `*_datetime` fields as `TIMESTAMP WITH TIME ZONE NOT NULL`.
 
 
 ### Setup
@@ -280,6 +280,20 @@ CELIDA_EE_MULTIPROCESSING_USE=0
 
 # Set number of workers in multiprocessing pool. Use -1 to use number of available cpu cores.
 CELIDA_EE_MULTIPROCESSING_POOL_SIZE=-1
+
+# Time Intervals (used for shift definitions)
+## Morning Shift
+CELIDA_EE_TIME_INTERVALS__MORNING_SHIFT__START=06:00:00
+CELIDA_EE_TIME_INTERVALS__MORNING_SHIFT__END=13:59:59
+
+## Afternoon Shift
+CELIDA_EE_TIME_INTERVALS__AFTERNOON_SHIFT__START=14:00:00
+CELIDA_EE_TIME_INTERVALS__AFTERNOON_SHIFT__END=21:59:59
+
+## Night Shift
+CELIDA_EE_TIME_INTERVALS__NIGHT_SHIFT__START=22:00:00
+CELIDA_EE_TIME_INTERVALS__NIGHT_SHIFT__END=05:59:59
+
 ```
 
 You can copy the supplied `sample.env` file to `.env` and adjust the variables according to your local setup.

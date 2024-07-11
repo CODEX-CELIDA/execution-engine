@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import logging
 from enum import Enum, auto
@@ -8,6 +9,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlch
 import execution_engine.util.cohort_logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
@@ -173,6 +175,8 @@ class Task:
                     result = self.handle_no_data_preserving_operator(
                         data, base_data, observation_window
                     )
+                elif isinstance(self.expr, logic.TemporalCount):
+                    result = self.handle_temporal_operator(data, observation_window)
                 else:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
@@ -397,6 +401,59 @@ class Task:
         )
 
         result = process.concat_intervals([result, result_no_data])
+
+        return result
+
+    def handle_temporal_operator(
+        self, data: list[PersonIntervals], observation_window: TimeRange
+    ) -> PersonIntervals:
+        """
+        Handles a TemporalCount operator.
+
+        May be used to aggregate multiple criteria in a temporal manner, e.g. to count the number of times a certain
+        condition is met within a certain time frame (e.g. morning shift).
+
+        :param data: The input data.
+        :param observation_window: The observation window.
+        :return: A DataFrame with the merged intervals.
+        """
+
+        data_p = process.select_type(data[0], IntervalType.POSITIVE)
+        # data_p = {key: val for key, val in data_p.items() if val}
+
+        def get_start_end_from_interval_type(
+            type_: TimeIntervalType,
+        ) -> tuple[datetime.time, datetime.time]:
+            """
+            Returns the start and end time for a given TimeIntervalType, read from the configuration.
+            """
+            try:
+                cnf = getattr(get_config().time_intervals, type_.value)
+            except AttributeError:
+                raise ValueError(f"No time interval settings for {type_}")
+            return cnf.start, cnf.end
+
+        assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
+
+        if self.expr.interval_type is not None:
+            start_time, end_time = get_start_end_from_interval_type(
+                self.expr.interval_type
+            )
+        elif self.expr.start_time is not None and self.expr.end_time is not None:
+            start_time, end_time = self.expr.start_time, self.expr.end_time
+        else:
+            raise ValueError("Invalid time interval settings")
+
+        indicator_windows = process.create_time_intervals(
+            start_datetime=observation_window.start,
+            end_datetime=observation_window.end,
+            start_time=start_time,
+            end_time=end_time,
+            interval_type=IntervalType.POSITIVE,
+            timezone=get_config().timezone,
+        )
+
+        result = process.find_overlapping_windows(indicator_windows, data_p)
 
         return result
 

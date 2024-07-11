@@ -11,7 +11,9 @@ from fhir.resources.range import Range
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.vocabulary import standard_vocabulary
 from execution_engine.util.value import Value, ValueConcept, ValueNumber
 
@@ -128,7 +130,7 @@ class CriterionConverter(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def to_criterion(self) -> Criterion | CriterionCombination:
+    def to_criterion(self) -> Criterion | LogicalCriterionCombination:
         """Converts this characteristic to a Criterion."""
         raise NotImplementedError()
 

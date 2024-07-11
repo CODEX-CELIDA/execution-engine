@@ -2,9 +2,10 @@ import datetime
 import importlib
 import logging
 import os
-from typing import Callable
+from typing import Callable, cast
 
 import numpy as np
+import pendulum
 import pytz
 from sqlalchemy import CursorResult
 
@@ -532,7 +533,8 @@ def mask_intervals(
     """
     Masks the intervals in the dict per key.
 
-    The intervals in data are intersected with the intervals in mask on a key-wise basis. The intervals outside the mask
+    The intervals in data are intersected with the intervals in mask on a key-wise basis.
+    The intervals outside the mask are removed.
 
     :param data: The dict with intervals that should be masked
     :param mask: A dict with intervals that should be used for masking.
@@ -587,3 +589,140 @@ def filter_dicts_by_common_keys(
     filtered_dicts = [{k: d[k] for k in common_keys} for d in data]
 
     return filtered_dicts
+
+
+def create_time_intervals(
+    start_datetime: datetime.datetime | pendulum.DateTime,
+    end_datetime: datetime.datetime | pendulum.DateTime,
+    start_time: datetime.time,
+    end_time: datetime.time,
+    interval_type: IntervalType,
+    timezone: pytz.tzinfo.DstTzInfo | str,
+) -> list[Interval]:
+    """
+    Constructs a list of time intervals within a specified date range, each defined by daily start and end times.
+
+    This function generates intervals for each day between the start and end datetimes, using specified start and end
+    times to define each interval's boundaries. If the end time is earlier than the start time, the interval is assumed
+    to span midnight. The function handles timezone differences and ensures that all calculations respect the time zone
+    of the start datetime if provided, otherwise it uses the local timezone.
+
+    If an interval is not fully contained within the specified date range, it is adjusted to fit within the boundaries.
+
+    Parameters:
+        start_datetime (datetime.datetime): The starting point of the date range for which intervals are created.
+        end_datetime (datetime.datetime): The ending point of the date range.
+        start_time (datetime.time): The daily start time for each interval.
+        end_time (datetime.time): The daily end time for each interval, which may be on the following day if earlier
+            than the start time.
+        interval_type (IntervalType): The type of intervals to be created, which could denote the purpose or nature of
+            the intervals.
+        timezone (pytz.timezone): The timezone to use for the calculations.
+
+    Returns:
+        list[Interval]: A list of Interval namedtuples, each representing a time interval within the specified date
+            range, with its start and end timestamps and the specified type.
+
+    Raises:
+        ValueError: If start_datetime and end_datetime are not in the same timezone.
+    """
+
+    # if start_datetime.tzinfo is not None or end_datetime.tzinfo is not None:
+    #     if start_datetime.tzinfo != end_datetime.tzinfo:
+    #         raise ValueError(
+    #             "start_datetime and end_datetime must have the same timezone"
+    #         )
+    #     timezone = start_datetime.tzinfo
+    # else:
+    #     # use local timezone if no timezone is provided
+    #     timezone = datetime.datetime.now().astimezone().tzinfo
+
+    if isinstance(timezone, str):
+        timezone = cast(pytz.tzinfo.DstTzInfo, pytz.timezone(timezone))
+
+    # todo: do not use these checks, there must be a universal way
+    if isinstance(start_datetime, datetime.datetime) and not isinstance(
+        start_datetime, pendulum.DateTime
+    ):
+        if (
+            start_datetime.tzinfo is None
+            or start_datetime.tzinfo.utcoffset(start_datetime) is None
+        ):
+            start_datetime = timezone.localize(start_datetime)
+        else:
+            start_datetime = start_datetime.astimezone(timezone)
+        if (
+            end_datetime.tzinfo is None
+            or end_datetime.tzinfo.utcoffset(end_datetime) is None
+        ):
+            end_datetime = timezone.localize(end_datetime)
+        else:
+            end_datetime = end_datetime.astimezone(timezone)
+    elif isinstance(start_datetime, pendulum.DateTime):
+        assert isinstance(end_datetime, pendulum.DateTime)  # for mypy...
+        start_datetime = start_datetime.in_timezone(timezone)
+        end_datetime = end_datetime.in_timezone(timezone)
+
+    # Prepare to collect intervals
+    intervals = []
+
+    # Current date to process
+    current_date = start_datetime.date()
+
+    # Loop over each day from start_datetime to end_datetime
+    while current_date <= end_datetime.date():
+        # Calculate the datetime for the start time on the current date
+        start_interval = timezone.localize(
+            datetime.datetime.combine(current_date, start_time)
+        )
+
+        # Determine if the end time is on the next day
+        if end_time <= start_time:
+            end_interval = timezone.localize(
+                datetime.datetime.combine(
+                    current_date + datetime.timedelta(days=1), end_time
+                )
+            )
+        else:
+            end_interval = timezone.localize(
+                datetime.datetime.combine(current_date, end_time)
+            )
+
+        # Ensure the start of the interval is not before start_datetime and end of interval is not after end_datetime
+        if start_interval < start_datetime:
+            start_interval = start_datetime
+        if end_interval > end_datetime:
+            end_interval = end_datetime
+
+        # Create the interval if it falls within the main datetime range
+        if (
+            start_interval < end_interval
+        ):  # Ensures we don't create an interval where start equals end due to adjustments
+            interval = Interval(
+                lower=start_interval.timestamp(),
+                upper=end_interval.timestamp(),
+                type=interval_type,
+            )
+            intervals.append(interval)
+
+        # Move to the next day
+        current_date += datetime.timedelta(days=1)
+
+    return intervals
+
+
+def find_overlapping_windows(
+    windows: list[Interval], data: PersonIntervals
+) -> PersonIntervals:
+    """
+    Returns a list of windows that overlap with any interval in the intervals list. A window is included in the
+    result if it overlaps in any part with any of the given intervals, not just where they intersect. The entire
+    window is returned, not just the overlapping segment.
+
+    Note that a single, common list of windows is used for all persons.
+
+    :param windows: A list of windows, where each window is defined as an interval.
+    :param data: The dict with intervals that are checked for overlap with the windows.
+    :return: A list of windows that have any overlap with the intervals.
+    """
+    return {key: _impl.find_overlapping_windows(windows, data[key]) for key in data}

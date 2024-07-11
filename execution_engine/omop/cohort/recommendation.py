@@ -22,7 +22,10 @@ from execution_engine.omop import cohort
 
 # )
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.serializable import Serializable
@@ -160,10 +163,10 @@ class Recommendation(Serializable):
         """
         Get the criteria of the recommendation.
         """
-        criteria = CriterionCombination(
+        criteria = LogicalCriterionCombination(
             exclude=False,
             category=CohortCategory.BASE,
-            operator=CriterionCombination.Operator("OR"),
+            operator=LogicalCriterionCombination.Operator("OR"),
             root_combination=True,
         )
 
