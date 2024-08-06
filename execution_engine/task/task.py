@@ -233,18 +233,6 @@ class Task:
         logging.debug(f"Processing data - '{criterion.description()}'")
         data = criterion.process_data(data, base_data, observation_window)
 
-        # fill remaining time with NEGATIVE (this is required as otherwise an AND operation on a NO_DATA and
-        # a non-existing (i.e. not-filled) interval yields NO_DATA, but should actually be NEGATIVE
-        if base_data is not None:
-            data_negative = process.complementary_intervals(
-                data,
-                reference=base_data,
-                observation_window=observation_window,
-                interval_type=IntervalType.NEGATIVE,
-            )
-
-            data = process.concat_intervals([data, data_negative])
-
         return data
 
     def handle_unary_logical_operator(
