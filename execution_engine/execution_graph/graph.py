@@ -149,6 +149,53 @@ class ExecutionGraph(nx.DiGraph):
 
         return sink_nodes[0]
 
+    def to_cytoscape_dict(self) -> dict:
+        """
+        Convert the graph to a dictionary that can be used by Cytoscape.js.
+        """
+        nodes = []
+        edges = []
+
+        for node in self.nodes():
+            # Ensure all node attributes are serializable
+            node_data = {
+                "data": {
+                    "id": str(node),
+                    "label": str(node),
+                    "type": (
+                        node._repr_join_str
+                        if hasattr(node, "_repr_join_str")
+                        and node._repr_join_str is not None
+                        else node.__class__.__name__
+                    ),
+                    "category": self.nodes[node][
+                        "category"
+                    ].value,  # Assuming 'value' is serializable
+                    "store_result": str(
+                        self.nodes[node]["store_result"]
+                    ),  # Convert to string if necessary
+                }
+            }
+
+            if self.nodes[node]["category"] == CohortCategory.BASE:
+                node_data["data"]["base_criterion"] = str(
+                    node.criterion
+                )  # Ensure this is serializable
+
+            nodes.append(node_data)
+
+        for edge in self.edges():
+            edges.append(
+                {
+                    "data": {
+                        "source": str(edge[0]),
+                        "target": str(edge[1]),
+                    }
+                }
+            )
+
+        return {"nodes": nodes, "edges": edges}
+
     def plot(self) -> None:
         """
         Plot the graph.

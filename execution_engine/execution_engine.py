@@ -1,4 +1,5 @@
 import hashlib
+import json
 import logging
 from datetime import datetime
 
@@ -205,6 +206,10 @@ class ExecutionEngine:
             recommendation_table.recommendation_hash == rec_hash
         )
 
+        rec_graph: bytes = json.dumps(
+            recommendation.execution_graph().to_cytoscape_dict(), sort_keys=True
+        ).encode()
+
         with self._db.begin() as con:
             rec_db = con.execute(query).fetchone()
 
@@ -221,6 +226,7 @@ class ExecutionEngine:
                         recommendation_package_version=recommendation.package_version,
                         recommendation_hash=rec_hash,
                         recommendation_json=rec_json,
+                        recommendation_execution_graph=rec_graph,
                         create_datetime=datetime.now(),
                     )
                     .returning(recommendation_table.recommendation_id)

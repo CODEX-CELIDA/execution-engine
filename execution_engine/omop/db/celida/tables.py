@@ -50,6 +50,7 @@ class Recommendation(Base):  # noqa: D101
         String(64), index=True, unique=True
     )
     recommendation_json = mapped_column(LargeBinary)
+    recommendation_execution_graph = mapped_column(LargeBinary)
     create_datetime: Mapped[datetime]
 
 

@@ -34,6 +34,9 @@ class Concept(BaseModel, frozen=True):  # type: ignore
         """
         Returns a string representation of the concept.
         """
+        if self.vocabulary_id == "UCUM":
+            return str(self.concept_code)
+
         return str(self.concept_name)
 
     def is_custom(self) -> bool:
