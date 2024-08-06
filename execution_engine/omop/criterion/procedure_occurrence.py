@@ -145,6 +145,8 @@ class ProcedureOccurrence(ContinuousCriterion):
         Get a human-readable description of the criterion.
         """
 
+        assert self._concept is not None, "Concept must be set"
+
         parts = [f"concept={self._concept.concept_name}"]
         if self._timing is not None:
             parts.append(f"dose={str(self._timing)}")
@@ -155,6 +157,8 @@ class ProcedureOccurrence(ContinuousCriterion):
         """
         Return a dictionary representation of the criterion.
         """
+        assert self._concept is not None, "Concept must be set"
+
         return {
             "exclude": self._exclude,
             "category": self._category.value,

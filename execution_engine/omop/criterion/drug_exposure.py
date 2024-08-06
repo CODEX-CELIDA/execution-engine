@@ -69,6 +69,16 @@ class DrugExposure(Criterion):
         """Get the concept of the ingredient associated with this DrugExposure"""
         return self._ingredient_concept
 
+    @property
+    def dose(self) -> Dosage:
+        """Get the dose associated with this DrugExposure"""
+        return self._dose
+
+    @property
+    def route(self) -> Concept | None:
+        """Get the route associated with this DrugExposure"""
+        return self._route
+
     def is_weight_related(self) -> bool:
         """
         Check if the criterion is weight related.

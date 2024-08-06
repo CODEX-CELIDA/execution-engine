@@ -1,10 +1,11 @@
 import hashlib
+import json
 import logging
 from datetime import datetime
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import and_, insert, select
+from sqlalchemy import and_, insert, select, update
 
 from execution_engine import __version__
 from execution_engine.builder import ExecutionEngineBuilder
@@ -229,15 +230,27 @@ class ExecutionEngine:
                 result = con.execute(query)
                 recommendation.id = result.fetchone().recommendation_id
 
-                con.commit()
+        for pi_pair in recommendation.population_intervention_pairs():
+            self.register_population_intervention_pair(
+                pi_pair, recommendation_id=recommendation.id
+            )
 
-            for pi_pair in recommendation.population_intervention_pairs():
-                self.register_population_intervention_pair(
-                    pi_pair, recommendation_id=recommendation.id
-                )
+            for criterion in pi_pair.flatten():
+                self.register_criterion(criterion)
 
-                for criterion in pi_pair.flatten():
-                    self.register_criterion(criterion)
+        with self._db.begin() as con:
+            # update recommendation with execution graph (now that criterion & pi pair is are known)
+            rec_graph: bytes = json.dumps(
+                recommendation.execution_graph().to_cytoscape_dict(), sort_keys=True
+            ).encode()
+
+            update_query = (
+                update(recommendation_table)
+                .where(recommendation_table.recommendation_id == recommendation.id)
+                .values(recommendation_execution_graph=rec_graph)
+            )
+
+            con.execute(update_query)
 
     def register_population_intervention_pair(
         self, pi_pair: PopulationInterventionPair, recommendation_id: int
@@ -271,8 +284,6 @@ class ExecutionEngine:
 
                 result = con.execute(query)
                 pi_pair.id = result.fetchone().pi_pair_id
-
-                con.commit()
 
     def register_criterion(self, criterion: Criterion) -> None:
         """

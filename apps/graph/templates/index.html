@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CELIDA Execution Graphs</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.21.0/cytoscape.min.js"></script>
+    <script src="https://unpkg.com/klayjs@0.4.1/klay.js"></script>
+    <script src="https://unpkg.com/dagre@0.7.4/dist/dagre.js"></script>
+    <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+    <script src="https://unpkg.com/cytoscape-klay@3.1.4/cytoscape-klay.js"></script>
+    <script src="https://unpkg.com/@popperjs/core@2.11.2/dist/umd/popper.min.js"></script>
+    <script src="https://unpkg.com/tippy.js@6.3.1/dist/tippy-bundle.umd.min.js"></script>
+    <!-- cy libs -->
+    <script src="https://unpkg.com/cytoscape-popper@1.0.7/cytoscape-popper.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css" />
+    <style>
+        body {
+            display: flex;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #recommendation-list {
+            width: 250px; /* Adjust width as necessary */
+            overflow-y: auto;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+        }
+        .recommendation-item {
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+        }
+        .recommendation-item:hover {
+            background-color: #f0f0f0;
+        }
+        #cy {
+            flex-grow: 1;
+            display: block;
+        }
+        .recommendation-title {
+            font-weight: bold;
+        }
+        .recommendation-detail {
+            font-size: 0.9em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div id="recommendation-list"></div>
+    <div id="cy"></div>
+    <div class="popover" id="popover"></div>
+    <script>
+        const eeApiUrl = "{{ ee_api_url }}";
+    </script>
+    <script src="/static/script.js"></script>
+</body>
+</html>
