@@ -160,7 +160,9 @@ class Task:
                     ),
                 ):
                     result = self.handle_binary_logical_operator(data)
-                elif isinstance(self.expr, logic.LeftDependentToggle):
+                elif isinstance(
+                    self.expr, (logic.LeftDependentToggle, logic.ConditionalFilter)
+                ):
                     result = self.handle_left_dependent_toggle(
                         left=data[0],
                         right=data[1],
@@ -230,6 +232,18 @@ class Task:
 
         logging.debug(f"Processing data - '{criterion.description()}'")
         data = criterion.process_data(data, base_data, observation_window)
+
+        # fill remaining time with NEGATIVE (this is required as otherwise an AND operation on a NO_DATA and
+        # a non-existing (i.e. not-filled) interval yields NO_DATA, but should actually be NEGATIVE
+        if base_data is not None:
+            data_negative = process.complementary_intervals(
+                data,
+                reference=base_data,
+                observation_window=observation_window,
+                interval_type=IntervalType.NEGATIVE,
+            )
+
+            data = process.concat_intervals([data, data_negative])
 
         return data
 
@@ -344,9 +358,13 @@ class Task:
         observation_window: TimeRange,
     ) -> PersonIntervals:
         """
-        Handles a left dependent toggle by merging the intervals of the left dependency with the intervals of the
-        right dependency according to the following rules:
+        Handles a left dependent toggle or a conditional filter by merging the intervals of the left dependency with the
+        intervals of the right dependency according to the following rules. The difference between the two is that
+        the conditional filter yields NEGATIVE if left dependence is NEGATIVE or NO_DATA, while the left dependent
+        toggle yields NOT_APPLICABLE in these cases.
 
+        LeftDependentToggle
+        -------------------
         - If P is NEGATIVE or NO_DATA, the result is NOT_APPLICABLE (NO_DATA: because we cannot decide whether the
             recommendation is applicable or not).
         - If P is POSITIVE, the result is:
@@ -364,6 +382,24 @@ class Task:
         | POSITIVE | NEGATIVE | NEGATIVE |
         | POSITIVE | NO_DATA | NO_DATA |
 
+        ConditionalFilter
+        -------------------
+        - If P is NEGATIVE or NO_DATA, the result is NEGATIVE.
+        - If P is POSITIVE, the result is:
+            - POSITIVE if I is POSITIVE
+            - NEGATIVE if I is NEGATIVE
+            - NO_DATA if I is NO_DATA
+
+        In tabular form:
+
+        | P | I | Result |
+        |---|---|--------|
+        | NEGATIVE | * | NEGATIVE |
+        | NO_DATA | * | NEGATIVE |
+        | POSITIVE | POSITIVE | POSITIVE |
+        | POSITIVE | NEGATIVE | NEGATIVE |
+        | POSITIVE | NO_DATA | NO_DATA |
+
         :param left: The intervals of the left dependency (the one that determines whether the right dependency is
                     returned).
         :param right: The intervals of the right dependency (the one that is taken when the left dependency is
@@ -373,19 +409,24 @@ class Task:
         :return: A DataFrame with the merged intervals.
         """
         assert isinstance(
-            self.expr, logic.LeftDependentToggle
-        ), "Dependency is not a LeftDependentToggle expression."
+            self.expr, (logic.LeftDependentToggle, logic.ConditionalFilter)
+        ), "Dependency is not a LeftDependentToggle or ConditionalFilter expression."
 
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
 
         data_p = process.select_type(left, IntervalType.POSITIVE)
 
+        if isinstance(self.expr, logic.LeftDependentToggle):
+            interval_type = IntervalType.NOT_APPLICABLE
+        elif isinstance(self.expr, logic.ConditionalFilter):
+            interval_type = IntervalType.NEGATIVE
+
         result_not_p = process.complementary_intervals(
             data_p,
             reference=base_data,
             observation_window=observation_window,
-            interval_type=IntervalType.NOT_APPLICABLE,
+            interval_type=interval_type,
         )
 
         result_p_and_i = process.intersect_intervals([data_p, right])
