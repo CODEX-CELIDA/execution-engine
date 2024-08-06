@@ -51,6 +51,12 @@ class ExecutionGraph(nx.DiGraph):
 
         return True
 
+    def is_sink(self, expr: logic.Expr) -> bool:
+        """
+        Check if a node is a sink node of the graph.
+        """
+        return self.out_degree(expr) == 0
+
     @classmethod
     def from_expression(
         cls, expr: logic.Expr, base_criterion: Criterion
@@ -158,10 +164,16 @@ class ExecutionGraph(nx.DiGraph):
 
         for node in self.nodes():
             # Ensure all node attributes are serializable
+
             node_data = {
                 "data": {
-                    "id": str(node),
+                    "id": id(node),
                     "label": str(node),
+                    "class": (
+                        node.criterion.__class__.__name__
+                        if isinstance(node, logic.Symbol)
+                        else node.__class__.__name__
+                    ),
                     "type": (
                         node._repr_join_str
                         if hasattr(node, "_repr_join_str")
@@ -174,8 +186,37 @@ class ExecutionGraph(nx.DiGraph):
                     "store_result": str(
                         self.nodes[node]["store_result"]
                     ),  # Convert to string if necessary
+                    "is_sink": self.is_sink(node),
+                    "bind_params": self.nodes[node]["bind_params"],
                 }
             }
+
+            if isinstance(node, logic.Symbol):
+
+                node_data["data"]["criterion_id"] = node.criterion._id
+
+                def criterion_attr(attr: str) -> str | None:
+                    if (
+                        hasattr(node.criterion, attr)
+                        and getattr(node.criterion, attr) is not None
+                    ):
+                        return str(getattr(node.criterion, attr))
+                    return None
+
+                if node.criterion.concept is not None:
+                    node_data["data"].update(
+                        {
+                            "concept": (
+                                node.criterion.concept.model_dump()
+                                if node.criterion.concept is not None
+                                else None
+                            ),
+                            "value": criterion_attr("value"),
+                            "timing": criterion_attr("timing"),
+                            "dose": criterion_attr("dose"),
+                            "route": criterion_attr("route"),
+                        }
+                    )
 
             if self.nodes[node]["category"] == CohortCategory.BASE:
                 node_data["data"]["base_criterion"] = str(
@@ -188,8 +229,8 @@ class ExecutionGraph(nx.DiGraph):
             edges.append(
                 {
                     "data": {
-                        "source": str(edge[0]),
-                        "target": str(edge[1]),
+                        "source": id(edge[0]),
+                        "target": id(edge[1]),
                     }
                 }
             )

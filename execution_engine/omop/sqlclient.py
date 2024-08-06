@@ -261,7 +261,7 @@ class OMOPSQLClient:
         """
         Log the given query against the OMOP CDM database.
         """
-        self._query_logger.info(self.compile_query(query, params))
+        self._query_logger.info(self.compile_query(query, params) + "\n")
 
     def get_concept_info(self, concept_id: int) -> Concept:
         """Get the concept info for the given concept ID."""

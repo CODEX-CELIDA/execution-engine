@@ -2,207 +2,60 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Interactive Graph</title>
+    <title>CELIDA Execution Graphs</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.21.0/cytoscape.min.js"></script>
     <script src="https://unpkg.com/klayjs@0.4.1/klay.js"></script>
     <script src="https://unpkg.com/dagre@0.7.4/dist/dagre.js"></script>
     <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
     <script src="https://unpkg.com/cytoscape-klay@3.1.4/cytoscape-klay.js"></script>
-
     <script src="https://unpkg.com/@popperjs/core@2.11.2/dist/umd/popper.min.js"></script>
     <script src="https://unpkg.com/tippy.js@6.3.1/dist/tippy-bundle.umd.min.js"></script>
-
     <!-- cy libs -->
     <script src="https://unpkg.com/cytoscape-popper@1.0.7/cytoscape-popper.js"></script>
-
     <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css" />
-
     <style>
-        #cy {
-            width: 100%;
+        body {
+            display: flex;
             height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #recommendation-list {
+            width: 250px; /* Adjust width as necessary */
+            overflow-y: auto;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+        }
+        .recommendation-item {
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+        }
+        .recommendation-item:hover {
+            background-color: #f0f0f0;
+        }
+        #cy {
+            flex-grow: 1;
             display: block;
         }
-
-        .popover {
-            background: white;
-            border: 1px solid black;
-            padding: 10px;
-            position: absolute;
-            z-index: 10;
-            display: none;
+        .recommendation-title {
+            font-weight: bold;
+        }
+        .recommendation-detail {
+            font-size: 0.9em;
+            color: #555;
         }
     </style>
 </head>
 <body>
+    <div id="recommendation-list"></div>
     <div id="cy"></div>
     <div class="popover" id="popover"></div>
     <script>
-        // Register the klay layout
-        cytoscape.use(cytoscapeKlay);
-
-        // Function to generate a seeded random color
-        function seededRandom(seed) {
-            var x = Math.sin(seed++) * 10000;
-            return x - Math.floor(x);
-        }
-
-        function getSeededColor(seed) {
-            const letters = '0123456789ABCDEF';
-            let color = '#';
-            for (let i = 0; i < 6; i++) {
-                color += letters[Math.floor(seededRandom(seed) * 16)];
-                seed++;
-            }
-            return color;
-        }
-
-        // Function to get a color based on the node type with seeded randomness
-        function getNodeColors(types) {
-            const colors = {};
-            let seed = 1;  // Starting seed value
-            types.forEach(type => {
-                colors[type] = getSeededColor(seed);
-                seed++;
-            });
-            return colors;
-        }
-
-        // Function to create a tippy instance for a node
-        function createTippy(node) {
-            const content = `
-                <strong>Node:</strong> ${node.data('type')}<br>
-                <strong>Description:</strong> ${node.data('label')}<br>
-                <strong>Category:</strong> ${node.data('category')}<br>
-                <strong>ID:</strong> ${node.data('id')}<br>
-            `;
-
-            let ref = node.popperRef(); // used only for positioning
-            let dummyDomEle = document.createElement('div');
-            document.body.appendChild(dummyDomEle); // Ensure dummyDomEle has a parent
-
-            return tippy(dummyDomEle, {
-                content: () => {
-                    let div = document.createElement('div');
-                    div.innerHTML = content;
-                    return div;
-                },
-                placement: 'top',
-                hideOnClick: true,
-                interactive: true,
-                trigger: 'manual',
-                allowHTML: true,
-                getReferenceClientRect: () => ref.getBoundingClientRect()
-            });
-        }
-
-
-        // Function to hide all tippy instances
-        function hideTippys(cy) {
-            cy.elements().forEach(ele => {
-                if (ele.tippy) {
-                    ele.tippy.hide();
-                }
-            });
-        }
-
-        // Load the graph data
-        fetch('/graph')
-            .then(response => response.json())
-            .then(data => {
-                // Extract unique node types
-                const nodeTypes = [...new Set(data.nodes.map(node => node.data.type))];
-                const nodeCategories = [...new Set(data.nodes.map(node => node.data.category))];
-
-                // Generate colors for each type
-                const nodeColors = {
-                    "BASE": "#ff0000",
-                    "POPULATION": "#00ff00",
-                    "INTERVENTION": "#9999ff",
-                    "POPULATION_INTERVENTION": "#ff00ff",
-                };
-                const nodeShapes = {
-                    "Symbol": "round-rectangle",
-                    "&": "rhomboid",
-                    "|": "diamond",
-                    "Not": "triangle",
-                    "NoDataPreservingAnd": "rhomboid",
-                    "NoDataPreservingOr": "diamond",
-                    "NonSimplifiableAnd": "rhomboid",
-                    "NonSimplifiableOr": "diamond",
-                    "LeftDependentToggle": "octagon",
-                }
-
-                // Initialize Cytoscape
-                var cy = cytoscape({
-                    container: document.getElementById('cy'),
-                    elements: [...data.nodes, ...data.edges],
-                    style: [
-                        {
-                            selector: 'node',
-                            style: {
-                                'label': function(ele) {
-                                    return ele.data('type') === 'Symbol' ? ele.data('label').replace(/(\[|\()/g, '$1\u200B') : ele.data('type');
-                                },
-                                'background-color': function(ele) {
-                                    return nodeColors[ele.data('category')] || '#666'; // Assign color based on 'type', with a default
-                                },
-                                'shape': function(ele) {
-                                    return nodeShapes[ele.data('type')] || 'star'; // Assign color based on 'type', with a default
-                                },
-                                'text-valign': 'center',
-                                'color': '#000000',
-                                'width': function(ele) {
-                                    return ele.data('type') === 'Symbol' ? '120px': '40px';
-                                },
-                                'height': function(ele) {
-                                    return ele.data('type') === 'Symbol' ? '80px': '40px';
-                                },
-                                'font-size': '10px',
-                                'text-wrap': 'wrap',
-                                'text-max-width': '120px' // Adjust width as needed
-                            }
-                        },
-                        {
-                            selector: 'edge',
-                            style: {
-                                'width': 2,
-                                'target-arrow-shape': 'triangle', // Set arrow shape to triangle
-                                'curve-style': 'bezier' // Makes the edge curved for better visibility of direction
-                            }
-                        }
-                    ],
-                    layout: {
-                        name: 'klay', // Use 'klay' layout for better visualization
-                        nodeDimensionsIncludeLabels: true,
-                        fit: true,
-                        padding: 20,
-                        animate: true,
-                        animationDuration: 500,
-                        klay: {
-                            spacing: 20,
-                            direction: 'DOWN',
-                        }
-                    }
-                });
-
-                // Add event listener for node click
-                cy.on('tap', 'node', function(evt) {
-                    hideTippys(cy);
-                    const node = evt.target;
-                    if (!node.tippy) {
-                        node.tippy = createTippy(node);
-                    }
-                    node.tippy.show();
-                });
-
-                // Hide popper when clicking on the canvas
-                cy.on('tap', function(evt) {
-                    if (evt.target === cy) {
-                        hideTippys(cy);
-                    }
-                });
-            });
+        const eeApiUrl = "{{ ee_api_url }}";
     </script>
+    <script src="/static/script.js"></script>
 </body>
 </html>

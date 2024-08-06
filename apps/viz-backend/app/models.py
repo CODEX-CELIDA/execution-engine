@@ -3,6 +3,20 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class Recommendation(BaseModel):
+    """
+    Represents a single recommendation.
+    """
+
+    recommendation_id: int
+    recommendation_name: str
+    recommendation_title: str
+    recommendation_url: str
+    recommendation_version: str | None = None
+    recommendation_package_version: str | None = None
+    create_datetime: datetime
+
+
 class RecommendationRun(BaseModel):
     """
     Represents a single recommendation run.

@@ -12,7 +12,8 @@ class OMOPSettings(BaseModel):
     user: str
     password: str
     database: str
-    db_schema: str = Field(alias="schema")
+    data_schema: str = Field(alias="data_schema", default="cds_cdm")
+    result_schema: str = Field(alias="result_schema", default="celida")
     model_config = ConfigDict(populate_by_name=True)
 
 

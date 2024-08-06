@@ -1,11 +1,17 @@
-from settings import get_config
+from urllib.parse import quote
+
+from settings import config
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+connection_dict = config.omop.model_dump()
+connection_dict["user"] = quote(connection_dict["user"])
+connection_dict["password"] = quote(connection_dict["password"])
+
 connection_string = (
     "postgresql+psycopg://{user}:{password}@{host}:{port}/{database}".format(
-        **get_config().omop.model_dump()
+        **connection_dict
     )
 )
 
@@ -13,7 +19,7 @@ engine = create_engine(
     connection_string,
     pool_pre_ping=True,
     connect_args={
-        "options": "-csearch_path={}".format(get_config().omop.db_schema),
+        "options": "-csearch_path={}".format(config.omop.data_schema),
     },
 )
 

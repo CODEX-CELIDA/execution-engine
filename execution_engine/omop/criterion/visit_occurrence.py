@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import CohortCategory, OMOPConcepts
+from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import column_interval_type
 from execution_engine.util.interval import IntervalType
 
@@ -25,6 +26,15 @@ class ActivePatients(VisitOccurrence):
         self._exclude = False
         self._category = CohortCategory.BASE
         self._set_omop_variables_from_domain("visit")
+
+        self._concept = Concept(
+            concept_id=OMOPConcepts.VISIT_TYPE_STILL_PATIENT.value,
+            concept_name="Still patient",
+            concept_code="30",
+            domain_id="Visit",
+            vocabulary_id="UB04 Pt dis status",
+            concept_class_id="UB04 Pt dis status",
+        )
 
     def _sql_header(
         self, distinct_person: bool = True, person_id: int | None = None

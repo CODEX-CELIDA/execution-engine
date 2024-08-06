@@ -35,6 +35,10 @@ class ConceptCriterion(Criterion, ABC):
 
     """
 
+    _concept: Concept
+    _value = None
+    _timing = None
+
     def __init__(
         self,
         category: CohortCategory,
@@ -70,6 +74,16 @@ class ConceptCriterion(Criterion, ABC):
     def concept(self) -> Concept:
         """Get the concept associated with this Criterion"""
         return self._concept
+
+    @property
+    def value(self) -> Value | None:
+        """Get the value associated with this Criterion"""
+        return self._value
+
+    @property
+    def timing(self) -> Timing | None:
+        """Get the timing associated with this Criterion"""
+        return self._timing
 
     def _sql_filter_concept(
         self, query: Select, override_concept_id: int | None = None

@@ -111,8 +111,7 @@ class PopulationInterventionPair(Serializable):
         pi_graph = ExecutionGraph.from_expression(pi, self._base_criterion)
 
         if self._id is None:
-            # required when creating the execution graph before this PI pair has been stored in the database
-            self._id = id(self)
+            raise ValueError("Population/intervention pair ID not set")
 
         # todo: should we supply self instead of self._id?
         pi_graph.set_sink_nodes_store(bind_params=dict(pi_pair_id=self._id))
