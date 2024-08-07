@@ -26,6 +26,7 @@ class RecommendationRun(BaseModel):
     observation_start_datetime: datetime
     observation_end_datetime: datetime
     run_datetime: datetime
+    recommendation_name: str
 
 
 class Interval(BaseModel):
