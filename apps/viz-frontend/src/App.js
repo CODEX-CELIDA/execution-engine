@@ -4,19 +4,34 @@ import RunSelector from './RunSelector';
 import PatientPlots from './PatientPlots';
 
 function App() {
-    const [selectedRun, setSelectedRun] = useState('');
+    const [runDetails, setRunDetails] = useState({
+        runId: '',
+        personId: '',
+        personSourceValue: '',
+        selectedDate: '',
+    });
+
+    const handleRunSubmit = (details) => {
+        console.log('Run Submit Details:', details); // Debugging line
+        setRunDetails(details);
+    };
 
     return (
         <div className="App">
             <header className="App-header">
                 <h1>Patient Data Visualizer</h1>
                 <div className="RunSelector">
-                    <RunSelector onRunSelect={setSelectedRun} />
+                    <RunSelector onSubmit={handleRunSubmit} />
                 </div>
             </header>
-            {selectedRun && (
+            {runDetails.runId && (
                 <div className="PlotContainer">
-                    <PatientPlots runId={selectedRun} />
+                    <PatientPlots
+                        runId={runDetails.runId}
+                        personId={runDetails.personId}
+                        personSourceValue={runDetails.personSourceValue}
+                        selectedDate={runDetails.selectedDate}
+                    />
                 </div>
             )}
         </div>
