@@ -1,5 +1,49 @@
 # CHANGELOG
 
+## v2.2.0 (2024-08-07)
+
+
+### Feature
+* feat: added conditional filter (for dosage condition ext) ([`c98e6e0`](https://github.com/CODEX-CELIDA/execution-engine/commit/c98e6e0402d508699ff0bb56e4a8c555a5e0545b))
+* feat: dynamic graph display app ([`a5cdd54`](https://github.com/CODEX-CELIDA/execution-engine/commit/a5cdd542a78b17eb16fd2108bfbfedbd8619a767))
+* feat: added static graph display app ([`9dd5450`](https://github.com/CODEX-CELIDA/execution-engine/commit/9dd5450cb057bcefc896ddb06160ced812690f5e))
+* feat: added execution graph json to database ([`7b7bb92`](https://github.com/CODEX-CELIDA/execution-engine/commit/7b7bb9259f951d9a5a43d92d257ba3260e209570))
+* feat: dynamic handling of time interval types (e.g. shifts) ([`c2bddd3`](https://github.com/CODEX-CELIDA/execution-engine/commit/c2bddd395fd085151258eb5a8adc9b1ac71ded96))
+* feat: implemented find_overlapping_windows ([`a7e6e9b`](https://github.com/CODEX-CELIDA/execution-engine/commit/a7e6e9b8c91e2716db951aec3b268cf88c817d15))
+* feat: implemented temporal aggregation combination ([`7b3c3d8`](https://github.com/CODEX-CELIDA/execution-engine/commit/7b3c3d8d89a63804d1e1e7fa856cc8b5b34494ac))
+
+### Fix
+* fix: type hints ([`d0358f5`](https://github.com/CODEX-CELIDA/execution-engine/commit/d0358f54513dc281f37e32c42a6b211f2321e0f8))
+* fix: made TimeIntervalType serializable ([`c6ee140`](https://github.com/CODEX-CELIDA/execution-engine/commit/c6ee140534a5f650f0f2e7fc5e4f6a95db715c21))
+* fix: overlapping intervals for adjacent windows ([`c95bdd6`](https://github.com/CODEX-CELIDA/execution-engine/commit/c95bdd608fbe69b304bef237157690c7763a4797))
+
+### Chore
+* chore(deps): bump fastapi from 0.111.0 to 0.112.0 ([`284f4d4`](https://github.com/CODEX-CELIDA/execution-engine/commit/284f4d42d8d200bbc2f9abeecfc98d65727f0d68))
+* chore(deps): bump setuptools from 70.0.0 to 72.1.0 ([`71524cd`](https://github.com/CODEX-CELIDA/execution-engine/commit/71524cd0de19e2d15dab86160ce04ba0f4992c27))
+* chore(deps-dev): bump pytest from 8.2.1 to 8.3.2 ([`c29961b`](https://github.com/CODEX-CELIDA/execution-engine/commit/c29961b10068564e990709b07f34adb2d7670363))
+* chore(deps): bump numpy from 1.26.4 to 2.0.1 ([`d0169bc`](https://github.com/CODEX-CELIDA/execution-engine/commit/d0169bc5f1e345a9ff4e789ebff2c7ed7632a137))
+* chore(deps): bump psycopg[binary] from 3.1.19 to 3.2.1 ([`1a0a7a1`](https://github.com/CODEX-CELIDA/execution-engine/commit/1a0a7a1c21f57de9ac152318e9eaf20d33402525))
+* chore: added default value for settings time interval ([`bef1b4b`](https://github.com/CODEX-CELIDA/execution-engine/commit/bef1b4bcea959b19f0478092cbb542334cd23cb5))
+
+### Documentation
+* docs: added time interval configuration ([`72f20b0`](https://github.com/CODEX-CELIDA/execution-engine/commit/72f20b00c8b9e656600fa371533ca6061b802bfd))
+
+### Refactor
+* refactor: renamed CriterionCombination to LogicalCriterionCombination ([`eb5c576`](https://github.com/CODEX-CELIDA/execution-engine/commit/eb5c57663ab507034a42b8f893f7b3110d73968d))
+
+### Revert
+* revert: no explicit adding of negative intervals ([`abb94dd`](https://github.com/CODEX-CELIDA/execution-engine/commit/abb94ddad1ba7e83b47c62356f63cac62f5afe4d))
+
+### Test
+* test(rectangle): fix naive create windows test ([`80d7e56`](https://github.com/CODEX-CELIDA/execution-engine/commit/80d7e56a4715ab5d07a5c0dc778aeedc5edffb71))
+* test: implemented temporal combination tests ([`579e423`](https://github.com/CODEX-CELIDA/execution-engine/commit/579e423a648813edff7ef839671a5ee9f3a2b570))
+
+### Tests
+* tests: fixed missing timezone parameter in create_time_intervals ([`266390c`](https://github.com/CODEX-CELIDA/execution-engine/commit/266390c7b409dec6ecf85ff13200c9ca07ac2cb3))
+
+### Unknown
+
+
 ## v2.1.0 (2024-07-09)
 
 
