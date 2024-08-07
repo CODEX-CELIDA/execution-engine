@@ -8,6 +8,7 @@ from sqlalchemy import (
     TableClause,
     and_,
     case,
+    func,
     literal,
     select,
     true,
@@ -24,6 +25,8 @@ from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
 from execution_engine.util.value import ValueNumber
 
 __all__ = ["TidalVolumePerIdealBodyWeight"]
+
+MIN_BODY_WEIGHT_KG = 0.0001  # Minimum body weight in kg, used to avoid division by zero or negative values when deriving ideal body weight
 
 
 class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
@@ -107,16 +110,23 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
             select(
                 measurement_ibw.c.person_id,
                 measurement_ibw.c.measurement_datetime,
-                case(
-                    (
-                        person.c.gender_concept_id == OMOPConcepts.GENDER_MALE.value,
-                        50.0 + 0.91 * (measurement_ibw.c.value_as_number - 152.4),
+                func.greatest(
+                    MIN_BODY_WEIGHT_KG,
+                    case(
+                        (
+                            person.c.gender_concept_id
+                            == OMOPConcepts.GENDER_MALE.value,
+                            50.0 + 0.91 * (measurement_ibw.c.value_as_number - 152.4),
+                        ),
+                        (
+                            person.c.gender_concept_id
+                            == OMOPConcepts.GENDER_FEMALE.value,
+                            45.5 + 0.91 * (measurement_ibw.c.value_as_number - 152.4),
+                        ),
+                        else_=(
+                            47.75 + 0.91 * (measurement_ibw.c.value_as_number - 152.4)
+                        ),
                     ),
-                    (
-                        person.c.gender_concept_id == OMOPConcepts.GENDER_FEMALE.value,
-                        45.5 + 0.91 * (measurement_ibw.c.value_as_number - 152.4),
-                    ),
-                    else_=(47.75 + 0.91 * (measurement_ibw.c.value_as_number - 152.4)),
                 ).label(label),
             )
             .join(person, person.c.person_id == measurement_ibw.c.person_id)
