@@ -231,6 +231,26 @@ tables = {
         ],
         "sort_keys": ["observation_datetime"],
     },
+    "visit_occurrence": {
+        "concept_id": "visit_concept_id",
+        "columns": [
+            "visit_start_datetime",
+            "visit_end_datetime",
+            "visit_source_value",
+            "visit_source_concept_id",
+        ],
+        "sort_keys": ["visit_start_datetime"],
+    },
+    "visit_detail": {
+        "concept_id": "visit_detail_concept_id",
+        "columns": [
+            "visit_detail_start_datetime",
+            "visit_detail_end_datetime",
+            "visit_detail_source_value",
+            "visit_detail_source_concept_id",
+        ],
+        "sort_keys": ["visit_detail_start_datetime"],
+    },
 }
 
 
