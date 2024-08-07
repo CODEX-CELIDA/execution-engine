@@ -90,37 +90,78 @@ def get_execution_graph(recommendation_id: int, db: Session = Depends(get_db)) -
     return {"recommendation_execution_graph": execution_graph}
 
 
-@app.get("/execution_runs", response_model=List[RecommendationRun])
+@app.get("/execution_run/list", response_model=List[RecommendationRun])
 def get_execution_runs(db: Session = Depends(get_db)) -> dict:
     """
     Get all recommendation runs.
     """
     result = db.execute(
         text(
-            """
+            f"""
     SELECT run_id, observation_start_datetime, observation_end_datetime, run_datetime
-    FROM execution_run
-    """
+    FROM {result_schema}.execution_run
+    """  # nosec: result_schema is checked above (is_valid_identifier)
         )
     )
     return result.fetchall()
 
 
-@app.get("/intervals/{run_id}", response_model=List[Interval])
-def get_intervals(run_id: int, db: Session = Depends(get_db)) -> dict:
+@app.get("/execution_run/{run_id}/person_ids", response_model=List[int])
+def get_patients(run_id: int, db: Session = Depends(get_db)) -> list[int]:
     """
-    Get all intervals for a given recommendation run.
+    Get all patients for a given recommendation run.
     """
     result = db.execute(
         text(
-            """
-    SELECT *
-    FROM interval_result
+            f"""
+    SELECT DISTINCT person_id
+    FROM {result_schema}.result_interval
     WHERE run_id = :run_id
-    """
+    """  # nosec: result_schema is checked above (is_valid_identifier)
         ),
         {"run_id": run_id},
     )
+    return [r[0] for r in result.fetchall()]
+
+
+@app.get("/intervals/{run_id}", response_model=List[Interval])
+def get_intervals(
+    run_id: int,
+    person_id: int | None = None,
+    person_source_value: int | None = None,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    Get all intervals for a given recommendation run.
+    """
+    if person_id is None and person_source_value is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Either person_id or person_source_value must be provided",
+        )
+    if person_id is not None and person_source_value is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Only one of person_id or person_source_value can be provided",
+        )
+
+    params = {"run_id": run_id}
+
+    if person_id is not None:
+        and_clause = "person_id = :person_id"
+        params["person_id"] = person_id
+    elif person_source_value is not None:
+        and_clause = "person_source_value = :person_source_value"
+        params["person_source_value"] = person_source_value
+
+    query = f"""
+    SELECT *
+    FROM {result_schema}.interval_result
+    WHERE run_id = :run_id
+    AND {and_clause}
+    """  # nosec: result_schema is checked above (is_valid_identifier)
+
+    result = db.execute(text(query), params)
     return result.fetchall()
 
 
