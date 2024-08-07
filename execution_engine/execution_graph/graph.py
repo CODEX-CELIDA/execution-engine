@@ -8,6 +8,7 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.combination import CriterionCombination
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
+    NonCommutativeLogicalCriterionCombination,
 )
 from execution_engine.omop.criterion.combination.temporal import (
     TemporalIndicatorCombination,
@@ -381,6 +382,8 @@ class ExecutionGraph(nx.DiGraph):
                         f"Expected {LogicalCriterionCombination.Operator.AND}"
                     )
                     return logic.NonSimplifiableAnd
+                elif isinstance(comb, NonCommutativeLogicalCriterionCombination):
+                    return logic.ConditionalFilter
                 elif comb.operator.operator == LogicalCriterionCombination.Operator.AND:
                     return logic.And
                 elif comb.operator.operator == LogicalCriterionCombination.Operator.OR:

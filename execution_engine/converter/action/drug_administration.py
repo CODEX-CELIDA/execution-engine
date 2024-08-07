@@ -18,6 +18,7 @@ from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
+    NonCommutativeLogicalCriterionCombination,
 )
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
@@ -37,6 +38,7 @@ class ExtensionType(TypedDict):
 
     code: Concept
     value: Value
+    type: str
 
 
 class DrugAdministrationAction(AbstractAction):
@@ -223,7 +225,7 @@ class DrugAdministrationAction(AbstractAction):
                 code = parse_code(condition_type.valueCodeableConcept)
                 value = parse_value(condition_value, "value")
 
-                extensions.append({"code": code, "value": value})
+                extensions.append({"code": code, "value": value, "type": "conditional"})
             else:
                 raise NotImplementedError(f"Unknown dosage extension {extension.url}")
 
@@ -298,27 +300,37 @@ class DrugAdministrationAction(AbstractAction):
                 route=dosage.get("route", None),
             )
 
-            if dosage.get("extensions", None) is None:
+            extensions = dosage.get("extensions", None)
+            if extensions is None or len(extensions) == 0:
                 drug_actions.append(drug_action)
             else:
-                comb = LogicalCriterionCombination(
-                    exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
-                    category=CohortCategory.INTERVENTION,
-                    operator=LogicalCriterionCombination.Operator("AND"),
-                )
+                if len(extensions) > 1:
+                    raise NotImplementedError(
+                        "Multiple extensions in dosage not supported yet"
+                    )
+
+                extension = extensions[0]
+
+                if extension["type"] != "conditional":
+                    raise NotImplementedError(
+                        f"Extension type {extension['type']} not supported yet"
+                    )
+
                 drug_action.exclude = False  # reset the exclude flag, as it is now part of the combination
 
-                comb.add(drug_action)
+                ext_criterion = PointInTimeCriterion(
+                    exclude=False,  # extensions are always included (at least for now)
+                    category=CohortCategory.INTERVENTION,
+                    concept=extension["code"],
+                    value=extension["value"],
+                )
 
-                for extension in dosage["extensions"]:  # type: ignore # (extension is not None as per the if-block)
-                    comb.add(
-                        PointInTimeCriterion(
-                            exclude=False,  # extensions are always included (at least for now)
-                            category=CohortCategory.INTERVENTION,
-                            concept=extension["code"],
-                            value=extension["value"],
-                        )
-                    )
+                comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
+                    exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
+                    category=CohortCategory.INTERVENTION,
+                    left=ext_criterion,
+                    right=drug_action,
+                )
 
                 drug_actions.append(comb)
 

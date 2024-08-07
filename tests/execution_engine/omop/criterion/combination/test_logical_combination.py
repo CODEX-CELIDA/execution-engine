@@ -8,24 +8,31 @@ import sympy
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
+    NonCommutativeLogicalCriterionCombination,
 )
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
+from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.task.process import get_processing_module
 from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
+    concept_body_weight,
     concept_covid19,
     concept_heparin_ingredient,
+    concept_tidal_volume,
+    concept_unit_kg,
     concept_unit_mg,
+    concept_unit_ml,
 )
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import (
     create_condition,
     create_drug_exposure,
+    create_measurement,
     create_procedure,
     create_visit,
 )
@@ -269,9 +276,10 @@ class TestCriterionCombinationDatabase(TestCriterion):
         elif c.func == sympy.Or:
             operator = LogicalCriterionCombination.Operator.OR
         elif isinstance(c.func, sympy.core.function.UndefinedFunction):
-            assert args[0].is_number, "First argument must be a number (threshold)"
-            threshold = args[0]
-            args = args[1:]
+            if c.func.name in ["MinCount", "MaxCount", "ExactCount"]:
+                assert args[0].is_number, "First argument must be a number (threshold)"
+                threshold = args[0]
+                args = args[1:]
             if c.func.name == "MinCount":
                 operator = LogicalCriterionCombination.Operator.AT_LEAST
             elif c.func.name == "MaxCount":
@@ -280,12 +288,16 @@ class TestCriterionCombinationDatabase(TestCriterion):
                 operator = LogicalCriterionCombination.Operator.EXACTLY
             elif c.func.name == "AllOrNone":
                 operator = LogicalCriterionCombination.Operator.ALL_OR_NONE
+            elif c.func.name == "ConditionalFilter":
+                operator = None
             else:
                 raise ValueError(f"Unknown operator {c.func}")
         else:
             raise ValueError(f"Unknown operator {c.func}")
 
         c1, c2, c3 = [c.copy() for c in criteria]
+
+        symbols = {"c1": c1, "c2": c2, "c3": c3}
 
         for arg in args:
             if arg.is_Not:
@@ -298,25 +310,30 @@ class TestCriterionCombinationDatabase(TestCriterion):
                 else:
                     raise ValueError(f"Unknown criterion {arg.args[0].name}")
 
-        comb = LogicalCriterionCombination(
-            exclude=exclude,
-            category=CohortCategory.POPULATION,
-            operator=LogicalCriterionCombination.Operator(
-                operator, threshold=threshold
-            ),
-        )
+        if hasattr(c.func, "name") and c.func.name == "ConditionalFilter":
+            assert len(c.args) == 2
 
-        for symbol in c.atoms():
-            if symbol.is_number:
-                continue
-            elif symbol.name == "c1":
-                comb.add(c1)
-            elif symbol.name == "c2":
-                comb.add(c2)
-            elif symbol.name == "c3":
-                comb.add(c3)
-            else:
-                raise ValueError(f"Unknown criterion {symbol.name}")
+            comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
+                exclude=exclude,
+                category=CohortCategory.POPULATION,
+                left=symbols[str(c.args[0])],
+                right=symbols[str(c.args[1])],
+            )
+
+        else:
+            comb = LogicalCriterionCombination(
+                exclude=exclude,
+                category=CohortCategory.POPULATION,
+                operator=LogicalCriterionCombination.Operator(
+                    operator, threshold=threshold
+                ),
+            )
+
+            for symbol in c.atoms():
+                if symbol.is_number:
+                    continue
+                else:
+                    comb.add(symbols[str(symbol)])
 
         self.insert_criterion_combination(
             db_session, comb, base_criterion, observation_window
@@ -636,6 +653,356 @@ class TestCriterionCombinationResultLongObservationWindow(
         db_session.add_all(vos)
         db_session.commit()
 
+        self.run_criteria_test(
+            combination,
+            expected,
+            db_session,
+            criteria,
+            base_criterion,
+            observation_window,
+            persons,
+        )
+
+
+class TestCriterionCombinationNoData(TestCriterionCombinationDatabase):
+    """
+    Test class for testing criterion combinations on the database.
+
+    The purpose of this class is to test the behavior for a combination like
+    NOT(AND(c1, c2)), where c1 returns NO_DATA intervals and c2 returns nothing.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            start="2023-03-01 04:00:00Z", end="2023-03-04 18:00:00Z", name="observation"
+        )
+
+    @pytest.fixture
+    def criteria(self, db_session):
+        c1 = DrugExposure(
+            exclude=False,
+            category=CohortCategory.POPULATION,
+            ingredient_concept=concept_heparin_ingredient,
+            dose=Dosage(
+                dose=ValueNumber(value=100, unit=concept_unit_mg),
+                frequency=1,
+                interval="d",
+            ),
+            route=None,
+        )
+
+        c2 = Measurement(
+            exclude=False,
+            category=CohortCategory.POPULATION,
+            concept=concept_tidal_volume,
+            value=ValueNumber(value_min=500, unit=concept_unit_ml),
+        )
+
+        c3 = Measurement(
+            exclude=False,
+            category=CohortCategory.POPULATION,
+            concept=concept_body_weight,
+            value=ValueNumber(value_min=70, unit=concept_unit_kg),
+        )
+
+        c1.id = 1
+        c2.id = 2
+        c3.id = 3
+
+        self.register_criterion(c1, db_session)
+        self.register_criterion(c2, db_session)
+        self.register_criterion(c3, db_session)
+
+        return [c1, c2, c3]
+
+    @pytest.fixture
+    def patient_events(self, db_session, person_visit):
+        # no patient events added
+        pass
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            ("c1 & c2", {1: {}, 2: {}, 3: {}}),
+            ("c1 | c2", {1: {}, 2: {}, 3: {}}),
+            (
+                "~(c1 & c2)",
+                {
+                    1: {
+                        "2023-03-01",
+                        "2023-03-02",
+                        "2023-03-03",
+                        "2023-03-04",
+                    },  # admitted on 2023-03-01
+                    2: {
+                        "2023-03-02",
+                        "2023-03-03",
+                        "2023-03-04",
+                    },  # admitted on 2023-03-02
+                    3: {"2023-03-03", "2023-03-04"},  # admitted on 2023-03-03
+                },
+            ),
+            (
+                "~(c1 | c2)",  # c1 is NEGATIVE, c2 is NO_DATA -> c1 | c2 is still NO_DATA
+                # -> ~(c1 | c2) = ~c1 & ~c2 = (POSITIVE & NO_DATA) = NO_DATA
+                #  -> interpreted as "NEGATIVE" in the final result (no POSITIVE intervals there)
+                {
+                    1: {},
+                    2: {},
+                    3: {},
+                },
+            ),
+            ("~c1 & c2", {1: {}, 2: {}, 3: {}}),
+            (
+                "~c1 | c2",  # c1 is NEGATIVE, c2 is NO_DATA -> ~c1 | c2 = POSITIVE | NO_DATA = POSITIVE
+                {
+                    1: {"2023-03-01", "2023-03-02", "2023-03-03", "2023-03-04"},
+                    2: {"2023-03-02", "2023-03-03", "2023-03-04"},
+                    3: {"2023-03-03", "2023-03-04"},
+                },
+            ),
+            ("c1 & ~c2", {1: {}, 2: {}, 3: {}}),
+            (
+                "c1 | ~c2",  # c1 is NEGATIVE, c2 is NO_DATA -> c1 | ~c2 = NEGATIVE | NO_DATA = NO_DATA -> interpreted as "NEGATIVE" in the final result (no POSITIVE intervals there)
+                {
+                    1: {},
+                    2: {},
+                    3: {},
+                },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person_visit,
+        db_session,
+        base_criterion,
+        patient_events,
+        criteria,
+        combination,
+        expected,
+        observation_window,
+    ):
+        persons = [pv[0] for pv in person_visit]
+        self.run_criteria_test(
+            combination,
+            expected,
+            db_session,
+            criteria,
+            base_criterion,
+            observation_window,
+            persons,
+        )
+
+
+class TestCriterionCombinationConditionalFilter(TestCriterionCombinationDatabase):
+    """
+    Test class for testing criterion combinations on the database.
+
+    The purpose of this class is to test the behavior for a combination like
+
+    NOT(AND(c1, c2)), where c1 returns NO_DATA intervals and c2 returns nothing.
+
+    The result should be a positive interval (because "nothing" is interpreted as NEGATIVE, and ~(NO_DATA & NEGATIVE)
+    should be positive. This is a regression test related to bug found when processing body-weight-related drug
+    combinations (in rec17) when no body weight is given.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            start="2023-03-01 04:00:00Z", end="2023-03-04 18:00:00Z", name="observation"
+        )
+
+    @pytest.fixture
+    def criteria(self, db_session):
+        c1 = DrugExposure(
+            exclude=False,
+            category=CohortCategory.POPULATION,
+            ingredient_concept=concept_heparin_ingredient,
+            dose=Dosage(
+                dose=ValueNumber(value=100, unit=concept_unit_mg),
+                frequency=1,
+                interval="d",
+            ),
+            route=None,
+        )
+
+        c2 = Measurement(
+            exclude=False,
+            category=CohortCategory.POPULATION,
+            concept=concept_body_weight,
+            value=ValueNumber(value_min=70, unit=concept_unit_kg),
+        )
+
+        c3 = ConditionOccurrence(
+            exclude=False,
+            category=CohortCategory.POPULATION,
+            concept=concept_covid19,
+        )
+
+        c1.id = 1
+        c2.id = 2
+        c3.id = 3
+
+        self.register_criterion(c1, db_session)
+        self.register_criterion(c2, db_session)
+        self.register_criterion(c3, db_session)
+
+        return [c1, c2, c3]
+
+    @pytest.fixture
+    def patient_events(self, db_session, person_visit):
+        _, visit_occurrence = person_visit[0]
+        e1 = create_drug_exposure(
+            vo=visit_occurrence,
+            drug_concept_id=concept_heparin_ingredient.concept_id,
+            start_datetime=pendulum.parse(
+                "2023-03-03 18:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            end_datetime=pendulum.parse(
+                "2023-03-03 18:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            quantity=100,
+        )
+
+        e2 = create_drug_exposure(
+            vo=visit_occurrence,
+            drug_concept_id=concept_heparin_ingredient.concept_id,
+            start_datetime=pendulum.parse(
+                "2023-03-04 06:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            end_datetime=pendulum.parse(
+                "2023-03-04 06:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            quantity=100,
+        )
+
+        e3 = create_measurement(
+            vo=visit_occurrence,
+            measurement_concept_id=concept_body_weight.concept_id,
+            measurement_datetime=pendulum.parse("2023-03-04 05:00:00+01:00"),
+            value_as_number=70,
+            unit_concept_id=concept_unit_kg.concept_id,
+        )
+
+        db_session.add_all([e1, e2, e3])
+
+        #####################################
+        _, visit_occurrence = person_visit[1]
+        e1 = create_drug_exposure(
+            vo=visit_occurrence,
+            drug_concept_id=concept_heparin_ingredient.concept_id,
+            start_datetime=pendulum.parse(
+                "2023-03-03 18:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            end_datetime=pendulum.parse(
+                "2023-03-03 18:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            quantity=100,
+        )
+
+        e2 = create_drug_exposure(
+            vo=visit_occurrence,
+            drug_concept_id=concept_heparin_ingredient.concept_id,
+            start_datetime=pendulum.parse(
+                "2023-03-04 06:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            end_datetime=pendulum.parse(
+                "2023-03-04 06:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            quantity=100,
+        )
+
+        db_session.add_all([e1, e2])
+
+        #####################################
+        _, visit_occurrence = person_visit[2]
+        e1 = create_drug_exposure(
+            vo=visit_occurrence,
+            drug_concept_id=concept_heparin_ingredient.concept_id,
+            start_datetime=pendulum.parse(
+                "2023-03-03 18:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            end_datetime=pendulum.parse(
+                "2023-03-03 18:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            quantity=100,
+        )
+
+        e2 = create_drug_exposure(
+            vo=visit_occurrence,
+            drug_concept_id=concept_heparin_ingredient.concept_id,
+            start_datetime=pendulum.parse(
+                "2023-03-04 06:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            end_datetime=pendulum.parse(
+                "2023-03-04 06:00:00+01:00"
+            ),  # -> this results in full day positive (because drug exposure with quantity 50 on this day)
+            quantity=100,
+        )
+
+        e3 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2023-03-03 18:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2023-03-06 18:00:00+01:00"),
+        )
+
+        db_session.add_all([e1, e2, e3])
+
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            (
+                "ConditionalFilter(c1, c2)",
+                {
+                    1: {"2023-03-03", "2023-03-04"},  # admitted on 2023-03-01
+                    2: {},  # admitted on 2023-03-02
+                    3: {},  # admitted on 2023-03-03
+                },
+            ),
+            (
+                "ConditionalFilter(c2, c1)",
+                {
+                    1: {"2023-03-03", "2023-03-04"},  # admitted on 2023-03-01
+                    2: {},  # admitted on 2023-03-02
+                    3: {},  # admitted on 2023-03-03
+                },
+            ),
+            (
+                "ConditionalFilter(c1, c3)",
+                {
+                    1: {},  # admitted on 2023-03-01
+                    2: {},  # admitted on 2023-03-02
+                    3: {"2023-03-04"},  # admitted on 2023-03-03
+                },
+            ),
+            (
+                "ConditionalFilter(c3, c1)",
+                {
+                    1: {},  # admitted on 2023-03-01
+                    2: {},  # admitted on 2023-03-02
+                    3: {"2023-03-04"},  # admitted on 2023-03-03
+                },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person_visit,
+        db_session,
+        base_criterion,
+        patient_events,
+        criteria,
+        combination,
+        expected,
+        observation_window,
+    ):
+        persons = [pv[0] for pv in person_visit]
         self.run_criteria_test(
             combination,
             expected,

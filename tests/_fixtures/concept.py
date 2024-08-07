@@ -250,6 +250,17 @@ concept_tidal_volume = Concept(
     invalid_reason=None,
 )
 
+concept_body_weight = Concept(
+    concept_id=3025315,
+    concept_name="Body weight",
+    domain_id="Measurement",
+    vocabulary_id="LOINC",
+    concept_class_id="Clinical Observation",
+    standard_concept="S",
+    concept_code="29463-7",
+    invalid_reason=None,
+)
+
 """
 The following list of concepts are heparin drugs and all of them directly map to heparin as ingredient (via ancestor,
 not relationship !)

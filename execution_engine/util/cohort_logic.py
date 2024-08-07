@@ -717,3 +717,28 @@ class LeftDependentToggle(BooleanFunction):
     def right(self) -> Expr:
         """Returns the right operand"""
         return self.args[1]
+
+
+class ConditionalFilter(BooleanFunction):
+    """
+    A ConditionalFilter object returns the right operand if the left operand is POSITIVE,
+    and NEGATIVE otherwise
+    """
+
+    def __new__(
+        cls, left: BaseExpr, right: BaseExpr, **kwargs: Any
+    ) -> "ConditionalFilter":
+        """
+        Initialize a ConditionalFilter object.
+        """
+        return cast(ConditionalFilter, super().__new__(cls, left, right, **kwargs))
+
+    @property
+    def left(self) -> Expr:
+        """Returns the left operand"""
+        return self.args[0]
+
+    @property
+    def right(self) -> Expr:
+        """Returns the right operand"""
+        return self.args[1]
