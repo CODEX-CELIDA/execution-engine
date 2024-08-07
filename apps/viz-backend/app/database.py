@@ -1,9 +1,11 @@
 from urllib.parse import quote
 
 from settings import config
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import ConnectionPoolEntry, PoolProxiedConnection
 
 connection_dict = config.omop.model_dump()
 connection_dict["user"] = quote(connection_dict["user"])
@@ -22,6 +24,24 @@ engine = create_engine(
         "options": "-csearch_path={}".format(config.omop.data_schema),
     },
 )
+
+
+@event.listens_for(engine.pool, "checkout")
+def set_timezone(
+    dbapi_connection: DBAPIConnection,
+    connection_record: ConnectionPoolEntry,
+    connection_proxy: PoolProxiedConnection,
+) -> None:
+    """
+    Set the timezone for the database connection.
+    """
+    cursor = dbapi_connection.cursor()
+    cursor.execute(
+        "SELECT set_config('TIMEZONE', %(timezone)s, false)",
+        {"timezone": "Europe/Berlin"},
+    )
+    cursor.close()
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
