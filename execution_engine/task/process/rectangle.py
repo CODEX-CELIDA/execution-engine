@@ -188,7 +188,9 @@ def forward_fill_intervals(intervals: list[Interval]) -> list[Interval]:
     return _impl.union_rects(filled_intervals)
 
 
-def forward_fill(data: PersonIntervals) -> PersonIntervals:
+def forward_fill(
+    data: PersonIntervals, observation_window: TimeRange | None = None
+) -> PersonIntervals:
     """
     Forward fills the intervals in the DataFrame.
 
@@ -196,10 +198,11 @@ def forward_fill(data: PersonIntervals) -> PersonIntervals:
     I.e. if there are multiple consecutive intervals of the same type, they are merged into one interval, and the
     last interval of these is extended until the start of the next interval (which is of a different type).
 
-    The last interval for each person is not extended (but may be merged with the previous intervals, if they
-    are of the same type).
+    If observation_window is provided, the last interval of each person is extended until the end of the
+    observation window. If no observation_window is provided, the last interval of each person is not extended.
 
     :param data: The intervals per person.
+    :param observation_window: The observation window.
     :return: A DataFrame with the forward filled intervals.
     """
     # return {person_id: interval.ffill() for person_id, interval in data.items()}
@@ -208,6 +211,16 @@ def forward_fill(data: PersonIntervals) -> PersonIntervals:
 
     for person_id, intervals in data.items():
         result[person_id] = forward_fill_intervals(intervals)
+
+        if observation_window is not None:
+            last_interval = result[person_id][-1]
+            if last_interval.upper < observation_window.end.timestamp():
+                result[person_id][-1] = Interval(
+                    last_interval.lower,
+                    observation_window.end.timestamp(),
+                    last_interval.type,
+                )
+
     return result
 
 
