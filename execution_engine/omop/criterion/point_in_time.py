@@ -102,9 +102,9 @@ class PointInTimeCriterion(ConceptCriterion):
         # todo: the probleme here is that this merges intervals that are days apart -
         #        but on the other hand, for any AND combination of measurement values,
         #        we need to extend the duration of these point in time criteria (such as measurements)
-        #        because they are valid not only at the time of the measurement but also for a certain time after the measurement
-        #        possibly, one would need to define something like a "validity duration" for each measurement value
-        #        (or rather each measurement in each recommendation)
+        #        because they are valid not only at the time of the measurement but also for a certain time after the
+        #        measurement possibly, one would need to define something like a "validity duration" for each
+        #        measurement value (or rather each measurement in each recommendation)
         data = process.forward_fill(data, observation_window)
 
         no_data_intervals = process.complementary_intervals(

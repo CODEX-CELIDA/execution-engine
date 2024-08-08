@@ -99,19 +99,17 @@ class TestRecommendation36aPeepV2(TestRecommendationBaseV2):
         COVID19() | Ventilated() | FiO2_80() | PEEP_14() | PEEP_18(),
         COVID19() | Ventilated() | FiO2_90() | PEEP_14() | PEEP_18(),
         COVID19() | Ventilated() | FiO2_100() | PEEP_18(),
-        (COVID19() | Ventilated())
-        & FiO2_30()
-        & FiO2_40()
+        (COVID19() | Ventilated()) & FiO2_30()
+        # & FiO2_40()
         & (PEEP_5() | PEEP_8() | PEEP_18()),
-        (COVID19() | Ventilated()) & FiO2_50() & FiO2_60() & (PEEP_8() | PEEP_10()),
-        (COVID19() | Ventilated()) & FiO2_70() & FiO2_80() & (PEEP_10() | PEEP_14()),
-        (COVID19() | Ventilated()) & FiO2_90() & FiO2_100() & (PEEP_14() | PEEP_18()),
+        # (COVID19() | Ventilated()) & FiO2_50() & FiO2_60() & (PEEP_8() | PEEP_10()),
+        # (COVID19() | Ventilated()) & FiO2_70() & FiO2_80() & (PEEP_10() | PEEP_14()),
+        # (COVID19() | Ventilated()) & FiO2_90() & FiO2_100() & (PEEP_14() | PEEP_18()),
         (COVID19() | Ventilated())
-        & FiO2_30()
-        & FiO2_40()
-        & FiO2_50()
-        & FiO2_60()
-        & (PEEP_5() | PEEP_8() | PEEP_10() | PEEP_18()),
+        # & FiO2_30()
+        # & FiO2_40()
+        # & FiO2_50()
+        & FiO2_60() & (PEEP_5() | PEEP_8() | PEEP_10() | PEEP_18()),
     ]
 
     """
@@ -134,28 +132,41 @@ class TestRecommendation36aPeepV2(TestRecommendationBaseV2):
 
     def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
         # NO_DATA FiO2 cols need to be set to "NEGATIVE", if any other FiO2 col is POSITIVE
-        cols = [c for c in df.columns if c.startswith("FiO2_")]
-        idx_any_positive = (df[cols] == IntervalType.POSITIVE).any(axis=1)
 
-        for c in cols:
-            idx_no_data = df[c] == IntervalType.NO_DATA
-            df.loc[idx_any_positive & idx_no_data, c] = IntervalType.NEGATIVE
+        prefixes = ["FiO2_", "PEEP_"]
+        for prefix in prefixes:
+            cols = [c for c in df.columns if c.startswith(prefix)]
+            idx_any_positive = (df[cols] == IntervalType.POSITIVE).any(axis=1)
+
+            for c in cols:
+                idx_no_data = df[c] == IntervalType.POSITIVE
+                idx_no_data = idx_no_data.groupby("person_id").shift(
+                    1, fill_value=False
+                )  # shift by one to keep the first positive entry
+                df.loc[idx_any_positive & idx_no_data, c] = IntervalType.NEGATIVE
 
         return df
 
     def _insert_criteria_hook(self, generator: BaseDataGenerator, data: list):
-        if isinstance(generator, MeasurementGenerator) and generator.name.startswith(
-            "FiO2_"
+        if isinstance(generator, MeasurementGenerator) and (
+            generator.name.startswith("FiO2_") or generator.name.startswith("PEEP_")
         ):
             # add another entry to make sure that FiO2 measurements are not valid longer than one hour,
             # as otherwise the determination of the expected data is very complex
-            assert len(data) == 1
-            entry = data[0]
+            entry = sorted(data, key=lambda x: x.measurement_datetime)[-1]
+
             new_entry = copy.deepcopy(entry)
-            new_entry.measurement_datetime = entry.measurement_datetime + pd.Timedelta(
-                minutes=59
-            )
-            new_entry.value_as_number = -100
+            if generator.name.startswith("FiO2_"):
+                new_entry.measurement_datetime = (
+                    entry.measurement_datetime + pd.Timedelta(minutes=59)
+                )
+            elif generator.name.startswith("PEEP_"):
+                # set to the next day at midnight
+                new_entry.measurement_datetime = new_entry.measurement_datetime.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ) + pd.Timedelta(days=1)
+
+            new_entry.value_as_number = -99999
 
             data.append(new_entry)
 
