@@ -3,7 +3,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from execution_engine.util.interval import IntervalType, IntervalWithType
+from execution_engine.util.interval import IntervalType, TypedInterval
 from execution_engine.util.types import TimeRange
 from tests._fixtures.omop_fixture import disable_postgres_trigger
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
@@ -269,7 +269,7 @@ class Occurrence(TestCriterion, ABC):
 
         intervals = [tr.interval(type_=IntervalType.POSITIVE) for tr in time_ranges]
 
-        if not IntervalWithType.pairwise_disjoint(intervals):
+        if not TypedInterval.pairwise_disjoint(intervals):
             # intervals are overlapping, need to disable trigger for overlapping intervals to perform the test
             ctx = disable_postgres_trigger
         else:

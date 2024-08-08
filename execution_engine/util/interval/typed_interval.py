@@ -16,7 +16,7 @@ Atomic = namedtuple("Atomic", ["left", "lower", "upper", "right", "type"])
 
 class IntervalTypeProtocol(Protocol):
     """
-    The protocol of interval type used in IntervalWithType.
+    The protocol of interval type used in TypedInterval.
 
     This class is not expected to be used as-is, and should be subclassed
     first.
@@ -366,12 +366,12 @@ class IntervalType(StrEnum):
 IntervalT = TypeVar("IntervalT", bound=Any)  # The data type of the interval values.
 
 
-class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
+class TypedInterval(Generic[IntervalT, IntervalTypeT]):
     """
     This class represents an interval with type.
 
     An interval is an (automatically simplified) union of atomic intervals.
-    It can be created with IntervalWithType.from_atomic(...) or by passing Interval
+    It can be created with TypedInterval.from_atomic(...) or by passing Interval
     instances to __init__.
     """
 
@@ -379,7 +379,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
     _intervals: list[Atomic]
     __slots__ = ("_intervals",)
 
-    def __init__(self, *intervals: Union["IntervalWithType", Atomic]):
+    def __init__(self, *intervals: Union["TypedInterval", Atomic]):
         """
         Create a disjunction of zero, one or more intervals.
 
@@ -391,7 +391,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         unions: list[Atomic]
 
         for interval in intervals:
-            if isinstance(interval, IntervalWithType):
+            if isinstance(interval, TypedInterval):
                 if not interval.empty:
                     _intervals_to_merge.extend(interval._intervals)
             elif isinstance(interval, Atomic):
@@ -575,7 +575,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         upper: IntervalT | _PInf | _NInf,
         right: Bound,
         type_: IntervalTypeT | None = None,
-    ) -> "IntervalWithType":
+    ) -> "TypedInterval":
         """
         Create an Interval instance containing a single atomic interval.
 
@@ -609,7 +609,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         """
         return not self._intervals
 
-    def __iter__(self) -> Iterator["IntervalWithType"]:
+    def __iter__(self) -> Iterator["TypedInterval"]:
         """
         Iterate over the atomic intervals.
         """
@@ -665,7 +665,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         """
         return len(self._intervals)
 
-    def __getitem__(self, item: int | slice) -> "IntervalWithType":
+    def __getitem__(self, item: int | slice) -> "TypedInterval":
         """
         Get the item at the given index or slice.
         """
@@ -685,7 +685,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         type_: IntervalTypeT | None = None,
         *,
         ignore_inf: bool = True
-    ) -> "IntervalWithType":
+    ) -> "TypedInterval":
         """
         Return a new Interval instance with the specified attributes replaced.
 
@@ -788,7 +788,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         return len(self.types) == 1
 
     @property
-    def enclosure(self) -> "IntervalWithType":
+    def enclosure(self) -> "TypedInterval":
         """
         Return the smallest interval composed of a single atomic interval that encloses
         the current interval. Only possible if all atomic intervals have the same type.
@@ -802,7 +802,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         return super().enclosure
 
     @classmethod
-    def union_all(cls, args: list["IntervalWithType"]) -> "IntervalWithType":
+    def union_all(cls, args: list["TypedInterval"]) -> "TypedInterval":
         """
         Return the union of a list of intervals.
 
@@ -815,7 +815,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         return reduce(lambda x, y: x | y, args)
 
     @classmethod
-    def intersection_all(cls, args: list["IntervalWithType"]) -> "IntervalWithType":
+    def intersection_all(cls, args: list["TypedInterval"]) -> "TypedInterval":
         """
         Return the intersection of a list of intervals.
 
@@ -828,7 +828,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         return reduce(lambda x, y: x & y, args)
 
     @classmethod
-    def pairwise_disjoint(cls, args: list["IntervalWithType"]) -> bool:
+    def pairwise_disjoint(cls, args: list["TypedInterval"]) -> bool:
         """
         Check if a list of intervals are pairwise disjoint.
 
@@ -844,11 +844,11 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
 
         return True
 
-    def __and__(self, other: Any) -> "IntervalWithType":
+    def __and__(self, other: Any) -> "TypedInterval":
         """
         Return the intersection of the current interval and another interval.
         """
-        if not isinstance(other, IntervalWithType):
+        if not isinstance(other, TypedInterval):
             return NotImplemented
 
         if self.upper < other.lower or self.lower > other.upper:
@@ -901,11 +901,11 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
 
             return self.__class__(*intersections)
 
-    def __or__(self, other: Any) -> "IntervalWithType":
+    def __or__(self, other: Any) -> "TypedInterval":
         """
         Return the union of the current interval and another interval.
         """
-        if not isinstance(other, IntervalWithType):
+        if not isinstance(other, TypedInterval):
             return NotImplemented
 
         all_intervals = sorted(
@@ -919,7 +919,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         )
         merged_intervals = []
 
-        intervals: list[IntervalWithType] = [
+        intervals: list[TypedInterval] = [
             self.__class__.from_atomic(*interval) for interval in all_intervals
         ]
 
@@ -931,9 +931,9 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
                 merged_intervals.append(self.__class__(a, b))
             else:
                 lower, upper = self.union_sort(a, b)
-                lower, upper = cast(IntervalWithType, lower), cast(
-                    IntervalWithType, upper
-                )  # a and b come from intervals, so they are IntervalWithType
+                lower, upper = cast(TypedInterval, lower), cast(
+                    TypedInterval, upper
+                )  # a and b come from intervals, so they are TypedInterval
                 merged_intervals.append(lower - upper.replace(type_=lower.type))
                 merged_intervals.append(upper)
 
@@ -941,8 +941,8 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
 
     @staticmethod
     def union_sort(
-        a: Union[Atomic, "IntervalWithType"], b: Union[Atomic, "IntervalWithType"]
-    ) -> tuple[Union[Atomic, "IntervalWithType"], Union[Atomic, "IntervalWithType"]]:
+        a: Union[Atomic, "TypedInterval"], b: Union[Atomic, "TypedInterval"]
+    ) -> tuple[Union[Atomic, "TypedInterval"], Union[Atomic, "TypedInterval"]]:
         """
         Order two intervals for union (lower priority first).
         """
@@ -954,8 +954,8 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
 
     @staticmethod
     def intersection_sort(
-        a: Union[Atomic, "IntervalWithType"], b: Union[Atomic, "IntervalWithType"]
-    ) -> tuple[Union[Atomic, "IntervalWithType"], Union[Atomic, "IntervalWithType"]]:
+        a: Union[Atomic, "TypedInterval"], b: Union[Atomic, "TypedInterval"]
+    ) -> tuple[Union[Atomic, "TypedInterval"], Union[Atomic, "TypedInterval"]]:
         """
         Order two intervals for intersection (lower priority first).
         """
@@ -965,7 +965,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
             return b, a
         return (a, b) if a.type != (a.type & b.type) else (b, a)
 
-    def invert_type(self) -> "IntervalWithType":
+    def invert_type(self) -> "TypedInterval":
         """
         Return inverted type of the current interval.
         """
@@ -977,7 +977,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
             ]
         )
 
-    def select_type(self, type_: IntervalTypeT) -> "IntervalWithType":
+    def select_type(self, type_: IntervalTypeT) -> "TypedInterval":
         """
         Return the interval with only the specified type.
 
@@ -992,7 +992,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
             ]
         )
 
-    def ffill(self) -> "IntervalWithType":
+    def ffill(self) -> "TypedInterval":
         """
         Forward fill the current interval.
 
@@ -1034,7 +1034,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
 
         return self.__class__(*filled_intervals)
 
-    def complement(self, type_: IntervalTypeT | None = None) -> "IntervalWithType":
+    def complement(self, type_: IntervalTypeT | None = None) -> "TypedInterval":
         """
         Return the complement of the current interval.
 
@@ -1080,7 +1080,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         """
         Check if the current interval contains another interval or a value.
         """
-        if isinstance(item, IntervalWithType):
+        if isinstance(item, TypedInterval):
             if item.empty:
                 return True
             elif self.upper < item.lower or self.lower > item.upper:
@@ -1125,7 +1125,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
                     return True
             return False
 
-    def __invert__(self) -> "IntervalWithType":
+    def __invert__(self) -> "TypedInterval":
         """
         Return the complement of the current interval.
         """
@@ -1141,11 +1141,11 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
 
         return self.complement(type_)
 
-    def __sub__(self, other: Any) -> "IntervalWithType":
+    def __sub__(self, other: Any) -> "TypedInterval":
         """
         Return the difference between the current interval and another interval.
         """
-        if isinstance(other, IntervalWithType):
+        if isinstance(other, TypedInterval):
             return self & ~other
         else:
             return NotImplemented
@@ -1154,7 +1154,7 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         """
         Check if the current interval is equal to another interval.
         """
-        if isinstance(other, IntervalWithType):
+        if isinstance(other, TypedInterval):
             if len(other._intervals) != len(self._intervals):
                 return False
 
@@ -1172,11 +1172,11 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         else:
             return NotImplemented
 
-    def __lt__(self, other: "IntervalWithType" | IntervalT) -> bool:
+    def __lt__(self, other: "TypedInterval" | IntervalT) -> bool:
         """
         Check if the current interval is less than another interval.
         """
-        if isinstance(other, IntervalWithType):
+        if isinstance(other, TypedInterval):
             if self.empty or other.empty:
                 return False
 
@@ -1193,11 +1193,11 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
                 self.upper < other or (self.right == Bound.OPEN and self.upper == other)
             )
 
-    def __gt__(self, other: "IntervalWithType" | IntervalT) -> bool:
+    def __gt__(self, other: "TypedInterval" | IntervalT) -> bool:
         """
         Check if the current interval is greater than another interval.
         """
-        if isinstance(other, IntervalWithType):
+        if isinstance(other, TypedInterval):
             if self.empty or other.empty:
                 return False
 
@@ -1214,11 +1214,11 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
                 self.lower > other or (self.left == Bound.OPEN and self.lower == other)
             )
 
-    def __le__(self, other: "IntervalWithType" | IntervalT) -> bool:
+    def __le__(self, other: "TypedInterval" | IntervalT) -> bool:
         """
         Check if the current interval is less than or equal to another interval.
         """
-        if isinstance(other, IntervalWithType):
+        if isinstance(other, TypedInterval):
             if self.empty or other.empty:
                 return False
 
@@ -1233,11 +1233,11 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
             )
             return not self.empty and self.upper <= other
 
-    def __ge__(self, other: "IntervalWithType" | IntervalT) -> bool:
+    def __ge__(self, other: "TypedInterval" | IntervalT) -> bool:
         """
         Check if the current interval is greater than or equal to another interval.
         """
-        if isinstance(other, IntervalWithType):
+        if isinstance(other, TypedInterval):
             if self.empty or other.empty:
                 return False
 
@@ -1284,8 +1284,8 @@ class IntervalWithType(Generic[IntervalT, IntervalTypeT]):
         return " | ".join(string)
 
 
-class AbstractDiscreteIntervalWithType(
-    IntervalWithType[IntervalT, IntervalTypeT], Generic[IntervalT, IntervalTypeT]
+class AbstractDiscreteTypedInterval(
+    TypedInterval[IntervalT, IntervalTypeT], Generic[IntervalT, IntervalTypeT]
 ):
     """
     An abstract class for discrete interval.
@@ -1371,7 +1371,7 @@ class AbstractDiscreteIntervalWithType(
         return super()._mergeable(first, second)
 
 
-class IntInterval(AbstractDiscreteIntervalWithType[int, IntervalType]):  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is # todo: can we fix this?
+class IntInterval(AbstractDiscreteTypedInterval[int, IntervalType]):  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is # todo: can we fix this?
     """
     An integer interval.
     """
@@ -1380,7 +1380,7 @@ class IntInterval(AbstractDiscreteIntervalWithType[int, IntervalType]):  # type:
 
 
 class DateTimeInterval(
-    AbstractDiscreteIntervalWithType[datetime.datetime, IntervalType]  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is # todo: can we fix this?
+    AbstractDiscreteTypedInterval[datetime.datetime, IntervalType]  # type: ignore # mypy thinks IntervalType is not a subtype of IntervalTypeProtocol, but it is # todo: can we fix this?
 ):
     """
     A datetime interval (second precision).
