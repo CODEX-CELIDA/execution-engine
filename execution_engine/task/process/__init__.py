@@ -13,16 +13,11 @@ def get_processing_module(
 
     Available processing modules:
         - rectangle (faster, using rectangles intersection/union)
-        - interval_portion (slower, using Portion Interval)
 
     :param name: name of the processing module
     """
 
-    if name == "interval_portion":
-        from execution_engine.task.process import interval_portion
-
-        return interval_portion
-    elif name == "rectangle":
+    if name == "rectangle":
         if version not in ["auto", "python", "cython"]:
             raise ValueError("Unknown processing module version: {}".format(version))
 

@@ -2,12 +2,12 @@ import re
 
 import pytest
 from pandas import Timestamp
-from portion import Bound, inf
 
-from execution_engine.util.interval import Atomic
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
-from execution_engine.util.interval import (
+from execution_engine.util.interval.const import Bound, inf
+from execution_engine.util.interval.typed_interval import (
+    Atomic,
     IntervalWithType,
     IntInterval,
     empty_interval_int,

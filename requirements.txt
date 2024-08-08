@@ -11,7 +11,6 @@ pydantic-settings==2.3.4
 uvicorn[standard]==0.30.1
 fastapi==0.112.0
 pendulum==3.0.0
-portion==2.4.2
 networkx==3.3
 numpy==2.0.1
 pytz==2024.1
