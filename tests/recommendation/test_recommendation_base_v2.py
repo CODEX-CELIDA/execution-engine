@@ -372,8 +372,10 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             "missing_data_type"
         ].to_dict()
 
+        types = df_expanded.set_index("name")["type"].to_dict()
+
         df_expanded.drop(
-            ["start_datetime", "end_datetime", "missing_data_type"],
+            ["start_datetime", "end_datetime", "missing_data_type", "type"],
             axis=1,
             inplace=True,
         )
@@ -414,6 +416,18 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             output_df[column] = types_missing_data[column]
             output_df.loc[idx_positive, column] = IntervalType.POSITIVE
 
+            # Apply types
+            if types[column] in ["measurement", "observation"]:
+                # we need to forward fill the data
+                s = output_df[column].copy()
+                # Group by person_id and forward fill
+                idx_no_data = s == IntervalType.NO_DATA
+                s.loc[idx_no_data] = np.nan
+                s = s.groupby(level="person_id").ffill()
+                s.loc[s.isnull()] = IntervalType.NO_DATA
+                # Replace np.nan back to 'NO_DATA' if needed
+                output_df[column] = s
+
         assert len(output_df.columns) == len(merged_df.columns), "Column count changed"
 
         return output_df
@@ -437,6 +451,7 @@ class TestRecommendationBaseV2(TestRecommendationBase):
                     "start_datetime",
                     "end_datetime",
                     "missing_data_type",
+                    "type",
                 ]
             ],
             observation_window=self.observation_window,
@@ -451,6 +466,7 @@ class TestRecommendationBaseV2(TestRecommendationBase):
                     "end_datetime": self.visit_datetime.end,
                     "name": "BASE",
                     "missing_data_type": IntervalType.NEGATIVE,
+                    "type": "visit",
                 }
             ),
             self.observation_window,

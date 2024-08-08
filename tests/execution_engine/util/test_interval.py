@@ -2,14 +2,14 @@ import re
 
 import pytest
 from pandas import Timestamp
-from portion import Bound, inf
 
-from execution_engine.util.interval import Atomic
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
-from execution_engine.util.interval import (
-    IntervalWithType,
+from execution_engine.util.interval.const import Bound, inf
+from execution_engine.util.interval.typed_interval import (
+    Atomic,
     IntInterval,
+    TypedInterval,
     empty_interval_int,
     interval_datetime,
     interval_int,
@@ -686,7 +686,7 @@ def parse_interval(s, default_type: IntervalType = IntervalType.POSITIVE):
 
 
 class TestMergeable:
-    _interval_class: IntervalWithType
+    _interval_class: TypedInterval
 
     @classmethod
     def mergeable(cls, a: str, b: str):
@@ -713,7 +713,7 @@ class TestMergeable:
         return self._interval_class.from_atomic(*parse_interval(s))
 
 
-class TestAbstractDiscreteIntervalWithType(TestMergeable):
+class TestAbstractDiscreteTypedInterval(TestMergeable):
     _interval_class = IntInterval
 
     def test_mergeable_same_type(self):
@@ -782,8 +782,8 @@ class TestAbstractDiscreteIntervalWithType(TestMergeable):
         assert interval_union == interval_union_different_order
 
 
-class TestIntervalWithType(TestMergeable):
-    _interval_class = IntervalWithType
+class TestTypedInterval(TestMergeable):
+    _interval_class = TypedInterval
 
     def test_mergeable_same_type(self):
         assert self.mergeable("[1, 2]", "[2, 3]")

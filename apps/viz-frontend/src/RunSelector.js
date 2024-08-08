@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 
 const RunSelector = ({ onSubmit }) => {
     const [runs, setRuns] = useState([]);
-    const [selectedRun, setSelectedRun] = useState('4');
-    const [personId, setPersonId] = useState('1006');
+    const [selectedRun, setSelectedRun] = useState('');
+    const [personId, setPersonId] = useState('');
     const [personSourceValue, setPersonSourceValue] = useState('');
     const [selectedDate, setSelectedDate] = useState('');
 
@@ -48,8 +48,8 @@ const RunSelector = ({ onSubmit }) => {
             <select value={selectedRun} onChange={handleRunChange}>
                 <option value="">Select a Run</option>
                 {runs.map(run => (
-                    <option key={run.run_id} value={run.run_id}>
-                        {run.run_id}
+                    <option key={run.recommendation_name} value={run.run_id}>
+                        {run.recommendation_name}
                     </option>
                 ))}
             </select>

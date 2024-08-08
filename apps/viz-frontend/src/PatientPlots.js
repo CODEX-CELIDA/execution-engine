@@ -41,6 +41,7 @@ const PatientPlots = ({ runId, personId, personSourceValue, selectedDate }) => {
                 traceMap[traceKey] = {
                     x: [],
                     y: [],
+                    width: [],
                     base: [],
                     name: traceKey,
                     type: 'bar',
@@ -53,9 +54,10 @@ const PatientPlots = ({ runId, personId, personSourceValue, selectedDate }) => {
             const duration = new Date(interval.interval_end) - new Date(interval.interval_start);
 
             traceMap[traceKey].base.push(new Date(interval.interval_start));
-            traceMap[traceKey].x.push(duration);
+            traceMap[traceKey].x.push(Math.max(duration, 20000));
             traceMap[traceKey].y.push(traceMap[traceKey].labelPosition);
             traceMap[traceKey].marker.color.push(getColor(interval.interval_type)); // Add individual color
+            traceMap[traceKey].width.push(interval.interval_type === 'NO_DATA' ? 0.5 : 0.8); // Set the width
         });
 
         // Sort traceMap by traceKey
@@ -66,7 +68,7 @@ const PatientPlots = ({ runId, personId, personSourceValue, selectedDate }) => {
         switch (intervalType) {
             case 'POSITIVE': return 'green';
             case 'NEGATIVE': return 'red';
-            case 'NO_DATA': return 'grey';
+            case 'NO_DATA': return 'lightgrey';
             case 'NOT_APPLICABLE': return 'lightblue';
             default: return 'black';
         }
@@ -87,6 +89,7 @@ const PatientPlots = ({ runId, personId, personSourceValue, selectedDate }) => {
                     traces.push({
                         x: [startOfDay, startOfDay],
                         y: [0, maxY],
+                        zorder: 1,
                         type: 'scatter',
                         mode: 'lines',
                         line: { color: 'blue', dash: 'dash' },
@@ -97,6 +100,7 @@ const PatientPlots = ({ runId, personId, personSourceValue, selectedDate }) => {
                     traces.push({
                         x: [endOfDay, endOfDay],
                         y: [0, maxY],
+                        zorder: 1,
                         type: 'scatter',
                         mode: 'lines',
                         line: { color: 'blue', dash: 'dash' },

@@ -871,6 +871,18 @@ class TestRecommendationBase(ABC):
             output_df[column] = types_missing_data[column[0]]
             output_df.loc[idx_positive, column] = IntervalType.POSITIVE
 
+            # Apply types
+            if types[column] in ["measurement", "observation"]:
+                # we need to forward fill the data
+                s = output_df[column].copy()
+                # Group by person_id and forward fill
+                idx_no_data = s == IntervalType.NO_DATA
+                s.loc[idx_no_data] = np.nan
+                s = s.groupby(level="person_id").ffill()
+                s.loc[s.isnull()] = IntervalType.NO_DATA
+                # Replace np.nan back to 'NO_DATA' if needed
+                output_df[column] = s
+
         assert len(output_df.columns) == len(merged_df.columns), "Column count changed"
 
         return output_df
@@ -880,6 +892,7 @@ class TestRecommendationBase(ABC):
         df_combinations = self.generate_criteria_combinations(
             run_slow_tests=run_slow_tests
         )
+
         # df_combinations is dataframe (binary) of all combinations that are to be performed (just by name)
         #   rows = persons, columns = criteria
 

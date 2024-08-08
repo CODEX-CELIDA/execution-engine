@@ -1,5 +1,6 @@
 import itertools
 
+import pandas as pd
 import pytest
 
 from execution_engine.omop.db.base import (  # noqa: F401 -- do not remove - needed for sqlalchemy to work
@@ -17,7 +18,7 @@ rec17_population_combination = COVID19() | IntensiveCare() | DDimer()
 
 
 @pytest.mark.recommendation
-class TestRecommendation17TherapeuticAnticoagulation_1_5(TestRecommendationBaseV2):
+class TestRecommendation17TherapeuticAnticoagulation_v1_5(TestRecommendationBaseV2):
     recommendation_url = (
         "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation"
     )
@@ -72,6 +73,36 @@ class TestRecommendation17TherapeuticAnticoagulation_1_5(TestRecommendationBaseV
         #     COVID19() | IntensiveCare() | ~PulmonaryEmbolism() | ~VenousThrombosis() | ~AtrialFibrillation() | Certoparin() | Heparin() | APTT(),
         #     (COVID19() | IntensiveCare() | ~PulmonaryEmbolism() | ~VenousThrombosis() | ~AtrialFibrillation()) & NadroparinHighWeight() & Argatroban() & APTT(),
     ]
+
+    def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        The recommendation uses ~(ICU | VENOUS_THROMBOSIS) as a population criterion, and at least
+        ICU ends within a day, i.e. the day has both POSITIVE and NEGATIVE intervals for ICU.
+        Now, for population, POSITIVE takes precedence over NEGATIVE, so the day is marked as POSITIVE.
+        However, the expected value for the day is determined on basis of the whole day, and inverting the POSITIVE
+        label gets NEGATIVE (as a label for the whole day), although there is actually both NEGATIVE and POSITIVE during
+        the day, so inversion would lead to still POSITIVE and NEGATIVE being there, and so the day would be POSITIVE,
+        if we would consider within-day granularity, which, unfortunately, we do not (here, in testing!).
+
+        So we just forcibly set the last entry of POSITIVE to NEGATIVE.
+        """
+        cols = ["INTENSIVE_CARE"]
+
+        def set_last_positive_to_negative(group):
+            idx_positive = group[group == IntervalType.POSITIVE].index
+            if not idx_positive.empty:
+                last_positive_idx = idx_positive[-1]
+                group.at[last_positive_idx] = IntervalType.NEGATIVE
+            return group
+
+        for c in cols:
+            df[c] = (
+                df[c]
+                .groupby(level="person_id", group_keys=False)
+                .apply(set_last_positive_to_negative)
+            )
+
+        return df
 
     def test_recommendation_17_therapeutic_anticoagulation(
         self, setup_testdata
@@ -128,6 +159,36 @@ class TestRecommendation17TherapeuticAnticoagulation_v1_4(TestRecommendationBase
     ]
 
     invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
+
+    def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        The recommendation uses ~(ICU | VENOUS_THROMBOSIS) as a population criterion, and at least
+        ICU ends within a day, i.e. the day has both POSITIVE and NEGATIVE intervals for ICU.
+        Now, for population, POSITIVE takes precedence over NEGATIVE, so the day is marked as POSITIVE.
+        However, the expected value for the day is determined on basis of the whole day, and inverting the POSITIVE
+        label gets NEGATIVE (as a label for the whole day), although there is actually both NEGATIVE and POSITIVE during
+        the day, so inversion would lead to still POSITIVE and NEGATIVE being there, and so the day would be POSITIVE,
+        if we would consider within-day granularity, which, unfortunately, we do not (here, in testing!).
+
+        So we just forcibly set the last entry of POSITIVE to NEGATIVE.
+        """
+        cols = [("ICU", "=")]
+
+        def set_last_positive_to_negative(group):
+            idx_positive = group[group == IntervalType.POSITIVE].index
+            if not idx_positive.empty:
+                last_positive_idx = idx_positive[-1]
+                group.at[last_positive_idx] = IntervalType.NEGATIVE
+            return group
+
+        for c in cols:
+            df[c] = (
+                df[c]
+                .groupby(level="person_id", group_keys=False)
+                .apply(set_last_positive_to_negative)
+            )
+
+        return df
 
     def test_recommendation_17_therapeutic_anticoagulation(
         self, setup_testdata
@@ -191,6 +252,36 @@ class TestRecommendation17TherapeuticAnticoagulation_v1_2(TestRecommendationBase
     ]
 
     invalid_combinations = "NADROPARIN_HIGH_WEIGHT> & NADROPARIN_LOW_WEIGHT>"
+
+    def _modify_criteria_hook(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        The recommendation uses ~(ICU | VENOUS_THROMBOSIS) as a population criterion, and at least
+        ICU ends within a day, i.e. the day has both POSITIVE and NEGATIVE intervals for ICU.
+        Now, for population, POSITIVE takes precedence over NEGATIVE, so the day is marked as POSITIVE.
+        However, the expected value for the day is determined on basis of the whole day, and inverting the POSITIVE
+        label gets NEGATIVE (as a label for the whole day), although there is actually both NEGATIVE and POSITIVE during
+        the day, so inversion would lead to still POSITIVE and NEGATIVE being there, and so the day would be POSITIVE,
+        if we would consider within-day granularity, which, unfortunately, we do not (here, in testing!).
+
+        So we just forcibly set the last entry of POSITIVE to NEGATIVE.
+        """
+        cols = [("ICU", "=")]
+
+        def set_last_positive_to_negative(group):
+            idx_positive = group[group == IntervalType.POSITIVE].index
+            if not idx_positive.empty:
+                last_positive_idx = idx_positive[-1]
+                group.at[last_positive_idx] = IntervalType.NEGATIVE
+            return group
+
+        for c in cols:
+            df[c] = (
+                df[c]
+                .groupby(level="person_id", group_keys=False)
+                .apply(set_last_positive_to_negative)
+            )
+
+        return df
 
     def test_recommendation_17_therapeutic_anticoagulation(
         self, setup_testdata

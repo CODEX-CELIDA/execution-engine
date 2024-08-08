@@ -3012,7 +3012,7 @@ class TestIntersectIntervals(ProcessTest):
 
 
 class TestIntervalFilling(ProcessTest):
-    def assert_equal(self, data, expected):
+    def assert_equal(self, data, expected, observation_window=None):
         def to_df(data):
             df = pd.DataFrame(
                 data,
@@ -3029,7 +3029,8 @@ class TestIntervalFilling(ProcessTest):
             return df
 
         result = self.process.forward_fill(
-            df_to_person_interval_tuple(to_df(data), by=["person_id"])
+            df_to_person_interval_tuple(to_df(data), by=["person_id"]),
+            observation_window,
         )
         df_result = self.intervals_to_df(result, ["person_id"])
         df_expected = to_df(expected)
@@ -3126,6 +3127,46 @@ class TestIntervalFilling(ProcessTest):
         ]
 
         self.assert_equal(data, expected)
+
+    def test_forward_fill_with_observation_window(self):
+        observation_window = TimeRange.from_tuple(
+            ("2023-03-01 08:00:00+00:00", "2023-03-15 15:00:00+00:00")
+        )
+        data = [
+            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 08:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 09:00:00+00:00", "2023-03-01 09:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 09:10:00+00:00", "2023-03-01 10:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 11:00:00+00:00", "2023-03-01 11:00:00+00:00", "NEGATIVE"),
+            (1, "2023-03-01 12:00:00+00:00", "2023-03-01 13:00:00+00:00", "POSITIVE"),
+            (1, "2023-03-01 14:00:00+00:00", "2023-03-01 15:00:00+00:00", "POSITIVE"),
+        ]
+
+        expected = [
+            (1, "2023-03-01 08:00:00+00:00", "2023-03-01 10:59:59+00:00", "POSITIVE"),
+            (1, "2023-03-01 11:00:00+00:00", "2023-03-01 11:59:59+00:00", "NEGATIVE"),
+            (1, "2023-03-01 12:00:00+00:00", "2023-03-15 15:00:00+00:00", "POSITIVE"),
+        ]
+        self.assert_equal(data, expected, observation_window)
+
+        # with timezone
+        observation_window = TimeRange.from_tuple(
+            ("2023-03-01 08:00:00+01:00", "2023-04-15 15:00:00+02:00")
+        )
+        data = [
+            (1, "2023-03-01 08:00:00+01:00", "2023-03-01 08:00:00+01:00", "POSITIVE"),
+            (1, "2023-03-01 09:00:00+01:00", "2023-03-01 09:00:00+01:00", "POSITIVE"),
+            (1, "2023-03-01 09:10:00+01:00", "2023-03-01 10:00:00+01:00", "POSITIVE"),
+            (1, "2023-03-01 11:00:00+01:00", "2023-03-01 11:00:00+01:00", "NEGATIVE"),
+            (1, "2023-03-01 12:00:00+01:00", "2023-03-01 13:00:00+01:00", "POSITIVE"),
+            (1, "2023-03-01 14:00:00+01:00", "2023-03-01 15:00:00+01:00", "POSITIVE"),
+        ]
+
+        expected = [
+            (1, "2023-03-01 08:00:00+01:00", "2023-03-01 10:59:59+01:00", "POSITIVE"),
+            (1, "2023-03-01 11:00:00+01:00", "2023-03-01 11:59:59+01:00", "NEGATIVE"),
+            (1, "2023-03-01 12:00:00+01:00", "2023-04-15 15:00:00+02:00", "POSITIVE"),
+        ]
+        self.assert_equal(data, expected, observation_window)
 
 
 class TestCreateTimeIntervals(ProcessTest):

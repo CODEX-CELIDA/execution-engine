@@ -163,6 +163,7 @@ class ProcedureGenerator(BaseDataGenerator):
                 "valid": valid,
                 "static": self.static,
                 "missing_data_type": self.missing_data_type,
+                "type": "procedure",
             }
             for procedure in procedures
         ]
@@ -201,6 +202,7 @@ class ConditionGenerator(BaseDataGenerator):
                 "valid": valid,
                 "static": self.static,
                 "missing_data_type": self.missing_data_type,
+                "type": "condition",
             }
             for condition in conditions
         ]
@@ -270,6 +272,7 @@ class MeasurementGenerator(BaseDataGenerator):
                 "valid": valid,
                 "static": self.static,
                 "missing_data_type": self.missing_data_type,
+                "type": "measurement",
             }
             for measurement in measurements
         ]
@@ -339,6 +342,7 @@ class ObservationGenerator(MeasurementGenerator):
                 "valid": valid,
                 "static": self.static,
                 "missing_data_type": self.missing_data_type,
+                "type": "observation",
             }
             for observation in observations
         ]
@@ -395,6 +399,7 @@ class DrugExposureGenerator(BaseDataGenerator):
                 "valid": valid,
                 "static": self.static,
                 "missing_data_type": self.missing_data_type,
+                "type": "drug_exposure",
             }
             for drug_exposure in drug_exposures
         ]
@@ -435,6 +440,7 @@ class VisitGenerator(BaseDataGenerator):
                 "valid": valid,
                 "static": self.static,
                 "missing_data_type": self.missing_data_type,
+                "type": "visit",
             }
             for visit in visits
         ]

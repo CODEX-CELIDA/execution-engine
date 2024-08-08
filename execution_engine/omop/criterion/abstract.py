@@ -2,7 +2,6 @@ import copy
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Self, Type, TypedDict, cast
 
-import pandas as pd
 import sqlalchemy
 from sqlalchemy import CTE, Alias, ColumnElement, Date, Integer
 from sqlalchemy import Interval as SQLInterval
@@ -371,7 +370,7 @@ class Criterion(AbstractCriterion):
     def process_data(
         self,
         data: PersonIntervals,
-        base_data: pd.DataFrame | None,
+        base_data: PersonIntervals,
         observation_window: TimeRange,
     ) -> PersonIntervals:
         """
