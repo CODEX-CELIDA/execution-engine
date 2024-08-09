@@ -62,15 +62,15 @@ async function loadGraph(recommendationId) {
                             var label;
                             label = ele.data('concept')["concept_name"];
                             var value = ele.data('value');
-                            var dosage = ele.data('dosage');
+                            var dose = ele.data('dose');
                             var timing = ele.data('timing');
                             var route = ele.data('route');
 
                             if (value) {
                                 label += " " + value;
                             }
-                            if (dosage) {
-                                label += "\n" + dosage;
+                            if (dose) {
+                                label += "\n" + dose;
                             }
                             if (timing) {
                                 label += "\n" + timing;
