@@ -1,3 +1,4 @@
+import logging
 from typing import Type
 
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
@@ -62,7 +63,14 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
         assert cls.valid(characteristic), "Invalid characteristic definition"
 
         cc = get_coding(characteristic.definitionByTypeAndValue.valueCodeableConcept)
-        omop_concept = cls.get_standard_concept(cc)
+
+        try:
+            omop_concept = cls.get_standard_concept(cc)
+        except ValueError:
+            logging.warning(
+                f"Concept {cc.code} not found in standard vocabulary {cc.system}. Using non-standard vocabulary."
+            )
+            omop_concept = cls.get_concept(cc, standard=False)
 
         class_ = cls.get_class_from_concept(omop_concept)
 

@@ -89,6 +89,13 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         """
         return standard_vocabulary.get_standard_concept(cc.system, cc.code)
 
+    @staticmethod
+    def get_concept(cc: Coding, standard: bool = True) -> Concept:
+        """
+        Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
+        """
+        return standard_vocabulary.get_concept(cc.system, cc.code, standard=standard)
+
     @abstractmethod
     def to_criterion(self) -> Criterion:
         """Converts this characteristic to a Criterion."""
