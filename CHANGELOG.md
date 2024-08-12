@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## v2.3.0 (2024-08-12)
+
+
+### Feature
+* feat: add visit_* to omop data viewer ([`1c1cf78`](https://github.com/CODEX-CELIDA/execution-engine/commit/1c1cf781ef2121ce2d7fbca991ec4df60371c3c6))
+* feat(viz-backend): add patient data logic ([`52dcf88`](https://github.com/CODEX-CELIDA/execution-engine/commit/52dcf885da070d03f8a5cbeab7bcf179c653521b))
+
+### Fix
+* fix(graph): dose info in nodes ([`0848d88`](https://github.com/CODEX-CELIDA/execution-engine/commit/0848d880d5d213f2cd1bb88b1bcafa1b4eba3850))
+* fix: interval ffill until observation_window end ([`4c9ade1`](https://github.com/CODEX-CELIDA/execution-engine/commit/4c9ade125d6566a5fc2e77b2d168519636c10dec))
+* fix(viz): display of 0 sec entries ([`51d5304`](https://github.com/CODEX-CELIDA/execution-engine/commit/51d5304e46e8d3e8fff91f058a02abb0139f3d89))
+* fix: tidal volume for &lt;110 cm height ([`7833827`](https://github.com/CODEX-CELIDA/execution-engine/commit/7833827596bd5667d60f0db0a36aac43579b5b27))
+* fix(viz): displaying recommendation name ([`2b4c5a5`](https://github.com/CODEX-CELIDA/execution-engine/commit/2b4c5a5c31184ea2d522b6c041faa1198094606a))
+* fix(viz-backend): database timezone setting ([`5c00d67`](https://github.com/CODEX-CELIDA/execution-engine/commit/5c00d67cac8c91aec4500eecfe96ece31ff450ce))
+* fix(viz-frontend): colors, sorting, display ([`531c6ab`](https://github.com/CODEX-CELIDA/execution-engine/commit/531c6ab0fe5e79c9537efaab6eba03ee1137b2f4))
+
+### Performance
+* perf(viz-backend): interval per person ([`99c7d51`](https://github.com/CODEX-CELIDA/execution-engine/commit/99c7d510b0f287facc418ba1dc35c84bec848c93))
+
+### Refactor
+* refactor: renamed IntervalWithType ([`a6e2b1f`](https://github.com/CODEX-CELIDA/execution-engine/commit/a6e2b1f2adcd0f2ee0eab6014bf40921162d1ae8))
+* refactor: removed portion dependency ([`a220ac7`](https://github.com/CODEX-CELIDA/execution-engine/commit/a220ac7b0492fc56f624f7c084cd8d4a1071852e))
+
+### Test
+* test: adapted to measurement value forward filling until end of observation window ([`a27eef6`](https://github.com/CODEX-CELIDA/execution-engine/commit/a27eef6d6525ca3cc52b1008dbfb7196a14207a1))
+* test: ffill with observation window ([`14e6187`](https://github.com/CODEX-CELIDA/execution-engine/commit/14e6187b717276a7224232810ce954e86ffa6bf2))
+
+### Unknown
+
+
 ## v2.2.0 (2024-08-07)
 
 
