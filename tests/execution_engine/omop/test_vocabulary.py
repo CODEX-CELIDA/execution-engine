@@ -85,7 +85,7 @@ class TestStandardVocabulary:
             standard_vocabulary = StandardVocabulary()
 
             standard_vocabulary.get_concept(LOINC.system_uri, "12345")
-            mock_vocabulary.omop_concept.assert_called_once_with("12345")
+            mock_vocabulary.omop_concept.assert_called_once_with("12345", standard=True)
 
     def test_get_standard_unit_concept(self):
         with patch(
