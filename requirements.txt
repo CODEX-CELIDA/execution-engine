@@ -2,7 +2,7 @@ requests==2.32.3
 python-dotenv==1.0.1
 pyyaml==6.0.1
 fhir.resources==7.1.0
-sympy==1.13.0
+sympy==1.13.2
 pandas==2.2.2
 psycopg[binary]==3.2.1
 sqlalchemy==2.0.30
