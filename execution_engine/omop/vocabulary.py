@@ -255,11 +255,13 @@ class StandardVocabulary:
         """
         return self._vf.get(system_uri).omop_standard_concept(concept)
 
-    def get_concept(self, system_uri: str, concept: str) -> Concept:
+    def get_concept(
+        self, system_uri: str, concept: str, standard: bool = True
+    ) -> Concept:
         """
         Get the OMOP Standard Vocabulary concept for the given code in the given vocabulary.
         """
-        return self._vf.get(system_uri).omop_concept(concept)
+        return self._vf.get(system_uri).omop_concept(concept, standard=standard)
 
     def get_standard_unit_concept(self, code: str) -> Concept:
         """
