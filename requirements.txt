@@ -1,13 +1,13 @@
 requests==2.32.3
 python-dotenv==1.0.1
-pyyaml==6.0.1
+pyyaml==6.0.2
 fhir.resources==7.1.0
 sympy==1.13.0
 pandas==2.2.2
 psycopg[binary]==3.2.1
-sqlalchemy==2.0.30
+sqlalchemy==2.0.35
 pydantic==2.8.2
-pydantic-settings==2.3.4
+pydantic-settings==2.5.2
 uvicorn[standard]==0.30.1
 fastapi==0.112.0
 pendulum==3.0.0
