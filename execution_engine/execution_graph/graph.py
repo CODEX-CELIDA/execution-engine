@@ -204,20 +204,24 @@ class ExecutionGraph(nx.DiGraph):
                         return str(getattr(node.criterion, attr))
                     return None
 
-                if node.criterion.concept is not None:
-                    node_data["data"].update(
-                        {
-                            "concept": (
-                                node.criterion.concept.model_dump()
-                                if node.criterion.concept is not None
-                                else None
-                            ),
-                            "value": criterion_attr("value"),
-                            "timing": criterion_attr("timing"),
-                            "dose": criterion_attr("dose"),
-                            "route": criterion_attr("route"),
-                        }
-                    )
+                try:
+                    if node.criterion.concept is not None:
+                        node_data["data"].update(
+                            {
+                                "concept": (
+                                    node.criterion.concept.model_dump()
+                                    if node.criterion.concept is not None
+                                    else None
+                                ),
+                                "value": criterion_attr("value"),
+                                "timing": criterion_attr("timing"),
+                                "dose": criterion_attr("dose"),
+                                "route": criterion_attr("route"),
+                            }
+                        )
+                except NotImplementedError:
+                    # non-concept criterion, e.g. base criterion
+                    pass
 
             if self.nodes[node]["category"] == CohortCategory.BASE:
                 node_data["data"]["base_criterion"] = str(
