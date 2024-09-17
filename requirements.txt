@@ -7,7 +7,7 @@ pandas==2.2.2
 psycopg[binary]==3.2.1
 sqlalchemy==2.0.30
 pydantic==2.8.2
-pydantic-settings==2.3.4
+pydantic-settings==2.5.2
 uvicorn[standard]==0.30.1
 fastapi==0.112.0
 pendulum==3.0.0
