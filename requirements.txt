@@ -13,7 +13,7 @@ fastapi==0.112.0
 pendulum==3.0.0
 networkx==3.3
 numpy==2.0.1
-pytz==2024.1
+pytz==2024.2
 cython==3.0.10
 setuptools==72.1.0
 sortedcontainers==2.4.0
