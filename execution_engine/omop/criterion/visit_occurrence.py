@@ -6,6 +6,7 @@ from sqlalchemy.sql import Select
 from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import column_interval_type
+from execution_engine.settings import get_config
 from execution_engine.util.interval import IntervalType
 
 __all__ = ["VisitOccurrence", "ActivePatients", "PatientsActiveDuringPeriod"]
@@ -25,7 +26,17 @@ class ActivePatients(VisitOccurrence):
     def __init__(self) -> None:
         self._exclude = False
         self._category = CohortCategory.BASE
-        self._set_omop_variables_from_domain("visit")
+
+        if get_config().episode_of_care_visit_detail:
+            self._set_omop_variables_from_domain("visit_detail")
+            self._c_start_datetime = self._table.c.visit_detail_start_datetime
+            self._c_end_datetime = self._table.c.visit_detail_end_datetime
+            self._c_type_concept_id = self._table.c.visit_detail_type_concept_id
+        else:
+            self._set_omop_variables_from_domain("visit")
+            self._c_start_datetime = self._table.c.visit_start_datetime
+            self._c_end_datetime = self._table.c.visit_end_datetime
+            self._c_type_concept_id = self._table.c.visit_type_concept_id
 
         self._concept = Concept(
             concept_id=OMOPConcepts.VISIT_TYPE_STILL_PATIENT.value,
@@ -45,8 +56,8 @@ class ActivePatients(VisitOccurrence):
 
         query = select(
             self._table.c.person_id,
-            self._table.c.visit_start_datetime.label("interval_start"),
-            self._table.c.visit_end_datetime.label("interval_end"),
+            self._c_start_datetime.label("interval_start"),
+            self._c_end_datetime.label("interval_end"),
             column_interval_type(IntervalType.POSITIVE),
         ).select_from(self._table)
 
@@ -59,8 +70,7 @@ class ActivePatients(VisitOccurrence):
         query = self._sql_header()
 
         query = query.filter(
-            self._table.c.visit_type_concept_id
-            == OMOPConcepts.VISIT_TYPE_STILL_PATIENT.value
+            self._c_type_concept_id == OMOPConcepts.VISIT_TYPE_STILL_PATIENT.value
         )
 
         query = self._filter_datetime(query)
