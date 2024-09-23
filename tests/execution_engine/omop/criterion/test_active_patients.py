@@ -5,37 +5,67 @@ import sqlalchemy.exc
 from sqlalchemy import func, select
 
 from execution_engine.omop.db.celida.views import partial_day_coverage
-from execution_engine.omop.db.omop.tables import VisitOccurrence
+from execution_engine.omop.db.omop.tables import VisitDetail, VisitOccurrence
+from execution_engine.settings import get_config, update_config
 from tests._fixtures.omop_fixture import disable_postgres_trigger
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
-from tests.functions import create_visit
+from tests.functions import create_visit, create_visit_detail
 
 
+@pytest.mark.parametrize("use_visit_details", [True, False])
 class TestActivePatientsDuringPeriod(TestCriterion):
+
+    @pytest.fixture(autouse=True)
+    def configure_visit_details(self, use_visit_details):
+        """
+        This fixture sets up the configuration before each test.
+        It will automatically be used before any other fixture, including base_criterion.
+        """
+        config = get_config()
+        config.episode_of_care_visit_detail = use_visit_details
+        update_config(**config.model_dump())
+
     @staticmethod
-    def insert_visits(db_session, person, visit_datetimes):
+    def insert_visits(db_session, person, visit_datetimes, use_visit_details):
         for visit_start_datetime, visit_end_datetime in visit_datetimes:
+
+            # we use a 0 sec duration for visit_occurrence if using for visit details to make sure the visit details
+            # table is indeed used
             vo = create_visit(
                 person_id=person.person_id,
                 visit_start_datetime=pendulum.parse(visit_start_datetime),
-                visit_end_datetime=pendulum.parse(visit_end_datetime),
+                visit_end_datetime=pendulum.parse(
+                    visit_end_datetime
+                    if not use_visit_details
+                    else visit_start_datetime
+                ),
                 visit_concept_id=concepts.INTENSIVE_CARE,
             )
             db_session.add(vo)
+            db_session.commit()
 
-        db_session.commit()
+            if use_visit_details:
+                vd = create_visit_detail(
+                    vo=vo,
+                    visit_detail_concept_id=concepts.INTENSIVE_CARE,
+                    visit_detail_start_datetime=pendulum.parse(visit_start_datetime),
+                    visit_detail_end_datetime=pendulum.parse(visit_end_datetime),
+                )
+                db_session.add(vd)
+                db_session.commit()
 
     def test_active_patients_during_period(
-        self,
-        person,
-        db_session,
-        base_criterion,
-        observation_window,
+        self, person, db_session, base_criterion, observation_window, use_visit_details
     ):
         person = person[0]
 
         from execution_engine.clients import omopdb
+
+        if use_visit_details:
+            assert base_criterion._table.original == VisitDetail.__table__
+        else:
+            assert base_criterion._table.original == VisitOccurrence.__table__
 
         # used to check for overlapping intervals
         omopdb.enable_interval_check_trigger()
@@ -48,7 +78,7 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             second element is the visit end datetime.
             """
 
-            self.insert_visits(db_session, person, visit_datetimes)
+            self.insert_visits(db_session, person, visit_datetimes, use_visit_details)
             try:
                 with self.execute_base_criterion(
                     base_criterion,
@@ -68,6 +98,10 @@ class TestActivePatientsDuringPeriod(TestCriterion):
             finally:
                 # cleanup
                 db_session.rollback()  # rollback to avoid constraint violation
+
+                if use_visit_details:
+                    db_session.query(VisitDetail).delete()
+
                 db_session.query(VisitOccurrence).delete()
                 db_session.commit()
 
@@ -231,12 +265,20 @@ class TestActivePatientsDuringPeriod(TestCriterion):
         ],
     )
     def test_multiple_patients_active_during_period(
-        self, person, db_session, base_criterion, observation_window, test_cases
+        self,
+        person,
+        db_session,
+        base_criterion,
+        observation_window,
+        test_cases,
+        use_visit_details,
     ):
         # need to disable postgres trigger to avoid constraint violation due to overlapping intervals in testdata
         with disable_postgres_trigger(db_session):
             for p, tc in zip(person, test_cases):
-                self.insert_visits(db_session, p, tc["time_range"])
+                self.insert_visits(
+                    db_session, p, tc["time_range"], use_visit_details=use_visit_details
+                )
 
             with self.execute_base_criterion(
                 base_criterion,
