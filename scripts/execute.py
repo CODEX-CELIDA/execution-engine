@@ -88,7 +88,7 @@ with omopdb.begin() as con:
         )
 
 base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guideline/"
-recommendation_package_version = "latest"
+recommendation_package_version = "v1.5.2"
 
 urls = [
     "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
