@@ -1,4 +1,4 @@
-from sqlalchemy import Date, Select, and_, cast, func, not_, or_, select, text, true
+from sqlalchemy import Date, Select, and_, cast, func, not_, select, text, true
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 
@@ -60,9 +60,6 @@ def view_interval_coverage_slow() -> Select:
             ),
             func.bool_or(rri.c.interval_type == IntervalType.NO_DATA).label(
                 "has_no_data"
-            ),
-            func.bool_or(rri.c.interval_type == IntervalType.NOT_APPLICABLE).label(
-                "has_not_applicable"
             ),
             func.bool_or(rri.c.interval_type == IntervalType.NEGATIVE).label(
                 "has_negative"
@@ -156,9 +153,6 @@ def view_interval_coverage() -> Select:
             func.bool_or(pi.c.interval_type == IntervalType.NEGATIVE).label(
                 "has_negative"
             ),
-            func.bool_or(pi.c.interval_type == IntervalType.NOT_APPLICABLE).label(
-                "has_not_applicable"
-            ),
             func.bool_or(pi.c.interval_type == IntervalType.NO_DATA).label(
                 "has_no_data"
             ),
@@ -207,33 +201,6 @@ def view_full_day_coverage() -> Select:
     ).filter(
         and_(
             interval_coverage.c.has_positive,
-            not_(interval_coverage.c.has_negative),
-        )
-    )
-
-    return covered_dates
-
-
-def view_full_day_coverage_with_not_applicable() -> Select:
-    """
-    Return Select statement for view to calculate the full day coverage of recommendation results.
-    In this view, NO_DATA is considered as positive.
-    """
-    day = interval_coverage.c.day.label("valid_date")
-
-    # subtract one second from the covered time because 00:00:00 - 23:59:59 is considered to be a full day
-    covered_dates = select(
-        interval_coverage.c.run_id,
-        interval_coverage.c.person_id,
-        interval_coverage.c.cohort_category,
-        interval_coverage.c.pi_pair_id,
-        interval_coverage.c.criterion_id,
-        day,
-    ).filter(
-        and_(
-            or_(
-                interval_coverage.c.has_positive, interval_coverage.c.has_not_applicable
-            ),
             not_(interval_coverage.c.has_negative),
         )
     )
@@ -323,12 +290,6 @@ full_day_coverage = view(
     "full_day_coverage", Base.metadata, view_full_day_coverage(), schema=SCHEMA_NAME
 )
 
-full_day_coverage_with_not_applicable = view(
-    "full_day_coverage_with_na",
-    Base.metadata,
-    view_full_day_coverage_with_not_applicable(),
-    schema=SCHEMA_NAME,
-)
 
 partial_day_coverage = view(
     "partial_day_coverage",
