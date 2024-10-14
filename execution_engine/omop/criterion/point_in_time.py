@@ -86,7 +86,7 @@ class PointInTimeCriterion(ConceptCriterion):
     def process_data(
         self,
         data: PersonIntervals,
-        base_data: PersonIntervals,
+        base_data: PersonIntervals | None,
         observation_window: TimeRange,
     ) -> PersonIntervals:
         """
@@ -95,7 +95,7 @@ class PointInTimeCriterion(ConceptCriterion):
         Forward fill all intervals and in insert NO_DATA intervals for missing time in observation_window.
 
         :param data: The result of the SQL query.
-        :param base_data: The base data.
+        :param base_data: The base data or None if this is the base criterion.
         :param observation_window: The observation window.
         :return: A processed DataFrame.
         """
