@@ -1,4 +1,4 @@
-from sqlalchemy import Date, Select, and_, func, not_, select
+from sqlalchemy import Date, Select, and_, cast, func, not_, or_, select, text, true
 from sqlalchemy.dialects.postgresql import INTERVAL
 from sqlalchemy.sql.functions import concat
 
@@ -14,7 +14,7 @@ from execution_engine.omop.db.view import view
 from execution_engine.util.interval import IntervalType
 
 
-def view_interval_coverage() -> Select:
+def view_interval_coverage_slow() -> Select:
     """
     Return Select statement for view to calculate the full day coverage of recommendation results.
     """
@@ -61,6 +61,9 @@ def view_interval_coverage() -> Select:
             func.bool_or(rri.c.interval_type == IntervalType.NO_DATA).label(
                 "has_no_data"
             ),
+            func.bool_or(rri.c.interval_type == IntervalType.NOT_APPLICABLE).label(
+                "has_not_applicable"
+            ),
             func.bool_or(rri.c.interval_type == IntervalType.NEGATIVE).label(
                 "has_negative"
             ),
@@ -78,6 +81,104 @@ def view_interval_coverage() -> Select:
             rri.c.cohort_category,
             rri.c.pi_pair_id,
             rri.c.criterion_id,
+        )
+    )
+
+    return interval_coverage
+
+
+interval_coverage_slow = view(
+    "interval_coverage_slow",
+    Base.metadata,
+    view_interval_coverage_slow(),
+    schema=SCHEMA_NAME,
+)
+
+
+def view_interval_coverage() -> Select:
+    """
+    Return Select statement for view to calculate the full day coverage of recommendation results.
+    """
+
+    # Aliases for tables
+    ri = ResultInterval.__table__.alias("ri")
+    er = ExecutionRun.__table__.alias("er")
+
+    # Define the person_intervals CTE
+    person_intervals = (
+        select(
+            ri.c.run_id,
+            ri.c.person_id,
+            ri.c.cohort_category,
+            ri.c.pi_pair_id,
+            ri.c.criterion_id,
+            ri.c.interval_type,
+            cast(
+                func.greatest(ri.c.interval_start, er.c.observation_start_datetime),
+                Date,
+            ).label("interval_start_date"),
+            cast(
+                func.least(ri.c.interval_end, er.c.observation_end_datetime)
+                - text("INTERVAL '1 SECOND'"),
+                Date,
+            ).label("interval_end_date"),
+        )
+        .select_from(ri.join(er, ri.c.run_id == er.c.run_id))
+        .where(
+            ri.c.interval_end >= er.c.observation_start_datetime,
+            ri.c.interval_start <= er.c.observation_end_datetime,
+        )
+        .cte("person_intervals")
+    )
+
+    pi = person_intervals.alias("pi")
+
+    # Define the generate_series function as a lateral table and alias it as 'd'
+    generate_series = func.generate_series(
+        pi.c.interval_start_date, pi.c.interval_end_date, text("INTERVAL '1 day'")
+    )
+
+    # Use lateral join with the generate_series function
+    d = generate_series.table_valued("date").lateral("d")
+
+    # Build the main query
+    interval_coverage = (
+        select(
+            pi.c.run_id,
+            pi.c.person_id,
+            pi.c.cohort_category,
+            pi.c.pi_pair_id,
+            pi.c.criterion_id,
+            d.c.date.label("day"),
+            func.bool_or(pi.c.interval_type == IntervalType.POSITIVE).label(
+                "has_positive"
+            ),
+            func.bool_or(pi.c.interval_type == IntervalType.NEGATIVE).label(
+                "has_negative"
+            ),
+            func.bool_or(pi.c.interval_type == IntervalType.NOT_APPLICABLE).label(
+                "has_not_applicable"
+            ),
+            func.bool_or(pi.c.interval_type == IntervalType.NO_DATA).label(
+                "has_no_data"
+            ),
+        )
+        .select_from(pi.join(d, true()))
+        .group_by(
+            pi.c.run_id,
+            pi.c.person_id,
+            pi.c.cohort_category,
+            pi.c.pi_pair_id,
+            pi.c.criterion_id,
+            d.c.date,
+        )
+        .order_by(
+            pi.c.person_id,
+            pi.c.cohort_category,
+            pi.c.pi_pair_id,
+            pi.c.criterion_id,
+            d.c.date,
+            pi.c.run_id,
         )
     )
 
@@ -106,6 +207,33 @@ def view_full_day_coverage() -> Select:
     ).filter(
         and_(
             interval_coverage.c.has_positive,
+            not_(interval_coverage.c.has_negative),
+        )
+    )
+
+    return covered_dates
+
+
+def view_full_day_coverage_with_not_applicable() -> Select:
+    """
+    Return Select statement for view to calculate the full day coverage of recommendation results.
+    In this view, NO_DATA is considered as positive.
+    """
+    day = interval_coverage.c.day.label("valid_date")
+
+    # subtract one second from the covered time because 00:00:00 - 23:59:59 is considered to be a full day
+    covered_dates = select(
+        interval_coverage.c.run_id,
+        interval_coverage.c.person_id,
+        interval_coverage.c.cohort_category,
+        interval_coverage.c.pi_pair_id,
+        interval_coverage.c.criterion_id,
+        day,
+    ).filter(
+        and_(
+            or_(
+                interval_coverage.c.has_positive, interval_coverage.c.has_not_applicable
+            ),
             not_(interval_coverage.c.has_negative),
         )
     )
@@ -193,6 +321,13 @@ def interval_result_view() -> Select:
 
 full_day_coverage = view(
     "full_day_coverage", Base.metadata, view_full_day_coverage(), schema=SCHEMA_NAME
+)
+
+full_day_coverage_with_not_applicable = view(
+    "full_day_coverage_with_na",
+    Base.metadata,
+    view_full_day_coverage_with_not_applicable(),
+    schema=SCHEMA_NAME,
 )
 
 partial_day_coverage = view(
