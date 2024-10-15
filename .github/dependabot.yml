@@ -7,9 +7,17 @@ updates:
     commit-message:
       prefix: "ci(dependabot):"
     target-branch: "main"
+    group:
+      group-name: "github-actions-updates"
+      patterns:
+        - "*"
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
     target-branch: "main"
+    group:
+      group-name: "pip-updates"
+      patterns:
+        - "*"
