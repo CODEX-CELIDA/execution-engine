@@ -12,7 +12,7 @@ uvicorn[standard]==0.31.1
 fastapi==0.112.0
 pendulum==3.0.0
 networkx==3.3
-numpy==2.0.1
+numpy==2.1.2
 pytz==2024.2
 cython==3.0.10
 setuptools==72.1.0
