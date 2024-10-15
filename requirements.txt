@@ -8,7 +8,7 @@ psycopg[binary]==3.2.3
 sqlalchemy==2.0.35
 pydantic==2.9.2
 pydantic-settings==2.5.2
-uvicorn[standard]==0.31.0
+uvicorn[standard]==0.31.1
 fastapi==0.112.0
 pendulum==3.0.0
 networkx==3.3
