@@ -7,9 +7,17 @@ updates:
     commit-message:
       prefix: "ci(dependabot):"
     target-branch: "main"
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
 
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
     target-branch: "main"
+    groups:
+      dependencies:
+        patterns:
+          - "**"
