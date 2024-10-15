@@ -9,8 +9,8 @@ updates:
     target-branch: "main"
     group:
       group-name: "github-actions-updates"
-      patterns:
-        - "*"
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/"
@@ -19,5 +19,5 @@ updates:
     target-branch: "main"
     group:
       group-name: "pip-updates"
-      patterns:
-        - "*"
+        patterns:
+          - "*"
