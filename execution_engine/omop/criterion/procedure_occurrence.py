@@ -188,7 +188,7 @@ class ProcedureOccurrence(ContinuousCriterion):
             isinstance(value, ValueNumber) or value is None
         ), "value must be a ValueNumber"
         assert (
-            isinstance(timing, ValueNumber) or timing is None
+            isinstance(timing, ValueNumber | Timing) or timing is None
         ), "timing must be a ValueNumber"
 
         return cls(
