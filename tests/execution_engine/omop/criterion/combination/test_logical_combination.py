@@ -143,6 +143,58 @@ class TestCriterionCombination:
         for idx, criterion in enumerate(combination):
             assert str(criterion) == str(mock_criteria[idx])
 
+    @pytest.mark.parametrize(
+        "operator",
+        [
+            LogicalCriterionCombination.Operator(
+                LogicalCriterionCombination.Operator.AND, None
+            ),
+            LogicalCriterionCombination.Operator(
+                LogicalCriterionCombination.Operator.AT_LEAST, 10
+            ),
+        ],
+    )
+    def test_criterion_combination_serialization(self, operator, mock_criteria):
+        # Register the mock criterion class
+        from execution_engine.omop.criterion import factory
+
+        factory.register_criterion_class("MockCriterion", MockCriterion)
+
+        combination = LogicalCriterionCombination(
+            exclude=False,
+            operator=operator,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+        for criterion in mock_criteria:
+            combination.add(criterion)
+
+        json = combination.json()
+        deserialized = LogicalCriterionCombination.from_json(json)
+        assert combination == deserialized
+
+    def test_noncommutative_logical_criterion_combination_serialization(
+        self, mock_criteria
+    ):
+        # Register the mock criterion class
+        from execution_engine.omop.criterion import factory
+
+        factory.register_criterion_class("MockCriterion", MockCriterion)
+
+        operator = NonCommutativeLogicalCriterionCombination.Operator(
+            NonCommutativeLogicalCriterionCombination.Operator.CONDITIONAL_FILTER
+        )
+        combination = NonCommutativeLogicalCriterionCombination(
+            exclude=False,
+            operator=operator,
+            category=CohortCategory.POPULATION_INTERVENTION,
+            left=mock_criteria[0],
+            right=mock_criteria[1],
+        )
+
+        json = combination.json()
+        deserialized = NonCommutativeLogicalCriterionCombination.from_json(json)
+        assert combination == deserialized
+
     @pytest.mark.parametrize("operator", ["AT_LEAST", "AT_MOST", "EXACTLY"])
     def test_operator_with_threshold(self, operator):
         with pytest.raises(
