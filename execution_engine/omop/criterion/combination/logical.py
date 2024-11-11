@@ -156,12 +156,13 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
 
         CONDITIONAL_FILTER = "CONDITIONAL_FILTER"
 
-        def __init__(self, operator: str, threshold: int | None = None):
+        def __init__(self, operator: str, threshold: None = None):
             assert operator in [
                 "CONDITIONAL_FILTER",
             ], f"Invalid operator {operator}"
-
+            assert threshold is None
             self.operator = operator
+            self.threshold = threshold
 
     def __init__(
         self,
@@ -236,12 +237,14 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         """
         Get the dictionary representation of the criterion combination.
         """
+        left = self._left
+        right = self._right
         return {
             "operator": self._operator.operator,
             "exclude": self.exclude,
             "category": self.category.value,
-            "left": self._left.dict(),
-            "right": self._right.dict(),
+            "left": {"class_name": left.__class__.__name__, "data": left.dict()},
+            "right": {"class_name": right.__class__.__name__, "data": right.dict()},
         }
 
     @classmethod

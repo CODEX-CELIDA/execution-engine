@@ -159,7 +159,7 @@ class TestProcedureOccurrence(Occurrence):
                 ),
                 {
                     interval("2023-03-05 00:00:00+01:00", "2023-03-06 23:59:59+01:00"),
-                }
+                },
                 # because we are looking for 2 hour per _2 DAY_, the next day is also correct
             ),
             (
@@ -172,7 +172,7 @@ class TestProcedureOccurrence(Occurrence):
                     # interval("2023-03-05 20:00:00+01:00", "2023-03-05 21:59:59+01:00"),
                     # merged intervals
                     interval("2023-03-05 18:00:00+01:00", "2023-03-05 21:59:59+01:00"),
-                }
+                },
                 # because we are looking for 2 hour per 2 HOUR
             ),
             (
@@ -351,3 +351,19 @@ class TestProcedureOccurrence(Occurrence):
         intervals = criterion_execute_func_timing(concept=concept, exclude=False)
 
         assert set(intervals) == expected_intervals
+
+    def test_serialization(self, concept):
+        original = ProcedureOccurrence(
+            exclude=True,
+            category=CohortCategory.POPULATION,
+            concept=concept,
+            value=None,
+            timing=Timing(
+                duration=ValueDuration(value_min=16, unit=TimeUnit.HOUR),
+                frequency=1,
+                interval=1 * TimeUnit.DAY,
+            ),
+        )
+        json = original.json()
+        deserialized = ProcedureOccurrence.from_json(json)
+        assert original == deserialized
