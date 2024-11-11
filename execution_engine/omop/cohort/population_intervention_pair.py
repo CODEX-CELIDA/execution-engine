@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from sqlalchemy.sql import (
     Alias,
@@ -228,12 +228,24 @@ class PopulationInterventionPair(Serializable):
         """
         Get a dictionary representation of the population/intervention pair.
         """
+        base_criterion = self._base_criterion
+        population = self._population
+        intervention = self._intervention
         return {
             "name": self.name,
             "url": self.url,
-            "base_criterion": self._base_criterion.dict(),
-            "population": self._population.dict(),
-            "intervention": self._intervention.dict(),
+            "base_criterion": {
+                "class_name": base_criterion.__class__.__name__,
+                "data": base_criterion.dict(),
+            },
+            "population": {
+                "class_name": population.__class__.__name__,
+                "data": population.dict(),
+            },
+            "intervention": {
+                "class_name": intervention.__class__.__name__,
+                "data": intervention.dict(),
+            },
         }
 
     @classmethod
@@ -246,11 +258,20 @@ class PopulationInterventionPair(Serializable):
         assert isinstance(
             base_criterion, Criterion
         ), "Base criterion must be a Criterion"
-
-        return cls(
+        population = cast(CriterionCombination, criterion_factory(**data["population"]))
+        intervention = cast(
+            CriterionCombination, criterion_factory(**data["intervention"])
+        )
+        object = cls(
             name=data["name"],
             url=data["url"],
             base_criterion=base_criterion,
-            population=CriterionCombination.from_dict(data["population"]),
-            intervention=CriterionCombination.from_dict(data["intervention"]),
         )
+        # The constructor initializes the population and intervention
+        # slots in a particular way but we want to use whatever we
+        # have deserialized instead. This is a bit inefficient because
+        # we discard the values that were assigned to the two slots in
+        # the constructor.
+        object._population = population
+        object._intervention = intervention
+        return object
