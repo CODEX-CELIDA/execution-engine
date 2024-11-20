@@ -119,7 +119,7 @@ class Task:
         )
 
         self.status = TaskStatus.RUNNING
-        logging.info(f"Running task '{self.name()}'")
+        logging.debug(f"Running task '{self.name()}'")
 
         try:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
