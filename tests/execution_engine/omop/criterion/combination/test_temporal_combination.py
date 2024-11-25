@@ -11,14 +11,17 @@ from execution_engine.omop.criterion.combination.temporal import (
 )
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
+from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.task.process import get_processing_module
 from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
+    concept_body_weight,
     concept_covid19,
     concept_heparin_ingredient,
+    concept_unit_kg,
     concept_unit_mg,
 )
 from tests._testdata import concepts
@@ -26,6 +29,7 @@ from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 from tests.functions import (
     create_condition,
     create_drug_exposure,
+    create_measurement,
     create_procedure,
     create_visit,
 )
@@ -267,6 +271,23 @@ c3 = ProcedureOccurrence(
     concept=concept_artificial_respiration,
 )
 
+bodyweight_measurement_without_forward_fill = Measurement(
+    exclude=False,
+    category=CohortCategory.POPULATION,
+    concept=concept_body_weight,
+    value=ValueNumber.parse("<=110", unit=concept_unit_kg),
+    static=False,
+    forward_fill=False,
+)
+
+bodyweight_measurement_with_forward_fill = Measurement(
+    exclude=False,
+    category=CohortCategory.POPULATION,
+    concept=concept_body_weight,
+    value=ValueNumber.parse("<=110", unit=concept_unit_kg),
+    static=False,
+)
+
 
 class TestCriterionCombinationDatabase(TestCriterion):
     """
@@ -284,12 +305,22 @@ class TestCriterionCombinationDatabase(TestCriterion):
         c1.id = 1
         c2.id = 2
         c3.id = 3
+        bodyweight_measurement_without_forward_fill.id = 4
+        bodyweight_measurement_with_forward_fill.id = 5
 
         self.register_criterion(c1, db_session)
         self.register_criterion(c2, db_session)
         self.register_criterion(c3, db_session)
+        self.register_criterion(bodyweight_measurement_without_forward_fill, db_session)
+        self.register_criterion(bodyweight_measurement_with_forward_fill, db_session)
 
-        return [c1, c2, c3]
+        return [
+            c1,
+            c2,
+            c3,
+            bodyweight_measurement_without_forward_fill,
+            bodyweight_measurement_with_forward_fill,
+        ]
 
     def run_criteria_test(
         self,
@@ -1191,6 +1222,146 @@ class TestCriterionCombinationResultLongObservationWindow(
         ],
     )
     def test_overlapping_combination_on_database(
+        self,
+        person,
+        db_session,
+        base_criterion,
+        combination,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = [person[0]]  # only one person
+        vos = [
+            create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end - datetime.timedelta(hours=3),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            for person in persons
+        ]
+
+        self.patient_events(db_session, vos[0])
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.run_criteria_test(
+            combination,
+            expected,
+            db_session,
+            criteria,
+            base_criterion,
+            observation_window,
+            persons,
+        )
+
+
+class TestCriterionPointInTime(TestCriterionCombinationDatabase):
+    """
+    Test class for testing the behavior of PointInTimeCriterion
+    classes.
+
+    More precisely, the test ensures that point-in-time events like
+    measurements interact correctly with PointInTimeCriteria and
+    TemporalIndicatorCombinations. A particular failure mode of this
+    combination has been that single point-in-time event could lead to
+    POSITIVE result interval on subsequent days due to forward_fill
+    logic in PointInTimeCriterion.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            start="2023-02-28 13:55:00Z",
+            end="2023-03-03 18:00:00Z",
+            name="observation",
+        )
+
+    def patient_events(self, db_session, visit_occurrence):
+        e1 = create_measurement(
+            vo=visit_occurrence,
+            measurement_concept_id=concept_body_weight.concept_id,
+            measurement_datetime=pendulum.parse("2023-03-01 09:00:00+01:00"),
+            value_as_number=100,
+            unit_concept_id=concept_unit_kg.concept_id,
+        )
+        db_session.add_all([e1])
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            (
+                TemporalIndicatorCombination.MorningShift(
+                    bodyweight_measurement_without_forward_fill,
+                    category=CohortCategory.POPULATION,
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-01 06:00:00+01:00"),
+                            pendulum.parse("2023-03-01 13:59:59+01:00"),
+                        ),
+                    }
+                },
+            ),
+            (
+                TemporalIndicatorCombination.AfternoonShift(
+                    bodyweight_measurement_without_forward_fill,
+                    category=CohortCategory.POPULATION,
+                ),
+                {1: set()},
+            ),
+            (
+                TemporalIndicatorCombination.MorningShift(
+                    bodyweight_measurement_with_forward_fill,
+                    category=CohortCategory.POPULATION,
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-01 06:00:00+01:00"),
+                            pendulum.parse("2023-03-01 13:59:59+01:00"),
+                        ),
+                        (
+                            pendulum.parse("2023-03-02 06:00:00+01:00"),
+                            pendulum.parse("2023-03-02 13:59:59+01:00"),
+                        ),
+                        (
+                            pendulum.parse("2023-03-03 06:00:00+01:00"),
+                            pendulum.parse("2023-03-03 13:59:59+01:00"),
+                        ),
+                    }
+                },
+            ),
+            (
+                TemporalIndicatorCombination.AfternoonShift(
+                    bodyweight_measurement_with_forward_fill,
+                    category=CohortCategory.POPULATION,
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-01 14:00:00+01:00"),
+                            pendulum.parse("2023-03-01 21:59:59+01:00"),
+                        ),
+                        (
+                            pendulum.parse("2023-03-02 14:00:00+01:00"),
+                            pendulum.parse("2023-03-02 21:59:59+01:00"),
+                        ),
+                        (
+                            pendulum.parse("2023-03-03 14:00:00+01:00"),
+                            pendulum.parse("2023-03-03 15:00:00+00:00"),
+                        ),
+                    }
+                },
+            ),
+        ],
+    )
+    def test_point_in_time_criterion_on_database(
         self,
         person,
         db_session,
