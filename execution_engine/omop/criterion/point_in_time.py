@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, cast
 
 from sqlalchemy import CTE, ColumnElement, Select, select
 
@@ -21,10 +21,19 @@ class PointInTimeCriterion(ConceptCriterion):
 
     def __init__(
         self,
+        forward_fill: bool = True,
         *args: Any,
         **kwargs: Any,
     ):
         super().__init__(*args, **kwargs)
+        self._forward_fill = forward_fill
+
+    @property
+    def forward_fill(self) -> bool:
+        """
+        Return true is process_data should forward_fill the temporal intervals in the observation window.
+        """
+        return self._forward_fill
 
     def _sql_interval_type_column(self, query: Select | CTE) -> ColumnElement:
         """
@@ -83,6 +92,22 @@ class PointInTimeCriterion(ConceptCriterion):
 
         return query
 
+    def dict(self) -> dict[str, Any]:
+        """
+        Get a JSON representation of the criterion.
+        """
+        from_super = super().dict()
+        return from_super | {"forward_fill": self._forward_fill}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PointInTimeCriterion":
+        """
+        Create a criterion from a JSON representation.
+        """
+        object = cast("PointInTimeCriterion", super().from_dict(data))
+        object._forward_fill = data.get("forward_fill", True)  # Backward compat
+        return object
+
     def process_data(
         self,
         data: PersonIntervals,
@@ -92,7 +117,8 @@ class PointInTimeCriterion(ConceptCriterion):
         """
         Process the result of the SQL query.
 
-        Forward fill all intervals and in insert NO_DATA intervals for missing time in observation_window.
+        If configured via the forward_fill attribute, forward fill all intervals.
+        Insert NO_DATA intervals for missing time in observation_window.
 
         :param data: The result of the SQL query.
         :param base_data: The base data or None if this is the base criterion.
@@ -105,7 +131,8 @@ class PointInTimeCriterion(ConceptCriterion):
         #        because they are valid not only at the time of the measurement but also for a certain time after the
         #        measurement possibly, one would need to define something like a "validity duration" for each
         #        measurement value (or rather each measurement in each recommendation)
-        data = process.forward_fill(data, observation_window)
+        if self._forward_fill:
+            data = process.forward_fill(data, observation_window)
 
         no_data_intervals = process.complementary_intervals(
             data,
