@@ -143,7 +143,10 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             "threshold": self._operator.threshold,
             "category": self._category.value,
             "criteria": [
-                {"class_name": criterion.__class__.__name__, "data": criterion.dict()}
+                {
+                    "class_name": criterion.__class__.__name__,
+                    "data": criterion.dict(),
+                }
                 for criterion in self._criteria
             ],
             "root": self._root,

@@ -109,6 +109,7 @@ class TestCriterionCombination:
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
             ],
+            "root": False,
         }
 
     def test_criterion_combination_from_dict(self, mock_criteria):
@@ -123,6 +124,7 @@ class TestCriterionCombination:
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
             ],
+            "root": False,
         }
 
         # Register the mock criterion class

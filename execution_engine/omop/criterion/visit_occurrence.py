@@ -23,8 +23,10 @@ class ActivePatients(VisitOccurrence):
     Select only patients who are still hospitalized.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, id: int | None = None) -> None:
+        # TODO(jmoringe): why not use the constructor? super().__init__(id=id)
         self._category = CohortCategory.BASE
+        self._id = id
 
         if get_config().episode_of_care_visit_detail:
             self._set_omop_variables_from_domain("visit_detail")
@@ -86,14 +88,14 @@ class ActivePatients(VisitOccurrence):
         """
         Get a JSON representation of the criterion.
         """
-        return {}
+        return {"id": self._id}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ActivePatients":
         """
         Create a criterion from a JSON representation.
         """
-        return cls()
+        return cls(id=data["id"])
 
 
 class PatientsActiveDuringPeriod(ActivePatients):

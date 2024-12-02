@@ -287,5 +287,5 @@ class Recommendation(Serializable):
             version=data["recommendation_version"],
             description=data["recommendation_description"],
             package_version=data["recommendation_package_version"],
-            recommendation_id=data["id"] if "id" in data else None,
+            recommendation_id=data["id"],
         )
