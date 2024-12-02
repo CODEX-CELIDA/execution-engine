@@ -86,7 +86,7 @@ class ActivePatients(VisitOccurrence):
         """
         Get a JSON representation of the criterion.
         """
-        return {"class_name": self.__class__.__name__, "data": {}}
+        return {}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ActivePatients":
