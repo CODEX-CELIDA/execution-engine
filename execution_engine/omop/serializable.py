@@ -57,7 +57,7 @@ class Serializable(ABC):
         return json.dumps(s_json, sort_keys=True).encode()
 
     @classmethod
-    def from_json(cls, data: str) -> Self:
+    def from_json(cls, data: str | bytes) -> Self:
         """
         Create a combination from a JSON string.
         """
