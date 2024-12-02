@@ -118,7 +118,7 @@ class ExecutionEngine:
         """
         Executes a recommendation and stores the results in the result database.
 
-        :param recommendation: The Recommendation object (loaded from ExectionEngine.load_recommendation).
+        :param recommendation: The Recommendation object (loaded from ExecutionEngine.load_recommendation).
         :param start_datetime: The start of the observation window.
         :param end_datetime: The end of the observation window. If None, the current time is used.
         :return: The ID of the run.

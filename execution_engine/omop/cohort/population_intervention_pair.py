@@ -271,7 +271,7 @@ class PopulationInterventionPair(Serializable):
             base_criterion=base_criterion,
         )
         # The constructor initializes the population and intervention
-        # slots in a particular way but we want to use whatever we
+        # slots in a particular way, but we want to use whatever we
         # have deserialized instead. This is a bit inefficient because
         # we discard the values that were assigned to the two slots in
         # the constructor.
