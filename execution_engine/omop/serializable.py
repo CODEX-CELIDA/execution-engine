@@ -51,9 +51,6 @@ class Serializable(ABC):
 
         s_json = self.dict()
 
-        if "id" in s_json:
-            del s_json["id"]
-
         return json.dumps(s_json, sort_keys=True).encode()
 
     @classmethod
