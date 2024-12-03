@@ -672,4 +672,5 @@ class TestTidalVolumePerIdealBodyWeight(TestCriterion):
         # Test the function for some invalid inputs
         with pytest.raises(ValueError):
             TVPIBW.height_for_predicted_body_weight_ardsnet(1, 76.42)
+        with pytest.raises(ValueError):
             TVPIBW.height_for_predicted_body_weight_ardsnet("male", "76.42")

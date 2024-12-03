@@ -168,7 +168,7 @@ class PopulationInterventionPair(Serializable):
         """
         Assert that the base table is used in the select statement.
 
-        Joining the base table ensures that always just a subset of potients are selected,
+        Joining the base table ensures that always just a subset of patients is selected,
         not all.
         """
         if isinstance(sql, SelectInto) or isinstance(sql, Insert):

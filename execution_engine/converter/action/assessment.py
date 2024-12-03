@@ -19,7 +19,7 @@ from execution_engine.util.types import Timing
 
 class AssessmentAction(AbstractAction):
     """
-    An AsessmentAction is an action that is used to assess a patient's condition.
+    An AssessmentAction is an action that is used to assess a patient's condition.
 
     This action just tests whether the assessment has been performed by determining whether any value
     is present in the respective OMOP CDM table.
