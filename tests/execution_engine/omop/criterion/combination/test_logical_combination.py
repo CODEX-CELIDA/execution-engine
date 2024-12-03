@@ -347,26 +347,28 @@ class TestCriterionCombinationDatabase(TestCriterion):
         else:
             raise ValueError(f"Unknown operator {c.func}")
 
-        c1, c2, c3 = [c.copy() for c in criteria]
-
-        symbols = {"c1": c1, "c2": c2, "c3": c3}
+        c1, c2, c3 = [
+            c.copy() for c in criteria
+        ]  # TODO(jmoringe): copy should no longer be necessary
 
         for arg in args:
             if arg.is_Not:
                 if arg.args[0].name == "c1":
-                    c1.exclude = True
+                    c1 = LogicalCriterionCombination.Not(c1, c1.category)
                 elif arg.args[0].name == "c2":
-                    c2.exclude = True
+                    c2 = LogicalCriterionCombination.Not(c2, c2.category)
                 elif arg.args[0].name == "c3":
-                    c3.exclude = True
+                    c3 = LogicalCriterionCombination.Not(c3, c3.category)
                 else:
                     raise ValueError(f"Unknown criterion {arg.args[0].name}")
+
+        symbols = {"c1": c1, "c2": c2, "c3": c3}
 
         if hasattr(c.func, "name") and c.func.name == "ConditionalFilter":
             assert len(c.args) == 2
 
             comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
-                exclude=exclude,
+                exclude=False,
                 category=CohortCategory.POPULATION,
                 left=symbols[str(c.args[0])],
                 right=symbols[str(c.args[1])],
@@ -374,7 +376,7 @@ class TestCriterionCombinationDatabase(TestCriterion):
 
         else:
             comb = LogicalCriterionCombination(
-                exclude=exclude,
+                exclude=False,
                 category=CohortCategory.POPULATION,
                 operator=LogicalCriterionCombination.Operator(
                     operator, threshold=threshold
@@ -386,6 +388,9 @@ class TestCriterionCombinationDatabase(TestCriterion):
                     continue
                 else:
                     comb.add(symbols[str(symbol)])
+
+        if exclude:
+            comb = LogicalCriterionCombination.Not(comb, comb.category)
 
         self.insert_criterion_combination(
             db_session, comb, base_criterion, observation_window

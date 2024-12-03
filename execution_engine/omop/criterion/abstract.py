@@ -96,6 +96,7 @@ class AbstractCriterion(Serializable, ABC):
     def __init__(self, exclude: bool, category: CohortCategory) -> None:
         self._id = None
         self._exclude: bool = exclude
+        assert exclude == False
 
         assert isinstance(
             category, CohortCategory

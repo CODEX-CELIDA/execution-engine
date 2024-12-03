@@ -150,18 +150,31 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             ],
         }
 
-    def __invert__(self) -> "CriterionCombination":
+    def __invert__(self) -> AbstractCriterion:
         """
         Invert the criterion combination.
         """
-        return self.__class__(
-            exclude=not self._exclude,
-            operator=self._operator,
-            category=self._category,
-            criteria=self._criteria,
+        # Would be cycle if imported at top-level.
+        from execution_engine.omop.criterion.combination.logical import (
+            LogicalCriterionCombination,
         )
 
-    def invert(self) -> "CriterionCombination":
+        if (
+            isinstance(self, LogicalCriterionCombination)
+            and self.operator.operator == LogicalCriterionCombination.Operator.NOT
+        ):
+            return self._criteria[0]
+        else:
+            assert self._exclude is False
+            copy = self.__class__(
+                exclude=False,
+                operator=self._operator,
+                category=self._category,
+                criteria=self._criteria,
+            )
+            return LogicalCriterionCombination.Not(copy, self._category)
+
+    def invert(self) -> AbstractCriterion:
         """
         Invert the criterion combination.
         """

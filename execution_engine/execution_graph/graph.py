@@ -1,4 +1,4 @@
-from typing import Any, Callable, Type, cast
+from typing import Any, Callable, Type
 
 import networkx as nx
 
@@ -369,7 +369,7 @@ class ExecutionGraph(nx.DiGraph):
             comb: CriterionCombination,
         ) -> Type[logic.BooleanFunction] | Callable:
             """
-            Convert the criterion's operator into a logical conjunction (And or Or)
+            Convert the criterion's operator into a logical conjunction (Not or And or Or)
             """
             if isinstance(comb, LogicalCriterionCombination):
                 if comb.is_root():
@@ -388,6 +388,8 @@ class ExecutionGraph(nx.DiGraph):
                     return logic.NonSimplifiableAnd
                 elif isinstance(comb, NonCommutativeLogicalCriterionCombination):
                     return logic.ConditionalFilter
+                elif comb.operator.operator == LogicalCriterionCombination.Operator.NOT:
+                    return logic.Not
                 elif comb.operator.operator == LogicalCriterionCombination.Operator.AND:
                     return logic.And
                 elif comb.operator.operator == LogicalCriterionCombination.Operator.OR:
@@ -506,12 +508,13 @@ class ExecutionGraph(nx.DiGraph):
                 elif isinstance(entry, Criterion):
                     # Remove the exclude criterion from the symbol, as it is handled by the Not operator
                     s = logic.Symbol(
-                        criterion=cast(Criterion, entry.clear_exclude(inplace=False))
+                        entry
+                        # criterion=cast(Criterion, entry.clear_exclude(inplace=False))
                     )
 
-                    if entry.exclude:
-                        s = logic.Not(s, category=entry.category)
-
+                    # if entry.exclude:
+                    #    s = logic.Not(s, category=entry.category)
+                    assert not entry._exclude
                     components.append(s)
                 else:
                     raise ValueError(f"Invalid entry type: {type(entry)}")

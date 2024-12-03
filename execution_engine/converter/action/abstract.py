@@ -143,7 +143,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
         raise NotImplementedError()
 
     @final
-    def to_criterion(self) -> Criterion | LogicalCriterionCombination:
+    def to_positive_criterion(self) -> Criterion | LogicalCriterionCombination:
         """
         Converts this action to a criterion.
         """
@@ -156,19 +156,20 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
         if self.goals:
             combination = LogicalCriterionCombination(
-                exclude=self._exclude,  # need to pull up the exclude flag from the criterion into the combination
+                exclude=False,
                 category=CohortCategory.INTERVENTION,
                 operator=LogicalCriterionCombination.Operator("AND"),
             )
             if action is not None:
-                action.exclude = False  # reset the exclude flag, as it is now part of the combination
+                # action.exclude = False  # reset the exclude flag, as it is now part of the combination
                 combination.add(action)
 
             for goal in self.goals:
-                combination.add(goal.to_criterion())
+                combination.add(goal.to_positive_criterion())
 
             return combination
-
+        if action is not None:
+            assert not action.exclude
         return action  # type: ignore
 
     @property

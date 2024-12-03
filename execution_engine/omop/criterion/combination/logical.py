@@ -13,6 +13,7 @@ class LogicalCriterionCombination(CriterionCombination):
     class Operator(CriterionCombination.Operator):
         """Operators for criterion combinations."""
 
+        NOT = "NOT"
         AND = "AND"
         OR = "OR"
         AT_LEAST = "AT_LEAST"
@@ -22,6 +23,7 @@ class LogicalCriterionCombination(CriterionCombination):
 
         def __init__(self, operator: str, threshold: int | None = None):
             assert operator in [
+                "NOT",
                 "AND",
                 "OR",
                 "AT_LEAST",
@@ -36,6 +38,22 @@ class LogicalCriterionCombination(CriterionCombination):
                     threshold is not None
                 ), f"Threshold must be set for operator {operator}"
             self.threshold = threshold
+
+    @classmethod
+    def Not(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+    ) -> "LogicalCriterionCombination":
+        """
+        Create a NOT "combination" of a single criterion.
+        """
+        return cls(
+            exclude=False,
+            operator=cls.Operator(cls.Operator.NOT),
+            category=category,
+            criteria=[criterion],
+        )
 
     @classmethod
     def And(

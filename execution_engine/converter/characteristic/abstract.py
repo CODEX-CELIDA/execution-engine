@@ -97,6 +97,6 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         return standard_vocabulary.get_concept(cc.system, cc.code, standard=standard)
 
     @abstractmethod
-    def to_criterion(self) -> Criterion:
+    def to_positive_criterion(self) -> Criterion:
         """Converts this characteristic to a Criterion."""
         raise NotImplementedError()

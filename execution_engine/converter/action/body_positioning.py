@@ -53,7 +53,7 @@ class BodyPositioningAction(AbstractAction):
         """Converts this characteristic to a Criterion."""
 
         return ProcedureOccurrence(
-            exclude=self._exclude,
+            exclude=False,
             category=CohortCategory.INTERVENTION,
             concept=self._code,
             timing=self._timing,

@@ -284,7 +284,7 @@ class DrugAdministrationAction(AbstractAction):
         if not self._dosages:
             # no dosages, just return the drug exposure
             return DrugExposure(
-                exclude=self._exclude,
+                exclude=False,
                 category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=None,
@@ -316,7 +316,7 @@ class DrugAdministrationAction(AbstractAction):
                         f"Extension type {extension['type']} not supported yet"
                     )
 
-                drug_action.exclude = False  # reset the exclude flag, as it is now part of the combination
+                # drug_action.exclude = False  # reset the exclude flag, as it is now part of the combination
 
                 ext_criterion = PointInTimeCriterion(
                     exclude=False,  # extensions are always included (at least for now)
@@ -326,7 +326,7 @@ class DrugAdministrationAction(AbstractAction):
                 )
 
                 comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
-                    exclude=drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
+                    exclude=False,  # drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
                     category=CohortCategory.INTERVENTION,
                     left=ext_criterion,
                     right=drug_action,
@@ -336,11 +336,12 @@ class DrugAdministrationAction(AbstractAction):
 
         if len(drug_actions) == 1:
             # set the exclude flag to the value of the action, as this is the only action
-            drug_actions[0].exclude = self._exclude
+            # drug_actions[0].exclude = self._exclude
+            assert not drug_actions[0].exclude
             return drug_actions[0]
         else:
             comb = LogicalCriterionCombination(
-                exclude=self._exclude,
+                exclude=False,  # self._exclude,
                 category=CohortCategory.INTERVENTION,
                 operator=LogicalCriterionCombination.Operator("OR"),
             )
