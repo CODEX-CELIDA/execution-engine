@@ -79,7 +79,6 @@ class AssessmentAction(AbstractAction):
                 )
 
         criterion = cls(
-            exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             concept=self._code,
             timing=self._timing,

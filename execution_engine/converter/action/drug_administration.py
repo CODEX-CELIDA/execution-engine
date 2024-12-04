@@ -16,6 +16,7 @@ from execution_engine.converter.converter import (
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
     NonCommutativeLogicalCriterionCombination,
@@ -284,7 +285,6 @@ class DrugAdministrationAction(AbstractAction):
         if not self._dosages:
             # no dosages, just return the drug exposure
             return DrugExposure(
-                exclude=False,
                 category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=None,
@@ -293,7 +293,6 @@ class DrugAdministrationAction(AbstractAction):
 
         for dosage in self._dosages:
             drug_action = DrugExposure(
-                exclude=False,  # first set to False, as the exclude flag is pulled up into the combination
                 category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=dosage["dose"],
@@ -316,17 +315,13 @@ class DrugAdministrationAction(AbstractAction):
                         f"Extension type {extension['type']} not supported yet"
                     )
 
-                # drug_action.exclude = False  # reset the exclude flag, as it is now part of the combination
-
                 ext_criterion = PointInTimeCriterion(
-                    exclude=False,  # extensions are always included (at least for now)
                     category=CohortCategory.INTERVENTION,
                     concept=extension["code"],
                     value=extension["value"],
                 )
 
                 comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
-                    exclude=False,  # drug_action.exclude,  # need to pull up the exclude flag from the criterion into the combination
                     category=CohortCategory.INTERVENTION,
                     left=ext_criterion,
                     right=drug_action,
@@ -334,16 +329,13 @@ class DrugAdministrationAction(AbstractAction):
 
                 drug_actions.append(comb)
 
+        result: Criterion | CriterionCombination
         if len(drug_actions) == 1:
-            # set the exclude flag to the value of the action, as this is the only action
-            # drug_actions[0].exclude = self._exclude
-            assert not drug_actions[0].exclude
-            return drug_actions[0]
+            result = drug_actions[0]
         else:
-            comb = LogicalCriterionCombination(
-                exclude=False,  # self._exclude,
+            result = LogicalCriterionCombination(
                 category=CohortCategory.INTERVENTION,
                 operator=LogicalCriterionCombination.Operator("OR"),
             )
-            comb.add_all(drug_actions)
-            return comb
+            result.add_all(drug_actions)
+        return result

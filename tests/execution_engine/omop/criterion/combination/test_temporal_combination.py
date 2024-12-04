@@ -212,7 +212,7 @@ class TestTemporalIndicatorCombination:
 
         assert (
             repr(combination)
-            == "TemporalIndicatorCombination(AT_LEAST(threshold=1)).POPULATION_INTERVENTION(exclude=False) for morning_shift"
+            == "TemporalIndicatorCombination(AT_LEAST(threshold=1)).POPULATION_INTERVENTION for morning_shift"
         )
 
         combination = TemporalIndicatorCombination(
@@ -224,7 +224,7 @@ class TestTemporalIndicatorCombination:
 
         assert (
             repr(combination)
-            == "TemporalIndicatorCombination(AT_LEAST(threshold=1)).POPULATION_INTERVENTION(exclude=False) from 08:00:00 to 16:00:00"
+            == "TemporalIndicatorCombination(AT_LEAST(threshold=1)).POPULATION_INTERVENTION from 08:00:00 to 16:00:00"
         )
 
     def test_add_all(self):
@@ -248,7 +248,6 @@ class TestTemporalIndicatorCombination:
 
 
 c1 = DrugExposure(
-    exclude=False,
     category=CohortCategory.POPULATION,
     ingredient_concept=concept_heparin_ingredient,
     dose=Dosage(
@@ -260,19 +259,16 @@ c1 = DrugExposure(
 )
 
 c2 = ConditionOccurrence(
-    exclude=False,
     category=CohortCategory.POPULATION,
     concept=concept_covid19,
 )
 
 c3 = ProcedureOccurrence(
-    exclude=False,
     category=CohortCategory.POPULATION,
     concept=concept_artificial_respiration,
 )
 
 bodyweight_measurement_without_forward_fill = Measurement(
-    exclude=False,
     category=CohortCategory.POPULATION,
     concept=concept_body_weight,
     value=ValueNumber.parse("<=110", unit=concept_unit_kg),
@@ -281,7 +277,6 @@ bodyweight_measurement_without_forward_fill = Measurement(
 )
 
 bodyweight_measurement_with_forward_fill = Measurement(
-    exclude=False,
     category=CohortCategory.POPULATION,
     concept=concept_body_weight,
     value=ValueNumber.parse("<=110", unit=concept_unit_kg),

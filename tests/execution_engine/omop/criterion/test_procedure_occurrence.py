@@ -67,7 +67,6 @@ class TestProcedureOccurrence(Occurrence):
             timing = Timing(duration=2 * TimeUnit.HOUR)
 
             criterion = ProcedureOccurrence(
-                exclude=False,
                 category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
@@ -238,7 +237,6 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                exclude=False,
                 category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
@@ -334,7 +332,6 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
@@ -365,7 +362,6 @@ class TestProcedureOccurrence(Occurrence):
 
     def test_serialization(self, concept):
         original = ProcedureOccurrence(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept,
             value=None,

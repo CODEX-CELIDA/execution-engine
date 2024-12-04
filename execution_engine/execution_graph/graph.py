@@ -506,25 +506,11 @@ class ExecutionGraph(nx.DiGraph):
                 if isinstance(entry, CriterionCombination):
                     components.append(_traverse(entry))
                 elif isinstance(entry, Criterion):
-                    # Remove the exclude criterion from the symbol, as it is handled by the Not operator
-                    s = logic.Symbol(
-                        entry
-                        # criterion=cast(Criterion, entry.clear_exclude(inplace=False))
-                    )
-
-                    # if entry.exclude:
-                    #    s = logic.Not(s, category=entry.category)
-                    assert not entry._exclude
-                    components.append(s)
+                    components.append(logic.Symbol(entry))
                 else:
                     raise ValueError(f"Invalid entry type: {type(entry)}")
 
-            c = conjunction(*components, category=comb.category)
-
-            if comb.exclude:
-                c = logic.Not(c, category=comb.category)
-
-            return c
+            return conjunction(*components, category=comb.category)
 
         expression = _traverse(comb)
 

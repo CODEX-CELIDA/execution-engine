@@ -66,14 +66,12 @@ class VentilatorManagementGoal(Goal):
         if self._code in CUSTOM_GOALS:
             cls = CUSTOM_GOALS[self._code]
             return cls(
-                exclude=False,
                 category=CohortCategory.INTERVENTION,
                 concept=self._code,
                 value=self._value,
             )
 
         return Measurement(
-            exclude=False,
             category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,

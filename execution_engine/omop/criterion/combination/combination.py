@@ -49,7 +49,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
 
     def __init__(
         self,
-        exclude: bool,
         operator: Operator,
         category: CohortCategory,
         criteria: Sequence[Union[Criterion, "CriterionCombination"]] | None = None,
@@ -58,7 +57,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         Initialize the criterion combination.
         """
-        super().__init__(exclude=exclude, category=category)
+        super().__init__(category=category)
         self._operator = operator
 
         self._criteria: list[Union[Criterion, CriterionCombination]]
@@ -89,7 +88,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         Get the name of the criterion combination.
         """
-        return f"{self.__class__.__name__}({self.operator}).{self.category.value}(exclude={self._exclude})"
+        return f"{self.__class__.__name__}({self.operator}).{self.category.value}"
 
     @property
     def operator(self) -> "CriterionCombination.Operator":
@@ -140,7 +139,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         Get the dictionary representation of the criterion combination.
         """
         return {
-            "exclude": self._exclude,
             "operator": self._operator.operator,
             "threshold": self._operator.threshold,
             "category": self._category.value,
@@ -165,9 +163,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         ):
             return self._criteria[0]
         else:
-            assert self._exclude is False
             copy = self.__class__(
-                exclude=False,
                 operator=self._operator,
                 category=self._category,
                 criteria=self._criteria,
@@ -194,7 +190,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         category = CohortCategory(data["category"])
 
         combination = cls(
-            exclude=data["exclude"],
             operator=operator,
             category=category,
         )

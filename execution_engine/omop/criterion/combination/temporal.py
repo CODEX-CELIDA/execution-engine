@@ -62,9 +62,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         else:
             criteria = None
 
-        super().__init__(
-            exclude=False, operator=operator, category=category, criteria=criteria
-        )
+        super().__init__(operator=operator, category=category, criteria=criteria)
 
         if interval_type:
             if start_time is not None or end_time is not None:
@@ -102,7 +100,6 @@ class TemporalIndicatorCombination(CriterionCombination):
         """
 
         d = super().dict()
-        del d["exclude"]
         d["start_time"] = self.start_time.isoformat() if self.start_time else None
         d["end_time"] = self.end_time.isoformat() if self.end_time else None
         d["interval_type"] = self.interval_type

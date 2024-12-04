@@ -51,7 +51,6 @@ class LaboratoryValueGoal(Goal):
         Converts the goal to a criterion.
         """
         return Measurement(
-            exclude=False,
             category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,

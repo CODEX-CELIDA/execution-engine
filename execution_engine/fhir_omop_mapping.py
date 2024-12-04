@@ -38,7 +38,6 @@ def characteristic_to_criterion(
         )
         comb = LogicalCriterionCombination(
             category=CohortCategory.POPULATION,
-            exclude=False,
             operator=operator,
         )
         for c in characteristic:
@@ -48,7 +47,7 @@ def characteristic_to_criterion(
         else:
             return comb
     else:
-        return characteristic.to_positive_criterion()
+        return characteristic.to_criterion()
 
 
 class ActionSelectionBehavior:

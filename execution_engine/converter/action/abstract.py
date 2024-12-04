@@ -155,22 +155,14 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
             ), "Action without explicit criterion must have at least one goal"
 
         if self.goals:
-            combination = LogicalCriterionCombination(
-                exclude=False,
-                category=CohortCategory.INTERVENTION,
-                operator=LogicalCriterionCombination.Operator("AND"),
-            )
+            criteria = [goal.to_criterion() for goal in self.goals]
             if action is not None:
-                # action.exclude = False  # reset the exclude flag, as it is now part of the combination
-                combination.add(action)
-
-            for goal in self.goals:
-                combination.add(goal.to_positive_criterion())
-
-            return combination
-        if action is not None:
-            assert not action.exclude
-        return action  # type: ignore
+                criteria.append(action)
+            return LogicalCriterionCombination.And(
+                *criteria, category=CohortCategory.INTERVENTION
+            )
+        else:
+            return action  # type: ignore
 
     @property
     def goals(self) -> list[Goal]:

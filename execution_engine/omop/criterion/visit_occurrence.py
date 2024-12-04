@@ -24,7 +24,6 @@ class ActivePatients(VisitOccurrence):
     """
 
     def __init__(self) -> None:
-        self._exclude = False
         self._category = CohortCategory.BASE
 
         if get_config().episode_of_care_visit_detail:

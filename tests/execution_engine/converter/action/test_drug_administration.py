@@ -26,7 +26,7 @@ class TestDrugAdministration:
             dosages=[dosage_def],
         )
 
-        criterion = action.to_positive_criterion()
+        criterion = action.to_criterion()
 
         assert isinstance(criterion, DrugExposure)
         assert criterion._dose == dosage
@@ -64,7 +64,7 @@ class TestDrugAdministration:
             ],
         )
 
-        comb = action.to_positive_criterion()
+        comb = action.to_criterion()
         criteria = list(comb)
 
         assert len(criteria) == 3

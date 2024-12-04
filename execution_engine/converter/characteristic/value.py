@@ -36,7 +36,6 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
     def to_positive_criterion(self) -> ConceptCriterion:
         """Converts this characteristic to a Criterion."""
         return self._criterion_class(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=self.type,
             value=self.value,

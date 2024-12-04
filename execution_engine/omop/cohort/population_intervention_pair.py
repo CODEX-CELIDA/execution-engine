@@ -69,7 +69,6 @@ class PopulationInterventionPair(Serializable):
         """
 
         root_combination = LogicalCriterionCombination(
-            exclude=False,
             category=category,
             operator=LogicalCriterionCombination.Operator("AND"),
             root_combination=True,
