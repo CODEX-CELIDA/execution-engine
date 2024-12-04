@@ -68,26 +68,6 @@ class BaseExpr(ABC):
         """
         raise NotImplementedError("is_Not must be implemented by subclasses")
 
-    def get_instance_variables(self) -> tuple:
-        """
-        Return all instance variables of the object as an immutable tuple of key-value pairs.
-        """
-        return tuple(
-            sorted(
-                (key, value)
-                for key, value in vars(self).items()
-                if not key.startswith("_")  # Exclude private or special attributes
-            )
-        )
-
-
-class Expr(BaseExpr):
-    """
-    Class for expressions that require a category.
-    """
-
-    category: CohortCategory
-
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
         Reduce the expression to its arguments and category.
@@ -97,6 +77,33 @@ class Expr(BaseExpr):
         :return: Tuple of the class, arguments, and category.
         """
         return self._recreate, (self.args, self.get_instance_variables())
+
+    def get_instance_variables(self, immutable: bool = False) -> dict | tuple:
+        """
+        Return all instance variables of the object.
+
+        If immutable is True, return as an immutable tuple of key-value pairs.
+        If immutable is False, return as a mutable dictionary.
+        """
+        instance_vars = {
+            key: value
+            for key, value in vars(self).items()
+            if not key.startswith("_")  # Exclude private or special attributes
+            and key != "args"
+        }
+
+        if immutable:
+            return tuple(sorted(instance_vars.items()))
+        else:
+            return instance_vars
+
+
+class Expr(BaseExpr):
+    """
+    Class for expressions that require a category.
+    """
+
+    category: CohortCategory
 
     def __new__(cls, *args: Any, category: CohortCategory) -> "Expr":
         """
@@ -132,7 +139,9 @@ class Expr(BaseExpr):
 
         :return: Hash of the expression.
         """
-        return hash((self.__class__, self.args, self.get_instance_variables()))
+        return hash(
+            (self.__class__, self.args, self.get_instance_variables(immutable=True))
+        )
 
     @property
     def is_Atom(self) -> bool:
@@ -242,7 +251,8 @@ class BooleanFunction(Expr):
         return (
             isinstance(other, self.__class__)
             and self.args == other.args
-            and self.get_instance_variables() == other.get_instance_variables()
+            and self.get_instance_variables(immutable=True)
+            == other.get_instance_variables(immutable=True)
         )
 
     # Needs to be defined again (although it is the same as in Expr) because we define __eq__ here
