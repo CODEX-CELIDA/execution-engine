@@ -506,28 +506,27 @@ class TemporalMinCount(TemporalCount):
         self.interval_type = interval_type
         return self
 
-    # glichtner: this should now be handled by the base class using get_instance_variables()
-    # def __reduce__(self) -> tuple[Callable, tuple]:
-    #     """
-    #     Reduce the expression to its arguments and category.
-    #
-    #     Required for pickling (e.g. when using multiprocessing).
-    #
-    #     :return: Tuple of the class, arguments, and category.
-    #     """
-    #     return (
-    #         self._recreate,
-    #         (
-    #             self.args,
-    #             {
-    #                 "category": self.category,
-    #                 "threshold": self.count_min,
-    #                 "start_time": self.start_time,
-    #                 "end_time": self.end_time,
-    #                 "interval_type": self.interval_type,
-    #             },
-    #         ),
-    #     )
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (
+                self.args,
+                {
+                    "category": self.category,
+                    "threshold": self.count_min,
+                    "start_time": self.start_time,
+                    "end_time": self.end_time,
+                    "interval_type": self.interval_type,
+                },
+            ),
+        )
 
     def __repr__(self) -> str:
         """
@@ -568,28 +567,27 @@ class TemporalMaxCount(TemporalCount):
         self.interval_type = interval_type
         return self
 
-    # glichtner: this should now be handled by the base class using get_instance_variables()
-    # def __reduce__(self) -> tuple[Callable, tuple]:
-    #     """
-    #     Reduce the expression to its arguments and category.
-    #
-    #     Required for pickling (e.g. when using multiprocessing).
-    #
-    #     :return: Tuple of the class, arguments, and category.
-    #     """
-    #     return (
-    #         self._recreate,
-    #         (
-    #             self.args,
-    #             {
-    #                 "category": self.category,
-    #                 "threshold": self.count_max,
-    #                 "start_time": self.start_time,
-    #                 "end_time": self.end_time,
-    #                 "interval_type": self.interval_type,
-    #             },
-    #         ),
-    #     )
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (
+                self.args,
+                {
+                    "category": self.category,
+                    "threshold": self.count_max,
+                    "start_time": self.start_time,
+                    "end_time": self.end_time,
+                    "interval_type": self.interval_type,
+                },
+            ),
+        )
 
     def __repr__(self) -> str:
         """
@@ -631,28 +629,27 @@ class TemporalExactCount(TemporalCount):
         self.interval_type = interval_type
         return self
 
-    # glichtner: this should now be handled by the base class using get_instance_variables()
-    # def __reduce__(self) -> tuple[Callable, tuple]:
-    #     """
-    #     Reduce the expression to its arguments and category.
-    #
-    #     Required for pickling (e.g. when using multiprocessing).
-    #
-    #     :return: Tuple of the class, arguments, and category.
-    #     """
-    #     return (
-    #         self._recreate,
-    #         (
-    #             self.args,
-    #             {
-    #                 "category": self.category,
-    #                 "threshold": self.count_min,
-    #                 "start_time": self.start_time,
-    #                 "end_time": self.end_time,
-    #                 "interval_type": self.interval_type,
-    #             },
-    #         ),
-    #     )
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (
+                self.args,
+                {
+                    "category": self.category,
+                    "threshold": self.count_min,
+                    "start_time": self.start_time,
+                    "end_time": self.end_time,
+                    "interval_type": self.interval_type,
+                },
+            ),
+        )
 
     def __repr__(self) -> str:
         """
