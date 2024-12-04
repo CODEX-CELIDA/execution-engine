@@ -274,7 +274,10 @@ class Task:
         :return: A DataFrame with the merged or intersected intervals.
         """
 
-        if len(data) == 1:
+        if (
+            isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd, logic.Or))
+            and len(data) == 1
+        ):
             # if there is only one dependency, return the intervals of that dependency, i.e. no merge/intersect
             return data[0]
 
