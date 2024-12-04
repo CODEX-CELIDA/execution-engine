@@ -18,6 +18,21 @@ async function loadRecommendations() {
     });
 }
 
+function checkCount(ele) {
+    if (ele && ele.data) {
+        const count_min = ele.data('count_min');
+        const count_max = ele.data('count_max');
+
+        if (count_min !== null && count_max === null) {
+            return `>=${count_min}`;
+        } else if (count_min === null && count_max !== null) {
+            return `<=${count_max}`;
+        } else if (count_min !== null && count_max !== null) {
+            return `${count_min} - ${count_max}`;
+        }
+    }
+}
+
 async function loadGraph(recommendationId) {
     const response = await fetch(`${eeApiUrl}/recommendation/${recommendationId}/execution_graph`);
     const data = await response.json();
@@ -60,11 +75,17 @@ async function loadGraph(recommendationId) {
                                 return ele.data('class')
                             }
                             var label;
-                            label = ele.data('concept')["concept_name"];
+                            var concept = ele.data('concept');
                             var value = ele.data('value');
                             var dose = ele.data('dose');
                             var timing = ele.data('timing');
                             var route = ele.data('route');
+
+                            if (concept) {
+                                label = concept["concept_name"];
+                            } else {
+                                label = ele.data('class');
+                            }
 
                             if (value) {
                                 label += " " + value;
@@ -80,7 +101,16 @@ async function loadGraph(recommendationId) {
                             }
                             return label;
 
+                        } else if (ele.data('type').startsWith('Temporal') && ele.data('type').endsWith('Count')) {
+                            var label = ele.data('class')
+
+                            label += "[" + checkCount(ele) +'; ' + ele.data('interval_type') + "]";
+                            return label;
+                        } else if (ele.data('type').endsWith('Count')) {
+                            return ele.data('class') + '[' + checkCount(ele) + ']';
                         }
+
+
                         if (ele.data("is_sink")) {
                             return ele.data('category') + " [SINK]"
                         }
