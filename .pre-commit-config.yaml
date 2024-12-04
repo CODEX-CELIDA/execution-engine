@@ -9,7 +9,7 @@ repos:
       name: isort (python)
       args: ["--profile", "black", "--filter-files"]
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
@@ -18,12 +18,12 @@ repos:
     -   id: pretty-format-json
         args: ['--autofix', '--no-sort-keys']
 -   repo: https://github.com/ambv/black
-    rev: 24.8.0
+    rev: 24.10.0
     hooks:
     - id: black
       language_version: python3.11
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.11.1'
+    rev: 'v1.13.0'
     hooks:
     -   id: mypy
         name: mypy
@@ -36,7 +36,7 @@ repos:
         exclude: tests/
         args: [--select, "D101,D102,D103,D105,D106"]
 -   repo: https://github.com/PyCQA/bandit
-    rev: '1.7.9'
+    rev: '1.8.0'
     hooks:
     - id: bandit
       args: [--skip, "B101,B303,B110,B311"]

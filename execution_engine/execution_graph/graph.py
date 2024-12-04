@@ -222,6 +222,15 @@ class ExecutionGraph(nx.DiGraph):
                 except NotImplementedError:
                     # non-concept criterion, e.g. base criterion
                     pass
+            elif isinstance(node, logic.TemporalCount):
+                node_data["data"]["start_time"] = node.start_time
+                node_data["data"]["end_time"] = node.end_time
+                node_data["data"]["interval_type"] = node.interval_type
+
+            if hasattr(node, "count_min"):
+                node_data["data"]["count_min"] = node.count_min
+            if hasattr(node, "count_max"):
+                node_data["data"]["count_max"] = node.count_max
 
             if self.nodes[node]["category"] == CohortCategory.BASE:
                 node_data["data"]["base_criterion"] = str(
