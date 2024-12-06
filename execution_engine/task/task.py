@@ -13,7 +13,7 @@ from execution_engine.omop.criterion.combination.temporal import TimeIntervalTyp
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
-from execution_engine.task.process import get_processing_module
+from execution_engine.task.process import Interval, get_processing_module
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
@@ -467,23 +467,32 @@ class Task:
 
         assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
 
-        if self.expr.interval_type is not None:
-            start_time, end_time = get_start_end_from_interval_type(
-                self.expr.interval_type
-            )
-        elif self.expr.start_time is not None and self.expr.end_time is not None:
-            start_time, end_time = self.expr.start_time, self.expr.end_time
+        if self.expr.interval_type == TimeIntervalType.ANY_TIME:
+            indicator_windows = [
+                Interval(
+                    lower=observation_window.start.timestamp(),
+                    upper=observation_window.end.timestamp(),
+                    type=IntervalType.POSITIVE,
+                )
+            ]
         else:
-            raise ValueError("Invalid time interval settings")
+            if self.expr.interval_type is not None:
+                start_time, end_time = get_start_end_from_interval_type(
+                    self.expr.interval_type
+                )
+            elif self.expr.start_time is not None and self.expr.end_time is not None:
+                start_time, end_time = self.expr.start_time, self.expr.end_time
+            else:
+                raise ValueError("Invalid time interval settings")
 
-        indicator_windows = process.create_time_intervals(
-            start_datetime=observation_window.start,
-            end_datetime=observation_window.end,
-            start_time=start_time,
-            end_time=end_time,
-            interval_type=IntervalType.POSITIVE,
-            timezone=get_config().timezone,
-        )
+            indicator_windows = process.create_time_intervals(
+                start_datetime=observation_window.start,
+                end_datetime=observation_window.end,
+                start_time=start_time,
+                end_time=end_time,
+                interval_type=IntervalType.POSITIVE,
+                timezone=get_config().timezone,
+            )
 
         result = process.find_overlapping_windows(indicator_windows, data_p)
 

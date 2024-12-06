@@ -37,6 +37,7 @@ import logging
 import os
 import re
 import sys
+import time
 
 import pendulum
 from sqlalchemy import text
@@ -106,6 +107,7 @@ end_datetime = pendulum.parse("2023-05-31 23:59:59+01:00")
 e = ExecutionEngine()
 logging.getLogger().setLevel(logging.DEBUG)
 
+start_time = time.time()
 
 for recommendation_url in urls:
     print(recommendation_url)
@@ -115,3 +117,8 @@ for recommendation_url in urls:
     )
 
     e.execute(cdd, start_datetime=start_datetime, end_datetime=end_datetime)
+
+end_time = time.time()
+runtime_seconds = end_time - start_time
+
+logging.info(f"Total runtime: {runtime_seconds:.2f} seconds")
