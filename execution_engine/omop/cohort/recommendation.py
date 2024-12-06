@@ -164,7 +164,6 @@ class Recommendation(Serializable):
         Get the criteria of the recommendation.
         """
         criteria = LogicalCriterionCombination(
-            exclude=False,
             category=CohortCategory.BASE,
             operator=LogicalCriterionCombination.Operator("OR"),
             root_combination=True,

@@ -1,3 +1,4 @@
+import numbers
 from typing import Any
 
 import sqlalchemy
@@ -229,7 +230,7 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
 
     @classmethod
     def height_for_predicted_body_weight_ardsnet(
-        self, gender: str, predicted_weight: float
+        self, gender: str, predicted_weight: numbers.Real
     ) -> float:
         """
         Height for predicted body weight according to ARDSNet
@@ -238,7 +239,11 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
             raise ValueError(
                 f"Unrecognized gender {gender}, must be one of {self.__GENDER_TO_INT.keys()}"
             )
+        if not isinstance(predicted_weight, numbers.Real):
+            raise ValueError(
+                f"predicted_weight must be of type float, not {type(predicted_weight)}"
+            )
 
-        return (
+        return (  # type: ignore
             predicted_weight - (45.5 + (4.5 * self.__GENDER_TO_INT[gender]))
         ) / 0.91 + 152.4

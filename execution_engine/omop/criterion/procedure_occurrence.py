@@ -24,7 +24,6 @@ class ProcedureOccurrence(ContinuousCriterion):
 
     def __init__(
         self,
-        exclude: bool,
         category: CohortCategory,
         concept: Concept,
         value: ValueNumber | None = None,
@@ -32,7 +31,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         static: bool | None = None,
     ) -> None:
         super().__init__(
-            exclude=exclude,
             category=category,
             concept=concept,
             value=value,
@@ -160,7 +158,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         assert self._concept is not None, "Concept must be set"
 
         return {
-            "exclude": self._exclude,
             "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
@@ -192,7 +189,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         ), "timing must be a ValueNumber"
 
         return cls(
-            exclude=data["exclude"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=value,

@@ -66,6 +66,5 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
 
         return LogicalCriterionCombination(
             category=CohortCategory.INTERVENTION,
-            exclude=False,
             operator=operator,
         )

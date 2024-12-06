@@ -21,6 +21,7 @@ class MockCriterion(Criterion):
         self._name = name
         self._exclude = exclude
         self._category = category
+        assert not exclude
 
     def unique_name(self) -> str:
         return self._name

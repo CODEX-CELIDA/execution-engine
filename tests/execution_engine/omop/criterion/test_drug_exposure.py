@@ -4,6 +4,9 @@ import pytest
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.types import Dosage
@@ -35,12 +38,15 @@ class TestDrugExposure(TestCriterion):
             route: Concept | None,
         ) -> pd.DataFrame:
             criterion = DrugExposure(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 ingredient_concept=ingredient_concept,
                 dose=dose,
                 route=route,
             )
+            if exclude:
+                criterion = LogicalCriterionCombination.Not(
+                    criterion, category=criterion.category
+                )
 
             self.insert_criterion(db_session, criterion, observation_window)
 

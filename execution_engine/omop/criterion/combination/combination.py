@@ -49,7 +49,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
 
     def __init__(
         self,
-        exclude: bool,
         operator: Operator,
         category: CohortCategory,
         criteria: Sequence[Union[Criterion, "CriterionCombination"]] | None = None,
@@ -58,7 +57,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         Initialize the criterion combination.
         """
-        super().__init__(exclude=exclude, category=category)
+        super().__init__(category=category)
         self._operator = operator
 
         self._criteria: list[Union[Criterion, CriterionCombination]]
@@ -89,7 +88,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         Get the name of the criterion combination.
         """
-        return f"{self.__class__.__name__}({self.operator}).{self.category.value}(exclude={self._exclude})"
+        return f"{self.__class__.__name__}({self.operator}).{self.category.value}"
 
     @property
     def operator(self) -> "CriterionCombination.Operator":
@@ -140,7 +139,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         Get the dictionary representation of the criterion combination.
         """
         return {
-            "exclude": self._exclude,
             "operator": self._operator.operator,
             "threshold": self._operator.threshold,
             "category": self._category.value,
@@ -150,18 +148,29 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             ],
         }
 
-    def __invert__(self) -> "CriterionCombination":
+    def __invert__(self) -> AbstractCriterion:
         """
         Invert the criterion combination.
         """
-        return self.__class__(
-            exclude=not self._exclude,
-            operator=self._operator,
-            category=self._category,
-            criteria=self._criteria,
+        # Would be cycle if imported at top-level.
+        from execution_engine.omop.criterion.combination.logical import (
+            LogicalCriterionCombination,
         )
 
-    def invert(self) -> "CriterionCombination":
+        if (
+            isinstance(self, LogicalCriterionCombination)
+            and self.operator.operator == LogicalCriterionCombination.Operator.NOT
+        ):
+            return self._criteria[0]
+        else:
+            copy = self.__class__(
+                operator=self._operator,
+                category=self._category,
+                criteria=self._criteria,
+            )
+            return LogicalCriterionCombination.Not(copy, self._category)
+
+    def invert(self) -> AbstractCriterion:
         """
         Invert the criterion combination.
         """
@@ -181,7 +190,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         category = CohortCategory(data["category"])
 
         combination = cls(
-            exclude=data["exclude"],
             operator=operator,
             category=category,
         )

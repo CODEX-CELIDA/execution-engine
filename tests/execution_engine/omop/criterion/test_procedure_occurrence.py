@@ -2,6 +2,9 @@ import pytest
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.combination.logical import (
+    LogicalCriterionCombination,
+)
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.types import TimeRange, Timing
@@ -64,13 +67,16 @@ class TestProcedureOccurrence(Occurrence):
             timing = Timing(duration=2 * TimeUnit.HOUR)
 
             criterion = ProcedureOccurrence(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
                 timing=timing,
                 static=None,
             )
+            if exclude:
+                criterion = LogicalCriterionCombination.Not(
+                    criterion, category=criterion.category
+                )
             self.insert_criterion(db_session, criterion, observation_window)
             df = self.fetch_full_day_result(
                 db_session,
@@ -231,13 +237,16 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
                 timing=timing,
                 static=None,
             )
+            if exclude:
+                criterion = LogicalCriterionCombination.Not(
+                    criterion, criterion.category
+                )
             self.insert_criterion(db_session, criterion, observation_window)
 
             df = self.fetch_interval_result(
@@ -323,7 +332,6 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
@@ -354,7 +362,6 @@ class TestProcedureOccurrence(Occurrence):
 
     def test_serialization(self, concept):
         original = ProcedureOccurrence(
-            exclude=True,
             category=CohortCategory.POPULATION,
             concept=concept,
             value=None,

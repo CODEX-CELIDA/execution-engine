@@ -59,21 +59,19 @@ class VentilatorManagementGoal(Goal):
 
         return cls(exclude=False, code=code, value=value)
 
-    def to_criterion(self) -> Criterion:
+    def to_positive_criterion(self) -> Criterion:
         """
         Converts the goal to a criterion.
         """
         if self._code in CUSTOM_GOALS:
             cls = CUSTOM_GOALS[self._code]
             return cls(
-                exclude=False,
                 category=CohortCategory.INTERVENTION,
                 concept=self._code,
                 value=self._value,
             )
 
         return Measurement(
-            exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,

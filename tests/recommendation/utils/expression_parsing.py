@@ -17,7 +17,7 @@ CRITERION_PATTERN = re.compile(
     r"(?!Eq\b|And\b|Or\b|Not\b|Add\b|Div\b|Sub\b)([A-Z][A-Za-z0-9_]+)([<=>]?)"
 )
 
-CRITERION_COMBINATION_PATTERN = re.compile(r"([\!\?]?)([A-Z][A-Za-z0-9_]+)([<=>]?)")
+CRITERION_COMBINATION_PATTERN = re.compile(r"([!?]?)([A-Z][A-Za-z0-9_]+)([<=>]?)")
 
 
 def criteria_combination_str_to_df(criteria_str: str) -> pd.DataFrame:
