@@ -639,17 +639,6 @@ def create_time_intervals(
     Raises:
         ValueError: If start_datetime and end_datetime are not in the same timezone.
     """
-
-    # if start_datetime.tzinfo is not None or end_datetime.tzinfo is not None:
-    #     if start_datetime.tzinfo != end_datetime.tzinfo:
-    #         raise ValueError(
-    #             "start_datetime and end_datetime must have the same timezone"
-    #         )
-    #     timezone = start_datetime.tzinfo
-    # else:
-    #     # use local timezone if no timezone is provided
-    #     timezone = datetime.datetime.now().astimezone().tzinfo
-
     if isinstance(timezone, str):
         timezone = cast(pytz.tzinfo.DstTzInfo, pytz.timezone(timezone))
 
