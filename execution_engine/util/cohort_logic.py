@@ -68,14 +68,6 @@ class BaseExpr(ABC):
         """
         raise NotImplementedError("is_Not must be implemented by subclasses")
 
-
-class Expr(BaseExpr):
-    """
-    Class for expressions that require a category.
-    """
-
-    category: CohortCategory
-
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
         Reduce the expression to its arguments and category.
@@ -84,7 +76,34 @@ class Expr(BaseExpr):
 
         :return: Tuple of the class, arguments, and category.
         """
-        return self._recreate, (self.args, {"category": self.category})
+        return self._recreate, (self.args, self.get_instance_variables())
+
+    def get_instance_variables(self, immutable: bool = False) -> dict | tuple:
+        """
+        Return all instance variables of the object.
+
+        If immutable is True, return as an immutable tuple of key-value pairs.
+        If immutable is False, return as a mutable dictionary.
+        """
+        instance_vars = {
+            key: value
+            for key, value in vars(self).items()
+            if not key.startswith("_")  # Exclude private or special attributes
+            and key != "args"
+        }
+
+        if immutable:
+            return tuple(sorted(instance_vars.items()))
+        else:
+            return instance_vars
+
+
+class Expr(BaseExpr):
+    """
+    Class for expressions that require a category.
+    """
+
+    category: CohortCategory
 
     def __new__(cls, *args: Any, category: CohortCategory) -> "Expr":
         """
@@ -120,7 +139,9 @@ class Expr(BaseExpr):
 
         :return: Hash of the expression.
         """
-        return hash((self.__class__, self.args, self.category))
+        return hash(
+            (self.__class__, self.args, self.get_instance_variables(immutable=True))
+        )
 
     @property
     def is_Atom(self) -> bool:
@@ -147,16 +168,6 @@ class Symbol(BaseExpr):
     """
 
     criterion: Criterion
-
-    def __reduce__(self) -> tuple[Callable, tuple]:
-        """
-        Reduce the expression to its arguments and category.
-
-        Required for pickling (e.g. when using multiprocessing).
-
-        :return: Tuple of the class, arguments, and category.
-        """
-        return self._recreate, (self.args, {"criterion": self.criterion})
 
     def __new__(cls, criterion: Criterion) -> "Symbol":
         """
@@ -237,15 +248,21 @@ class BooleanFunction(Expr):
         :param other: The other operator.
         :return: True if equal, False otherwise.
         """
-        return isinstance(other, self.__class__) and self.args == other.args
+        return (
+            isinstance(other, self.__class__)
+            and self.args == other.args
+            and self.get_instance_variables(immutable=True)
+            == other.get_instance_variables(immutable=True)
+        )
 
+    # Needs to be defined again (although it is the same as in Expr) because we define __eq__ here
     def __hash__(self) -> int:
         """
         Get the hash of this operator.
 
         :return: Hash of the operator.
         """
-        return hash((self.__class__, self.args))
+        return super().__hash__()
 
     @property
     def is_Atom(self) -> bool:
@@ -515,7 +532,15 @@ class TemporalMinCount(TemporalCount):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+        if self.start_time is not None and self.end_time is not None:
+            interval = f"{self.start_time} - {self.end_time}"
+        elif self.interval_type is not None:
+            interval = self.interval_type.name
+        else:
+            interval = "None"
+
+        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
 
 
 class TemporalMaxCount(TemporalCount):
@@ -568,7 +593,15 @@ class TemporalMaxCount(TemporalCount):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_max}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+        if self.start_time is not None and self.end_time is not None:
+            interval = f"{self.start_time} - {self.end_time}"
+        elif self.interval_type is not None:
+            interval = self.interval_type.name
+        else:
+            interval = "None"
+
+        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_max}; {', '.join(map(repr, self.args))}, category='{self.category}')"
 
 
 class TemporalExactCount(TemporalCount):
@@ -622,7 +655,15 @@ class TemporalExactCount(TemporalCount):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+        if self.start_time is not None and self.end_time is not None:
+            interval = f"{self.start_time} - {self.end_time}"
+        elif self.interval_type is not None:
+            interval = self.interval_type.name
+        else:
+            interval = "None"
+
+        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
 
 
 class NonSimplifiableAnd(BooleanFunction):

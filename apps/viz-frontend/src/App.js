@@ -19,7 +19,7 @@ function App() {
     return (
         <div className="App">
             <header className="App-header">
-                <h1>Patient Data Visualizer</h1>
+                <h1>Execution Engine Results Viewer</h1>
                 <div className="RunSelector">
                     <RunSelector onSubmit={handleRunSubmit} />
                 </div>

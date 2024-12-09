@@ -16,6 +16,7 @@ class TimeIntervalType(StrEnum):
     AFTERNOON_SHIFT = "afternoon_shift"
     NIGHT_SHIFT = "night_shift"
     DAY = "day"
+    ANY_TIME = "any_time"
 
 
 class TemporalIndicatorCombination(CriterionCombination):
@@ -272,3 +273,15 @@ class TemporalIndicatorCombination(CriterionCombination):
         """
 
         return cls.Presence(criterion, category, TimeIntervalType.DAY)
+
+    @classmethod
+    def AnyTime(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+    ) -> "TemporalIndicatorCombination":
+        """
+        Create a AnyTime combination of criteria.
+        """
+
+        return cls.Presence(criterion, category, TimeIntervalType.ANY_TIME)

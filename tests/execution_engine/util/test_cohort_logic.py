@@ -4,6 +4,7 @@ from multiprocessing import Process, Queue
 import pytest
 
 from execution_engine.constants import CohortCategory
+from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
 from execution_engine.util.cohort_logic import (
     AllOrNone,
     And,
@@ -19,6 +20,9 @@ from execution_engine.util.cohort_logic import (
     Not,
     Or,
     Symbol,
+    TemporalExactCount,
+    TemporalMaxCount,
+    TemporalMinCount,
 )
 from tests.mocks.criterion import MockCriterion
 
@@ -224,6 +228,36 @@ class TestSymbolMultiprocessing:
             NoDataPreservingAnd(1, 2, 3, category=CohortCategory.POPULATION),
             NoDataPreservingOr(1, 2, 3, category=CohortCategory.POPULATION),
             LeftDependentToggle(left=1, right=2, category=CohortCategory.POPULATION),
+            TemporalMinCount(
+                1,
+                2,
+                3,
+                threshold=2,
+                start_time=None,
+                end_time=None,
+                interval_type=TimeIntervalType.DAY,
+                category=CohortCategory.POPULATION,
+            ),
+            TemporalMaxCount(
+                1,
+                2,
+                3,
+                threshold=3,
+                start_time=None,
+                end_time=None,
+                interval_type=TimeIntervalType.MORNING_SHIFT,
+                category=CohortCategory.POPULATION,
+            ),
+            TemporalExactCount(
+                1,
+                2,
+                3,
+                threshold=2,
+                start_time=None,
+                end_time=None,
+                interval_type=TimeIntervalType.NIGHT_SHIFT,
+                category=CohortCategory.POPULATION,
+            ),
         ],
         ids=lambda expr: expr.__class__.__name__,
     )
