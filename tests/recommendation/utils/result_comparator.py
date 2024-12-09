@@ -42,16 +42,14 @@ class ResultComparator:
         return [col[2:] for col in self.df.columns if col.startswith("i_")]
 
     def plan_name_column_names(self) -> list[str]:
-        cols = [
-            "_".join(i) for i in itertools.product(["p", "i", "p_i"], self.plan_names)
-        ]
-        return cols + ["p", "i", "p_i"]
+        cols = ["_".join(i) for i in itertools.product(["p", "p_i"], self.plan_names)]
+        return cols + ["p", "p_i"]
 
     def derive_database_result(self, df: pd.DataFrame) -> "ResultComparator":
         df = df.copy()
-        df.loc[
-            :, [c for c in self.plan_name_column_names() if c not in df.columns]
-        ] = False
+        df.loc[:, [c for c in self.plan_name_column_names() if c not in df.columns]] = (
+            False
+        )
 
         return ResultComparator(name="db", df=df)
 

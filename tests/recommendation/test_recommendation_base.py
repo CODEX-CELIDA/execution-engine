@@ -709,6 +709,14 @@ class TestRecommendationBase(ABC):
                 df, group["intervention"]
             )
 
+            # filter intervention by population
+            if df[f"i_{group_name}"].dtype == bool:
+                df[f"i_{group_name}"] &= df[f"p_{group_name}"]
+            else:
+                df[f"i_{group_name}"] = (
+                    df[f"p_{group_name}"] == IntervalType.POSITIVE
+                ) & (df[f"i_{group_name}"] == IntervalType.POSITIVE)
+
             # expressions like "Eq(a+b+c, 1)" (at least one criterion) yield boolean columns and must
             # be converted to IntervalType
             if df[(f"p_{group_name}", "")].dtype == bool:
@@ -984,7 +992,11 @@ class TestRecommendationBase(ABC):
         df_result_p_i = omopdb.query(
             get_query(
                 partial_day_coverage,
-                category=[CohortCategory.BASE, CohortCategory.POPULATION],
+                category=[
+                    CohortCategory.BASE,
+                    CohortCategory.POPULATION,
+                    CohortCategory.INTERVENTION,
+                ],
             )
         )
 
@@ -993,7 +1005,6 @@ class TestRecommendationBase(ABC):
             get_query(
                 full_day_coverage,
                 category=[
-                    CohortCategory.INTERVENTION,
                     CohortCategory.POPULATION_INTERVENTION,
                 ],
             )
