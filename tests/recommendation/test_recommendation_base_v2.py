@@ -485,6 +485,14 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             df[f"p_{group_name}"] = evaluate_expression(group["population"], df)
             df[f"i_{group_name}"] = evaluate_expression(group["intervention"], df)
 
+            # filter intervention by population
+            if df[f"i_{group_name}"].dtype == bool:
+                df[f"i_{group_name}"] &= df[f"p_{group_name}"]
+            else:
+                df[f"i_{group_name}"] = (
+                    df[f"p_{group_name}"] == IntervalType.POSITIVE
+                ) & (df[f"i_{group_name}"] == IntervalType.POSITIVE)
+
             # expressions like "Eq(a+b+c, 1)" (at least one criterion) yield boolean columns and must
             # be converted to IntervalType
             if df[f"p_{group_name}"].dtype == bool:
