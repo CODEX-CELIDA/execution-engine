@@ -118,7 +118,7 @@ class ExecutionEngine:
         """
         Executes a recommendation and stores the results in the result database.
 
-        :param recommendation: The Recommendation object (loaded from ExectionEngine.load_recommendation).
+        :param recommendation: The Recommendation object (loaded from ExecutionEngine.load_recommendation).
         :param start_datetime: The start of the observation window.
         :param end_datetime: The end of the observation window. If None, the current time is used.
         :return: The ID of the run.
@@ -135,7 +135,12 @@ class ExecutionEngine:
         )
 
         with self._db.begin():
-            self.register_recommendation(recommendation)
+            # If the recommendation has been loaded from the
+            # database, its _id slot is not None. Otherwise, register
+            # the recommendation to store it into the database and
+            # assign an id.
+            if recommendation._id is None:
+                self.register_recommendation(recommendation)
             run_id = self.register_run(
                 recommendation, start_datetime=start_datetime, end_datetime=end_datetime
             )
@@ -186,7 +191,14 @@ class ExecutionEngine:
             recommendation = cohort.Recommendation.from_json(
                 rec_db.recommendation_json.decode()
             )
-            recommendation.id = rec_db.recommendation_id
+            # All objects in the deserialized object graph must have
+            # an id.
+            assert recommendation._id is not None
+            assert recommendation._base_criterion._id is not None
+            for pi_pair in recommendation._pi_pairs:
+                assert pi_pair._id is not None
+                for criterion in pi_pair.flatten():
+                    assert criterion._id is not None
             return recommendation
 
         return None
@@ -198,14 +210,29 @@ class ExecutionEngine:
 
     def register_recommendation(self, recommendation: cohort.Recommendation) -> None:
         """Registers the Recommendation in the result database."""
-
+        # We don't want to include any ids in the hash since ids
+        # "accidental" in the sense that they depend on, at least, the
+        # order in which recommendations are inserted into the
+        # database.
+        assert recommendation._id is None
+        assert recommendation._base_criterion._id is None
+        for pi_pair in recommendation._pi_pairs:
+            assert pi_pair._id is None
+            for criterion in pi_pair.flatten():
+                assert criterion._id is None
+        # Get the hash but ignore the JSON representation for now
+        # since we will compute and insert a complete JSON
+        # representation later when we know all ids.
+        _, rec_hash = self._hash(recommendation)
         recommendation_table = result_db.Recommendation
-
-        rec_json, rec_hash = self._hash(recommendation)
+        # We look for a recommendation with the computed hash in the
+        # database. If there is one, set the id of our recommendation
+        # to the stored id. Otherwise, store our recommendation
+        # (without the JSON representation) in the database and
+        # receive the fresh id.
         query = select(recommendation_table).where(
             recommendation_table.recommendation_hash == rec_hash
         )
-
         with self._db.begin() as con:
             rec_db = con.execute(query).fetchone()
 
@@ -221,7 +248,7 @@ class ExecutionEngine:
                         recommendation_version=recommendation.version,
                         recommendation_package_version=recommendation.package_version,
                         recommendation_hash=rec_hash,
-                        recommendation_json=rec_json,
+                        recommendation_json=bytes(),  # updated later
                         create_datetime=datetime.now(),
                     )
                     .returning(recommendation_table.recommendation_id)
@@ -229,25 +256,43 @@ class ExecutionEngine:
 
                 result = con.execute(query)
                 recommendation.id = result.fetchone().recommendation_id
-
+        # Register all child objects. After that, the recommendation
+        # and all child objects have valid ids (either restored or
+        # fresh).
+        self.register_criterion(recommendation._base_criterion)
         for pi_pair in recommendation.population_intervention_pairs():
             self.register_population_intervention_pair(
                 pi_pair, recommendation_id=recommendation.id
             )
-
             for criterion in pi_pair.flatten():
                 self.register_criterion(criterion)
 
+        assert recommendation.id is not None
+        # TODO(jmoringe): mypy doesn't like this one. Not sure why.
+        # assert recommendation._base_criterion._id is not None
+        for pi_pair in recommendation._pi_pairs:
+            assert pi_pair._id is not None
+            for criterion in pi_pair.flatten():
+                assert criterion._id is not None
+
+        # Update the recommendation in the database with the final
+        # JSON representation and execution graph (now that
+        # recommendation id, criteria ids and pi pair is are known)
+        # TODO(jmoringe): only when necessary
         with self._db.begin() as con:
-            # update recommendation with execution graph (now that criterion & pi pair is are known)
             rec_graph: bytes = json.dumps(
                 recommendation.execution_graph().to_cytoscape_dict(), sort_keys=True
             ).encode()
 
+            rec_json: bytes = recommendation.json()
+            logging.info(f"Storing recommendation {recommendation}")
             update_query = (
                 update(recommendation_table)
                 .where(recommendation_table.recommendation_id == recommendation.id)
-                .values(recommendation_execution_graph=rec_graph)
+                .values(
+                    recommendation_json=rec_json,
+                    recommendation_execution_graph=rec_graph,
+                )
             )
 
             con.execute(update_query)
@@ -261,6 +306,8 @@ class ExecutionEngine:
         :param pi_pair: The Population/Intervention Pair.
         :param recommendation_id: The ID of the Population/Intervention Pair.
         """
+        # We don't want to include the id in the hash
+        assert pi_pair._id is None
         _, pi_pair_hash = self._hash(pi_pair)
         query = select(result_db.PopulationInterventionPair).where(
             result_db.PopulationInterventionPair.pi_pair_hash == pi_pair_hash
@@ -313,6 +360,8 @@ class ExecutionEngine:
 
                 result = con.execute(query)
                 criterion.id = result.fetchone().criterion_id
+
+        assert criterion.id is not None
 
     def register_run(
         self,
