@@ -12,9 +12,6 @@ from execution_engine.constants import CohortCategory
 from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.celida.views import (
     full_day_coverage,
@@ -256,13 +253,7 @@ class TestCriterion:
         criterion.id = self.criterion_id
         self.register_criterion(criterion, db_session)
 
-        if (
-            isinstance(criterion, LogicalCriterionCombination)
-            and criterion.operator.operator == LogicalCriterionCombination.Operator.NOT
-        ):
-            query = criterion._criteria[0].create_query()
-        else:
-            query = criterion.create_query()
+        query = criterion.create_query()
 
         result = db_session.connection().execute(
             query, parameters=observation_window.model_dump() | {"run_id": self.run_id}
@@ -394,7 +385,6 @@ class TestCriterion:
     ):
         def _create_value(
             concept: Concept,
-            exclude: bool,
             value: ValueNumber | ValueConcept | None = None,
         ) -> pd.DataFrame:
             criterion = criterion_class(
@@ -403,10 +393,6 @@ class TestCriterion:
                 value=value,
                 static=None,
             )
-            if exclude:
-                criterion = LogicalCriterionCombination.Not(
-                    criterion, criterion.category
-                )
 
             self.insert_criterion(db_session, criterion, observation_window)
 

@@ -2,9 +2,6 @@ import pytest
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.types import TimeRange, Timing
@@ -61,7 +58,6 @@ class TestProcedureOccurrence(Occurrence):
 
         def criterion_execute_func_timing(
             concept: Concept,
-            exclude: bool,
             value: ValueNumber | None = None,
         ):
             timing = Timing(duration=2 * TimeUnit.HOUR)
@@ -73,10 +69,7 @@ class TestProcedureOccurrence(Occurrence):
                 timing=timing,
                 static=None,
             )
-            if exclude:
-                criterion = LogicalCriterionCombination.Not(
-                    criterion, category=criterion.category
-                )
+
             self.insert_criterion(db_session, criterion, observation_window)
             df = self.fetch_full_day_result(
                 db_session,
@@ -233,7 +226,6 @@ class TestProcedureOccurrence(Occurrence):
 
         def criterion_execute_func_timing(
             concept: Concept,
-            exclude: bool,
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
@@ -243,10 +235,7 @@ class TestProcedureOccurrence(Occurrence):
                 timing=timing,
                 static=None,
             )
-            if exclude:
-                criterion = LogicalCriterionCombination.Not(
-                    criterion, criterion.category
-                )
+
             self.insert_criterion(db_session, criterion, observation_window)
 
             df = self.fetch_interval_result(
@@ -265,7 +254,7 @@ class TestProcedureOccurrence(Occurrence):
         self.insert_occurrences(concept, db_session, vo, time_ranges)
 
         # run criterion against db
-        intervals = criterion_execute_func_timing(concept=concept, exclude=False)
+        intervals = criterion_execute_func_timing(concept=concept)
 
         assert set(intervals) == expected_intervals
 
@@ -328,7 +317,6 @@ class TestProcedureOccurrence(Occurrence):
 
         def criterion_execute_func_timing(
             concept: Concept,
-            exclude: bool,
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
@@ -356,7 +344,7 @@ class TestProcedureOccurrence(Occurrence):
         self.insert_occurrences(concept, db_session, vo, time_ranges)
 
         # run criterion against db
-        intervals = criterion_execute_func_timing(concept=concept, exclude=False)
+        intervals = criterion_execute_func_timing(concept=concept)
 
         assert set(intervals) == expected_intervals
 
