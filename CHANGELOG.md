@@ -1,13 +1,102 @@
 # CHANGELOG
 
+## v2.4.0 (2024-12-10)
+
+
+### Bug fixes
+* fix: comment fixes ([`32df5a4`](https://github.com/CODEX-CELIDA/execution-engine/commit/32df5a4b8241c86909232a6c731969ebf3f69f34))
+* fix: recommendation and criterion ids are (de)serialized less incorrectly ([`0a9c8ff`](https://github.com/CODEX-CELIDA/execution-engine/commit/0a9c8ff5413a7adc6da9fcc4d0c807d9be2bad6e))
+* fix: use commnon style for Recommendation._base_criterion serialization ([`2c660fa`](https://github.com/CODEX-CELIDA/execution-engine/commit/2c660fa3a8b3375e12328c05621b4b4d1a510d16))
+* fix: include _root attribute in (de)serialization of CriterionCombination ([`a8f770f`](https://github.com/CODEX-CELIDA/execution-engine/commit/a8f770f2d9d764a1452fb6aa4dd843cccb7eb77b))
+* fix: widen type signature of Serializable.from_json to include bytes ([`ab8564a`](https://github.com/CODEX-CELIDA/execution-engine/commit/ab8564a9bb4bc3e276b10ec0452533430d9beef8))
+* fix: random minor fixes ([`8d8523e`](https://github.com/CODEX-CELIDA/execution-engine/commit/8d8523e884cdf721b22e4a8ffe7fbe232cd6860a))
+* fix: filter intervention criteria by population ([`03c3902`](https://github.com/CODEX-CELIDA/execution-engine/commit/03c3902d0e810fbf3b537e4f976fb1f5e7870c0b))
+* fix: unpickling of temporal count ([`0cd4e04`](https://github.com/CODEX-CELIDA/execution-engine/commit/0cd4e044c75a6c18708e2a04c33d61dc687a8a52))
+* fix(plot): sort criteria, give proper titles, and group ([`afac6b1`](https://github.com/CODEX-CELIDA/execution-engine/commit/afac6b1b04a163e50d82584b7bd5d424204bad86))
+* fix: cohort logic reduction ([`c530621`](https://github.com/CODEX-CELIDA/execution-engine/commit/c530621b35a2cd3f977ae6d98fcf80ec3c6e5c14))
+* fix: processing of temporal criteria ([`55801d4`](https://github.com/CODEX-CELIDA/execution-engine/commit/55801d4aab48282a123b980cf75ded68af7a7c38))
+* fix: graph node display of temporal combinations ([`cff71cf`](https://github.com/CODEX-CELIDA/execution-engine/commit/cff71cf05f3bf0b8b3ab32a12cb66ea8898aaebb))
+* fix: (de)serialize PopulationInterventionPair.{population,intervention} with class info ([`76bf3b8`](https://github.com/CODEX-CELIDA/execution-engine/commit/76bf3b84798cdcd3b05ba4bd0ba98870edd72c6f))
+* fix: serialize NonCommutativeLogicalCriterionCombination.{left,right} with class information ([`23f3643`](https://github.com/CODEX-CELIDA/execution-engine/commit/23f36436c79d37e26255a49fa1f607d4ea22bafc))
+* fix: allow deserializing a Timing instance as ProcedureOccurrence.timing ([`e94790b`](https://github.com/CODEX-CELIDA/execution-engine/commit/e94790bc800e3f0cef811ef4bd3b729021097788))
+* fix: use of visit_detail in ActivePatients ([`7b33c6b`](https://github.com/CODEX-CELIDA/execution-engine/commit/7b33c6bfe6c8a46d498ffc7beb1377113b664363))
+* fix: cytoscape graph for non-concept criteria ([`a5a0f91`](https://github.com/CODEX-CELIDA/execution-engine/commit/a5a0f916427266065952b25d7648d431f5617090))
+
+### Chores
+* chore(deps): bump path-to-regexp and express in /apps/viz-frontend ([`32f8da7`](https://github.com/CODEX-CELIDA/execution-engine/commit/32f8da7ff53a3f39686451f8b43ec3ab58afe77d))
+* chore(deps): bump nanoid from 3.3.7 to 3.3.8 in /apps/viz-frontend ([`a7b4b46`](https://github.com/CODEX-CELIDA/execution-engine/commit/a7b4b4605288453ca07a3619163181ea09028206))
+* chore(deps): bump the dependencies group with 4 updates ([`5ab168d`](https://github.com/CODEX-CELIDA/execution-engine/commit/5ab168d81e15a1003d32a14ae6fc65774ce2a536))
+* chore: update submodule ([`3fc9d59`](https://github.com/CODEX-CELIDA/execution-engine/commit/3fc9d5919e1a0f40fe4c6acd42b8c4641b1db886))
+* chore(deps): bump the dependencies group with 3 updates ([`7cf9f3d`](https://github.com/CODEX-CELIDA/execution-engine/commit/7cf9f3d90845115b3c5a95fffaf81692e19a423d))
+* chore(deps): bump the dependencies group with 4 updates ([`abc94ce`](https://github.com/CODEX-CELIDA/execution-engine/commit/abc94cec32b6730a412baa0a6806dc8b8d2106f4))
+* chore(deps): bump cross-spawn from 7.0.3 to 7.0.6 in /apps/viz-frontend ([`8ab7aff`](https://github.com/CODEX-CELIDA/execution-engine/commit/8ab7aff092b4921af67f0d57264ec3d574a5fc15))
+* chore(deps): bump the dependencies group with 2 updates ([`a2d21a6`](https://github.com/CODEX-CELIDA/execution-engine/commit/a2d21a63d40502b88b9ca36cc697183abd10c984))
+* chore(deps): bump the dependencies group with 2 updates ([`765df8b`](https://github.com/CODEX-CELIDA/execution-engine/commit/765df8b39a49820d64b6498edad9e7df6d4dea6e))
+* chore(deps): bump the dependencies group with 4 updates ([`5d0fbdf`](https://github.com/CODEX-CELIDA/execution-engine/commit/5d0fbdf606b9ed4dd95dea05f3f2e34bdb4f4796))
+* chore(deps): bump the dependencies group with 2 updates ([`bd186bb`](https://github.com/CODEX-CELIDA/execution-engine/commit/bd186bbc632740a04b69c4f7bcb8e71d98b2ad79))
+* chore(deps): bump http-proxy-middleware in /apps/viz-frontend ([`d7863ab`](https://github.com/CODEX-CELIDA/execution-engine/commit/d7863abfe7d5f2ff4b687db05be834efccfe41f9))
+* chore(deps): bump the dependencies group with 5 updates ([`15ed84f`](https://github.com/CODEX-CELIDA/execution-engine/commit/15ed84fffaf6b663230eeb3cb46e64bc7ac00213))
+* chore(deps): bump the dependencies group with 10 updates ([`570acd9`](https://github.com/CODEX-CELIDA/execution-engine/commit/570acd9f20e53bd3e85cc34688b0e1604b07706f))
+* chore(deps): bump uvicorn[standard] from 0.31.0 to 0.31.1 ([`c09c50f`](https://github.com/CODEX-CELIDA/execution-engine/commit/c09c50f9ab0b2dd3dd4a8a45acf0368e5d3531d4))
+* chore(deps): update rollup ([`72dd535`](https://github.com/CODEX-CELIDA/execution-engine/commit/72dd53510823ba0719d5ddab218401ab12e79f07))
+* chore: update deps ([`6978695`](https://github.com/CODEX-CELIDA/execution-engine/commit/69786957a2b42a8f5898e6fdffb7d9d1177a2999))
+* chore(deps): bump body-parser and express in /apps/viz-frontend ([`33e1dd3`](https://github.com/CODEX-CELIDA/execution-engine/commit/33e1dd31326c7a8d6077cb36687494468215aafe))
+* chore(deps): bump send and express in /apps/viz-frontend ([`66a4e5a`](https://github.com/CODEX-CELIDA/execution-engine/commit/66a4e5ab892a01c9e4bd0fdec182b9b6be3785f0))
+* chore(deps): bump serve-static and express in /apps/viz-frontend ([`f7a6538`](https://github.com/CODEX-CELIDA/execution-engine/commit/f7a65389dc38476f5811a58cde6b34fb9a942f00))
+* chore(deps): bump path-to-regexp and express in /apps/viz-frontend ([`9cfbc2b`](https://github.com/CODEX-CELIDA/execution-engine/commit/9cfbc2b012f5acf598dd39f1d4e4a507789d9bd1))
+* chore(deps): bump express from 4.19.2 to 4.21.0 in /apps/viz-frontend ([`58049a6`](https://github.com/CODEX-CELIDA/execution-engine/commit/58049a6ca704f5a6dd969b4c906c32adf658cc72))
+* chore(deps): bump sympy from 1.13.0 to 1.13.2 ([`4b45f40`](https://github.com/CODEX-CELIDA/execution-engine/commit/4b45f4094279f86a979e6c2710a310a06790ec46))
+* chore(deps): bump sqlalchemy from 2.0.30 to 2.0.35 ([`0634cc1`](https://github.com/CODEX-CELIDA/execution-engine/commit/0634cc1cb717ecd0c029422cf6268a56d9e9baf6))
+* chore(deps): bump pydantic-settings from 2.3.4 to 2.5.2 ([`a262a35`](https://github.com/CODEX-CELIDA/execution-engine/commit/a262a35738bfea9e69de63ec051afc0e9638c47b))
+* chore(deps): bump micromatch from 4.0.5 to 4.0.8 in /apps/viz-frontend ([`b118011`](https://github.com/CODEX-CELIDA/execution-engine/commit/b118011682676f91c684bf592acf9aee536badad))
+* chore(deps): bump webpack from 5.89.0 to 5.94.0 in /apps/viz-frontend ([`8a9bd5a`](https://github.com/CODEX-CELIDA/execution-engine/commit/8a9bd5a3c5f4e9c0f4a77654323fa14011f62e58))
+* chore(deps): bump pyyaml from 6.0.1 to 6.0.2 ([`35f2338`](https://github.com/CODEX-CELIDA/execution-engine/commit/35f2338708f82d755469af52e4c55ca0d9972eed))
+* chore(deps-dev): bump tqdm from 4.66.4 to 4.66.5 ([`91d005f`](https://github.com/CODEX-CELIDA/execution-engine/commit/91d005fb6c83a1091764f48acc4ad5de77fb67fd))
+
+### Continuous integration
+* ci: fix semantic release ([`a933fe3`](https://github.com/CODEX-CELIDA/execution-engine/commit/a933fe3114bf8d6e7b150faa245b5aac4d953ff0))
+* ci: update pre-commit ([`09ef28f`](https://github.com/CODEX-CELIDA/execution-engine/commit/09ef28f22b6a25461bb924910b23ab54c43137c1))
+* ci(dependabot): bump codecov/codecov-action from 4 to 5 ([`86182aa`](https://github.com/CODEX-CELIDA/execution-engine/commit/86182aa3be9555464c1c0b8093c8c059309408fe))
+* ci: dependabot validation ([`da94b07`](https://github.com/CODEX-CELIDA/execution-engine/commit/da94b0774f64ee4e37a1170504af2107ffec98b7))
+* ci: dependabot grouped updates ([`ac34af8`](https://github.com/CODEX-CELIDA/execution-engine/commit/ac34af88d682ac5ad7e43d544d0f2697b25a31e5))
+
+### Documentation
+* docs: extended some docstrings ([`bf5bb96`](https://github.com/CODEX-CELIDA/execution-engine/commit/bf5bb961eade15c488ff27ccb8d99742bd4a8ccf))
+* docs: add viz backend readme ([`1feedf1`](https://github.com/CODEX-CELIDA/execution-engine/commit/1feedf1d77c02f61b3150ab800a17bbaed5aa64f))
+
+### Features
+* feat: remove intervention sink ([`751dce2`](https://github.com/CODEX-CELIDA/execution-engine/commit/751dce2e8bacdf6030438c2966c3ed1f44d6484b))
+* feat: add AnyTime temporal criterion ([`de284b7`](https://github.com/CODEX-CELIDA/execution-engine/commit/de284b7b71cf5def34e31b5aeaf8cf9d8c0e2c6a))
+* feat: add PointInTimeCriterion.forward_fill property ([`b0440f0`](https://github.com/CODEX-CELIDA/execution-engine/commit/b0440f0e806d2cf36a013761dc963abba7501d37))
+* feat: falling back to non-standard concepts when standard is not found ([`4ddaf53`](https://github.com/CODEX-CELIDA/execution-engine/commit/4ddaf53c77a35a90cee9500e8df789833420e394))
+
+### Performance improvements
+* perf: explicit recommendation package version ([`6739d3e`](https://github.com/CODEX-CELIDA/execution-engine/commit/6739d3e74c7e7b7aa0ee305d08bd1a128c861403))
+* perf: interval_coverage view ([`502a218`](https://github.com/CODEX-CELIDA/execution-engine/commit/502a2182dc44ffba9d370c18f932b76f5659b6ed))
+
+### Refactoring
+* refactor: remove exclude attribute ([`01eecd1`](https://github.com/CODEX-CELIDA/execution-engine/commit/01eecd1c5606d135e59b44404790219863f64445))
+* refactor: use logical not criterion combination instead of exclude=True ([`79b5791`](https://github.com/CODEX-CELIDA/execution-engine/commit/79b5791a4f5ca2fea9cfa67ea33ba8bb1b963018))
+
+### Revert
+* revert: removed not-applicable view ([`d4b181b`](https://github.com/CODEX-CELIDA/execution-engine/commit/d4b181b49db14f88eac09bbd7f3d30cf3b1dac01))
+
+### Testing
+* test: fixed vocabulary test ([`013e009`](https://github.com/CODEX-CELIDA/execution-engine/commit/013e0095a7d1724c8587b37d6f9dc794f41c3adf))
+
+### Tests
+* tests: remove insert_criterion exclude tests ([`78a0237`](https://github.com/CODEX-CELIDA/execution-engine/commit/78a0237b03fd029ff9e581813c9fc8806b20a1ad))
+* tests: adapt to new population filtering behavior ([`85e73b1`](https://github.com/CODEX-CELIDA/execution-engine/commit/85e73b1e33e6e6391f40102ebee5b5990c0161e0))
+
+### Unknown
+* create enum types in public schema to facility data exchange between schemas ([`ae0c373`](https://github.com/CODEX-CELIDA/execution-engine/commit/ae0c37302183b7c8b84e1d353b8d077aad4e83b3))
+* reduce log output ([`3db23cb`](https://github.com/CODEX-CELIDA/execution-engine/commit/3db23cb4ea42828a42af4f6d242f7a31f3c4b74e))
+
+
 ## v2.3.0 (2024-08-12)
 
 
-### Feature
-* feat: add visit_* to omop data viewer ([`1c1cf78`](https://github.com/CODEX-CELIDA/execution-engine/commit/1c1cf781ef2121ce2d7fbca991ec4df60371c3c6))
-* feat(viz-backend): add patient data logic ([`52dcf88`](https://github.com/CODEX-CELIDA/execution-engine/commit/52dcf885da070d03f8a5cbeab7bcf179c653521b))
-
-### Fix
+### Bug fixes
 * fix(graph): dose info in nodes ([`0848d88`](https://github.com/CODEX-CELIDA/execution-engine/commit/0848d880d5d213f2cd1bb88b1bcafa1b4eba3850))
 * fix: interval ffill until observation_window end ([`4c9ade1`](https://github.com/CODEX-CELIDA/execution-engine/commit/4c9ade125d6566a5fc2e77b2d168519636c10dec))
 * fix(viz): display of 0 sec entries ([`51d5304`](https://github.com/CODEX-CELIDA/execution-engine/commit/51d5304e46e8d3e8fff91f058a02abb0139f3d89))
@@ -16,14 +105,18 @@
 * fix(viz-backend): database timezone setting ([`5c00d67`](https://github.com/CODEX-CELIDA/execution-engine/commit/5c00d67cac8c91aec4500eecfe96ece31ff450ce))
 * fix(viz-frontend): colors, sorting, display ([`531c6ab`](https://github.com/CODEX-CELIDA/execution-engine/commit/531c6ab0fe5e79c9537efaab6eba03ee1137b2f4))
 
-### Performance
+### Features
+* feat: add visit_* to omop data viewer ([`1c1cf78`](https://github.com/CODEX-CELIDA/execution-engine/commit/1c1cf781ef2121ce2d7fbca991ec4df60371c3c6))
+* feat(viz-backend): add patient data logic ([`52dcf88`](https://github.com/CODEX-CELIDA/execution-engine/commit/52dcf885da070d03f8a5cbeab7bcf179c653521b))
+
+### Performance improvements
 * perf(viz-backend): interval per person ([`99c7d51`](https://github.com/CODEX-CELIDA/execution-engine/commit/99c7d510b0f287facc418ba1dc35c84bec848c93))
 
-### Refactor
+### Refactoring
 * refactor: renamed IntervalWithType ([`a6e2b1f`](https://github.com/CODEX-CELIDA/execution-engine/commit/a6e2b1f2adcd0f2ee0eab6014bf40921162d1ae8))
 * refactor: removed portion dependency ([`a220ac7`](https://github.com/CODEX-CELIDA/execution-engine/commit/a220ac7b0492fc56f624f7c084cd8d4a1071852e))
 
-### Test
+### Testing
 * test: adapted to measurement value forward filling until end of observation window ([`a27eef6`](https://github.com/CODEX-CELIDA/execution-engine/commit/a27eef6d6525ca3cc52b1008dbfb7196a14207a1))
 * test: ffill with observation window ([`14e6187`](https://github.com/CODEX-CELIDA/execution-engine/commit/14e6187b717276a7224232810ce954e86ffa6bf2))
 
@@ -33,21 +126,12 @@
 ## v2.2.0 (2024-08-07)
 
 
-### Feature
-* feat: added conditional filter (for dosage condition ext) ([`c98e6e0`](https://github.com/CODEX-CELIDA/execution-engine/commit/c98e6e0402d508699ff0bb56e4a8c555a5e0545b))
-* feat: dynamic graph display app ([`a5cdd54`](https://github.com/CODEX-CELIDA/execution-engine/commit/a5cdd542a78b17eb16fd2108bfbfedbd8619a767))
-* feat: added static graph display app ([`9dd5450`](https://github.com/CODEX-CELIDA/execution-engine/commit/9dd5450cb057bcefc896ddb06160ced812690f5e))
-* feat: added execution graph json to database ([`7b7bb92`](https://github.com/CODEX-CELIDA/execution-engine/commit/7b7bb9259f951d9a5a43d92d257ba3260e209570))
-* feat: dynamic handling of time interval types (e.g. shifts) ([`c2bddd3`](https://github.com/CODEX-CELIDA/execution-engine/commit/c2bddd395fd085151258eb5a8adc9b1ac71ded96))
-* feat: implemented find_overlapping_windows ([`a7e6e9b`](https://github.com/CODEX-CELIDA/execution-engine/commit/a7e6e9b8c91e2716db951aec3b268cf88c817d15))
-* feat: implemented temporal aggregation combination ([`7b3c3d8`](https://github.com/CODEX-CELIDA/execution-engine/commit/7b3c3d8d89a63804d1e1e7fa856cc8b5b34494ac))
-
-### Fix
+### Bug fixes
 * fix: type hints ([`d0358f5`](https://github.com/CODEX-CELIDA/execution-engine/commit/d0358f54513dc281f37e32c42a6b211f2321e0f8))
 * fix: made TimeIntervalType serializable ([`c6ee140`](https://github.com/CODEX-CELIDA/execution-engine/commit/c6ee140534a5f650f0f2e7fc5e4f6a95db715c21))
 * fix: overlapping intervals for adjacent windows ([`c95bdd6`](https://github.com/CODEX-CELIDA/execution-engine/commit/c95bdd608fbe69b304bef237157690c7763a4797))
 
-### Chore
+### Chores
 * chore(deps): bump fastapi from 0.111.0 to 0.112.0 ([`284f4d4`](https://github.com/CODEX-CELIDA/execution-engine/commit/284f4d42d8d200bbc2f9abeecfc98d65727f0d68))
 * chore(deps): bump setuptools from 70.0.0 to 72.1.0 ([`71524cd`](https://github.com/CODEX-CELIDA/execution-engine/commit/71524cd0de19e2d15dab86160ce04ba0f4992c27))
 * chore(deps-dev): bump pytest from 8.2.1 to 8.3.2 ([`c29961b`](https://github.com/CODEX-CELIDA/execution-engine/commit/c29961b10068564e990709b07f34adb2d7670363))
@@ -58,13 +142,22 @@
 ### Documentation
 * docs: added time interval configuration ([`72f20b0`](https://github.com/CODEX-CELIDA/execution-engine/commit/72f20b00c8b9e656600fa371533ca6061b802bfd))
 
-### Refactor
+### Features
+* feat: added conditional filter (for dosage condition ext) ([`c98e6e0`](https://github.com/CODEX-CELIDA/execution-engine/commit/c98e6e0402d508699ff0bb56e4a8c555a5e0545b))
+* feat: dynamic graph display app ([`a5cdd54`](https://github.com/CODEX-CELIDA/execution-engine/commit/a5cdd542a78b17eb16fd2108bfbfedbd8619a767))
+* feat: added static graph display app ([`9dd5450`](https://github.com/CODEX-CELIDA/execution-engine/commit/9dd5450cb057bcefc896ddb06160ced812690f5e))
+* feat: added execution graph json to database ([`7b7bb92`](https://github.com/CODEX-CELIDA/execution-engine/commit/7b7bb9259f951d9a5a43d92d257ba3260e209570))
+* feat: dynamic handling of time interval types (e.g. shifts) ([`c2bddd3`](https://github.com/CODEX-CELIDA/execution-engine/commit/c2bddd395fd085151258eb5a8adc9b1ac71ded96))
+* feat: implemented find_overlapping_windows ([`a7e6e9b`](https://github.com/CODEX-CELIDA/execution-engine/commit/a7e6e9b8c91e2716db951aec3b268cf88c817d15))
+* feat: implemented temporal aggregation combination ([`7b3c3d8`](https://github.com/CODEX-CELIDA/execution-engine/commit/7b3c3d8d89a63804d1e1e7fa856cc8b5b34494ac))
+
+### Refactoring
 * refactor: renamed CriterionCombination to LogicalCriterionCombination ([`eb5c576`](https://github.com/CODEX-CELIDA/execution-engine/commit/eb5c57663ab507034a42b8f893f7b3110d73968d))
 
 ### Revert
 * revert: no explicit adding of negative intervals ([`abb94dd`](https://github.com/CODEX-CELIDA/execution-engine/commit/abb94ddad1ba7e83b47c62356f63cac62f5afe4d))
 
-### Test
+### Testing
 * test(rectangle): fix naive create windows test ([`80d7e56`](https://github.com/CODEX-CELIDA/execution-engine/commit/80d7e56a4715ab5d07a5c0dc778aeedc5edffb71))
 * test: implemented temporal combination tests ([`579e423`](https://github.com/CODEX-CELIDA/execution-engine/commit/579e423a648813edff7ef839671a5ee9f3a2b570))
 
@@ -77,16 +170,7 @@
 ## v2.1.0 (2024-07-09)
 
 
-### Feature
-* feat: add quick methods for creating CombinationCriterion ([`6549c18`](https://github.com/CODEX-CELIDA/execution-engine/commit/6549c18cc00fbb8c46651dc23bc7e684d35d03b4))
-* feat: set person_id to BigInt ([`449381b`](https://github.com/CODEX-CELIDA/execution-engine/commit/449381b7b8586487dc9de7ed2a6483a9a92cfcc5))
-* feat: allow override value required ([`8f1d63b`](https://github.com/CODEX-CELIDA/execution-engine/commit/8f1d63b27dd5af16fdc9f2f5be8a960e67eecad9))
-* feat: add register() method to StandardVocabulary ([`2670c6e`](https://github.com/CODEX-CELIDA/execution-engine/commit/2670c6e3a28e27e4a550195022072c4ce95248d4))
-* feat: implemented ventilation observable characteristic ([`273407f`](https://github.com/CODEX-CELIDA/execution-engine/commit/273407f8a459755d168400b6bfe20ae258e55157))
-* feat: implemented updated observation characteristic ([`d165075`](https://github.com/CODEX-CELIDA/execution-engine/commit/d1650759a00d21afdf71a79241a3a6a2dca0e908))
-* feat: add builder to allow individual configurations ([`f964dd1`](https://github.com/CODEX-CELIDA/execution-engine/commit/f964dd14026c8c1f4d3f1a8e154035014fb04053))
-
-### Fix
+### Bug fixes
 * fix: loading both ventilation observable vs ([`6b95b54`](https://github.com/CODEX-CELIDA/execution-engine/commit/6b95b54c627c1bdbcfa634bf85b182db5e58afde))
 * fix: observation vs loading ([`587d112`](https://github.com/CODEX-CELIDA/execution-engine/commit/587d112e2fc6ba6b0f44e24666a9db57e07f8af3))
 * fix: added default ee builder ([`4ecec00`](https://github.com/CODEX-CELIDA/execution-engine/commit/4ecec008691b703674a5cd1ac2156460eef400d7))
@@ -97,7 +181,7 @@
 * fix: parallel runner exception handling ([`b35af88`](https://github.com/CODEX-CELIDA/execution-engine/commit/b35af888711bbf8c723eaa2f65780675031d8abc))
 * fix: removed name from assessment ([`b5f5b94`](https://github.com/CODEX-CELIDA/execution-engine/commit/b5f5b9414b23860c5a47fa5aab973fe986f56be7))
 
-### Chore
+### Chores
 * chore(deps): bump braces from 3.0.2 to 3.0.3 in /apps/viz-frontend ([`9fbf591`](https://github.com/CODEX-CELIDA/execution-engine/commit/9fbf5914c610af13137b9e1d3d4487f961433908))
 * chore(deps): bump pydantic from 2.7.1 to 2.8.2 ([`84c4c6b`](https://github.com/CODEX-CELIDA/execution-engine/commit/84c4c6b1661939a4a3bfdf7e83ffd5cb905754f2))
 * chore(deps): bump sympy from 1.12 to 1.13.0 ([`8882bc4`](https://github.com/CODEX-CELIDA/execution-engine/commit/8882bc4031632e287a7928ef9673763d681cdb18))
@@ -106,19 +190,28 @@
 * chore(pydantic): updated use of deprecated methods ([`c675ebc`](https://github.com/CODEX-CELIDA/execution-engine/commit/c675ebc13e0c84d210002fc0098241a603a1b52b))
 * chore: update pre-commit ([`8f5bd42`](https://github.com/CODEX-CELIDA/execution-engine/commit/8f5bd42ed2902cdb25bd9fb70a64f5a8aa72c83a))
 
-### Ci
+### Continuous integration
 * ci: fix semantic-release ([`81cda94`](https://github.com/CODEX-CELIDA/execution-engine/commit/81cda94fe582e479ca86f973d04f47ee0a8e2012))
 * ci(depandabot): set main target branch ([`73d6c37`](https://github.com/CODEX-CELIDA/execution-engine/commit/73d6c378cc0ae99b2e61b7a1a1f977d5d730cf20))
 * ci: manual triggering of workflow ([`194cc53`](https://github.com/CODEX-CELIDA/execution-engine/commit/194cc53efb86186e65667d151d6b26dcddeb54cf))
 * ci: fixed workflow ([`10b1503`](https://github.com/CODEX-CELIDA/execution-engine/commit/10b150310d715b28721768cdbe3781e71f494ab1))
 
-### Refactor
+### Features
+* feat: add quick methods for creating CombinationCriterion ([`6549c18`](https://github.com/CODEX-CELIDA/execution-engine/commit/6549c18cc00fbb8c46651dc23bc7e684d35d03b4))
+* feat: set person_id to BigInt ([`449381b`](https://github.com/CODEX-CELIDA/execution-engine/commit/449381b7b8586487dc9de7ed2a6483a9a92cfcc5))
+* feat: allow override value required ([`8f1d63b`](https://github.com/CODEX-CELIDA/execution-engine/commit/8f1d63b27dd5af16fdc9f2f5be8a960e67eecad9))
+* feat: add register() method to StandardVocabulary ([`2670c6e`](https://github.com/CODEX-CELIDA/execution-engine/commit/2670c6e3a28e27e4a550195022072c4ce95248d4))
+* feat: implemented ventilation observable characteristic ([`273407f`](https://github.com/CODEX-CELIDA/execution-engine/commit/273407f8a459755d168400b6bfe20ae258e55157))
+* feat: implemented updated observation characteristic ([`d165075`](https://github.com/CODEX-CELIDA/execution-engine/commit/d1650759a00d21afdf71a79241a3a6a2dca0e908))
+* feat: add builder to allow individual configurations ([`f964dd1`](https://github.com/CODEX-CELIDA/execution-engine/commit/f964dd14026c8c1f4d3f1a8e154035014fb04053))
+
+### Refactoring
 * refactor: removed ventilation-observable characteristic ([`0cb5ab2`](https://github.com/CODEX-CELIDA/execution-engine/commit/0cb5ab23fa997356c1f7a1f6693c2719f3ec648e))
 * refactor: removed abstract methods from Criterion ([`a7ac65d`](https://github.com/CODEX-CELIDA/execution-engine/commit/a7ac65d7009278cbfac38ef02faa0a8aa861bdf3))
 * refactor: add type check for converters ([`ffb2672`](https://github.com/CODEX-CELIDA/execution-engine/commit/ffb2672461edfaa3d980fcf0551930d97b92b6bd))
 * refactor: parser version independent from recommendation ([`c7df6b2`](https://github.com/CODEX-CELIDA/execution-engine/commit/c7df6b24edcb1177306591a9fe0aa2f6b64b970b))
 
-### Test
+### Testing
 * test: sqlclient fix ([`30652c8`](https://github.com/CODEX-CELIDA/execution-engine/commit/30652c891d1f9ea456e58048a04acc6f54037084))
 * test: fix builder tests ([`eb8bc70`](https://github.com/CODEX-CELIDA/execution-engine/commit/eb8bc70c01d9deeaded3026f5c4175d8f67c2410))
 * test: add builder test ([`c43f938`](https://github.com/CODEX-CELIDA/execution-engine/commit/c43f9380421a7171e5da69c8c9a1b6a5222ae8ad))
@@ -133,33 +226,7 @@
 ## v2.0.0 (2024-05-14)
 
 
-### Feature
-* feat: implemented invalid_combinations for test v2 ([`947e2de`](https://github.com/CODEX-CELIDA/execution-engine/commit/947e2de1249b0bedb885d17ea4bb9d0719cdf8ba))
-* feat: implemented assessment action &amp; scale goal ([`e490083`](https://github.com/CODEX-CELIDA/execution-engine/commit/e490083d52e7f132a336ef0ffd7e11e03e14a211))
-* feat: added weight-related dosage query ([`c10a1cc`](https://github.com/CODEX-CELIDA/execution-engine/commit/c10a1ccb872a29152cdd55f36e5a3487dc7e9f41))
-* feat: allowing multiple dosages per drug action ([`aabc4a8`](https://github.com/CODEX-CELIDA/execution-engine/commit/aabc4a8c19abca85c11a433c53a9a7cb465946bc))
-* feat: set recommendation versions back to latest ([`9dd5097`](https://github.com/CODEX-CELIDA/execution-engine/commit/9dd5097de3f8204ff3cd763b9fd5421f7e71da65))
-* feat: added version-specific ebm-cpg parsers ([`0d9e7a4`](https://github.com/CODEX-CELIDA/execution-engine/commit/0d9e7a43d4b32cafde4288301a4e942b0aca968c))
-* feat: added version compare function ([`22dbe5e`](https://github.com/CODEX-CELIDA/execution-engine/commit/22dbe5e598686c3f459edba1dab4dd9b0e62f77d))
-* feat: added drug route selection ([`82098e6`](https://github.com/CODEX-CELIDA/execution-engine/commit/82098e67b239a1ff13d9c9c09c6bc8a969b88da7))
-* feat: added handling of additional operators ([`9fc3489`](https://github.com/CODEX-CELIDA/execution-engine/commit/9fc3489bafd69fb03d47c23b292c97d287f8e46d))
-* feat: improved code, added pyx ([`9057739`](https://github.com/CODEX-CELIDA/execution-engine/commit/9057739d79a42dd4bd26607bc6b3168380124e5a))
-* feat: added additional operators ([`0094e21`](https://github.com/CODEX-CELIDA/execution-engine/commit/0094e2151bc34045486bcb28d8c9752a5ddad30e))
-* feat(rectangle_python): added union with count ([`96b438d`](https://github.com/CODEX-CELIDA/execution-engine/commit/96b438d48da8159ed87ca70c77be17a2115f27b6))
-* feat: made settings configurable ([`39e6164`](https://github.com/CODEX-CELIDA/execution-engine/commit/39e6164b65e36d6a54ceae778e6a25f64b3f8e89))
-* feat: added versioning to recommendations/tests ([`79966a7`](https://github.com/CODEX-CELIDA/execution-engine/commit/79966a7ec51d655cc26f9a530a9db69a27594e8c))
-* feat: added debug &amp; query logging ([`e4dde1f`](https://github.com/CODEX-CELIDA/execution-engine/commit/e4dde1f834ac63876a066bab74e6b075710042d5))
-* feat: checking for available interval_start/interval_end ([`ea0ec00`](https://github.com/CODEX-CELIDA/execution-engine/commit/ea0ec0074874cbe94bf78034d03fdda2768d6196))
-* feat: implemented select_type for interval_portion ([`755b4ac`](https://github.com/CODEX-CELIDA/execution-engine/commit/755b4acbbd4d54815b9f8b6e79187fc9bde71101))
-* feat: added pool size parameter ([`c1510e6`](https://github.com/CODEX-CELIDA/execution-engine/commit/c1510e6432d160a866d1dac2d3604becca39459e))
-* feat: intersection priority order: NO_DATA&gt;POSITIVE ([`72b1059`](https://github.com/CODEX-CELIDA/execution-engine/commit/72b1059c627a81a7a50d99cf065c4634db130c03))
-* feat: allow use of visit_detail table for episode of care ([`720ca89`](https://github.com/CODEX-CELIDA/execution-engine/commit/720ca89a3b4941a3bdb2559fb63593471b702415))
-* feat: added multiprocessing switch ([`44c5557`](https://github.com/CODEX-CELIDA/execution-engine/commit/44c5557ba713fe0346e37f794dfe0d4063eed8af))
-* feat(db): added version, made schema dynamic ([`a0174c2`](https://github.com/CODEX-CELIDA/execution-engine/commit/a0174c2d94dc19b00edb3d061b5438266218541b))
-* feat(ExecutionGraph): late import of matplotlib ([`8c3b7fe`](https://github.com/CODEX-CELIDA/execution-engine/commit/8c3b7fec5722fe50e0a10b373f8f3b2a9d509889))
-* feat: interval_result view uses criterion description ([`97068ae`](https://github.com/CODEX-CELIDA/execution-engine/commit/97068ae9d7326cac79844a94c9387e54df84aeca))
-
-### Fix
+### Bug fixes
 * fix: criterion duplicate detection (removed &#34;name&#34; from __eq__) ([`e971dc4`](https://github.com/CODEX-CELIDA/execution-engine/commit/e971dc4a8806f9012320317de80bb12c35456653))
 * fix: drug_administration exclude flag for dosages ([`4f77591`](https://github.com/CODEX-CELIDA/execution-engine/commit/4f7759117dde926280e58b0c802e32e207d14bb9))
 * fix: task processing of empty base data intervals ([`22ce873`](https://github.com/CODEX-CELIDA/execution-engine/commit/22ce8733c4427724b525adb59cc2e087dde0c9f3))
@@ -199,7 +266,7 @@
 * fix: unique task name ([`58c2ec5`](https://github.com/CODEX-CELIDA/execution-engine/commit/58c2ec5f3e7afd6bb8c08992b22cf140bd92d8b0))
 * fix: added Criterion/Expr __eq__/__hash__ ([`ab84a1c`](https://github.com/CODEX-CELIDA/execution-engine/commit/ab84a1c2ee42cec93b5e81ed61c49fcbf02ae21a))
 
-### Chore
+### Chores
 * chore(pydantic): updated to pydantic v2 ([`83d5706`](https://github.com/CODEX-CELIDA/execution-engine/commit/83d570688b93f047535eb363b9c30362962069c7))
 * chore(deps-dev): bump tqdm from 4.66.2 to 4.66.4 ([`ff0d73a`](https://github.com/CODEX-CELIDA/execution-engine/commit/ff0d73a973ef2fb6014f8d07dea7da81fe7f0a36))
 * chore(deps): bump fastapi from 0.110.2 to 0.111.0 ([`b75d1ec`](https://github.com/CODEX-CELIDA/execution-engine/commit/b75d1ec041f11173685788127ecda61115b263f5))
@@ -254,7 +321,12 @@
 * chore: updated sample.env ([`d1a529f`](https://github.com/CODEX-CELIDA/execution-engine/commit/d1a529f4d85a95db81d6ccee1c66feae0ce22c5a))
 * chore: updated requirements-dev.txt ([`804d05c`](https://github.com/CODEX-CELIDA/execution-engine/commit/804d05cc28bfb7fc125dd723c3b0c41643ea02fa))
 
-### Ci
+### Code style
+* style: removed unnecessary context manager ([`f4ebc00`](https://github.com/CODEX-CELIDA/execution-engine/commit/f4ebc0004a14e1061cc6f06da410a31cc0bbf019))
+* style: comment cleanup ([`bf4225c`](https://github.com/CODEX-CELIDA/execution-engine/commit/bf4225c7d777fd46f8c86c4082355185a944a9eb))
+* style: changed criteria description format ([`d474ba4`](https://github.com/CODEX-CELIDA/execution-engine/commit/d474ba4f1cbfecf9b65a60d3e4e4fe380cdac424))
+
+### Continuous integration
 * ci: merge into single workflow ([`b628de9`](https://github.com/CODEX-CELIDA/execution-engine/commit/b628de92844aa4e758489e7a3fd8f3a39cafc075))
 * ci: add main to semantic-release action ([`239b94f`](https://github.com/CODEX-CELIDA/execution-engine/commit/239b94f59ccc8e243ec3b8d55212bea38188a5f7))
 * ci: changed target branch to dev ([`c863756`](https://github.com/CODEX-CELIDA/execution-engine/commit/c86375605e9c609f7e3f7549cbe04ce533ca8d16))
@@ -274,7 +346,33 @@
 * docs: updated README.md ([`adffc77`](https://github.com/CODEX-CELIDA/execution-engine/commit/adffc7731df668e76c83fc03b2717d1d32f2f1f7))
 * docs: update README.md ([`96e2bac`](https://github.com/CODEX-CELIDA/execution-engine/commit/96e2bac65637f8d8c7b312dfd742ef619badb4d0))
 
-### Performance
+### Features
+* feat: implemented invalid_combinations for test v2 ([`947e2de`](https://github.com/CODEX-CELIDA/execution-engine/commit/947e2de1249b0bedb885d17ea4bb9d0719cdf8ba))
+* feat: implemented assessment action &amp; scale goal ([`e490083`](https://github.com/CODEX-CELIDA/execution-engine/commit/e490083d52e7f132a336ef0ffd7e11e03e14a211))
+* feat: added weight-related dosage query ([`c10a1cc`](https://github.com/CODEX-CELIDA/execution-engine/commit/c10a1ccb872a29152cdd55f36e5a3487dc7e9f41))
+* feat: allowing multiple dosages per drug action ([`aabc4a8`](https://github.com/CODEX-CELIDA/execution-engine/commit/aabc4a8c19abca85c11a433c53a9a7cb465946bc))
+* feat: set recommendation versions back to latest ([`9dd5097`](https://github.com/CODEX-CELIDA/execution-engine/commit/9dd5097de3f8204ff3cd763b9fd5421f7e71da65))
+* feat: added version-specific ebm-cpg parsers ([`0d9e7a4`](https://github.com/CODEX-CELIDA/execution-engine/commit/0d9e7a43d4b32cafde4288301a4e942b0aca968c))
+* feat: added version compare function ([`22dbe5e`](https://github.com/CODEX-CELIDA/execution-engine/commit/22dbe5e598686c3f459edba1dab4dd9b0e62f77d))
+* feat: added drug route selection ([`82098e6`](https://github.com/CODEX-CELIDA/execution-engine/commit/82098e67b239a1ff13d9c9c09c6bc8a969b88da7))
+* feat: added handling of additional operators ([`9fc3489`](https://github.com/CODEX-CELIDA/execution-engine/commit/9fc3489bafd69fb03d47c23b292c97d287f8e46d))
+* feat: improved code, added pyx ([`9057739`](https://github.com/CODEX-CELIDA/execution-engine/commit/9057739d79a42dd4bd26607bc6b3168380124e5a))
+* feat: added additional operators ([`0094e21`](https://github.com/CODEX-CELIDA/execution-engine/commit/0094e2151bc34045486bcb28d8c9752a5ddad30e))
+* feat(rectangle_python): added union with count ([`96b438d`](https://github.com/CODEX-CELIDA/execution-engine/commit/96b438d48da8159ed87ca70c77be17a2115f27b6))
+* feat: made settings configurable ([`39e6164`](https://github.com/CODEX-CELIDA/execution-engine/commit/39e6164b65e36d6a54ceae778e6a25f64b3f8e89))
+* feat: added versioning to recommendations/tests ([`79966a7`](https://github.com/CODEX-CELIDA/execution-engine/commit/79966a7ec51d655cc26f9a530a9db69a27594e8c))
+* feat: added debug &amp; query logging ([`e4dde1f`](https://github.com/CODEX-CELIDA/execution-engine/commit/e4dde1f834ac63876a066bab74e6b075710042d5))
+* feat: checking for available interval_start/interval_end ([`ea0ec00`](https://github.com/CODEX-CELIDA/execution-engine/commit/ea0ec0074874cbe94bf78034d03fdda2768d6196))
+* feat: implemented select_type for interval_portion ([`755b4ac`](https://github.com/CODEX-CELIDA/execution-engine/commit/755b4acbbd4d54815b9f8b6e79187fc9bde71101))
+* feat: added pool size parameter ([`c1510e6`](https://github.com/CODEX-CELIDA/execution-engine/commit/c1510e6432d160a866d1dac2d3604becca39459e))
+* feat: intersection priority order: NO_DATA&gt;POSITIVE ([`72b1059`](https://github.com/CODEX-CELIDA/execution-engine/commit/72b1059c627a81a7a50d99cf065c4634db130c03))
+* feat: allow use of visit_detail table for episode of care ([`720ca89`](https://github.com/CODEX-CELIDA/execution-engine/commit/720ca89a3b4941a3bdb2559fb63593471b702415))
+* feat: added multiprocessing switch ([`44c5557`](https://github.com/CODEX-CELIDA/execution-engine/commit/44c5557ba713fe0346e37f794dfe0d4063eed8af))
+* feat(db): added version, made schema dynamic ([`a0174c2`](https://github.com/CODEX-CELIDA/execution-engine/commit/a0174c2d94dc19b00edb3d061b5438266218541b))
+* feat(ExecutionGraph): late import of matplotlib ([`8c3b7fe`](https://github.com/CODEX-CELIDA/execution-engine/commit/8c3b7fec5722fe50e0a10b373f8f3b2a9d509889))
+* feat: interval_result view uses criterion description ([`97068ae`](https://github.com/CODEX-CELIDA/execution-engine/commit/97068ae9d7326cac79844a94c9387e54df84aeca))
+
+### Performance improvements
 * perf: added indices ([`dc9cc1c`](https://github.com/CODEX-CELIDA/execution-engine/commit/dc9cc1cf8238af5fe2ac93b2d314e0b296410cfb))
 * perf: added cython rectangle ([`be4b556`](https://github.com/CODEX-CELIDA/execution-engine/commit/be4b556c2c9052cb4d9e80ba72557f5446220690))
 * perf: improved recommendation test setup ([`a03e263`](https://github.com/CODEX-CELIDA/execution-engine/commit/a03e263ebfc683795c82d2b916b6f0c01495047b))
@@ -284,7 +382,7 @@
 * perf: removed pandas from tasks ([`213cdb2`](https://github.com/CODEX-CELIDA/execution-engine/commit/213cdb298dbd805d4d22731546deb53457e22901))
 * perf: removed pandas from process ([`2a4be43`](https://github.com/CODEX-CELIDA/execution-engine/commit/2a4be430d9fa681320cb3fd1dcd3e0df2908bbb3))
 
-### Refactor
+### Refactoring
 * refactor: removed name from criterion/converters ([`6862c9b`](https://github.com/CODEX-CELIDA/execution-engine/commit/6862c9bd5abf4dc3db5c02f54e04e597da79c143))
 * refactor: recommendation test setup code ([`40709e4`](https://github.com/CODEX-CELIDA/execution-engine/commit/40709e4de1b946b32a309c2a4178d1b8aa4da300))
 * refactor: renamed parsers ([`dbd6c1c`](https://github.com/CODEX-CELIDA/execution-engine/commit/dbd6c1cefb7e9574c50bebbbd7b051c55f75b388))
@@ -297,12 +395,7 @@
 ### Revert
 * revert: removed timing processing from converter ([`8e90ba1`](https://github.com/CODEX-CELIDA/execution-engine/commit/8e90ba1ca4d9680527fe201b2cb1f8ea5cfc0a76))
 
-### Style
-* style: removed unnecessary context manager ([`f4ebc00`](https://github.com/CODEX-CELIDA/execution-engine/commit/f4ebc0004a14e1061cc6f06da410a31cc0bbf019))
-* style: comment cleanup ([`bf4225c`](https://github.com/CODEX-CELIDA/execution-engine/commit/bf4225c7d777fd46f8c86c4082355185a944a9eb))
-* style: changed criteria description format ([`d474ba4`](https://github.com/CODEX-CELIDA/execution-engine/commit/d474ba4f1cbfecf9b65a60d3e4e4fe380cdac424))
-
-### Test
+### Testing
 * test: add route concept to tests ([`3e33a06`](https://github.com/CODEX-CELIDA/execution-engine/commit/3e33a06dfcf4a3f28c711f9de82c9c85b0318d2c))
 * test: set recommendation package version to latest ([`bd3123a`](https://github.com/CODEX-CELIDA/execution-engine/commit/bd3123a48e25b118c0b0fadb9f3a393529db2c7a))
 * test: update testdata ([`5ed77be`](https://github.com/CODEX-CELIDA/execution-engine/commit/5ed77be869e2b6a62cf1efcef0d97148cd0c6bed))
