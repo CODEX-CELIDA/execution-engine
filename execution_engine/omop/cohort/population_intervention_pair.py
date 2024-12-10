@@ -99,14 +99,44 @@ class PopulationInterventionPair(Serializable):
         """
         return self._url
 
+    @classmethod
+    def filter_symbols(cls, node: logic.Expr, filter_: logic.Expr) -> logic.Expr:
+        """
+        Filter (=AND-combine) all symbols by the applied filter function
+
+        Used to filter all intervention criteria (symbols) by the population output in order to exclude
+        all intervention events outside the population intervals, which may otherwise interfere with corrected
+        determination of temporal combination, i.e. the presence of an intervention event during some time window.
+        """
+
+        if isinstance(node, logic.Symbol):
+            return logic.And(node, filter_, category=CohortCategory.INTERVENTION)
+
+        if hasattr(node, "args") and isinstance(node.args, tuple):
+            converted_args = [cls.filter_symbols(a, filter_) for a in node.args]
+
+            if any(a is not b for a, b in zip(node.args, converted_args)):
+                node.args = tuple(converted_args)
+
+        return node
+
     def execution_graph(self) -> ExecutionGraph:
         """
         Get the execution graph for the population/intervention pair.
         """
 
+        p = ExecutionGraph.combination_to_expression(self._population)
+        i = ExecutionGraph.combination_to_expression(self._intervention)
+
+        # filter all intervention criteria by the output of the population - this is performed to filter out
+        # intervention events that outside of the population intervals (i.e. the time windows during which
+        # patients are part of the population) as otherwise events outside of the population time may be picked up
+        # by Temporal criteria that determine the presence of some event or condition during a specific time window.
+        i = self.filter_symbols(i, filter_=p)
+
         pi = logic.LeftDependentToggle(
-            ExecutionGraph.combination_to_expression(self._population),
-            ExecutionGraph.combination_to_expression(self._intervention),
+            p,
+            i,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
         pi_graph = ExecutionGraph.from_expression(pi, self._base_criterion)

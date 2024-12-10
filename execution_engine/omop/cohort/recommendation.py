@@ -116,7 +116,6 @@ class Recommendation(Serializable):
         """
 
         p_nodes = []
-        i_nodes = []
         pi_nodes = []
         pi_graphs = []
 
@@ -124,15 +123,11 @@ class Recommendation(Serializable):
             pi_graph = pi_pair.execution_graph()
 
             p_nodes.append(pi_graph.sink_node(CohortCategory.POPULATION))
-            i_nodes.append(pi_graph.sink_node(CohortCategory.INTERVENTION))
             pi_nodes.append(pi_graph.sink_node(CohortCategory.POPULATION_INTERVENTION))
             pi_graphs.append(pi_graph)
 
         p_combination_node = logic.NoDataPreservingOr(
             *p_nodes, category=CohortCategory.POPULATION
-        )
-        i_combination_node = logic.NoDataPreservingOr(
-            *i_nodes, category=CohortCategory.INTERVENTION
         )
         pi_combination_node = logic.NoDataPreservingAnd(
             *pi_nodes, category=CohortCategory.POPULATION_INTERVENTION
@@ -143,9 +138,6 @@ class Recommendation(Serializable):
         common_graph.add_node(
             p_combination_node, store_result=True, category=CohortCategory.POPULATION
         )
-        common_graph.add_node(
-            i_combination_node, store_result=True, category=CohortCategory.INTERVENTION
-        )
 
         common_graph.add_node(
             pi_combination_node,
@@ -154,7 +146,6 @@ class Recommendation(Serializable):
         )
 
         common_graph.add_edges_from((src, p_combination_node) for src in p_nodes)
-        common_graph.add_edges_from((src, i_combination_node) for src in i_nodes)
         common_graph.add_edges_from((src, pi_combination_node) for src in pi_nodes)
 
         return common_graph
