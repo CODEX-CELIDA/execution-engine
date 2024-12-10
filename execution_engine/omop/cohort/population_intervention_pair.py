@@ -38,7 +38,7 @@ class PopulationInterventionPair(Serializable):
     (e.g. "has condition X and lab value Y >= Z").
     """
 
-    _id: int | None = None
+    _id: int | None
     _name: str
     _population: CriterionCombination
     _intervention: CriterionCombination
@@ -50,7 +50,9 @@ class PopulationInterventionPair(Serializable):
         base_criterion: Criterion,
         population: CriterionCombination | None = None,
         intervention: CriterionCombination | None = None,
+        id: int | None = None,
     ) -> None:
+        self._id = id
         self._name = name
         self._url = url
         self._base_criterion = base_criterion
@@ -69,7 +71,6 @@ class PopulationInterventionPair(Serializable):
         """
 
         root_combination = LogicalCriterionCombination(
-            exclude=False,
             category=category,
             operator=LogicalCriterionCombination.Operator("AND"),
             root_combination=True,
@@ -198,7 +199,7 @@ class PopulationInterventionPair(Serializable):
         """
         Assert that the base table is used in the select statement.
 
-        Joining the base table ensures that always just a subset of potients are selected,
+        Joining the base table ensures that always just a subset of patients is selected,
         not all.
         """
         if isinstance(sql, SelectInto) or isinstance(sql, Insert):
@@ -262,6 +263,7 @@ class PopulationInterventionPair(Serializable):
         population = self._population
         intervention = self._intervention
         return {
+            "id": self._id,
             "name": self.name,
             "url": self.url,
             "base_criterion": {
@@ -293,12 +295,13 @@ class PopulationInterventionPair(Serializable):
             CriterionCombination, criterion_factory(**data["intervention"])
         )
         object = cls(
+            id=data["id"],
             name=data["name"],
             url=data["url"],
             base_criterion=base_criterion,
         )
         # The constructor initializes the population and intervention
-        # slots in a particular way but we want to use whatever we
+        # slots in a particular way, but we want to use whatever we
         # have deserialized instead. This is a bit inefficient because
         # we discard the values that were assigned to the two slots in
         # the constructor.

@@ -51,13 +51,10 @@ class Serializable(ABC):
 
         s_json = self.dict()
 
-        if "id" in s_json:
-            del s_json["id"]
-
         return json.dumps(s_json, sort_keys=True).encode()
 
     @classmethod
-    def from_json(cls, data: str) -> Self:
+    def from_json(cls, data: str | bytes) -> Self:
         """
         Create a combination from a JSON string.
         """

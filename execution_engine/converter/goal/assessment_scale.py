@@ -47,12 +47,11 @@ class AssessmentScaleGoal(Goal):
 
         return cls(code.concept_name, exclude=False, code=code, value=value)
 
-    def to_criterion(self) -> Criterion:
+    def to_positive_criterion(self) -> Criterion:
         """
         Converts the goal to a criterion.
         """
         return Measurement(
-            exclude=self._exclude,
             category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,

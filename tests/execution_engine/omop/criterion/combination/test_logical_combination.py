@@ -64,7 +64,6 @@ class TestCriterionCombination:
             LogicalCriterionCombination.Operator.AND
         )
         combination = LogicalCriterionCombination(
-            exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
@@ -77,7 +76,6 @@ class TestCriterionCombination:
             LogicalCriterionCombination.Operator.AND
         )
         combination = LogicalCriterionCombination(
-            exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
@@ -95,7 +93,6 @@ class TestCriterionCombination:
             LogicalCriterionCombination.Operator.AND
         )
         combination = LogicalCriterionCombination(
-            exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
@@ -105,7 +102,6 @@ class TestCriterionCombination:
 
         combination_dict = combination.dict()
         assert combination_dict == {
-            "exclude": False,
             "operator": "AND",
             "threshold": None,
             "category": "POPULATION_INTERVENTION",
@@ -113,6 +109,7 @@ class TestCriterionCombination:
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
             ],
+            "root": False,
         }
 
     def test_criterion_combination_from_dict(self, mock_criteria):
@@ -120,7 +117,6 @@ class TestCriterionCombination:
             LogicalCriterionCombination.Operator.AND
         )
         combination_data = {
-            "exclude": False,
             "operator": "AND",
             "threshold": None,
             "category": "POPULATION_INTERVENTION",
@@ -128,6 +124,7 @@ class TestCriterionCombination:
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
             ],
+            "root": False,
         }
 
         # Register the mock criterion class
@@ -161,7 +158,6 @@ class TestCriterionCombination:
         factory.register_criterion_class("MockCriterion", MockCriterion)
 
         combination = LogicalCriterionCombination(
-            exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
@@ -184,7 +180,6 @@ class TestCriterionCombination:
             NonCommutativeLogicalCriterionCombination.Operator.CONDITIONAL_FILTER
         )
         combination = NonCommutativeLogicalCriterionCombination(
-            exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
             left=mock_criteria[0],
@@ -225,14 +220,13 @@ class TestCriterionCombination:
             LogicalCriterionCombination.Operator.AND
         )
         combination = LogicalCriterionCombination(
-            exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
 
         assert (
             repr(combination)
-            == "LogicalCriterionCombination(AND).POPULATION_INTERVENTION(exclude=False)"
+            == "LogicalCriterionCombination(AND).POPULATION_INTERVENTION"
         )
 
     def test_add_all(self):
@@ -240,7 +234,6 @@ class TestCriterionCombination:
             LogicalCriterionCombination.Operator.AND
         )
         combination = LogicalCriterionCombination(
-            exclude=False,
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
@@ -269,7 +262,6 @@ class TestCriterionCombinationDatabase(TestCriterion):
     @pytest.fixture
     def criteria(self, db_session):
         c1 = DrugExposure(
-            exclude=False,
             category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
             dose=Dosage(
@@ -281,13 +273,11 @@ class TestCriterionCombinationDatabase(TestCriterion):
         )
 
         c2 = ConditionOccurrence(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_covid19,
         )
 
         c3 = ProcedureOccurrence(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_artificial_respiration,
         )
@@ -347,26 +337,27 @@ class TestCriterionCombinationDatabase(TestCriterion):
         else:
             raise ValueError(f"Unknown operator {c.func}")
 
-        c1, c2, c3 = [c.copy() for c in criteria]
-
-        symbols = {"c1": c1, "c2": c2, "c3": c3}
+        c1, c2, c3 = [
+            c.copy() for c in criteria
+        ]  # TODO(jmoringe): copy should no longer be necessary
 
         for arg in args:
             if arg.is_Not:
                 if arg.args[0].name == "c1":
-                    c1.exclude = True
+                    c1 = LogicalCriterionCombination.Not(c1, c1.category)
                 elif arg.args[0].name == "c2":
-                    c2.exclude = True
+                    c2 = LogicalCriterionCombination.Not(c2, c2.category)
                 elif arg.args[0].name == "c3":
-                    c3.exclude = True
+                    c3 = LogicalCriterionCombination.Not(c3, c3.category)
                 else:
                     raise ValueError(f"Unknown criterion {arg.args[0].name}")
+
+        symbols = {"c1": c1, "c2": c2, "c3": c3}
 
         if hasattr(c.func, "name") and c.func.name == "ConditionalFilter":
             assert len(c.args) == 2
 
             comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 left=symbols[str(c.args[0])],
                 right=symbols[str(c.args[1])],
@@ -374,7 +365,6 @@ class TestCriterionCombinationDatabase(TestCriterion):
 
         else:
             comb = LogicalCriterionCombination(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 operator=LogicalCriterionCombination.Operator(
                     operator, threshold=threshold
@@ -386,6 +376,9 @@ class TestCriterionCombinationDatabase(TestCriterion):
                     continue
                 else:
                     comb.add(symbols[str(symbol)])
+
+        if exclude:
+            comb = LogicalCriterionCombination.Not(comb, comb.category)
 
         self.insert_criterion_combination(
             db_session, comb, base_criterion, observation_window
@@ -733,7 +726,6 @@ class TestCriterionCombinationNoData(TestCriterionCombinationDatabase):
     @pytest.fixture
     def criteria(self, db_session):
         c1 = DrugExposure(
-            exclude=False,
             category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
             dose=Dosage(
@@ -745,14 +737,12 @@ class TestCriterionCombinationNoData(TestCriterionCombinationDatabase):
         )
 
         c2 = Measurement(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_tidal_volume,
             value=ValueNumber(value_min=500, unit=concept_unit_ml),
         )
 
         c3 = Measurement(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_body_weight,
             value=ValueNumber(value_min=70, unit=concept_unit_kg),
@@ -870,7 +860,6 @@ class TestCriterionCombinationConditionalFilter(TestCriterionCombinationDatabase
     @pytest.fixture
     def criteria(self, db_session):
         c1 = DrugExposure(
-            exclude=False,
             category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
             dose=Dosage(
@@ -882,14 +871,12 @@ class TestCriterionCombinationConditionalFilter(TestCriterionCombinationDatabase
         )
 
         c2 = Measurement(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_body_weight,
             value=ValueNumber(value_min=70, unit=concept_unit_kg),
         )
 
         c3 = ConditionOccurrence(
-            exclude=False,
             category=CohortCategory.POPULATION,
             concept=concept_covid19,
         )

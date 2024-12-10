@@ -43,13 +43,13 @@ class ConceptCriterion(Criterion, ABC):
         self,
         category: CohortCategory,
         concept: Concept,
+        id: int | None = None,
         value: Value | None = None,
         static: bool | None = None,
         timing: Timing | None = None,
-        exclude: bool = False,
         override_value_required: bool | None = None,
     ):
-        super().__init__(exclude=exclude, category=category)
+        super().__init__(category=category, id=id)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
@@ -136,7 +136,7 @@ class ConceptCriterion(Criterion, ABC):
         Get a JSON representation of the criterion.
         """
         return {
-            "exclude": self._exclude,
+            "id": self._id,
             "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
@@ -159,7 +159,7 @@ class ConceptCriterion(Criterion, ABC):
         """
 
         return cls(
-            exclude=data["exclude"],
+            id=data["id"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=(

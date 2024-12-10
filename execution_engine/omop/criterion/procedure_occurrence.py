@@ -24,19 +24,19 @@ class ProcedureOccurrence(ContinuousCriterion):
 
     def __init__(
         self,
-        exclude: bool,
         category: CohortCategory,
         concept: Concept,
         value: ValueNumber | None = None,
         timing: Timing | None = None,
         static: bool | None = None,
+        id: int | None = None,
     ) -> None:
         super().__init__(
-            exclude=exclude,
             category=category,
             concept=concept,
             value=value,
             static=static,
+            id=id,
         )
 
         self._set_omop_variables_from_domain("procedure")
@@ -160,7 +160,7 @@ class ProcedureOccurrence(ContinuousCriterion):
         assert self._concept is not None, "Concept must be set"
 
         return {
-            "exclude": self._exclude,
+            "id": self._id,
             "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
@@ -192,7 +192,7 @@ class ProcedureOccurrence(ContinuousCriterion):
         ), "timing must be a ValueNumber"
 
         return cls(
-            exclude=data["exclude"],
+            id=data["id"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=value,

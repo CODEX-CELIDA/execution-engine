@@ -93,25 +93,16 @@ class AbstractCriterion(Serializable, ABC):
     Abstract base class for Criterion and CriterionCombination.
     """
 
-    def __init__(self, exclude: bool, category: CohortCategory) -> None:
-        self._id = None
-        self._exclude: bool = exclude
+    def __init__(
+        self, category: CohortCategory, id: int | None = None
+    ) -> None:
+        self._id = id
 
         assert isinstance(
             category, CohortCategory
         ), f"category must be a CohortCategory, not {type(category)}"
 
         self._category: CohortCategory = category
-
-    @property
-    def exclude(self) -> bool:
-        """Return the exclude flag."""
-        return self._exclude
-
-    @exclude.setter
-    def exclude(self, exclude: bool) -> None:
-        """Sets the exclude value."""
-        self._exclude = exclude
 
     @property
     def category(self) -> CohortCategory:
@@ -131,18 +122,6 @@ class AbstractCriterion(Serializable, ABC):
         """
         return copy.copy(self)
 
-    def invert_exclude(self, inplace: bool = False) -> "AbstractCriterion":
-        """
-        Invert the exclude flag.
-        """
-        if inplace:
-            self._exclude = not self._exclude
-            return self
-        else:
-            criterion = self.copy()
-            criterion._exclude = not criterion._exclude
-            return criterion
-
     @abstractmethod
     def description(self) -> str:
         """
@@ -154,27 +133,13 @@ class AbstractCriterion(Serializable, ABC):
         """
         Get the representation of the criterion.
         """
-        return f"{self.type}.{self._category.name}.{self.description()}(exclude={self._exclude})"
+        return f"{self.type}.{self._category.name}.{self.description()}"
 
     def __str__(self) -> str:
         """
         Get the name of the criterion.
         """
         return self.description()
-
-    def clear_exclude(self, inplace: bool = False) -> "AbstractCriterion":
-        """
-        Clear the exclude flag.
-
-        :param inplace: If True, the exclude flag is cleared in place. Otherwise, a copy of the criterion is returned
-            with the exclude flag cleared.
-        :return: The criterion with the exclude flag cleared.
-        """
-
-        if not self.exclude:
-            return self
-        else:
-            return self.invert_exclude(inplace=inplace)
 
 
 class Criterion(AbstractCriterion):
@@ -247,8 +212,10 @@ class Criterion(AbstractCriterion):
     Flag to indicate whether the filter_datetime function has been called.
     """
 
-    def __init__(self, exclude: bool, category: CohortCategory) -> None:
-        super().__init__(exclude=exclude, category=category)
+    def __init__(
+        self, category: CohortCategory, id: int | None = None
+    ) -> None:
+        super().__init__(category=category, id=id)
 
     def _set_omop_variables_from_domain(self, domain_id: str) -> None:
         """

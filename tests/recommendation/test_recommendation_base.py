@@ -606,7 +606,7 @@ class TestRecommendationBase(ABC):
         Generates a list of unique criteria names extracted from recommendation expressions.
 
         This function utilizes `get_criteria_name_and_comparator` to fetch all criteria names along with their
-         omparators, then filters out the comparator information to provide a list of unique criteria names.
+        comparators, then filters out the comparator information to provide a list of unique criteria names.
 
         Returns:
             list[str]: A list of unique criteria names extracted from the recommendation expressions. The order of

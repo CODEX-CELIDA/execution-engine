@@ -112,7 +112,9 @@ class CriterionConverter(ABC):
     """
 
     def __init__(self, exclude: bool):
-        # todo: is exclude still required?
+        # The _exclude attribute is used in converter classes but gets
+        # turned into a LogicalCriterionCombination with operator NOT
+        # in the to_criterion method.
         self._exclude = exclude
 
     @classmethod
@@ -130,9 +132,24 @@ class CriterionConverter(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def to_criterion(self) -> Criterion | LogicalCriterionCombination:
-        """Converts this characteristic to a Criterion."""
+    def to_positive_criterion(self) -> Criterion | LogicalCriterionCombination:
+        """Converts this characteristic to a Criterion or a combination of criteria but no negation."""
         raise NotImplementedError()
+
+    def to_criterion(self) -> Criterion | LogicalCriterionCombination:
+        """
+        Converts this characteristic to a Criterion or a
+        combination of criteria. The result may be a "negative"
+        criterion, that is the result of to_positive_criterion wrapped
+        in a LogicalCriterionCombination with operator NOT.
+        """
+        positive_criterion = self.to_positive_criterion()
+        if self._exclude:
+            return LogicalCriterionCombination.Not(
+                positive_criterion, positive_criterion.category
+            )
+        else:
+            return positive_criterion
 
 
 class CriterionConverterFactory:

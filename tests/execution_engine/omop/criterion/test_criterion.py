@@ -385,11 +385,9 @@ class TestCriterion:
     ):
         def _create_value(
             concept: Concept,
-            exclude: bool,
             value: ValueNumber | ValueConcept | None = None,
         ) -> pd.DataFrame:
             criterion = criterion_class(
-                exclude=exclude,
                 category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,

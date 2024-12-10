@@ -230,7 +230,7 @@ class Occurrence(TestCriterion, ABC):
                 self.insert_occurrences(concept, db_session, vo, time_ranges)
 
             # run criterion against db
-            df = criterion_execute_func(concept=concept, exclude=False)
+            df = criterion_execute_func(concept=concept)
 
         for test_case, vo in zip(test_cases, vos):
             assert set(
@@ -294,7 +294,7 @@ class Occurrence(TestCriterion, ABC):
 
         with self.disable_trigger_for_overlapping_intervals(time_ranges)(db_session):
             self.insert_occurrences(concept, db_session, vo, time_ranges)
-            df = criterion_execute_func(concept=concept, exclude=False)
+            df = criterion_execute_func(concept=concept)
 
         valid_daterange = self.date_ranges(filtered_time_ranges)
 
