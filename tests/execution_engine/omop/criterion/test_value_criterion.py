@@ -112,7 +112,6 @@ class ValueCriterion(TestCriterion, ABC):
             ],
         ],
     )  # time ranges used in the database entry
-    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
     @pytest.mark.parametrize(
         "criterion_value",
         [
@@ -131,7 +130,6 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_execute_func,
         observation_window,
         times,
-        exclude,
         criterion_value,
         criterion_fixture,
     ):
@@ -142,7 +140,6 @@ class ValueCriterion(TestCriterion, ABC):
             criterion_execute_func=criterion_execute_func,
             observation_window=observation_window,
             times=times,
-            exclude=exclude,
             criterion_concept=criterion_fixture["concept"],
             criterion_unit_concept=criterion_fixture["unit_concept"],
             criterion_value=criterion_value,
@@ -193,7 +190,6 @@ class ValueCriterion(TestCriterion, ABC):
             criterion_execute_func=criterion_execute_func,
             observation_window=observation_window,
             times=times,
-            exclude=False,
             criterion_concept=criterion_fixture["concept"],
             criterion_unit_concept=criterion_fixture["unit_concept"],
             criterion_value=criterion_value,
@@ -203,7 +199,6 @@ class ValueCriterion(TestCriterion, ABC):
     @pytest.mark.parametrize(
         "times", [["2023-03-04 18:00:00"]]
     )  # time ranges used in the database entry
-    @pytest.mark.parametrize("exclude", [True])  # exclude used in the criterion
     @pytest.mark.parametrize(
         "criterion_value",
         [
@@ -218,7 +213,6 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_execute_func,
         observation_window,
         times,
-        exclude,
         criterion_value,
         criterion_fixture,
     ):
@@ -230,7 +224,6 @@ class ValueCriterion(TestCriterion, ABC):
                 criterion_execute_func=criterion_execute_func,
                 observation_window=observation_window,
                 times=times,
-                exclude=exclude,
                 criterion_concept=criterion_fixture["concept"],
                 criterion_unit_concept=criterion_fixture["unit_concept"],
                 criterion_value=criterion_value,
@@ -253,7 +246,6 @@ class ValueCriterion(TestCriterion, ABC):
             ],
         ],
     )  # time ranges used in the database entry
-    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
     @pytest.mark.parametrize(
         "criterion_value",
         [  # value used in the criterion
@@ -269,7 +261,6 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_execute_func,
         observation_window,
         times,
-        exclude,
         criterion_value,
         criterion_fixture,
     ):
@@ -280,7 +271,6 @@ class ValueCriterion(TestCriterion, ABC):
             criterion_execute_func=criterion_execute_func,
             observation_window=observation_window,
             times=times,
-            exclude=exclude,
             criterion_concept=criterion_fixture["concept"],
             criterion_unit_concept=criterion_fixture["unit_concept"],
             criterion_value={
@@ -298,7 +288,6 @@ class ValueCriterion(TestCriterion, ABC):
         criterion_execute_func,
         observation_window,
         times,
-        exclude,
         criterion_concept,
         criterion_unit_concept,
         criterion_value,
@@ -335,9 +324,9 @@ class ValueCriterion(TestCriterion, ABC):
             raise ValueError(f"Unknown value type: {type(criterion_value['value'])}")
 
         # run criterion against db
-        df = criterion_execute_func(
-            concept=criterion_concept, value=value, exclude=exclude
-        ).query(f"{p.person_id} == person_id")
+        df = criterion_execute_func(concept=criterion_concept, value=value).query(
+            f"{p.person_id} == person_id"
+        )
 
         criterion_matches = (
             criterion_value["match"]
@@ -385,7 +374,6 @@ class ValueCriterion(TestCriterion, ABC):
             ],
         ],
     )
-    @pytest.mark.parametrize("exclude", [False])  # exclude used in the criterion
     def test_value_multiple_persons(
         self,
         person_visit,
@@ -395,7 +383,6 @@ class ValueCriterion(TestCriterion, ABC):
         concept,
         unit_concept,
         test_cases,
-        exclude,
     ):
         vos = [pv[1] for pv in person_visit]
 
@@ -417,7 +404,7 @@ class ValueCriterion(TestCriterion, ABC):
         value = ValueNumber.parse(tc["criterion_value"], unit=unit_concept)
 
         # run criterion against db
-        df = criterion_execute_func(concept=concept, value=value, exclude=exclude)
+        df = criterion_execute_func(concept=concept, value=value)
 
         for vo, tc in zip(vos, test_cases):
             df_person = df.query(f"{vo.person_id} == person_id")

@@ -13,6 +13,7 @@ class LogicalCriterionCombination(CriterionCombination):
     class Operator(CriterionCombination.Operator):
         """Operators for criterion combinations."""
 
+        NOT = "NOT"
         AND = "AND"
         OR = "OR"
         AT_LEAST = "AT_LEAST"
@@ -22,6 +23,7 @@ class LogicalCriterionCombination(CriterionCombination):
 
         def __init__(self, operator: str, threshold: int | None = None):
             assert operator in [
+                "NOT",
                 "AND",
                 "OR",
                 "AT_LEAST",
@@ -38,17 +40,30 @@ class LogicalCriterionCombination(CriterionCombination):
             self.threshold = threshold
 
     @classmethod
+    def Not(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+    ) -> "LogicalCriterionCombination":
+        """
+        Create a NOT "combination" of a single criterion.
+        """
+        return cls(
+            operator=cls.Operator(cls.Operator.NOT),
+            category=category,
+            criteria=[criterion],
+        )
+
+    @classmethod
     def And(
         cls,
         *criteria: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-        exclude: bool = False,
     ) -> "LogicalCriterionCombination":
         """
         Create an AND combination of criteria.
         """
         return cls(
-            exclude=exclude,
             operator=cls.Operator(cls.Operator.AND),
             category=category,
             criteria=criteria,
@@ -59,13 +74,11 @@ class LogicalCriterionCombination(CriterionCombination):
         cls,
         *criteria: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-        exclude: bool = False,
     ) -> "LogicalCriterionCombination":
         """
         Create an OR combination of criteria.
         """
         return cls(
-            exclude=exclude,
             operator=cls.Operator(cls.Operator.OR),
             category=category,
             criteria=criteria,
@@ -77,13 +90,11 @@ class LogicalCriterionCombination(CriterionCombination):
         *criteria: Union[Criterion, "CriterionCombination"],
         threshold: int,
         category: CohortCategory,
-        exclude: bool = False,
     ) -> "LogicalCriterionCombination":
         """
         Create an AT_LEAST combination of criteria.
         """
         return cls(
-            exclude=exclude,
             operator=cls.Operator(cls.Operator.AT_LEAST, threshold=threshold),
             category=category,
             criteria=criteria,
@@ -95,13 +106,11 @@ class LogicalCriterionCombination(CriterionCombination):
         *criteria: Union[Criterion, "CriterionCombination"],
         threshold: int,
         category: CohortCategory,
-        exclude: bool = False,
     ) -> "LogicalCriterionCombination":
         """
         Create an AT_MOST combination of criteria.
         """
         return cls(
-            exclude=exclude,
             operator=cls.Operator(cls.Operator.AT_MOST, threshold=threshold),
             category=category,
             criteria=criteria,
@@ -113,13 +122,11 @@ class LogicalCriterionCombination(CriterionCombination):
         *criteria: Union[Criterion, "LogicalCriterionCombination"],
         threshold: int,
         category: CohortCategory,
-        exclude: bool = False,
     ) -> "LogicalCriterionCombination":
         """
         Create an EXACTLY combination of criteria.
         """
         return cls(
-            exclude=exclude,
             operator=cls.Operator(cls.Operator.EXACTLY, threshold=threshold),
             category=category,
             criteria=criteria,
@@ -130,13 +137,11 @@ class LogicalCriterionCombination(CriterionCombination):
         cls,
         *criteria: Union[Criterion, "LogicalCriterionCombination"],
         category: CohortCategory,
-        exclude: bool = False,
     ) -> "LogicalCriterionCombination":
         """
         Create an ALL_OR_NONE combination of criteria.
         """
         return cls(
-            exclude=exclude,
             operator=cls.Operator(cls.Operator.ALL_OR_NONE),
             category=category,
             criteria=criteria,
@@ -166,7 +171,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
 
     def __init__(
         self,
-        exclude: bool,
         operator: "NonCommutativeLogicalCriterionCombination.Operator",
         category: CohortCategory,
         left: Union[Criterion, CriterionCombination] | None = None,
@@ -176,7 +180,7 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         """
         Initialize the criterion combination.
         """
-        super().__init__(exclude=exclude, operator=operator, category=category)
+        super().__init__(operator=operator, category=category)
 
         self._criteria = []
         if left is not None:
@@ -222,7 +226,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
             self.operator == other.operator
             and self._left == other._left
             and self._right == other._right
-            and self.exclude == other.exclude
             and self.category == other.category
         )
 
@@ -241,7 +244,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         right = self._right
         return {
             "operator": self._operator.operator,
-            "exclude": self.exclude,
             "category": self.category.value,
             "left": {"class_name": left.__class__.__name__, "data": left.dict()},
             "right": {"class_name": right.__class__.__name__, "data": right.dict()},
@@ -260,7 +262,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         )
 
         return cls(
-            exclude=data["exclude"],
             operator=cls.Operator(data["operator"]),
             category=CohortCategory(data["category"]),
             left=criterion_factory(**data["left"]),
@@ -273,13 +274,21 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         left: Union[Criterion, "CriterionCombination"],
         right: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-        exclude: bool = False,
     ) -> "LogicalCriterionCombination":
         """
         Create a CONDITIONAL_FILTER combination of criteria.
+
+        A conditional filter returns `right` iff `left` is POSITIVE, otherwise NEGATIVE.
+
+        | left     | right    | Result   |
+        |----------|----------|----------|
+        | NEGATIVE |    *     | NEGATIVE |
+        | NO_DATA  |    *     | NEGATIVE |
+        | POSITIVE | POSITIVE | POSITIVE |
+        | POSITIVE | NEGATIVE | NEGATIVE |
+        | POSITIVE | NO_DATA  | NO_DATA  |
         """
         return cls(
-            exclude=exclude,
             operator=cls.Operator(cls.Operator.CONDITIONAL_FILTER),
             category=category,
             left=left,

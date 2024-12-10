@@ -97,6 +97,11 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         return standard_vocabulary.get_concept(cc.system, cc.code, standard=standard)
 
     @abstractmethod
-    def to_criterion(self) -> Criterion:
-        """Converts this characteristic to a Criterion."""
+    def to_positive_criterion(self) -> Criterion:
+        """
+        Converts this characteristic to a "Positive" Criterion.
+
+        Positive criterion means that a possible excluded flag is disregarded. Instead, the exclusion
+        is later introduced (in the to_criterion() method) via a LogicalCriterionCombination.Not).
+        """
         raise NotImplementedError()

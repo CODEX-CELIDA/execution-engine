@@ -38,11 +38,14 @@ def characteristic_to_criterion(
         )
         comb = LogicalCriterionCombination(
             category=CohortCategory.POPULATION,
-            exclude=characteristic.exclude,
             operator=operator,
         )
         for c in characteristic:
             comb.add(characteristic_to_criterion(c))
+
+        if characteristic.exclude:
+            comb = LogicalCriterionCombination.Not(comb, CohortCategory.POPULATION)
+
         return comb
     else:
         return characteristic.to_criterion()

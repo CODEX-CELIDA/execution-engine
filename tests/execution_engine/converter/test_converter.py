@@ -155,7 +155,7 @@ class TestCriterionConverter:
         def valid(cls, fhir_definition: Element) -> bool:
             return fhir_definition.id == "valid"
 
-        def to_criterion(self) -> Criterion | LogicalCriterionCombination:
+        def to_positive_criterion(self) -> Criterion | LogicalCriterionCombination:
             raise NotImplementedError()
 
     def test_criterion_converter_factory_register(self):
