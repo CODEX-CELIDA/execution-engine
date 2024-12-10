@@ -321,6 +321,10 @@ class DrugAdministrationAction(AbstractAction):
                     value=extension["value"],
                 )
 
+                # A Conditional Filter returns `right` iff left is POSITIVE, otherwise it returns NEGATIVE
+                # rational: "conditional" extensions are some conditions for dosage, such as body weight ranges.
+                # Thus, the actual drug administration (drug_action, "right") must only be fulfilled if the
+                # condition (ext_criterion, "left") is fulfilled. Thus, we here add this conditional filter.
                 comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
                     category=CohortCategory.INTERVENTION,
                     left=ext_criterion,

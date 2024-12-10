@@ -277,6 +277,16 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
     ) -> "LogicalCriterionCombination":
         """
         Create a CONDITIONAL_FILTER combination of criteria.
+
+        A conditional filter returns `right` iff `left` is POSITIVE, otherwise NEGATIVE.
+
+        | left     | right    | Result   |
+        |----------|----------|----------|
+        | NEGATIVE |    *     | NEGATIVE |
+        | NO_DATA  |    *     | NEGATIVE |
+        | POSITIVE | POSITIVE | POSITIVE |
+        | POSITIVE | NEGATIVE | NEGATIVE |
+        | POSITIVE | NO_DATA  | NO_DATA  |
         """
         return cls(
             operator=cls.Operator(cls.Operator.CONDITIONAL_FILTER),
