@@ -236,6 +236,19 @@ class Recommendation(Serializable):
 
         raise NotImplementedError()
 
+    def reset_state(self) -> None:
+        """
+        Reset the state of the recommendation.
+
+        Sets all _id attributes to None in the recommendation and all its population/intervention pairs and criteria.
+        """
+        self._id = None
+
+        for pi_pair in self._pi_pairs:
+            pi_pair._id = None
+            for criterion in pi_pair.flatten():
+                criterion._id = None
+
     def dict(self) -> dict:
         """
         Get the combination as a dictionary.
