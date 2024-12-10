@@ -255,30 +255,32 @@ class PopulationInterventionPair(Serializable):
         else:
             raise NotImplementedError(f"Unknown type {type(sql)}")
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         """
         Get a dictionary representation of the population/intervention pair.
         """
         base_criterion = self._base_criterion
         population = self._population
         intervention = self._intervention
-        return {
-            "id": self._id,
+        result: dict[str, Any] = {
             "name": self.name,
             "url": self.url,
             "base_criterion": {
                 "class_name": base_criterion.__class__.__name__,
-                "data": base_criterion.dict(),
+                "data": base_criterion.dict(include_id=include_id),
             },
             "population": {
                 "class_name": population.__class__.__name__,
-                "data": population.dict(),
+                "data": population.dict(include_id=include_id),
             },
             "intervention": {
                 "class_name": intervention.__class__.__name__,
-                "data": intervention.dict(),
+                "data": intervention.dict(include_id=include_id),
             },
         }
+        if include_id:
+            result["id"] = self._id
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "PopulationInterventionPair":

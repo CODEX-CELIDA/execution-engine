@@ -134,7 +134,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         return str(self)
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         """
         Get the dictionary representation of the criterion combination.
         """
@@ -145,7 +145,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             "criteria": [
                 {
                     "class_name": criterion.__class__.__name__,
-                    "data": criterion.dict(),
+                    "data": criterion.dict(include_id=include_id),
                 }
                 for criterion in self._criteria
             ],

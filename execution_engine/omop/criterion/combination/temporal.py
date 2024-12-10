@@ -95,12 +95,12 @@ class TemporalIndicatorCombination(CriterionCombination):
         else:
             return super().__str__()
 
-    def dict(self) -> Dict:
+    def dict(self, include_id: bool = True) -> Dict:
         """
         Get the dictionary representation of the criterion combination.
         """
 
-        d = super().dict()
+        d = super().dict(include_id=include_id)
         d["start_time"] = self.start_time.isoformat() if self.start_time else None
         d["end_time"] = self.end_time.isoformat() if self.end_time else None
         d["interval_type"] = self.interval_type

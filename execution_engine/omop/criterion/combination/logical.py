@@ -43,14 +43,14 @@ class LogicalCriterionCombination(CriterionCombination):
     def Not(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
+        category: CohortCategory | None = None,
     ) -> "LogicalCriterionCombination":
         """
         Create a NOT "combination" of a single criterion.
         """
         return cls(
             operator=cls.Operator(cls.Operator.NOT),
-            category=category,
+            category=category if category is not None else criterion.category,
             criteria=[criterion],
         )
 
@@ -236,7 +236,7 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         yield self._left
         yield self._right
 
-    def dict(self) -> dict:
+    def dict(self, include_id: bool = True) -> dict:
         """
         Get the dictionary representation of the criterion combination.
         """
@@ -245,8 +245,14 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         return {
             "operator": self._operator.operator,
             "category": self.category.value,
-            "left": {"class_name": left.__class__.__name__, "data": left.dict()},
-            "right": {"class_name": right.__class__.__name__, "data": right.dict()},
+            "left": {
+                "class_name": left.__class__.__name__,
+                "data": left.dict(include_id=include_id),
+            },
+            "right": {
+                "class_name": right.__class__.__name__,
+                "data": right.dict(include_id=include_id),
+            },
         }
 
     @classmethod

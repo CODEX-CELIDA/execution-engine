@@ -92,11 +92,11 @@ class PointInTimeCriterion(ConceptCriterion):
 
         return query
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         """
         Get a JSON representation of the criterion.
         """
-        from_super = super().dict()
+        from_super = super().dict(include_id=include_id)
         return from_super | {"forward_fill": self._forward_fill}
 
     @classmethod

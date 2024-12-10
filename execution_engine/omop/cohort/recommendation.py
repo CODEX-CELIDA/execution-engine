@@ -249,17 +249,18 @@ class Recommendation(Serializable):
             for criterion in pi_pair.flatten():
                 criterion._id = None
 
-    def dict(self) -> dict:
+    def dict(self, include_id: bool = True) -> dict:
         """
         Get the combination as a dictionary.
         """
         base_criterion = self._base_criterion
-        return {
-            "id": self._id,
-            "population_intervention_pairs": [c.dict() for c in self._pi_pairs],
+        result: dict[str, Any] = {
+            "population_intervention_pairs": [
+                c.dict(include_id=include_id) for c in self._pi_pairs
+            ],
             "base_criterion": {
                 "class_name": base_criterion.__class__.__name__,
-                "data": base_criterion.dict(),
+                "data": base_criterion.dict(include_id=include_id),
             },
             "recommendation_name": self._name,
             "recommendation_title": self._title,
@@ -268,6 +269,9 @@ class Recommendation(Serializable):
             "recommendation_package_version": self._package_version,
             "recommendation_description": self._description,
         }
+        if include_id:
+            result["id"] = self._id
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> Self:

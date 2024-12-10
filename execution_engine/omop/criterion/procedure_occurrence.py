@@ -153,14 +153,13 @@ class ProcedureOccurrence(ContinuousCriterion):
 
         return f"{self.__class__.__name__}[" + ", ".join(parts) + "]"
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         """
         Return a dictionary representation of the criterion.
         """
         assert self._concept is not None, "Concept must be set"
 
-        return {
-            "id": self._id,
+        result: dict[str, Any] = {
             "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
@@ -174,6 +173,9 @@ class ProcedureOccurrence(ContinuousCriterion):
                 else None
             ),
         }
+        if include_id:
+            result["id"] = self._id
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ProcedureOccurrence":

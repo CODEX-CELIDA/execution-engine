@@ -205,21 +205,20 @@ class ExecutionEngine:
 
     @staticmethod
     def _hash(obj: Serializable) -> tuple[bytes, str]:
-        json = obj.json()
+        json = obj.json(include_id=False)
         return json, hashlib.sha256(json).hexdigest()
 
     def register_recommendation(self, recommendation: cohort.Recommendation) -> None:
         """Registers the Recommendation in the result database."""
-        # We don't want to include any ids in the hash since ids
+        # We don't want to include any ids in the hash since ids are
         # "accidental" in the sense that they depend on, at least, the
         # order in which recommendations are inserted into the
-        # database.
+        # database. Note that Criterion objects may already have ids
+        # if they appear in multiple recommendations and some
+        # of those have already been registered.
         assert recommendation._id is None
-        assert recommendation._base_criterion._id is None
         for pi_pair in recommendation._pi_pairs:
             assert pi_pair._id is None
-            for criterion in pi_pair.flatten():
-                assert criterion._id is None
         # Get the hash but ignore the JSON representation for now
         # since we will compute and insert a complete JSON
         # representation later when we know all ids.

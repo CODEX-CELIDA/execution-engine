@@ -84,11 +84,11 @@ class ActivePatients(VisitOccurrence):
         """
         return f"{self.__class__.__name__}[]"
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         """
         Get a JSON representation of the criterion.
         """
-        return {"id": self._id}
+        return {"id": self._id} if include_id else {}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ActivePatients":

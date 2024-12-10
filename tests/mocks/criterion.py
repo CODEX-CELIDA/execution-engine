@@ -46,7 +46,7 @@ class MockCriterion(Criterion):
             category=CohortCategory(data["category"]),
         )
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         return {
             "name": self._name,
             "exclude": self._exclude,

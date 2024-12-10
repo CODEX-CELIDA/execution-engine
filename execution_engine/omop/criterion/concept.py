@@ -131,12 +131,11 @@ class ConceptCriterion(Criterion, ABC):
 
         return desc
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         """
         Get a JSON representation of the criterion.
         """
-        return {
-            "id": self._id,
+        result: dict[str, Any] = {
             "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
@@ -151,6 +150,9 @@ class ConceptCriterion(Criterion, ABC):
                 else None
             ),
         }
+        if include_id:
+            result["id"] = self._id
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ConceptCriterion":

@@ -27,7 +27,7 @@ class Serializable(ABC):
         self._id = value
 
     @abstractmethod
-    def dict(self) -> dict:
+    def dict(self, include_id: bool = True) -> dict:
         """
         Get a dictionary representation of the object.
         """
@@ -41,7 +41,7 @@ class Serializable(ABC):
         """
         raise NotImplementedError()
 
-    def json(self) -> bytes:
+    def json(self, include_id: bool = True) -> bytes:
         """
         Get a JSON representation of the object.
 
@@ -49,8 +49,7 @@ class Serializable(ABC):
         and not known during the creation of the object.
         """
 
-        s_json = self.dict()
-
+        s_json = self.dict(include_id=include_id)
         return json.dumps(s_json, sort_keys=True).encode()
 
     @classmethod

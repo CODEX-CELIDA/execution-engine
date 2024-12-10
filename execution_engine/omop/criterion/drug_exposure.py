@@ -352,12 +352,11 @@ class DrugExposure(Criterion):
 
         return f"{self.__class__.__name__}[" + ", ".join(parts) + "]"
 
-    def dict(self) -> dict[str, Any]:
+    def dict(self, include_id: bool = True) -> dict[str, Any]:
         """
         Return a dictionary representation of the criterion.
         """
-        return {
-            "id": self._id,
+        result: dict[str, Any] = {
             "category": self._category.value,
             "ingredient_concept": self._ingredient_concept.model_dump(),
             "dose": (
@@ -367,6 +366,9 @@ class DrugExposure(Criterion):
             ),
             "route": self._route.model_dump() if self._route is not None else None,
         }
+        if include_id:
+            result["id"] = self._id
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DrugExposure":
