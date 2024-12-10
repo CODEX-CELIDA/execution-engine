@@ -93,8 +93,10 @@ class AbstractCriterion(Serializable, ABC):
     Abstract base class for Criterion and CriterionCombination.
     """
 
-    def __init__(self, category: CohortCategory) -> None:
-        self._id = None
+    def __init__(
+        self, category: CohortCategory, id: int | None = None
+    ) -> None:
+        self._id = id
 
         assert isinstance(
             category, CohortCategory
@@ -210,8 +212,10 @@ class Criterion(AbstractCriterion):
     Flag to indicate whether the filter_datetime function has been called.
     """
 
-    def __init__(self, category: CohortCategory) -> None:
-        super().__init__(category=category)
+    def __init__(
+        self, category: CohortCategory, id: int | None = None
+    ) -> None:
+        super().__init__(category=category, id=id)
 
     def _set_omop_variables_from_domain(self, domain_id: str) -> None:
         """

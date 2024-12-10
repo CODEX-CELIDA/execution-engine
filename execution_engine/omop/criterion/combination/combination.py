@@ -143,9 +143,13 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             "threshold": self._operator.threshold,
             "category": self._category.value,
             "criteria": [
-                {"class_name": criterion.__class__.__name__, "data": criterion.dict()}
+                {
+                    "class_name": criterion.__class__.__name__,
+                    "data": criterion.dict(),
+                }
                 for criterion in self._criteria
             ],
+            "root": self._root,
         }
 
     def __invert__(self) -> AbstractCriterion:
@@ -192,6 +196,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         combination = cls(
             operator=operator,
             category=category,
+            root_combination=data["root"],
         )
 
         for criterion in data["criteria"]:

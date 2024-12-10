@@ -249,10 +249,14 @@ class Recommendation(Serializable):
         """
         Get the combination as a dictionary.
         """
+        base_criterion = self._base_criterion
         return {
             "id": self._id,
             "population_intervention_pairs": [c.dict() for c in self._pi_pairs],
-            "base_criterion": self._base_criterion.dict(),
+            "base_criterion": {
+                "class_name": base_criterion.__class__.__name__,
+                "data": base_criterion.dict(),
+            },
             "recommendation_name": self._name,
             "recommendation_title": self._title,
             "recommendation_url": self._url,
@@ -283,5 +287,5 @@ class Recommendation(Serializable):
             version=data["recommendation_version"],
             description=data["recommendation_description"],
             package_version=data["recommendation_package_version"],
-            recommendation_id=data["id"] if "id" in data else None,
+            recommendation_id=data["id"],
         )
