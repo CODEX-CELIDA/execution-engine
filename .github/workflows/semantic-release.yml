@@ -76,31 +76,35 @@ jobs:
           release_type="${{ github.event.inputs.releaseType }}"
           prerelease_token="${{ github.event.inputs.prerelease_token }}"
           add_branch_date="${{ github.event.inputs.add_branch_date }}"
-          # Set default flags
-          flags=""
+
+          # flags following "version" command
+          version_flags=""
+
+          # top level flags for semantic-release
+          toplevel_flags=""
 
           # Add --noop if requested
           if [[ "${{ github.event.inputs.noop }}" == "true" ]]; then
-            flags="$flags --noop"
+            toplevel_flags="$toplevel_flags --noop"
           fi
 
           # Check releaseType and format accordingly
           if [[ "$release_type" != "auto" ]]; then
-            flags="$flags --$release_type"
+            version_flags="$version_flags --$release_type"
           fi
 
           # Check for prerelease token and add it if present
           if [[ "$prerelease_token" != "" ]]; then
-            flags="$flags --prerelease-token $prerelease_token"
+            version_flags="$version_flags --prerelease-token $prerelease_token"
           fi
 
           # Add build metadata if add_branch_date is true
           if [[ "$add_branch_date" == "true" ]]; then
             metadata=$(echo $(basename $GITHUB_REF) | sed 's/refs\/heads\///')  # Extract branch name from GITHUB_REF
             build_metadata="--build-metadata $metadata.$CURRENT_DATE"
-            flags="$flags $build_metadata"
+            version_flags="$version_flags $build_metadata"
           fi
 
           # Run semantic-release with the constructed flags
-          echo "Running semantic-release with flags: $flags"
-          GH_TOKEN=${REPO_ACCESS_TOKEN} semantic-release version $flags
+          echo "Running semantic-release with flags (top-level): $toplevel_flags, (version): $version_flags"
+          GH_TOKEN=${REPO_ACCESS_TOKEN} semantic-release $toplevel_flags version $version_flags
