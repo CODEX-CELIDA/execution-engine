@@ -255,7 +255,6 @@ class Recommendation(Serializable):
         """
         base_criterion = self._base_criterion
         return {
-            "id": self._id,
             "population_intervention_pairs": [c.dict() for c in self._pi_pairs],
             "base_criterion": {
                 "class_name": base_criterion.__class__.__name__,
@@ -291,5 +290,4 @@ class Recommendation(Serializable):
             version=data["recommendation_version"],
             description=data["recommendation_description"],
             package_version=data["recommendation_package_version"],
-            recommendation_id=data["id"],
         )

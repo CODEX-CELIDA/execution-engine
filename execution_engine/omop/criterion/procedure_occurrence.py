@@ -160,7 +160,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         assert self._concept is not None, "Concept must be set"
 
         return {
-            "id": self._id,
             "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
@@ -192,7 +191,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         ), "timing must be a ValueNumber"
 
         return cls(
-            id=data["id"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=value,

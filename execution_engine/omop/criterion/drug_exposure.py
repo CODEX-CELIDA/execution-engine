@@ -379,7 +379,6 @@ class DrugExposure(Criterion):
         assert dose is None or isinstance(dose, Dosage), "Dose must be a Dosage or None"
 
         return cls(
-            id=data["id"],
             category=CohortCategory(data["category"]),
             ingredient_concept=Concept(**data["ingredient_concept"]),
             dose=dose,
