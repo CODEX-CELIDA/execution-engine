@@ -263,7 +263,6 @@ class PopulationInterventionPair(Serializable):
         population = self._population
         intervention = self._intervention
         return {
-            "id": self._id,
             "name": self.name,
             "url": self.url,
             "base_criterion": {
@@ -295,7 +294,6 @@ class PopulationInterventionPair(Serializable):
             CriterionCombination, criterion_factory(**data["intervention"])
         )
         object = cls(
-            id=data["id"],
             name=data["name"],
             url=data["url"],
             base_criterion=base_criterion,

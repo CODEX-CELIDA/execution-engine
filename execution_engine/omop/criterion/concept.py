@@ -136,7 +136,6 @@ class ConceptCriterion(Criterion, ABC):
         Get a JSON representation of the criterion.
         """
         return {
-            "id": self._id,
             "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
@@ -159,7 +158,6 @@ class ConceptCriterion(Criterion, ABC):
         """
 
         return cls(
-            id=data["id"],
             category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=(

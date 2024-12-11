@@ -98,6 +98,8 @@ class ExecutionEngine:
                 )
                 return recommendation
 
+        # recommendation could not be loaded from database, fetch it from FHIR server
+
         recommendation = self.fhir_parser.parse_recommendation_from_url(
             url=recommendation_url,
             package_version=recommendation_package_version,
@@ -210,16 +212,6 @@ class ExecutionEngine:
 
     def register_recommendation(self, recommendation: cohort.Recommendation) -> None:
         """Registers the Recommendation in the result database."""
-        # We don't want to include any ids in the hash since ids
-        # "accidental" in the sense that they depend on, at least, the
-        # order in which recommendations are inserted into the
-        # database.
-        assert recommendation._id is None
-        assert recommendation._base_criterion._id is None
-        for pi_pair in recommendation._pi_pairs:
-            assert pi_pair._id is None
-            for criterion in pi_pair.flatten():
-                assert criterion._id is None
         # Get the hash but ignore the JSON representation for now
         # since we will compute and insert a complete JSON
         # representation later when we know all ids.
@@ -306,8 +298,6 @@ class ExecutionEngine:
         :param pi_pair: The Population/Intervention Pair.
         :param recommendation_id: The ID of the Population/Intervention Pair.
         """
-        # We don't want to include the id in the hash
-        assert pi_pair._id is None
         _, pi_pair_hash = self._hash(pi_pair)
         query = select(result_db.PopulationInterventionPair).where(
             result_db.PopulationInterventionPair.pi_pair_hash == pi_pair_hash
