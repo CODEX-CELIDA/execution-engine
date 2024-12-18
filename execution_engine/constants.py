@@ -60,6 +60,7 @@ class OMOPConcepts(Enum):
     Collection of standard concepts in the OMOP CDM.
     """
 
+    UNKNOWN = 0
     VISIT_TYPE_STILL_PATIENT = 32220
     BODY_HEIGHT = 3036277  # Body height (observation; from LOINC)
     BODY_WEIGHT_LOINC = 3025315  # Body weight (maps to LOINC code)

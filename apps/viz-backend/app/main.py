@@ -1,13 +1,28 @@
+import datetime
 import json
 import re
 from typing import List
 
-from database import SessionLocal
+from database import (
+    SessionLocal,
+    concept,
+    condition_occurrence,
+    criterion,
+    drug_exposure,
+    full_day_coverage,
+    interval_result,
+    measurement,
+    observation,
+    partial_day_coverage,
+    person,
+    procedure_occurrence,
+    visit_occurrence,
+)
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from models import Interval, Recommendation, RecommendationRun
+from models import DayCoverage, Interval, Recommendation, RecommendationRun
 from settings import config
-from sqlalchemy import text
+from sqlalchemy import and_, func, join, or_, select, text, union
 from sqlalchemy.orm import Session
 
 app = FastAPI()
@@ -103,7 +118,8 @@ def get_execution_runs(db: Session = Depends(get_db)) -> dict:
     result = db.execute(
         text(
             f"""
-    SELECT run_id, observation_start_datetime, observation_end_datetime, run_datetime, r.recommendation_name
+    SELECT run_id, observation_start_datetime, observation_end_datetime, run_datetime,
+    r.recommendation_name, r.recommendation_title, r.recommendation_url, r.recommendation_description
     FROM {result_schema}.execution_run
     INNER JOIN {result_schema}.recommendation r ON r.recommendation_id = execution_run.recommendation_id
     """  # nosec: result_schema is checked above (is_valid_identifier)
@@ -151,32 +167,225 @@ def get_intervals(
             detail="Only one of person_id or person_source_value can be provided",
         )
 
-    params: dict[str, int | str] = {"run_id": run_id}
+    # Base query
+    base_query = select(interval_result).where(interval_result.c.run_id == run_id)
 
+    # Add filters for person_id or person_source_value
     if person_id is not None:
-        query = f"""
-            SELECT *
-            FROM {result_schema}.interval_result
-            WHERE run_id = :run_id
-            AND person_id = :person_id
-            """  # nosec: result_schema is checked above (is_valid_identifier)
-        params["person_id"] = person_id
+        base_query = base_query.where(interval_result.c.person_id == person_id)
     elif person_source_value is not None:
-        query = f"""
-            SELECT ir.*
-            FROM {result_schema}.interval_result ir
-            INNER JOIN person p ON ir.person_id = p.person_id
-            WHERE ir.run_id = :run_id
-            AND p.person_source_value = :person_source_value
-            """  # nosec: result_schema is checked above (is_valid_identifier)
-        params["person_source_value"] = str(person_source_value)
+        joined_table = join(
+            interval_result, person, interval_result.c.person_id == person.c.person_id
+        )
+        base_query = (
+            select(interval_result)
+            .select_from(joined_table)
+            .where(
+                and_(
+                    interval_result.c.run_id == run_id,
+                    person.c.person_source_value == person_source_value,
+                )
+            )
+        )
 
-    result = db.execute(text(query), params)
+    # Execute query
+    result = db.execute(base_query)
+    rows = result.fetchall()
+
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No intervals found for run_id {run_id} with the specified parameters.",
+        )
+
     return result.fetchall()
 
 
+@app.get("/criteria/{run_id}/{person_id}", response_model=List[dict])
+def get_criteria_for_person(
+    person_id: int,
+    run_id: int,
+    start_datetime: datetime.datetime,
+    end_datetime: datetime.datetime,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """
+    Retrieve all raw data criteria for a person within a specified time range.
+    """
+    # Step 1: Get all criterion_ids from result_interval where criterion_id is not NULL
+    query = (
+        select(
+            interval_result.c.criterion_id,
+            interval_result.c.cohort_category,
+            criterion.c.criterion_concept_id,
+            concept.c.concept_name,
+        )
+        .join(criterion, interval_result.c.criterion_id == criterion.c.criterion_id)
+        .join(
+            concept,
+            criterion.c.criterion_concept_id == concept.c.concept_id,
+            isouter=True,
+        )
+        .where(
+            and_(
+                interval_result.c.person_id == person_id,
+                interval_result.c.criterion_id.is_not(None),
+                # interval_result.c.interval_start >= start_datetime,
+                # interval_result.c.interval_end <= end_datetime,
+                interval_result.c.run_id == run_id,
+            )
+        )
+        .distinct()
+    )
+
+    result = db.execute(query)
+    rows = result.fetchall()
+
+    return [
+        {
+            "criterion_id": row.criterion_id,
+            "concept_id": row.criterion_concept_id,
+            "concept_name": row.concept_name,
+            "cohort_category": row.cohort_category,
+        }
+        for row in rows
+    ]
+
+
+### SECOND ENDPOINT: Retrieve raw data for a person and criterion
+@app.get("/person/{person_id}/data", response_model=List[dict])
+def get_raw_data_for_person(
+    person_id: int,
+    concept_id: int,
+    start_datetime: datetime.datetime,
+    end_datetime: datetime.datetime,
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """
+    Retrieve raw data for a person based on a criterion ID within a specified time range.
+    """
+    # Step 1: Resolve domain_id from the concept table via criterion_id
+    domain_query = (
+        select(concept.c.domain_id)
+        # .join(criterion, criterion.c.concept_id == concept.c.concept_id)
+        .where(concept.c.concept_id == concept_id)
+    )
+    domain_result = db.execute(domain_query).scalar()
+
+    if not domain_result:
+        raise HTTPException(
+            status_code=404, detail=f"No domain found for concept_id {concept_id}"
+        )
+
+    # Step 2: Identify the correct table based on domain_id
+    table_mapping = {
+        "Measurement": (tables["measurement"], measurement),
+        "Visit": (tables["visit_occurrence"], visit_occurrence),
+        "Drug": (tables["drug_exposure"], drug_exposure),
+        "Observation": (tables["observation"], observation),
+        "Condition": (tables["condition_occurrence"], condition_occurrence),
+        "Procedure": (tables["procedure_occurrence"], procedure_occurrence),
+    }
+    target_table = table_mapping.get(domain_result)
+
+    if not target_table:
+        raise HTTPException(
+            status_code=400, detail=f"No table mapped for domain_id {domain_result}"
+        )
+
+    # condition_occurrence": {
+    #         "concept_id": "condition_concept_id",
+    #         "columns": [
+    #             "condition_start_datetime",
+    #             "condition_end_datetime",
+    #         ],
+    #         "sort_keys": ["condition_start_datetime"],
+    #     },
+
+    # Step 3: Query the relevant table
+    t = target_table[1]
+    columns = target_table[0]
+    col_concept = columns["concept_id"]
+
+    if t == measurement:
+        cols = select(
+            t.c.measurement_datetime.label("start_datetime"),
+            t.c.value_as_number.label("value"),
+            t.c.unit_concept_id,
+        )
+        col_datetime_start, col_datetime_end = (
+            "measurement_datetime",
+            "measurement_datetime",
+        )
+    elif t == observation:
+        cols = select(
+            t.c.observation_datetime.label("start_datetime"),
+            t.c.value_as_number.label("value"),
+        )
+        col_datetime_start, col_datetime_end = (
+            "observation_datetime",
+            "observation_datetime",
+        )
+    elif t == drug_exposure:
+        cols = select(
+            t.c.drug_exposure_start_datetime.label("start_datetime"),
+            t.c.drug_exposure_end_datetime.label("end_datetime"),
+            t.c.quantity.label("value"),
+            t.c.route_concept_id,
+        )
+        col_datetime_start, col_datetime_end = (
+            "drug_exposure_start_datetime",
+            "drug_exposure_end_datetime",
+        )
+    elif t == visit_occurrence:
+        cols = select(
+            t.c.visit_start_datetime.label("start_datetime"),
+            t.c.visit_end_datetime.label("end_datetime"),
+        )
+        col_datetime_start, col_datetime_end = (
+            "visit_start_datetime",
+            "visit_end_datetime",
+        )
+    elif t == condition_occurrence:
+        cols = select(
+            t.c.condition_start_datetime.label("start_datetime"),
+            t.c.condition_end_datetime.label("end_datetime"),
+        )
+        col_datetime_start, col_datetime_end = (
+            "condition_start_datetime",
+            "condition_end_datetime",
+        )
+    elif t == procedure_occurrence:
+        cols = select(
+            t.c.procedure_datetime.label("start_datetime"),
+            t.c.procedure_end_datetime.label("end_datetime"),
+        )
+        col_datetime_start, col_datetime_end = (
+            "procedure_datetime",
+            "procedure_end_datetime",
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"No columns mapped for table {t}")
+
+    query = cols.where(
+        and_(
+            t.c["person_id"] == person_id,
+            t.c[col_datetime_end] >= start_datetime,
+            t.c[col_datetime_start] <= end_datetime,
+            t.c[col_concept] == concept_id,
+        )
+    )
+
+    # Execute query and return results
+    result = db.execute(query)
+    columns = result.keys()
+    rows = result.fetchall()
+
+    return [dict(zip(columns, row)) for row in rows]
+
+
 #########################################
-# Person Data
+# Person Data (for OMOP viewer)
 
 
 tables = {
@@ -350,6 +559,103 @@ async def get_concepts(
     data = [dict(zip(columns, row)) for row in rows]
 
     return data
+
+
+@app.get("/full_day_coverage/{run_id}/", response_model=List[DayCoverage])
+def get_full_day_coverage_endpoint(
+    run_id: int,
+    person_id: int | None = None,
+    person_source_value: int | None = None,
+    valid_date: datetime.date = Query(
+        ..., description="The specified date to filter results."
+    ),
+    n_days: int = 10,
+    db: Session = Depends(get_db),
+) -> list[DayCoverage]:
+    """
+    Get full-day coverage intervals and combine with partial-day coverage entries
+    (filtered for cohort_category = 'POPULATION'),
+    including dates up to `n_days` before the specified valid_date.
+    """
+    if person_id is not None and person_source_value is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Only one of person_id or person_source_value can be provided",
+        )
+
+    if n_days > 10 or n_days < 1:
+        raise HTTPException(
+            status_code=400, detail="n_days must be between 1 and 10 (inclusive)"
+        )
+
+    # Calculate date range
+    date_lower_bound = valid_date - datetime.timedelta(days=n_days)
+
+    # Base filters
+    base_filters = and_(
+        full_day_coverage.c.run_id == run_id,
+        full_day_coverage.c.valid_date.between(date_lower_bound, valid_date),
+        or_(
+            and_(
+                full_day_coverage.c.criterion_id.is_(None),
+                full_day_coverage.c.pi_pair_id.is_(None),
+                full_day_coverage.c.cohort_category == "POPULATION_INTERVENTION",
+            ),
+            full_day_coverage.c.cohort_category == "BASE",
+        ),
+    )
+
+    partial_filters = and_(
+        partial_day_coverage.c.run_id == run_id,
+        partial_day_coverage.c.valid_date.between(date_lower_bound, valid_date),
+        partial_day_coverage.c.cohort_category == "POPULATION",
+    )
+
+    # Add person filters
+    if person_id:
+        base_filters = and_(base_filters, full_day_coverage.c.person_id == person_id)
+        partial_filters = and_(
+            partial_filters, partial_day_coverage.c.person_id == person_id
+        )
+    elif person_source_value:
+        base_filters = and_(
+            base_filters,
+            full_day_coverage.c.person_id == person.c.person_id,
+            person.c.person_source_value == person_source_value,
+        )
+        partial_filters = and_(
+            partial_filters,
+            partial_day_coverage.c.person_id == person.c.person_id,
+            person.c.person_source_value == person_source_value,
+        )
+
+    # Build queries for full_day and partial_day
+    full_day_query = select(
+        full_day_coverage.c.person_id,
+        full_day_coverage.c.cohort_category,
+        func.date(full_day_coverage.c.valid_date).label("valid_date"),
+    ).where(base_filters)
+
+    partial_day_query = select(
+        partial_day_coverage.c.person_id,
+        partial_day_coverage.c.cohort_category,
+        func.date(partial_day_coverage.c.valid_date).label("valid_date"),
+    ).where(partial_filters)
+
+    # Combine queries using UNION
+    combined_query = union(full_day_query, partial_day_query)
+
+    # Execute the combined query
+    result = db.execute(combined_query)
+    rows = result.fetchall()
+
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No coverage data found for run_id {run_id} within the specified date range.",
+        )
+    # Convert rows into the response model
+    return rows
 
 
 if __name__ == "__main__":
