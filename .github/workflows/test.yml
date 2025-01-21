@@ -58,7 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: 'recursive'
           token: ${{ secrets.SUBMODULE_PERSONAL_ACCESS_TOKEN }}
 
       - name: Test Recommendation Server
