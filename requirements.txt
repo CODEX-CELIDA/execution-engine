@@ -1,7 +1,7 @@
 requests==2.32.3
 python-dotenv==1.0.1
 pyyaml==6.0.2
-fhir.resources==8.0.0
+fhir.resources==7.1.0
 sympy==1.13.3
 pandas==2.2.3
 psycopg[binary]==3.2.4
