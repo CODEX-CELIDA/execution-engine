@@ -15,6 +15,8 @@ class TimeIntervalType(StrEnum):
     MORNING_SHIFT = "morning_shift"
     AFTERNOON_SHIFT = "afternoon_shift"
     NIGHT_SHIFT = "night_shift"
+    NIGHT_SHIFT_BEFORE_MIDNIGHT = "night_shift_before_midnight"
+    NIGHT_SHIFT_AFTER_MIDNIGHT = "night_shift_after_midnight"
     DAY = "day"
     ANY_TIME = "any_time"
 
@@ -258,6 +260,34 @@ class TemporalIndicatorCombination(CriterionCombination):
         """
 
         return cls.Presence(criterion, category, TimeIntervalType.NIGHT_SHIFT)
+
+    @classmethod
+    def NightShiftBeforeMidnight(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+    ) -> "TemporalIndicatorCombination":
+        """
+        Create a NightShiftBeforeMidnight combination of criteria.
+        """
+
+        return cls.Presence(
+            criterion, category, TimeIntervalType.NIGHT_SHIFT_BEFORE_MIDNIGHT
+        )
+
+    @classmethod
+    def NightShiftAfterMidnight(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+    ) -> "TemporalIndicatorCombination":
+        """
+        Create a NightShiftAfterMidnight combination of criteria.
+        """
+
+        return cls.Presence(
+            criterion, category, TimeIntervalType.NIGHT_SHIFT_AFTER_MIDNIGHT
+        )
 
     @classmethod
     def Day(
