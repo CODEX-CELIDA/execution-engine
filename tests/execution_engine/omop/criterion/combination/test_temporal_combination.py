@@ -683,6 +683,88 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
+            #######################
+            # Partial Night Shifts (before midnight)
+            #######################
+            (
+                TemporalIndicatorCombination.NightShiftBeforeMidnight(
+                    c1, category=CohortCategory.POPULATION
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-01 22:00:00+01:00"),
+                            pendulum.parse("2023-03-01 23:59:59+01:00"),
+                        ),
+                        (
+                            pendulum.parse("2023-03-02 22:00:00+01:00"),
+                            pendulum.parse("2023-03-02 23:59:59+01:00"),
+                        ),
+                    },
+                    2: set(),
+                    3: set(),
+                },
+            ),
+            (
+                TemporalIndicatorCombination.NightShiftBeforeMidnight(
+                    c2, category=CohortCategory.POPULATION
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-02 22:00:00+01:00"),
+                            pendulum.parse("2023-03-02 23:59:59+01:00"),
+                        ),
+                    },
+                    2: set(),
+                    3: set(),
+                },
+            ),
+            (
+                TemporalIndicatorCombination.NightShiftBeforeMidnight(
+                    c3, category=CohortCategory.POPULATION
+                ),
+                {1: set(), 2: set(), 3: set()},
+            ),
+            #######################
+            # Partial Night Shifts (after midnight)
+            #######################
+            (
+                TemporalIndicatorCombination.NightShiftAfterMidnight(
+                    c1, category=CohortCategory.POPULATION
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-02 00:00:00+01:00"),
+                            pendulum.parse("2023-03-02 05:59:59+01:00"),
+                        ),
+                    },
+                    2: set(),
+                    3: set(),
+                },
+            ),
+            (
+                TemporalIndicatorCombination.NightShiftAfterMidnight(
+                    c2, category=CohortCategory.POPULATION
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-03 00:00:00+01:00"),
+                            pendulum.parse("2023-03-03 05:59:59+01:00"),
+                        ),
+                    },
+                    2: set(),
+                    3: set(),
+                },
+            ),
+            (
+                TemporalIndicatorCombination.NightShiftAfterMidnight(
+                    c3, category=CohortCategory.POPULATION
+                ),
+                {1: set(), 2: set(), 3: set()},
+            ),
         ],
     )
     def test_combination_on_database(

@@ -44,6 +44,12 @@ class TimeIntervalSettings(BaseModel):
     night_shift: TimeInterval = TimeInterval(
         start=datetime.time(22, 0, 0), end=datetime.time(5, 59, 59)
     )
+    night_shift_before_midnight: TimeInterval = TimeInterval(
+        start=datetime.time(22, 0, 0), end=datetime.time(23, 59, 59)
+    )
+    night_shift_after_midnight: TimeInterval = TimeInterval(
+        start=datetime.time(0, 0, 0), end=datetime.time(5, 59, 59)
+    )
     day: TimeInterval = TimeInterval(
         start=datetime.time(0, 0, 0), end=datetime.time(23, 59, 59)
     )
