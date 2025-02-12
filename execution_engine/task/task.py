@@ -292,6 +292,8 @@ class Task:
                 min_count=self.expr.count_min,
                 max_count=self.expr.count_max,
             )
+        elif isinstance(self.expr, logic.CappedCount):
+            raise NotImplementedError("CappedMinCount is not implemented yet.")
         elif isinstance(self.expr, logic.AllOrNone):
             raise NotImplementedError("AllOrNone is not implemented yet.")
         else:
