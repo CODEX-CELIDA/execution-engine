@@ -191,7 +191,6 @@ class SequentialTaskRunner(TaskRunner):
         try:
             while len(self.completed_tasks) < len(self.tasks):
                 self.enqueue_ready_tasks()
-                logging.info(f"{len(self.completed_tasks)}/{len(self.tasks)} tasks")
 
                 if self.queue.empty() and not any(
                     task.status == TaskStatus.RUNNING for task in self.tasks
@@ -317,7 +316,6 @@ class ParallelTaskRunner(TaskRunner):
                     break
 
                 self.enqueue_ready_tasks()
-                logging.info(f"{len(self.completed_tasks)}/{len(self.tasks)} tasks")
 
                 if self.completed_tasks == self.enqueued_tasks and len(
                     self.completed_tasks
