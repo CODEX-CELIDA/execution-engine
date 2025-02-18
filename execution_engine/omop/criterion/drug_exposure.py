@@ -357,7 +357,6 @@ class DrugExposure(Criterion):
         Return a dictionary representation of the criterion.
         """
         return {
-            "id": self._id,
             "category": self._category.value,
             "ingredient_concept": self._ingredient_concept.model_dump(),
             "dose": (
