@@ -13,11 +13,13 @@ from execution_engine.omop.criterion.condition_occurrence import ConditionOccurr
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
+from execution_engine.omop.criterion.combination.logical import LogicalCriterionCombination
 from execution_engine.task.process import get_processing_module
 from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
+    concept_delir_screening,
     concept_body_weight,
     concept_covid19,
     concept_heparin_ingredient,
@@ -285,6 +287,10 @@ bodyweight_measurement_with_forward_fill = Measurement(
     static=False,
 )
 
+delir_screening = ProcedureOccurrence(
+    category=CohortCategory.POPULATION,
+    concept=concept_delir_screening,
+)
 
 class TestCriterionCombinationDatabase(TestCriterion):
     """
@@ -304,12 +310,14 @@ class TestCriterionCombinationDatabase(TestCriterion):
         c3.id = 3
         bodyweight_measurement_without_forward_fill.id = 4
         bodyweight_measurement_with_forward_fill.id = 5
+        delir_screening.id = 6
 
         self.register_criterion(c1, db_session)
         self.register_criterion(c2, db_session)
         self.register_criterion(c3, db_session)
         self.register_criterion(bodyweight_measurement_without_forward_fill, db_session)
         self.register_criterion(bodyweight_measurement_with_forward_fill, db_session)
+        self.register_criterion(delir_screening, db_session)
 
         return [
             c1,
@@ -317,6 +325,7 @@ class TestCriterionCombinationDatabase(TestCriterion):
             c3,
             bodyweight_measurement_without_forward_fill,
             bodyweight_measurement_with_forward_fill,
+            delir_screening,
         ]
 
     def run_criteria_test(
@@ -1476,3 +1485,141 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
             observation_window,
             persons,
         )
+
+class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase):
+    """This test ensures that counting criteria with minimum count
+    thresholds adapt to the temporal interval of the population
+    criterion.
+
+    As a concrete test case, this class applies an intervention
+    criterion that requires a procedure to be performed in at least
+    two of three shifts for each day. However, if the hospital stay
+    ends during a given day, shifts on that day but outside the
+    hospital stay should not count towards the threshold of the
+    criterion.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(name="observation", start="2025-02-19 13:55:00Z", end="2025-02-22 11:00:00Z")
+
+    def patient_events(self, db_session, visit_occurrence):
+        # Two screenings on the 21st
+        e1 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 01:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 01:01:00+01:00"),
+        )
+        e2 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 10:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 10:01:00+01:00"),
+        )
+        # e3 = create_procedure(
+        #     vo=visit_occurrence,
+        #     procedure_concept_id=concept_delir_screening.concept_id,
+        #     start_datetime=pendulum.parse("2025-02-21 17:00:00+01:00"),
+        #     end_datetime=pendulum.parse("2025-02-21 17:01:00+01:00"),
+        # )
+        # One screening on 22nd before discharge. No other screenings
+        # on that day.
+        e4 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 05:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 05:01:00+01:00"),
+        )
+        db_session.add_all([e1,e2,e4])
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            (
+                LogicalCriterionCombination.AtLeast(
+                    *[
+                        TemporalIndicatorCombination.Day(
+                            criterion=shift_class(
+                                criterion=delir_screening,
+                                category=CohortCategory.INTERVENTION
+                            ),
+                            category=CohortCategory.INTERVENTION
+                        )
+                        for shift_class in [
+                            TemporalIndicatorCombination.NightShiftAfterMidnight,
+                            TemporalIndicatorCombination.MorningShift,
+                            TemporalIndicatorCombination.AfternoonShift,
+                            TemporalIndicatorCombination.NightShiftBeforeMidnight,
+                        ]
+                    ],
+                    threshold=2,
+                    category=CohortCategory.INTERVENTION,
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-02-21 00:00:00+01:00"),
+                            pendulum.parse("2023-02-21 23:59:59+01:00"),
+                        ),
+                        # The criterion should be fulfilled on the day
+                        # of the discharge even though the actual
+                        # number of screenings on that day is just 1.
+                        (
+                            pendulum.parse("2023-02-22 00:00:00+01:00"),
+                            pendulum.parse("2023-02-22 23:59:59+01:00"),
+                        ),
+                    }
+                },
+            ),
+        ],
+    )
+    def test_at_least_combination_on_database(
+        self,
+        person,
+        db_session,
+        base_criterion,
+        combination,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = [person[0]] # only one person
+        vos = [
+            create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end - datetime.timedelta(hours=3),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            for person in persons
+        ]
+
+        self.patient_events(db_session, vos[0])
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_criterion_combination(
+            db_session, combination, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.INTERVENTION,
+        )
+
+        df = df.query("interval_type == 'POSITIVE'")
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = set(
+                result[["interval_start", "interval_end"]].itertuples(
+                    index=False, name=None
+                )
+            )
+
+            assert result_tuples == expected[person.person_id]
