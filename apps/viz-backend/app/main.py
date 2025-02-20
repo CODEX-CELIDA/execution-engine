@@ -150,7 +150,7 @@ def get_patients(run_id: int, db: Session = Depends(get_db)) -> list[int]:
 def get_intervals(
     run_id: int,
     person_id: int | None = None,
-    person_source_value: int | None = None,
+    person_source_value: str | None = None,
     db: Session = Depends(get_db),
 ) -> dict:
     """
