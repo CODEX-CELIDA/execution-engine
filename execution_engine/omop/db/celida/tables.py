@@ -37,7 +37,6 @@ IntervalTypeEnum = Enum(IntervalType, name="interval_type", schema="public")
 CohortCategoryEnum = Enum(CohortCategory, name="cohort_category", schema="public")
 
 
-
 class Recommendation(Base):  # noqa: D101
     __tablename__ = "recommendation"
     __table_args__ = {"schema": SCHEMA_NAME}
@@ -49,6 +48,7 @@ class Recommendation(Base):  # noqa: D101
     )
     recommendation_name: Mapped[str]
     recommendation_title: Mapped[str]
+    recommendation_description: Mapped[str]
     recommendation_url: Mapped[str] = mapped_column(
         String(255), nullable=False, index=True
     )
@@ -91,6 +91,13 @@ class Criterion(Base):  # noqa: D101
     )
     # todo: add link to recommendation or 1:n to population/intervention pair?
     criterion_description: Mapped[str]
+    criterion_concept_id: Mapped[int] = mapped_column(
+        BigInteger(),
+        # ForeignKey(f"{OMOP_SCHEMA_NAME}.concept.concept_id"),
+        index=True,
+    )
+    criterion_concept_name: Mapped[str]
+    criterion_json: Mapped[str]
     criterion_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
 
 
