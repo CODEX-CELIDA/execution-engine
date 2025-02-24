@@ -8,7 +8,7 @@ from fhir.resources.dosage import Dosage as FHIRDosage
 from execution_engine.clients import omopdb
 from execution_engine.constants import EXT_DOSAGE_CONDITION, CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
-from execution_engine.converter.converter import (
+from execution_engine.converter.criterion import (
     get_extension_by_url,
     parse_code,
     parse_value,

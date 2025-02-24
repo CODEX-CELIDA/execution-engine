@@ -8,7 +8,7 @@ from fhir.resources.extension import Extension
 from fhir.resources.quantity import Quantity
 from fhir.resources.range import Range
 
-from execution_engine.converter.converter import (
+from execution_engine.converter.criterion import (
     CriterionConverter,
     CriterionConverterFactory,
     code_display,

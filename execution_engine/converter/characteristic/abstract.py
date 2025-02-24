@@ -4,7 +4,7 @@ from typing import Any, Type
 from fhir.resources.coding import Coding
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
-from execution_engine.converter.converter import CriterionConverter
+from execution_engine.converter.criterion import CriterionConverter
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.vocabulary import standard_vocabulary

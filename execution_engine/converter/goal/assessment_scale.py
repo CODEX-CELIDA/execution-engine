@@ -1,7 +1,7 @@
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
 from execution_engine.constants import SCT_ASSESSMENT_SCALE, CohortCategory
-from execution_engine.converter.converter import parse_code_value
+from execution_engine.converter.criterion import parse_code_value
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion

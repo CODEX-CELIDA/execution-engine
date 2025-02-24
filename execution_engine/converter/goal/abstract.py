@@ -3,7 +3,7 @@ from typing import Type
 
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from execution_engine.converter.converter import CriterionConverter
+from execution_engine.converter.criterion import CriterionConverter
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.vocabulary import AbstractVocabulary
 

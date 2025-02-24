@@ -3,7 +3,8 @@ from abc import ABC, abstractmethod
 from fhir.resources.evidencevariable import EvidenceVariable
 
 from execution_engine import fhir
-from execution_engine.converter.converter import CriterionConverterFactory
+from execution_engine.converter.criterion import CriterionConverterFactory
+from execution_engine.converter.temporal import TemporalIndicatorConverterFactory
 from execution_engine.omop.criterion.combination.combination import CriterionCombination
 
 
@@ -15,10 +16,12 @@ class FhirRecommendationParserInterface(ABC):
         characteristic_converters: CriterionConverterFactory,
         action_converters: CriterionConverterFactory,
         goal_converters: CriterionConverterFactory,
+        time_from_event_converters: TemporalIndicatorConverterFactory,
     ):
         self.characteristics_converters = characteristic_converters
         self.action_converters = action_converters
         self.goal_converters = goal_converters
+        self.time_from_event_converters = time_from_event_converters
 
     @abstractmethod
     def parse_characteristics(self, ev: EvidenceVariable) -> CriterionCombination:

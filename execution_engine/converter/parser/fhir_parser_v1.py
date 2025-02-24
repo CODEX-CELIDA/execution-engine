@@ -3,6 +3,7 @@ from typing import Union, cast
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
     EvidenceVariableCharacteristic,
+    EvidenceVariableCharacteristicTimeFromEvent,
 )
 from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction
 
@@ -16,6 +17,9 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.combination import CriterionCombination
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
+)
+from execution_engine.omop.criterion.combination.temporal import (
+    TemporalIndicatorCombination,
 )
 
 
@@ -52,19 +56,87 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
     combination methods).
     """
 
+    def parse_time_from_event(
+        self,
+        tfes: list[EvidenceVariableCharacteristicTimeFromEvent],
+        combo: CriterionCombination,
+        is_root: bool,
+    ) -> CriterionCombination:
+        """
+        Parses the timeFromEvent elements and updates the CriterionCombination.
+
+        Root element timeFromEvent specifies the time within which the population is valid.
+        Non-root elements act as filters for the criteria they are attached to, meaning only criteria within the timeFromEvent timeframe will be observed to determine if the patient is part of the population.
+
+        Args:
+            tfes (list[EvidenceVariableCharacteristicTimeFromEvent]): List of timeFromEvent elements.
+            combo (CriterionCombination): The criterion combination to update.
+            is_root (bool): Indicates if the timeFromEvent is on the root characteristic node.
+
+        Returns:
+            CriterionCombination: Updated criterion combination.
+        """
+        if len(tfes) != 1:
+            raise ValueError(f"Expected exactly 1 timeFromEvent, got {len(tfes)}")
+
+        tfe = tfes[0]
+
+        converter = self.time_from_event_converters.get(tfe)
+
+        result: CriterionCombination
+
+        if is_root:
+            crit = converter.to_temporal_combination(mode="population")
+            assert combo.operator == LogicalCriterionCombination.Operator(
+                "AND"
+            ), "Expected AND Operator"
+            combo.add(crit)
+
+            result = combo
+        else:
+            temporal_combo = converter.to_temporal_combination(mode="filter")
+
+            assert isinstance(combo, TemporalIndicatorCombination)
+            temporal_combo = cast(TemporalIndicatorCombination, temporal_combo)
+
+            temporal_combo.add(combo)
+
+            result = temporal_combo
+
+        return result
+
     def parse_characteristics(self, ev: EvidenceVariable) -> CriterionCombination:
         """
         Parses the EvidenceVariable characteristics and returns either a single Criterion
-        or a CriterionCombination
+        or a CriterionCombination.
+
+        Root element timeFromEvent specifies the time within which the population is valid.
+        Non-root elements act as filters for the criteria they are attached to, meaning only criteria within the timeFromEvent timeframe will be observed to determine if the patient is part of the population.
+
+        Args:
+            ev (EvidenceVariable): The evidence variable to parse.
+
+        Returns:
+            CriterionCombination: The parsed criterion combination.
         """
 
         def build_criterion(
-            characteristic: EvidenceVariableCharacteristic,
+            characteristic: EvidenceVariableCharacteristic, is_root: bool
         ) -> Union[Criterion, CriterionCombination]:
             """
             Recursively build Criterion or CriterionCombination from a single
             EvidenceVariableCharacteristic.
+
+            Args:
+                characteristic (EvidenceVariableCharacteristic): The characteristic to build from.
+                is_root (bool): Indicates if the characteristic is the root element.
+
+            Returns:
+                Union[Criterion, CriterionCombination]: The built criterion or criterion combination.
             """
+
+            combo: CriterionCombination
+
             # If this characteristic is itself a combination
             if characteristic.definitionByCombination is not None:
                 operator = characteristic_code_to_criterion_combination_operator(
@@ -77,11 +149,16 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                 )
 
                 for sub_char in characteristic.definitionByCombination.characteristic:
-                    combo.add(build_criterion(sub_char))
+                    combo.add(build_criterion(sub_char, is_root=False))
 
                 if characteristic.exclude:
                     combo = LogicalCriterionCombination.Not(
                         combo, CohortCategory.POPULATION
+                    )
+
+                if characteristic.timeFromEvent is not None:
+                    combo = self.parse_time_from_event(
+                        characteristic.timeFromEvent, combo, is_root=is_root
                     )
 
                 return combo
@@ -99,7 +176,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
             len(ev.characteristic) == 1
             and ev.characteristic[0].definitionByCombination is not None
         ):
-            combo = build_criterion(ev.characteristic[0])
+            combo = build_criterion(ev.characteristic[0], is_root=True)
             assert isinstance(combo, CriterionCombination)
             return combo
 
@@ -111,7 +188,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
             ),
         )
         for c in ev.characteristic:
-            combo.add(build_criterion(c))
+            combo.add(build_criterion(c, is_root=True))
 
         return combo
 

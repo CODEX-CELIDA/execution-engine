@@ -3,7 +3,7 @@ from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction
 
 from execution_engine import constants
 from execution_engine.constants import CohortCategory
-from execution_engine.converter.converter import get_extension_by_url
+from execution_engine.converter.criterion import get_extension_by_url
 from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.criterion.combination.logical import (

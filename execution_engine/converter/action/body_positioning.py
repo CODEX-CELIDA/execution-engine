@@ -2,7 +2,7 @@ from typing import Self
 
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
-from execution_engine.converter.converter import parse_code
+from execution_engine.converter.criterion import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
