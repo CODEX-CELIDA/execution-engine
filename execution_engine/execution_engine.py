@@ -348,7 +348,8 @@ class ExecutionEngine:
                         criterion_concept_id=(
                             criterion.concept.concept_id
                             if hasattr(criterion, "concept")
-                            else OMOPConcepts.UNKNOWN
+                            and criterion.concept.concept_id >= 0
+                            else OMOPConcepts.UNKNOWN.value
                         ),
                         criterion_json=criterion.json(),
                         criterion_description=criterion.description(),
