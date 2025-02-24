@@ -46,7 +46,7 @@ class CohortCategory(StrEnum):
         """
         Get the string representation of the category.
         """
-        return str(self)
+        return f"{self.__class__.__name__}.{self.name}"
 
     def __str__(self) -> str:
         """
