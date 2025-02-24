@@ -4,7 +4,7 @@ from typing import Tuple, Type
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.element import Element
 from fhir.resources.extension import Extension
-from fhir.resources.fhirtypes import Boolean
+from fhir.resources.fhirtypes import BooleanType
 from fhir.resources.quantity import Quantity
 from fhir.resources.range import Range
 
@@ -21,7 +21,7 @@ from execution_engine.util.value import Value, ValueConcept, ValueNumber
 @staticmethod
 def select_value(
     root: Element, value_prefix: str
-) -> CodeableConcept | Quantity | Range | Boolean:
+) -> CodeableConcept | Quantity | Range | BooleanType:
     """
     Selects the value of a characteristic by datatype.
     """

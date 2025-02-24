@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from fhir.resources import construct_fhir_element
+from fhir.resources import get_fhir_model_class
 
 from execution_engine.constants import CS_PLAN_DEFINITION_TYPE
 from execution_engine.fhir.client import FHIRClient
@@ -20,8 +20,8 @@ class RecommendationFixtures:
 
     @pytest.fixture
     def mock_fetch_resource_unknown(self):
-        plan_definition = construct_fhir_element(
-            "PlanDefinition",
+
+        plan_definition = get_fhir_model_class("PlanDefinition").model_validate(
             {
                 "status": "draft",
                 "action": [],
@@ -39,8 +39,7 @@ class RecommendationFixtures:
 
     @pytest.fixture
     def mock_fetch_resource_no_partOf(self):
-        plan_definition = construct_fhir_element(
-            "PlanDefinition",
+        plan_definition = get_fhir_model_class("PlanDefinition").model_validate(
             {
                 "status": "draft",
                 "action": [],
@@ -62,8 +61,8 @@ class TestRecommendation(RecommendationFixtures):
 
     @pytest.fixture
     def mock_fetch_recommendation(self, test_class):
-        plan_definition = construct_fhir_element(
-            "PlanDefinition", {"status": "draft", "action": []}
+        plan_definition = get_fhir_model_class("PlanDefinition").model_validate(
+            {"status": "draft", "action": []}
         )
         with patch.object(
             test_class, "fetch_recommendation", return_value=plan_definition
@@ -159,8 +158,8 @@ class TestRecommendationPlan(RecommendationFixtures):
 
     @pytest.fixture
     def mock_fetch_recommendation_plan(self):
-        plan_definition = construct_fhir_element(
-            "PlanDefinition", {"status": "draft", "action": []}
+        plan_definition = get_fhir_model_class("PlanDefinition").model_validate(
+            {"status": "draft", "action": []}
         )
         with patch.object(
             RecommendationPlan,
@@ -171,8 +170,7 @@ class TestRecommendationPlan(RecommendationFixtures):
 
     @pytest.fixture
     def mock_fetch_resource_goals(self):
-        plan_definition = construct_fhir_element(
-            "PlanDefinition",
+        plan_definition = get_fhir_model_class("PlanDefinition").model_validate(
             {
                 "status": "draft",
                 "action": [],
