@@ -953,7 +953,10 @@ class TestRecommendationBase(ABC):
                     t.c.cohort_category,
                     t.c.valid_date,
                 )
-                .outerjoin(PopulationInterventionPair)
+                .outerjoin(
+                    PopulationInterventionPair,
+                    PopulationInterventionPair.pi_pair_id == t.c.pi_pair_id,
+                )
                 .where(t.c.criterion_id.is_(None))
                 .where(t.c.cohort_category.in_(category))
             )
