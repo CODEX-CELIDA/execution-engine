@@ -11,6 +11,7 @@ from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
+from execution_engine.omop.criterion.meta import SignatureReprABCMeta
 from execution_engine.omop.db.base import DateTimeWithTimeZone
 from execution_engine.omop.db.celida.tables import IntervalTypeEnum, ResultInterval
 from execution_engine.omop.db.omop.tables import (
@@ -88,15 +89,12 @@ def create_conditional_interval_column(condition: ColumnElement) -> ColumnElemen
     )
 
 
-class AbstractCriterion(Serializable, ABC):
+class AbstractCriterion(Serializable, ABC, metaclass=SignatureReprABCMeta):
     """
     Abstract base class for Criterion and CriterionCombination.
     """
 
-    def __init__(
-        self, category: CohortCategory, id: int | None = None
-    ) -> None:
-        self._id = id
+    def __init__(self, category: CohortCategory) -> None:
 
         assert isinstance(
             category, CohortCategory
@@ -128,12 +126,6 @@ class AbstractCriterion(Serializable, ABC):
         Return a description of the criterion.
         """
         raise NotImplementedError()
-
-    def __repr__(self) -> str:
-        """
-        Get the representation of the criterion.
-        """
-        return f"{self.type}.{self._category.name}.{self.description()}"
 
     def __str__(self) -> str:
         """
@@ -212,10 +204,8 @@ class Criterion(AbstractCriterion):
     Flag to indicate whether the filter_datetime function has been called.
     """
 
-    def __init__(
-        self, category: CohortCategory, id: int | None = None
-    ) -> None:
-        super().__init__(category=category, id=id)
+    def __init__(self, category: CohortCategory) -> None:
+        super().__init__(category=category)
 
     def _set_omop_variables_from_domain(self, domain_id: str) -> None:
         """

@@ -19,7 +19,7 @@ class Concept(BaseModel, frozen=True):  # type: ignore
         """Creates a concept from a pandas Series."""
         return Concept(**series.to_dict())
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         """
         Returns a string representation of the concept.
         """
@@ -30,14 +30,14 @@ class Concept(BaseModel, frozen=True):  # type: ignore
 
         return base
 
-    def __str__(self) -> str:
-        """
-        Returns a string representation of the concept.
-        """
-        if self.vocabulary_id == "UCUM":
-            return str(self.concept_code)
-
-        return str(self.concept_name)
+    # def __str__(self) -> str:
+    #     """
+    #     Returns a string representation of the concept.
+    #     """
+    #     if self.vocabulary_id == "UCUM":
+    #         return str(self.concept_code)
+    #
+    #     return str(self.concept_name)
 
     def is_custom(self) -> bool:
         """

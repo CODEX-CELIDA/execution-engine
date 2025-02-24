@@ -1,4 +1,3 @@
-from abc import ABC
 from typing import Any, Dict, cast
 
 from sqlalchemy.sql import Select
@@ -6,6 +5,7 @@ from sqlalchemy.sql import Select
 from execution_engine.constants import CohortCategory, OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.meta import SignatureReprMeta
 from execution_engine.util.types import Timing
 from execution_engine.util.value import Value
 from execution_engine.util.value.factory import value_factory
@@ -25,7 +25,7 @@ STATIC_CLINICAL_CONCEPTS = [
 # TODO: Only use weight etc from the current encounter/visit!
 
 
-class ConceptCriterion(Criterion, ABC):
+class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
     """
     Abstract class for a criterion based on an OMOP concept and optional value.
 
@@ -43,13 +43,12 @@ class ConceptCriterion(Criterion, ABC):
         self,
         category: CohortCategory,
         concept: Concept,
-        id: int | None = None,
         value: Value | None = None,
         static: bool | None = None,
         timing: Timing | None = None,
         override_value_required: bool | None = None,
     ):
-        super().__init__(category=category, id=id)
+        super().__init__(category=category)
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
