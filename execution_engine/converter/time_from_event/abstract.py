@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import cast
 
 from fhir.resources.element import Element
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristicTimeFromEvent
@@ -9,8 +10,8 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.temporal import (
     TemporalIndicatorCombination,
 )
-from execution_engine.omop.vocabulary import AbstractStandardVocabulary
-from execution_engine.util.value import Value
+from execution_engine.omop.vocabulary import AbstractVocabulary
+from execution_engine.util.value import ValueNumeric
 
 
 class TemporalIndicator(ABC):
@@ -47,13 +48,13 @@ class TimeFromEvent(TemporalIndicator):
     EvidenceVariable.characteristic.timeFromEvent in the context of CPG-on-EBM-on-FHIR.
     """
 
-    _event_vocabulary: AbstractStandardVocabulary
+    _event_vocabulary: type[AbstractVocabulary]
     _event_code: str
-    _value: Value | None
+    _value: ValueNumeric | None
 
     def __init__(
         self,
-        value: Value | None,
+        value: ValueNumeric | None,
     ) -> None:
         """
         Initialize the drug administration action.
@@ -71,7 +72,7 @@ class TimeFromEvent(TemporalIndicator):
         ), f"Expected timeFromEvent type, got {fhir.__class__.__name__}"
 
         tfe: EvidenceVariableCharacteristicTimeFromEvent = fhir
-        value = parse_value(tfe.range)
+        value = cast(ValueNumeric, parse_value(tfe.range))
 
         return cls(value)
 
