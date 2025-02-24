@@ -275,5 +275,11 @@ class StandardVocabulary:
         """
         return omopdb.concept_related_to(ancestor, descendant, relationship_id)
 
+    def get_vocabulary(self, system_uri: str) -> AbstractVocabulary:
+        """
+        Retrieve the vocabulary for the given system URI.
+        """
+        return self._vf.get(system_uri)
+
 
 standard_vocabulary = StandardVocabulary()

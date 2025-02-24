@@ -23,10 +23,8 @@ class ActivePatients(VisitOccurrence):
     Select only patients who are still hospitalized.
     """
 
-    def __init__(self, id: int | None = None) -> None:
-        # TODO(jmoringe): why not use the constructor? super().__init__(id=id)
+    def __init__(self) -> None:
         self._category = CohortCategory.BASE
-        self._id = id
 
         if get_config().episode_of_care_visit_detail:
             self._set_omop_variables_from_domain("visit_detail")

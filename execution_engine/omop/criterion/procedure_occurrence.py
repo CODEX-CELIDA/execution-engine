@@ -29,14 +29,12 @@ class ProcedureOccurrence(ContinuousCriterion):
         value: ValueNumber | None = None,
         timing: Timing | None = None,
         static: bool | None = None,
-        id: int | None = None,
     ) -> None:
         super().__init__(
             category=category,
             concept=concept,
             value=value,
             static=static,
-            id=id,
         )
 
         self._set_omop_variables_from_domain("procedure")
