@@ -33,12 +33,11 @@ class DrugExposure(Criterion):
         ingredient_concept: Concept,
         dose: Dosage | None,
         route: Concept | None,
-        id: int | None = None,
     ) -> None:
         """
         Initialize the drug administration action.
         """
-        super().__init__(category=category, id=id)
+        super().__init__(category=category)
         self._set_omop_variables_from_domain("drug")
         self._ingredient_concept = ingredient_concept
 
