@@ -62,11 +62,6 @@ def view(
     :param schema: The schema name.
     :return: The table object.
     """
-    t = table(name, schema=schema)
-
-    t._columns._populate_separate_keys(
-        col._make_proxy(t) for col in selectable.selected_columns
-    )
 
     def view_exists(
         ddl: DDLElement, target: MetaData, connection: Connection, **kw: Any
@@ -85,6 +80,16 @@ def view(
         """
         return not view_exists(ddl, target, connection, **kw)
 
+    t = table(
+        name,
+        *(
+            sa.Column(c.name, c.type, primary_key=c.primary_key)
+            for c in selectable.selected_columns
+        ),
+        schema=schema
+    )
+    t.primary_key.update(c for c in t.c if c.primary_key)
+
     sa.event.listen(
         metadata,
         "after_create",
@@ -95,4 +100,5 @@ def view(
         "before_drop",
         DropView(name, schema).execute_if(callable_=view_exists),
     )
+
     return t
