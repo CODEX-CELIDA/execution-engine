@@ -1,3 +1,4 @@
+import json
 from abc import ABC, abstractmethod
 from typing import Tuple, Type
 
@@ -18,7 +19,6 @@ from execution_engine.omop.vocabulary import standard_vocabulary
 from execution_engine.util.value import Value, ValueConcept, ValueNumber
 
 
-@staticmethod
 def select_value(
     root: Element, value_prefix: str
 ) -> CodeableConcept | Quantity | Range | BooleanType:
@@ -30,7 +30,10 @@ def select_value(
         value = getattr(root, element_name, None)
         if value is not None:
             return value
-    raise ValueError("No value found")
+    raise ValueError(
+        f"No value found for prefix '{value_prefix}' in element of type '{type(root).__name__}'. "
+        f"Expected one of the following datatypes: CodeableConcept, Quantity, Range, Boolean."
+    )
 
 
 def parse_code_value(
@@ -62,17 +65,23 @@ def code_display(code: CodeableConcept) -> str:
     return cc.code
 
 
-def parse_value(value_parent: Element, value_prefix: str) -> Value:
+def parse_value(
+    value_parent: Element, value_prefix: str | None = None, standard: bool = True
+) -> Value:
     """
     Parses a value from a FHIR element.
     """
-    value = select_value(value_parent, value_prefix)
+    if value_prefix is None:
+        value = value_parent
+    else:
+        value = select_value(value_parent, value_prefix)
+
     value_obj: Value
 
     if isinstance(value, CodeableConcept):
         cc = get_coding(value)
-        value_omop_concept = standard_vocabulary.get_standard_concept(
-            system_uri=cc.system, concept=cc.code
+        value_omop_concept = standard_vocabulary.get_concept(
+            system_uri=cc.system, concept=cc.code, standard=standard
         )
         value_obj = ValueConcept(value=value_omop_concept)
     elif isinstance(value, Quantity):
@@ -173,6 +182,9 @@ class CriterionConverterFactory:
         message = f"Cannot find a converter for the given FHIR element: {fhir.__class__.__name__}"
         if fhir.id is not None:
             message += f' (id="{fhir.id}")'
+
+        message += f"\nFHIR element details: {json.dumps(fhir.model_dump(), indent=2)}"
+
         raise ValueError(message)
 
 

@@ -4,7 +4,7 @@ from typing import Self, Type, final
 from fhir.resources.timing import Timing as FHIRTiming
 
 from execution_engine.constants import CohortCategory
-from execution_engine.converter.converter import CriterionConverter, parse_code
+from execution_engine.converter.criterion import CriterionConverter, parse_code
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.fhir.util import get_coding

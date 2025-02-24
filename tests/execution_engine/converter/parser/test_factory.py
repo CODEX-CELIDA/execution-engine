@@ -1,7 +1,7 @@
 import pytest
 
 from execution_engine.builder import ExecutionEngineBuilder
-from execution_engine.converter.converter import CriterionConverterFactory
+from execution_engine.converter.criterion import CriterionConverterFactory
 from execution_engine.converter.parser.factory import FhirRecommendationParserFactory
 from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
 from execution_engine.converter.parser.fhir_parser_v2 import FhirRecommendationParserV2

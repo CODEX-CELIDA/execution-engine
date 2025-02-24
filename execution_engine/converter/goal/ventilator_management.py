@@ -6,7 +6,7 @@ from execution_engine.constants import (
     SCT_VENTILATOR_CARE_AND_ADJUSTMENT,
     CohortCategory,
 )
-from execution_engine.converter.converter import parse_code, parse_value
+from execution_engine.converter.criterion import parse_code, parse_value
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion

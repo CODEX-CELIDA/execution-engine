@@ -5,7 +5,7 @@ from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
 from execution_engine.constants import CohortCategory
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
-from execution_engine.converter.converter import parse_code, parse_value
+from execution_engine.converter.criterion import parse_code, parse_value
 from execution_engine.omop.criterion.concept import ConceptCriterion
 
 
