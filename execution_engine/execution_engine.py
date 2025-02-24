@@ -277,7 +277,7 @@ class ExecutionEngine:
             ).encode()
 
             rec_json: bytes = recommendation.json()
-            logging.info(f"Storing recommendation {recommendation}")
+            logging.info(f"Storing recommendation {recommendation.description}")
             update_query = (
                 update(recommendation_table)
                 .where(recommendation_table.recommendation_id == recommendation.id)

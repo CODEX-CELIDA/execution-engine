@@ -158,7 +158,7 @@ def forward_fill_intervals(intervals: list[Interval]) -> list[Interval]:
     The last interval for each person is not extended (but may be merged with the previous intervals, if they
     are of the same type).
 
-    :param data: The intervals per person.
+    :param intervals: The intervals per person.
     :return: A DataFrame with the forward filled intervals.
     """
     all_intervals = sorted(
@@ -234,7 +234,7 @@ def complement_intervals(
     The complement of an interval is the interval that is not covered by the original interval.
     The complement of an interval is always of the same type as the original interval.
 
-    :param data: The intervals per person.
+    :param intervals: The intervals per person.
     :param type_: The type of the complement intervals.
     :return: A DataFrame with the complement intervals.
     """

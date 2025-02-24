@@ -3024,7 +3024,7 @@ class TestIntervalFilling(ProcessTest):
                 ],
             )
             df["interval_start"] = pd.to_datetime(df["interval_start"])
-            df["interval_end"] = pd.to_datetime(df["interval_end"])
+            df["interval_end"] = pd.to_datetime(df["interval_end"], utc=True)
 
             return df
 

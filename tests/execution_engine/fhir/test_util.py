@@ -10,9 +10,9 @@ from execution_engine.fhir.util import get_coding, get_extension
 class TestUtils:
     @pytest.fixture
     def codeable_concept(self):
-        cc = CodeableConcept.construct(
+        cc = CodeableConcept.model_construct(
             coding=[
-                Coding.construct(
+                Coding.model_construct(
                     system="http://example.com/system",
                     code="example_code",
                     display="Example Code",
@@ -34,16 +34,16 @@ class TestUtils:
         assert coding.display == "Example Code"
 
     def test_get_coding_fail(self):
-        cc = CodeableConcept.construct()
+        cc = CodeableConcept.model_construct()
         with pytest.raises(ValueError):
             get_coding(cc)
 
     @pytest.fixture
     def element_with_extension(self):
-        ext = Extension.construct(
+        ext = Extension.model_construct(
             url="http://example.com/extension", valueString="test"
         )
-        elem = Element.construct(extension=[ext])
+        elem = Element.model_construct(extension=[ext])
         return elem
 
     def test_get_extension(self, element_with_extension):
@@ -60,6 +60,6 @@ class TestUtils:
         assert extension is None
 
     def test_get_extension_no_extensions(self):
-        elem = Element.construct()
+        elem = Element.model_construct()
         extension = get_extension(elem, "http://example.com/extension")
         assert extension is None

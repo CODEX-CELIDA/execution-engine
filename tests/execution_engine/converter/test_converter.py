@@ -25,31 +25,31 @@ from execution_engine.util.value import ValueConcept, ValueNumber
 
 class TestSelectValue:
     def test_select_value_codeable_concept(self):
-        cc = CodeableConcept.construct()
-        elem = Extension.construct(valueCodeableConcept=cc)
+        cc = CodeableConcept.model_construct()
+        elem = Extension.model_construct(valueCodeableConcept=cc)
         value = select_value(elem, "value")
         assert value == cc
 
     def test_select_value_quantity(self):
-        q = Quantity.construct()
-        elem = Extension.construct(valueQuantity=q)
+        q = Quantity.model_construct()
+        elem = Extension.model_construct(valueQuantity=q)
         value = select_value(elem, "value")
         assert value == q
 
     def test_select_value_range(self):
-        r = Range.construct()
-        elem = Extension.construct(valueRange=r)
+        r = Range.model_construct()
+        elem = Extension.model_construct(valueRange=r)
         value = select_value(elem, "value")
         assert value == r
 
     def test_select_value_boolean(self):
         b = True
-        elem = Extension.construct(valueBoolean=b)
+        elem = Extension.model_construct(valueBoolean=b)
         value = select_value(elem, "value")
         assert value == b
 
     def test_select_value_not_found(self):
-        elem = Extension.construct()
+        elem = Extension.model_construct()
         with pytest.raises(ValueError):
             select_value(elem, "value")
 
@@ -62,8 +62,8 @@ class TestParseCode:
             mock_get_standard_concept,
         )
 
-        coding = Coding.construct(system="http://example.com", code="123")
-        codeable_concept = CodeableConcept.construct(coding=[coding])
+        coding = Coding.model_construct(system="http://example.com", code="123")
+        codeable_concept = CodeableConcept.model_construct(coding=[coding])
         parse_code(codeable_concept)
 
         mock_get_standard_concept.assert_called_once_with("http://example.com", "123")
@@ -71,16 +71,16 @@ class TestParseCode:
 
 class TestCodeDisplay:
     def test_code_display_with_display(self):
-        coding = Coding.construct(
+        coding = Coding.model_construct(
             system="http://example.com", code="123", display="Example display"
         )
-        codeable_concept = CodeableConcept.construct(coding=[coding])
+        codeable_concept = CodeableConcept.model_construct(coding=[coding])
         display = code_display(codeable_concept)
         assert display == "Example display"
 
     def test_code_display_without_display(self):
-        coding = Coding.construct(system="http://example.com", code="123")
-        codeable_concept = CodeableConcept.construct(coding=[coding])
+        coding = Coding.model_construct(system="http://example.com", code="123")
+        codeable_concept = CodeableConcept.model_construct(coding=[coding])
         display = code_display(codeable_concept)
         assert display == "123"
 
@@ -94,9 +94,9 @@ class TestParseValue:
             mock_get_standard_concept,
         )
 
-        coding = Coding.construct(system="http://example.com", code="123")
-        codeable_concept = CodeableConcept.construct(coding=[coding])
-        elem = Extension.construct(valueCodeableConcept=codeable_concept)
+        coding = Coding.model_construct(system="http://example.com", code="123")
+        codeable_concept = CodeableConcept.model_construct(coding=[coding])
+        elem = Extension.model_construct(valueCodeableConcept=codeable_concept)
 
         value = parse_value(elem, "value")
 
@@ -113,8 +113,8 @@ class TestParseValue:
             mock_get_standard_unit_concept,
         )
 
-        quantity = Quantity.construct(value=42, code="kg")
-        elem = Extension.construct(valueQuantity=quantity)
+        quantity = Quantity.model_construct(value=42, code="kg")
+        elem = Extension.model_construct(valueQuantity=quantity)
 
         value = parse_value(elem, "value")
 
@@ -130,10 +130,10 @@ class TestParseValue:
             mock_get_standard_unit_concept,
         )
 
-        low = Quantity.construct(value=10, code="kg")
-        high = Quantity.construct(value=20, code="kg")
-        range_obj = Range.construct(low=low, high=high)
-        elem = Extension.construct(valueRange=range_obj)
+        low = Quantity.model_construct(value=10, code="kg")
+        high = Quantity.model_construct(value=20, code="kg")
+        range_obj = Range.model_construct(low=low, high=high)
+        elem = Extension.model_construct(valueRange=range_obj)
 
         value = parse_value(elem, "value")
 
@@ -170,7 +170,7 @@ class TestCriterionConverter:
         factory = CriterionConverterFactory()
         factory.register(TestCriterionConverter.MockCriterionConverter)
 
-        element = Element.construct(id="valid")
+        element = Element.model_construct(id="valid")
         converter = factory.get(element)
 
         assert isinstance(
@@ -181,7 +181,7 @@ class TestCriterionConverter:
         factory = CriterionConverterFactory()
         factory.register(TestCriterionConverter.MockCriterionConverter)
 
-        element = Element.construct(id="not-valid")
+        element = Element.model_construct(id="not-valid")
 
         with pytest.raises(ValueError, match="Cannot find a converter"):
             factory.get(element)
