@@ -346,6 +346,10 @@ class OMOPSQLClient:
 
         df = self.query(query)
 
+        if len(df) > 1:
+            # use case sensitive matching
+            df = df[df["concept_code"] == code]
+
         if not len(df) == 1:
             raise ValueError(
                 f"Expected exactly one concept for {vocabulary}#{code} ({name}), got {len(df)}"
