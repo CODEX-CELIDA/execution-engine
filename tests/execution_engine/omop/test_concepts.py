@@ -33,7 +33,7 @@ class TestConcept:
             standard_concept="S",
             invalid_reason=None,
         )
-        assert str(concept) == concept.concept_name
+        assert str(concept) == "Test Concept"
 
         concept = Concept(
             concept_id=1,
@@ -45,7 +45,7 @@ class TestConcept:
             standard_concept="N",
             invalid_reason=None,
         )
-        assert str(concept) == concept.concept_name
+        assert str(concept) == "Test Concept"
 
     def test_repr(self):
         concept = Concept(
@@ -60,7 +60,8 @@ class TestConcept:
         )
         assert (
             repr(concept)
-            == 'OMOP Concept: "Test Concept" (1) [Test Vocabulary#C123] (STANDARD)'
+            == "Concept(concept_id=1, concept_name='Test Concept', concept_code='C123', domain_id='Test Domain', "
+            "vocabulary_id='Test Vocabulary', concept_class_id='Test Class', standard_concept='S', invalid_reason=None)"
         )
 
     def test_is_custom(self):

@@ -90,7 +90,7 @@ class TestParseValue:
         mock_get_standard_concept = MagicMock()
         mock_get_standard_concept.return_value = test_concept
         monkeypatch.setattr(
-            "execution_engine.omop.vocabulary.standard_vocabulary.get_standard_concept",
+            "execution_engine.omop.vocabulary.standard_vocabulary.get_concept",
             mock_get_standard_concept,
         )
 
@@ -102,7 +102,7 @@ class TestParseValue:
 
         assert isinstance(value, ValueConcept)
         mock_get_standard_concept.assert_called_once_with(
-            system_uri="http://example.com", concept="123"
+            system_uri="http://example.com", concept="123", standard=True
         )
 
     def test_parse_value_quantity(self, monkeypatch, unit_concept):

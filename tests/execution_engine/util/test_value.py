@@ -132,7 +132,7 @@ class TestValueNumber:
         vn = ValueNumber(unit=unit_concept, value=5)
         assert (
             repr(vn)
-            == """ValueNumber(unit=OMOP Concept: "Test Unit" (1) [test#unit], value=5.0, value_min=None, value_max=None)"""
+            == """ValueNumber(unit=Concept(concept_id=1, concept_name='Test Unit', concept_code='unit', domain_id='units', vocabulary_id='test', concept_class_id='test', standard_concept=None, invalid_reason=None), value=5.0, value_min=None, value_max=None)"""
         )
 
     def test_to_sql(self, unit_concept, test_table):
@@ -309,14 +309,14 @@ class TestValueConcept:
         value_concept = ValueConcept(value=test_concept)
         assert (
             repr(value_concept)
-            == 'Value == OMOP Concept: "Test Concept" (1) [test#unit]'
+            == "Value == Concept(concept_id=1, concept_name='Test Concept', concept_code='unit', domain_id='units', vocabulary_id='test', concept_class_id='test', standard_concept=None, invalid_reason=None)"
         )
 
     def test_repr(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
         assert (
             repr(value_concept)
-            == 'Value == OMOP Concept: "Test Concept" (1) [test#unit]'
+            == "Value == Concept(concept_id=1, concept_name='Test Concept', concept_code='unit', domain_id='units', vocabulary_id='test', concept_class_id='test', standard_concept=None, invalid_reason=None)"
         )
 
     def test_dict(self, test_concept):

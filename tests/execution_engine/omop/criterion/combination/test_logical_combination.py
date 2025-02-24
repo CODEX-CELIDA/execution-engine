@@ -224,10 +224,7 @@ class TestCriterionCombination:
             category=CohortCategory.POPULATION_INTERVENTION,
         )
 
-        assert (
-            repr(combination)
-            == "LogicalCriterionCombination(AND).POPULATION_INTERVENTION"
-        )
+        assert repr(combination) == "LogicalCriterionCombination.And(\n)"
 
     def test_add_all(self):
         operator = LogicalCriterionCombination.Operator(
