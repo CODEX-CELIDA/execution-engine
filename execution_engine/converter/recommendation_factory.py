@@ -2,7 +2,6 @@ from execution_engine import fhir
 from execution_engine.builder import ExecutionEngineBuilder
 from execution_engine.converter.parser.factory import FhirRecommendationParserFactory
 from execution_engine.fhir.client import FHIRClient
-from execution_engine.fhir_omop_mapping import characteristic_to_criterion
 from execution_engine.omop import cohort
 from execution_engine.omop.cohort import PopulationInterventionPair
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
@@ -69,12 +68,9 @@ class FhirToRecommendationFactory:
                 base_criterion=base_criterion,
             )
 
-            # todo: parse_characteristics should also just yield a CriterionCombination instead of CharacteristicCombination
             # parse population and create criteria
-            characteristics = parser.parse_characteristics(rec_plan.population)
-
-            for characteristic in characteristics:
-                pi_pair.add_population(characteristic_to_criterion(characteristic))
+            population_criteria = parser.parse_characteristics(rec_plan.population)
+            pi_pair.set_population(population_criteria)
 
             # parse intervention and create criteria
             actions = parser.parse_actions(rec_plan.actions, rec_plan)

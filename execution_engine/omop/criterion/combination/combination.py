@@ -97,6 +97,12 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         return self._operator
 
+    def set_root(self, value: bool = True) -> None:
+        """
+        Sets whether this criterion combination is at the root of a tree of criteria / combinations.
+        """
+        self._root = value
+
     def is_root(self) -> bool:
         """
         Returns whether this criterion combination is at the root of a tree of criteria / combinations.
