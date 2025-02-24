@@ -20,6 +20,12 @@ class TimeIntervalType(StrEnum):
     DAY = "day"
     ANY_TIME = "any_time"
 
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the time interval type.
+        """
+        return f'{self.__class__.__name__}("{self.value}")'
+
 
 class TemporalIndicatorCombination(CriterionCombination):
     """

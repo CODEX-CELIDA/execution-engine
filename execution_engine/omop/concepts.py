@@ -23,21 +23,10 @@ class Concept(BaseModel, frozen=True):  # type: ignore
         """
         Returns a string representation of the concept.
         """
-        base = f'OMOP Concept: "{self.concept_name}" ({self.concept_id}) [{self.vocabulary_id}#{self.concept_code}]'
+        if self.vocabulary_id == "UCUM":
+            return str(self.concept_code)
 
-        if self.standard_concept is not None and self.standard_concept == "S":
-            return f"{base} (STANDARD)"
-
-        return base
-
-    # def __str__(self) -> str:
-    #     """
-    #     Returns a string representation of the concept.
-    #     """
-    #     if self.vocabulary_id == "UCUM":
-    #         return str(self.concept_code)
-    #
-    #     return str(self.concept_name)
+        return str(self.concept_name)
 
     def is_custom(self) -> bool:
         """

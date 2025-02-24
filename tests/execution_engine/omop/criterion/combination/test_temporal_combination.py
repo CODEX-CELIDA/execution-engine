@@ -214,7 +214,7 @@ class TestTemporalIndicatorCombination:
 
         assert (
             repr(combination)
-            == "TemporalIndicatorCombination(AT_LEAST(threshold=1)).POPULATION_INTERVENTION for morning_shift"
+            == 'TemporalIndicatorCombination(operator=Operator("AT_LEAST", threshold=1), category=CohortCategory.POPULATION_INTERVENTION, interval_type=TimeIntervalType("morning_shift"))'
         )
 
         combination = TemporalIndicatorCombination(
@@ -226,7 +226,7 @@ class TestTemporalIndicatorCombination:
 
         assert (
             repr(combination)
-            == "TemporalIndicatorCombination(AT_LEAST(threshold=1)).POPULATION_INTERVENTION from 08:00:00 to 16:00:00"
+            == 'TemporalIndicatorCombination(operator=Operator("AT_LEAST", threshold=1), category=CohortCategory.POPULATION_INTERVENTION, start_time=datetime.time(8, 0), end_time=datetime.time(16, 0))'
         )
 
     def test_add_all(self):
