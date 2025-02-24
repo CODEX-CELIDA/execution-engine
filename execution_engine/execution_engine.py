@@ -350,11 +350,6 @@ class ExecutionEngine:
                             if hasattr(criterion, "concept")
                             else OMOPConcepts.UNKNOWN
                         ),
-                        criterion_concept_name=(
-                            criterion.concept.concept_name
-                            if hasattr(criterion, "concept")
-                            else "unknown"
-                        ),
                         criterion_json=criterion.json(),
                         criterion_description=criterion.description(),
                     )

@@ -93,10 +93,9 @@ class Criterion(Base):  # noqa: D101
     criterion_description: Mapped[str]
     criterion_concept_id: Mapped[int] = mapped_column(
         BigInteger(),
-        # ForeignKey(f"{OMOP_SCHEMA_NAME}.concept.concept_id"),
+        ForeignKey(f"{OMOP_SCHEMA_NAME}.concept.concept_id"),
         index=True,
     )
-    criterion_concept_name: Mapped[str]
     criterion_json: Mapped[str]
     criterion_hash: Mapped[str] = mapped_column(String(64), index=True, unique=True)
 

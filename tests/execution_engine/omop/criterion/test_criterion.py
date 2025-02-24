@@ -194,6 +194,8 @@ class TestCriterion:
             new_criterion = celida_tables.Criterion(
                 criterion_id=criterion.id,
                 criterion_description=criterion.description(),
+                criterion_concept_id=criterion.concept.concept_id,
+                criterion_json=criterion.json(),
                 criterion_hash=hash(criterion),
             )
             db_session.add(new_criterion)
