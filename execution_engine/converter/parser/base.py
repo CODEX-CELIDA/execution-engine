@@ -3,13 +3,8 @@ from abc import ABC, abstractmethod
 from fhir.resources.evidencevariable import EvidenceVariable
 
 from execution_engine import fhir
-from execution_engine.converter.characteristic.combination import (
-    CharacteristicCombination,
-)
 from execution_engine.converter.converter import CriterionConverterFactory
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
 
 
 class FhirRecommendationParserInterface(ABC):
@@ -26,8 +21,11 @@ class FhirRecommendationParserInterface(ABC):
         self.goal_converters = goal_converters
 
     @abstractmethod
-    def parse_characteristics(self, ev: EvidenceVariable) -> CharacteristicCombination:
-        """Parses the characteristics of an EvidenceVariable and returns a CharacteristicCombination."""
+    def parse_characteristics(self, ev: EvidenceVariable) -> CriterionCombination:
+        """
+        Parses the EvidenceVariable characteristics and returns either a single Criterion
+        or a LogicalCriterionCombination
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -35,7 +33,7 @@ class FhirRecommendationParserInterface(ABC):
         self,
         actions_def: list[fhir.RecommendationPlan.Action],
         rec_plan: fhir.RecommendationPlan,
-    ) -> LogicalCriterionCombination:
+    ) -> CriterionCombination:
         """
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
         corresponding action selection behavior.

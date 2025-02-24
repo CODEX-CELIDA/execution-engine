@@ -149,6 +149,13 @@ class PopulationInterventionPair(Serializable):
 
         return pi_graph
 
+    def set_population(self, combination: CriterionCombination) -> None:
+        """
+        Set the population criteria.
+        """
+        combination.set_root()
+        self._population = combination
+
     def add_population(self, criterion: Criterion | CriterionCombination) -> None:
         """
         Add a criterion to the population of the population/intervention pair.
