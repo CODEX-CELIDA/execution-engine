@@ -147,39 +147,6 @@ class LogicalCriterionCombination(CriterionCombination):
             criteria=criteria,
         )
 
-    def _repr_pretty(self, level: int = 0) -> str:
-        def snake_to_camel(s: str) -> str:
-            return "".join(word.capitalize() for word in s.lower().split("_"))
-
-        indent = " " * (2 * level)
-        op = snake_to_camel(self.operator.operator)
-
-        lines = []
-        # Opening line
-        lines.append(f"{indent}{self.__class__.__name__}.{op}(")
-
-        # Each child on its own line, indented by level+1
-        for c in self._criteria:
-            if hasattr(c, "_repr_pretty"):
-                # Assume c is another Combination or something that implements _repr_pretty
-                lines.append(c._repr_pretty(level + 1) + ",")
-            else:
-                # If it's a leaf object (e.g. a ConceptCriterion), just call normal repr
-                child_indent = " " * (2 * (level + 1))
-                lines.append(f"{child_indent}{repr(c)},")
-
-        # Closing parenthesis at the current indent level
-        lines.append(f"{indent})")
-
-        # Join all lines with newlines
-        return "\n".join(lines)
-
-    def __repr__(self) -> str:
-        """
-        Get the string representation of the criterion combination.
-        """
-        return self._repr_pretty(0)
-
 
 class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
     """
@@ -243,12 +210,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         """
         return f"{self.operator}({', '.join(str(c) for c in self._criteria)})"
 
-    def __repr__(self) -> str:
-        """
-        Get the string representation of the criterion combination.
-        """
-        return f'{self.__class__.__name__}("{self.operator}", {self._criteria})'
-
     def __eq__(self, other: object) -> bool:
         """
         Check if the criterion combination is equal to another criterion combination.
@@ -281,6 +242,13 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
             "left": {"class_name": left.__class__.__name__, "data": left.dict()},
             "right": {"class_name": right.__class__.__name__, "data": right.dict()},
         }
+
+    def _repr_pretty(self, level: int = 0) -> str:
+        children = [
+            ("left", self._left),
+            ("right", self._right),
+        ]
+        return self._build_repr(children, params=[], level=level)
 
     @classmethod
     def from_dict(

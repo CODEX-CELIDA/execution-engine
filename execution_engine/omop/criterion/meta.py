@@ -76,8 +76,19 @@ class SignatureReprMeta(type):
             init_sig = inspect.signature(original_init)
             __init__.__signature__ = init_sig  # type: ignore[attr-defined]
 
+        original_repr = namespace.get("__repr__")
+
+        if not original_repr:
+            # Try to find an __init__ in the bases
+            for base in reversed(bases):
+                if base.__repr__ is not object.__repr__:
+                    original_repr = base.__repr__
+                    break
+
         # If no user-defined __repr__, attach a default
-        if "__repr__" not in namespace:
+        if not original_repr or getattr(
+            original_repr, "__signature_repr_generated__", False
+        ):
 
             def __repr__(self: object) -> str:
                 if not hasattr(self, "_init_args"):
@@ -98,6 +109,9 @@ class SignatureReprMeta(type):
                                 f"{param_name}={repr(self._init_args[param_name])}"
                             )
                 return f"{name}({', '.join(parts)})"
+
+            # Tag it so children know it's auto-generated
+            __repr__.__signature_repr_generated__ = True  # type: ignore[attr-defined]
 
             setattr(cls, "__repr__", __repr__)
 

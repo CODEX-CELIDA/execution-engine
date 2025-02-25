@@ -1,5 +1,4 @@
 import numbers
-from typing import Any
 
 import sqlalchemy
 from sqlalchemy import (
@@ -17,13 +16,15 @@ from sqlalchemy import (
 from sqlalchemy.sql import Select
 
 import execution_engine.omop.db.omop.tables as omop_tables
-from execution_engine.constants import OMOPConcepts
+from execution_engine.constants import CohortCategory, OMOPConcepts
+from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     observation_end_datetime,
     observation_start_datetime,
 )
 from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
-from execution_engine.util.value import ValueNumber
+from execution_engine.util.types import Timing
+from execution_engine.util.value import Value, ValueNumber
 
 __all__ = ["TidalVolumePerIdealBodyWeight"]
 
@@ -47,9 +48,24 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
 
     __GENDER_TO_INT = {"female": 0, "male": 1, "unknown": 0.5}
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-
+    def __init__(
+        self,
+        category: CohortCategory,
+        concept: Concept,
+        value: Value | None = None,
+        static: bool | None = None,
+        timing: Timing | None = None,
+        override_value_required: bool | None = None,
+        forward_fill: bool = True,
+    ):
+        super().__init__(
+            category=category,
+            concept=concept,
+            value=value,
+            static=static,
+            timing=timing,
+            override_value_required=override_value_required,
+        )
         self._table = self._cte()
 
     def _cte(self) -> CTE:

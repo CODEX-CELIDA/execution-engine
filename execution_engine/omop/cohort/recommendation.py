@@ -65,6 +65,30 @@ class Recommendation(Serializable):
         # The id is used in the recommendation_id field in the result tables.
         self._id = recommendation_id
 
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the recommendation.
+        """
+        pi_repr = "\n".join(
+            [("    " + line) for line in repr(self._pi_pairs).split("\n")]
+        ).strip()
+        pi_repr = (
+            pi_repr[0] + "\n    " + pi_repr[1:-2] + pi_repr[-2] + "\n  " + pi_repr[-1]
+        )
+        return (
+            f"{self.__class__.__name__}(\n"
+            f"  pi_pairs={pi_repr},\n"
+            f"  base_criterion={self._base_criterion},\n"
+            f"  name='{self._name}',\n"
+            f"  title='{self._title}',\n"
+            f"  url='{self._url}',\n"
+            f"  version='{self._version}',\n"
+            f"  description='{self._description}',\n"
+            f"  recommendation_id={self._id}\n"
+            f"  package_version='{self._package_version}',\n"
+            f")"
+        )
+
     @property
     def name(self) -> str:
         """
@@ -178,6 +202,12 @@ class Recommendation(Serializable):
         Iterate over the population/intervention pairs.
         """
         yield from self._pi_pairs
+
+    def __str__(self) -> str:
+        """
+        Get the string representation of the recommendation.
+        """
+        return f"Recommendation(name='{self._name}', description='{self.description}')"
 
     def __len__(self) -> int:
         """

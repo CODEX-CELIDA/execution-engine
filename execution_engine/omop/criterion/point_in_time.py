@@ -2,6 +2,8 @@ from typing import Any, Dict, cast
 
 from sqlalchemy import CTE, ColumnElement, Select, select
 
+from execution_engine.constants import CohortCategory
+from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     column_interval_type,
     create_conditional_interval_column,
@@ -11,7 +13,8 @@ from execution_engine.omop.criterion.abstract import (
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.task.process import get_processing_module
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import PersonIntervals, TimeRange
+from execution_engine.util.types import PersonIntervals, TimeRange, Timing
+from execution_engine.util.value import Value
 
 process = get_processing_module()
 
@@ -21,11 +24,22 @@ class PointInTimeCriterion(ConceptCriterion):
 
     def __init__(
         self,
+        category: CohortCategory,
+        concept: Concept,
+        value: Value | None = None,
+        static: bool | None = None,
+        timing: Timing | None = None,
+        override_value_required: bool | None = None,
         forward_fill: bool = True,
-        *args: Any,
-        **kwargs: Any,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            category=category,
+            concept=concept,
+            value=value,
+            static=static,
+            timing=timing,
+            override_value_required=override_value_required,
+        )
         self._forward_fill = forward_fill
 
     @property
