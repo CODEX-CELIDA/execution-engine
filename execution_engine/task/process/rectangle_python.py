@@ -352,61 +352,90 @@ def find_overlapping_windows(
     window_events = intervals_to_events(windows, closing_offset=0)
     interval_events = intervals_to_events(intervals, closing_offset=0)
 
-    # Use two pointers to traverse the sorted lists of events
-    i_idx, w_idx = 0, 0
-    active_intervals = 0
-    active_window = False
+    # Here we collect interval for the intersecting windows
     intersecting_windows = []
+    def add_segment(start, end, interval_type):
+        intersecting_windows.append(Interval(start, end, interval_type))
 
-    while w_idx < len(window_events) and i_idx < len(interval_events):
-
-        if (
-            window_events[w_idx][0] <= interval_events[i_idx][0]
-            and window_events[w_idx][1]
-        ):
-            # next event is an OPENING window event (we take precedence of window events over intervals events !)
-            event_time, opening, window = window_events[w_idx]
-            w_idx += 1
-
-            # if an interval is currently open, we can add this window and proceed to the ending of the window
-            if active_intervals > 0:
-                intersecting_windows.append(
-                    Interval(
-                        event_time,
-                        window_events[w_idx][0],
-                        window_events[w_idx][2],
-                    )
-                )
-                w_idx += 1  # we can move on to the next window
-            else:
-                active_window = True
-        elif (
-            window_events[w_idx][0] < interval_events[i_idx][0]
-            and not window_events[w_idx][1]
-        ):
-            active_window = False
-            w_idx += 1
+    # State and "event handler" functions for state transitions:
+    # inside/not inside window, inside/not inside at least one
+    # interval.
+    previous_event = None
+    window_state = False
+    any_satisfied_in_window = False
+    satisfied_interval_type = None
+    def window_open(event_time, interval_type):
+        nonlocal previous_event, window_state, any_satisfied_in_window
+        assert not window_state
+        window_state = interval_type
+        if satisfied_interval_type is not None:
+            any_satisfied_in_window = satisfied_interval_type
+        previous_event = event_time
+    def window_close(event_time):
+        nonlocal previous_event, window_state, any_satisfied_in_window
+        assert window_state
+        if window_state == IntervalType.NOT_APPLICABLE:
+            interval_type = IntervalType.NOT_APPLICABLE
+            add_segment(previous_event, event_time, interval_type)
+        elif any_satisfied_in_window == False:
+            pass
         else:
-            event_time, opening, interval = interval_events[i_idx]
-            i_idx += 1
-
-            # If it's an opening of an interval, increment active intervals
-            if opening:
-                active_intervals += 1
-            # If it's a closing of an interval, decrement active intervals
+            interval_type = any_satisfied_in_window
+            add_segment(previous_event, event_time, interval_type)
+        window_state = False
+        any_satisfied_in_window = False
+        previous_event = event_time
+    def interval_satisfied(event_time, interval_type):
+        nonlocal satisfied_interval_type, any_satisfied_in_window
+        # If we are inside a window, remember that we saw an interval
+        # of type interval_type. Do not overwrite previously seen
+        # higher priority types with lower priority types
+        if not (satisfied_interval_type in [IntervalType.POSITIVE, IntervalType.NEGATIVE]):
+            satisfied_interval_type = interval_type
+        if window_state:
+            # Priorities: POSITIVE > NEGATIVE > NO_DATA or NOT_APPLICABLE > no value
+            if any_satisfied_in_window == IntervalType.POSITIVE:
+                pass
+            elif any_satisfied_in_window == IntervalType.NEGATIVE:
+                if interval_type == IntervalType.POSITIVE:
+                    any_satisfied_in_window = interval_type
             else:
-                active_intervals -= 1
+                any_satisfied_in_window = interval_type
+    def interval_unsatisfied(event_time):
+        nonlocal satisfied_interval_type
+        satisfied_interval_type = None
 
-            if active_intervals > 0 and active_window:
-                intersecting_windows.append(
-                    Interval(
-                        window_events[w_idx - 1][0],
-                        window_events[w_idx][0],
-                        window_events[w_idx][2],
-                    )
-                )
-                w_idx += 1  # we can move on to the next window
-                active_window = False
+    # Use two indices to traverse the two sorted lists of events in
+    # parallel. Call event handler functions for state transitions.
+    def interleaved_events():
+        w_idx, i_idx = 0, 0
+        while True:
+            window_event = window_events[w_idx] if w_idx < len(window_events) else None
+            interval_event = interval_events[i_idx] if i_idx < len(interval_events) else None
+            # When tied in terms of event time, use the following
+            # priority for reporting events:
+            # window open > interval open > interval close > window close
+            if window_event and (not interval_event or window_event[0] < interval_event[0] or (
+                    window_event[0] == interval_event[0] and window_event[1])):
+                w_idx += 1
+                yield window_event, None
+            elif interval_event:
+                i_idx += 1
+                yield None, interval_event
+            else:
+                break
+    active_intervals = 0
+    for window_event, interval_event in interleaved_events():
+        if window_event:
+            time, open_, interval_type = window_event
+            window_open(time, interval_type) if open_ else window_close(time)
+        else:
+            time, open_, type_ = interval_event
+            active_intervals += (1 if open_ else -1)
+            if active_intervals == 0: # 1 -> 0 transition
+                interval_unsatisfied(time)
+            elif active_intervals == 1: # 0 -> 1 transition
+                interval_satisfied(time, type_)
 
     # Return the list of unique intersecting windows
-    return list(intersecting_windows)
+    return intersecting_windows
