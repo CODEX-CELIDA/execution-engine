@@ -120,7 +120,9 @@ class PopulationInterventionPair(Serializable):
         """
 
         if isinstance(node, logic.Symbol):
-            return logic.And(node, filter_, category=CohortCategory.INTERVENTION)
+            return logic.LeftDependentToggle(
+                left=filter_, right=node, category=CohortCategory.INTERVENTION
+            )
 
         if hasattr(node, "args") and isinstance(node.args, tuple):
             converted_args = [cls.filter_symbols(a, filter_) for a in node.args]
