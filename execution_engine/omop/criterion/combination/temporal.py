@@ -1,6 +1,6 @@
 from datetime import time
 from enum import StrEnum
-from typing import Any, Dict, Union
+from typing import Any, Dict, Iterator, Union
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
@@ -32,6 +32,11 @@ class TemporalIndicatorCombination(CriterionCombination):
     A combination of criteria.
     """
 
+    _interval_criterion: Criterion | CriterionCombination | None = None
+    interval_type: TimeIntervalType | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+
     class Operator(CriterionCombination.Operator):
         """Operators for criterion combinations."""
 
@@ -61,6 +66,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
+        interval_criterion: Criterion | CriterionCombination | None = None,
     ):
         if criterion is not None:
             if not isinstance(criterion, (Criterion, CriterionCombination)):
@@ -73,17 +79,33 @@ class TemporalIndicatorCombination(CriterionCombination):
 
         super().__init__(operator=operator, category=category, criteria=criteria)
 
+        if interval_criterion is not None:
+            if not isinstance(interval_criterion, (Criterion, CriterionCombination)):
+                raise ValueError(
+                    f"Invalid criterion - expected Criterion or CriterionCombination, got {type(interval_criterion)}"
+                )
+        self._interval_criterion = interval_criterion
+
         if interval_type:
             if start_time is not None or end_time is not None:
                 raise ValueError(
                     "start_time and end_time must not be provided if an interval type is given"
                 )
+            if interval_criterion is not None:
+                raise ValueError(
+                    "interval_criterion must not be provided if an interval type is given"
+                )
             if interval_type not in TimeIntervalType:
                 raise ValueError(f"Invalid interval type: {interval_type}")
+        elif interval_criterion:
+            if start_time is not None or end_time is not None:
+                raise ValueError(
+                    "start_time and end_time must not be provided if an interval_criterion is given"
+                )
         else:
             if start_time is None or end_time is None:
                 raise ValueError(
-                    "start_time and end_time must be provided if no interval type is given"
+                    "Either interval_type, interval_criterion, or both start_time and end_time must be provided"
                 )
             if start_time >= end_time:
                 raise ValueError("start_time must be less than end_time")
@@ -91,6 +113,14 @@ class TemporalIndicatorCombination(CriterionCombination):
         self.interval_type = interval_type
         self.start_time = start_time
         self.end_time = end_time
+
+    def __iter__(self) -> Iterator[Union[Criterion, "CriterionCombination"]]:
+        """
+        Iterate over the criteria in the combination - first criteria, then interval criterion if present.
+        """
+        yield from super().__iter__()
+        if self._interval_criterion:
+            yield self._interval_criterion
 
     def __str__(self) -> str:
         """
@@ -111,6 +141,13 @@ class TemporalIndicatorCombination(CriterionCombination):
             ("end_time", self.end_time),
         ]
         return self._build_repr(children, params, level)
+
+    @property
+    def interval_criterion(self) -> Criterion | CriterionCombination | None:
+        """
+        Get the interval criterion.
+        """
+        return self._interval_criterion
 
     def dict(self) -> Dict:
         """
@@ -161,6 +198,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
+        interval_criterion: Criterion | CriterionCombination | None = None,
     ) -> "TemporalIndicatorCombination":
         """
         Create an AT_LEAST combination of criteria.
@@ -172,6 +210,7 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
+            interval_criterion=interval_criterion,
         )
 
     @classmethod
@@ -183,6 +222,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
+        interval_criterion: Criterion | CriterionCombination | None = None,
     ) -> "TemporalIndicatorCombination":
         """
         Create an AT_LEAST combination of criteria.
@@ -194,6 +234,7 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
+            interval_criterion=interval_criterion,
         )
 
     @classmethod
@@ -205,6 +246,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
+        interval_criterion: Criterion | CriterionCombination | None = None,
     ) -> "TemporalIndicatorCombination":
         """
         Create an AT_MOST combination of criteria.
@@ -216,6 +258,7 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
+            interval_criterion=interval_criterion,
         )
 
     @classmethod
@@ -227,6 +270,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
+        interval_criterion: Criterion | CriterionCombination | None = None,
     ) -> "TemporalIndicatorCombination":
         """
         Create an EXACTLY combination of criteria.
@@ -238,6 +282,7 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
+            interval_criterion=interval_criterion,
         )
 
     @classmethod

@@ -1,4 +1,4 @@
-from typing import Union, cast
+from typing import Callable, Union, cast
 
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
@@ -13,7 +13,7 @@ from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.converter.parser.base import FhirRecommendationParserInterface
-from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.abstract import AbstractCriterion, Criterion
 from execution_engine.omop.criterion.combination.combination import CriterionCombination
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
@@ -56,12 +56,41 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
     combination methods).
     """
 
+    @staticmethod
+    def _wrap_criteria_with_factory(
+        combo: CriterionCombination,
+        factory: Callable[
+            [Criterion | CriterionCombination], TemporalIndicatorCombination
+        ],
+    ) -> CriterionCombination:
+        """
+        Recursively wraps all Criterion instances within a combination using the factory.
+        """
+        # Create a new combination of the same type with the same operator
+        new_combo = combo.__class__(operator=combo.operator, category=combo.category)
+
+        # Loop through all elements
+        for element in combo:
+            if isinstance(element, LogicalCriterionCombination):
+                # Recursively wrap nested combinations
+                new_combo.add(
+                    FhirRecommendationParserV1._wrap_criteria_with_factory(
+                        element, factory
+                    )
+                )
+            elif isinstance(element, Criterion):
+                # Wrap individual criteria with the factory
+                new_combo.add(factory(element))
+            else:
+                raise ValueError(f"Unexpected element type: {type(element)}")
+
+        return new_combo
+
     def parse_time_from_event(
         self,
         tfes: list[EvidenceVariableCharacteristicTimeFromEvent],
         combo: CriterionCombination,
-        is_root: bool,
-    ) -> CriterionCombination:
+    ) -> TemporalIndicatorCombination:
         """
         Parses the timeFromEvent elements and updates the CriterionCombination.
 
@@ -71,10 +100,9 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
         Args:
             tfes (list[EvidenceVariableCharacteristicTimeFromEvent]): List of timeFromEvent elements.
             combo (CriterionCombination): The criterion combination to update.
-            is_root (bool): Indicates if the timeFromEvent is on the root characteristic node.
 
         Returns:
-            CriterionCombination: Updated criterion combination.
+            TemporalIndicatorCombination: Updated criterion combination.
         """
         if len(tfes) != 1:
             raise ValueError(f"Expected exactly 1 timeFromEvent, got {len(tfes)}")
@@ -83,27 +111,14 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
         converter = self.time_from_event_converters.get(tfe)
 
-        result: CriterionCombination
+        factory = converter.to_temporal_combination_factory()
 
-        if is_root:
-            crit = converter.to_temporal_combination(mode="population")
-            assert combo.operator == LogicalCriterionCombination.Operator(
-                "AND"
-            ), "Expected AND Operator"
-            combo.add(crit)
+        new_combo = cast(
+            self._wrap_criteria_with_factory(combo, factory),
+            TemporalIndicatorCombination,
+        )
 
-            result = combo
-        else:
-            temporal_combo = converter.to_temporal_combination(mode="filter")
-
-            assert isinstance(combo, TemporalIndicatorCombination)
-            temporal_combo = cast(TemporalIndicatorCombination, temporal_combo)
-
-            temporal_combo.add(combo)
-
-            result = temporal_combo
-
-        return result
+        return new_combo
 
     def parse_characteristics(self, ev: EvidenceVariable) -> CriterionCombination:
         """
@@ -158,7 +173,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
                 if characteristic.timeFromEvent is not None:
                     combo = self.parse_time_from_event(
-                        characteristic.timeFromEvent, combo, is_root=is_root
+                        characteristic.timeFromEvent, combo
                     )
 
                 return combo
@@ -167,6 +182,9 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
             converter = self.characteristics_converters.get(characteristic)
             converter = cast(AbstractCharacteristic, converter)
             crit = converter.to_criterion()
+
+            if not isinstance(crit, AbstractCriterion):
+                raise ValueError(f"Expected AbstractCriterion, got {type(crit)}")
 
             return crit
 

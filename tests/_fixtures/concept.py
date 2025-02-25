@@ -40,6 +40,17 @@ concept_artificial_respiration = Concept(
     invalid_reason=None,
 )
 
+concept_surgical_procedure = Concept(
+    concept_id=4301351,
+    concept_name="Surgical procedure",
+    domain_id="Procedure",
+    vocabulary_id="SNOMED",
+    concept_class_id="Procedure",
+    standard_concept="S",
+    concept_code="387713003",
+    invalid_reason=None,
+)
+
 concept_covid19 = Concept(
     concept_id=37311061,
     concept_name="COVID-19",

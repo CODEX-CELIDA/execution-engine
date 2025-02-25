@@ -728,3 +728,38 @@ def find_overlapping_windows(
     :return: A list of windows that have any overlap with the intervals.
     """
     return {key: _impl.find_overlapping_windows(windows, data[key]) for key in data}
+
+
+def find_overlapping_personal_windows(
+    windows: PersonIntervals, data: PersonIntervals
+) -> PersonIntervals:
+    """
+    Returns any windows (per person) that overlap with intervals in data.
+    Unlike 'mask_intervals' which returns the intersection, this function
+    returns the entire window from `windows` if it overlaps in any part
+    with `data`.
+
+    :param windows: A dict {person_id -> list of intervals (windows)}.
+    :param data: A dict {person_id -> list of intervals to check against}.
+    :return: A dict {person_id -> list of windows that overlap with data[person_id]}.
+    """
+    result = {}
+
+    # Iterate over each person in `windows`
+    for person_id, person_windows in windows.items():
+        if person_id not in data:
+            continue  # skip persons without data intervals
+
+        # We collect all windows that overlap with any data intervals
+        overlapping_windows = []
+        for window in person_windows:
+            # Check overlap with the intervals in data[person_id]
+            # If intersection is non-empty for any data interval, we keep the entire window
+            intersection = _impl.intersect_interval_lists([window], data[person_id])
+            if intersection:
+                overlapping_windows.append(window)
+
+        if overlapping_windows:
+            result[person_id] = overlapping_windows
+
+    return result
