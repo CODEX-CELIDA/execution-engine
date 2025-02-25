@@ -236,6 +236,7 @@ class TestSymbolMultiprocessing:
                 start_time=None,
                 end_time=None,
                 interval_type=TimeIntervalType.DAY,
+                interval_criterion=None,
                 category=CohortCategory.POPULATION,
             ),
             TemporalMaxCount(
@@ -246,6 +247,7 @@ class TestSymbolMultiprocessing:
                 start_time=None,
                 end_time=None,
                 interval_type=TimeIntervalType.MORNING_SHIFT,
+                interval_criterion=None,
                 category=CohortCategory.POPULATION,
             ),
             TemporalExactCount(
@@ -256,6 +258,7 @@ class TestSymbolMultiprocessing:
                 start_time=None,
                 end_time=None,
                 interval_type=TimeIntervalType.NIGHT_SHIFT,
+                interval_criterion=None,
                 category=CohortCategory.POPULATION,
             ),
         ],

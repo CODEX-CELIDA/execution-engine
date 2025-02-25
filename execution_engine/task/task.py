@@ -467,34 +467,45 @@ class Task:
 
         assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
 
-        if self.expr.interval_type == TimeIntervalType.ANY_TIME:
-            indicator_windows = [
-                Interval(
-                    lower=observation_window.start.timestamp(),
-                    upper=observation_window.end.timestamp(),
-                    type=IntervalType.POSITIVE,
-                )
-            ]
-        else:
-            if self.expr.interval_type is not None:
-                start_time, end_time = get_start_end_from_interval_type(
-                    self.expr.interval_type
-                )
-            elif self.expr.start_time is not None and self.expr.end_time is not None:
-                start_time, end_time = self.expr.start_time, self.expr.end_time
-            else:
-                raise ValueError("Invalid time interval settings")
+        if self.expr.interval_criterion is not None:
+            # last element is the indicator windows
+            data, indicator_personal_windows = data[:-1], data[-1]
 
-            indicator_windows = process.create_time_intervals(
-                start_datetime=observation_window.start,
-                end_datetime=observation_window.end,
-                start_time=start_time,
-                end_time=end_time,
-                interval_type=IntervalType.POSITIVE,
-                timezone=get_config().timezone,
+            result = process.find_overlapping_personal_windows(
+                indicator_personal_windows, data_p
             )
+        else:
 
-        result = process.find_overlapping_windows(indicator_windows, data_p)
+            if self.expr.interval_type == TimeIntervalType.ANY_TIME:
+                indicator_windows = [
+                    Interval(
+                        lower=observation_window.start.timestamp(),
+                        upper=observation_window.end.timestamp(),
+                        type=IntervalType.POSITIVE,
+                    )
+                ]
+            else:
+                if self.expr.interval_type is not None:
+                    start_time, end_time = get_start_end_from_interval_type(
+                        self.expr.interval_type
+                    )
+                elif (
+                    self.expr.start_time is not None and self.expr.end_time is not None
+                ):
+                    start_time, end_time = self.expr.start_time, self.expr.end_time
+                else:
+                    raise ValueError("Invalid time interval settings")
+
+                indicator_windows = process.create_time_intervals(
+                    start_datetime=observation_window.start,
+                    end_datetime=observation_window.end,
+                    start_time=start_time,
+                    end_time=end_time,
+                    interval_type=IntervalType.POSITIVE,
+                    timezone=get_config().timezone,
+                )
+
+            result = process.find_overlapping_windows(indicator_windows, data_p)
 
         return result
 

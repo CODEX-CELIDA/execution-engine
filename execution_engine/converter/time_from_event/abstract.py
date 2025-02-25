@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import cast
+from typing import Callable, cast
 
 from fhir.resources.element import Element
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristicTimeFromEvent
@@ -7,6 +7,7 @@ from fhir.resources.evidencevariable import EvidenceVariableCharacteristicTimeFr
 from execution_engine.converter.criterion import parse_value
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
 from execution_engine.omop.criterion.combination.temporal import (
     TemporalIndicatorCombination,
 )
@@ -34,9 +35,9 @@ class TemporalIndicator(ABC):
         raise NotImplementedError("must be implemented by class")
 
     @abstractmethod
-    def to_temporal_combination(
-        self, mode: str
-    ) -> TemporalIndicatorCombination | Criterion:
+    def to_temporal_combination_factory(
+        self,
+    ) -> Callable[[Criterion | CriterionCombination], TemporalIndicatorCombination]:
         """
         Converts the TemporalIndicator to a TemporalIndicatorCombination.
         """
@@ -91,9 +92,9 @@ class TimeFromEvent(TemporalIndicator):
         return cls._event_vocabulary.is_system(cc.system) and cc.code == cls._event_code
 
     @abstractmethod
-    def to_temporal_combination(
-        self, mode: str
-    ) -> TemporalIndicatorCombination | Criterion:
+    def to_temporal_combination_factory(
+        self,
+    ) -> Callable[[Criterion | CriterionCombination], TemporalIndicatorCombination]:
         """
         Converts the TemporalIndicator to a TemporalIndicatorCombination or Criterion.
         """

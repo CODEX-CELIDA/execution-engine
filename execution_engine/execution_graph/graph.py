@@ -447,58 +447,75 @@ class ExecutionGraph(nx.DiGraph):
                     )
 
             elif isinstance(comb, TemporalIndicatorCombination):
+
+                tcomb: TemporalIndicatorCombination = comb
+                interval_criterion: logic.Expr | logic.Symbol | None
+
+                if isinstance(tcomb.interval_criterion, CriterionCombination):
+                    interval_criterion = _traverse(tcomb.interval_criterion)
+                elif isinstance(tcomb.interval_criterion, Criterion):
+                    interval_criterion = logic.Symbol(tcomb.interval_criterion)
+                elif tcomb.interval_criterion is None:
+                    interval_criterion = None
+                else:
+                    raise ValueError(
+                        f"Invalid interval criterion type: {type(tcomb.interval_criterion)}"
+                    )
+
                 if (
-                    comb.operator.operator
+                    tcomb.operator.operator
                     == TemporalIndicatorCombination.Operator.AT_LEAST
                 ):
-                    if comb.operator.threshold is None:
+                    if tcomb.operator.threshold is None:
                         raise ValueError(
-                            f"Threshold must be set for operator {comb.operator.operator}"
+                            f"Threshold must be set for operator {tcomb.operator.operator}"
                         )
                     return lambda *args, category: logic.TemporalMinCount(
                         *args,
-                        threshold=comb.operator.threshold,
+                        threshold=tcomb.operator.threshold,
                         category=category,
-                        start_time=comb.start_time,
-                        end_time=comb.end_time,
-                        interval_type=comb.interval_type,  # type: ignore
+                        start_time=tcomb.start_time,
+                        end_time=tcomb.end_time,
+                        interval_type=tcomb.interval_type,  # type: ignore
+                        interval_criterion=interval_criterion,
                     )
                 elif (
-                    comb.operator.operator
+                    tcomb.operator.operator
                     == TemporalIndicatorCombination.Operator.AT_MOST
                 ):
-                    if comb.operator.threshold is None:
+                    if tcomb.operator.threshold is None:
                         raise ValueError(
-                            f"Threshold must be set for operator {comb.operator.operator}"
+                            f"Threshold must be set for operator {tcomb.operator.operator}"
                         )
                     return lambda *args, category: logic.TemporalMaxCount(
                         *args,
-                        threshold=comb.operator.threshold,
+                        threshold=tcomb.operator.threshold,
                         category=category,  # type: ignore
-                        start_time=comb.start_time,
-                        end_time=comb.end_time,
-                        interval_type=comb.interval_type,  # type: ignore
+                        start_time=tcomb.start_time,
+                        end_time=tcomb.end_time,
+                        interval_type=tcomb.interval_type,  # type: ignore
+                        interval_criterion=interval_criterion,
                     )
                 elif (
-                    comb.operator.operator
+                    tcomb.operator.operator
                     == TemporalIndicatorCombination.Operator.EXACTLY
                 ):
-                    if comb.operator.threshold is None:
+                    if tcomb.operator.threshold is None:
                         raise ValueError(
-                            f"Threshold must be set for operator {comb.operator.operator}"
+                            f"Threshold must be set for operator {tcomb.operator.operator}"
                         )
                     return lambda *args, category: logic.TemporalExactCount(
                         *args,
-                        threshold=comb.operator.threshold,
+                        threshold=tcomb.operator.threshold,
                         category=category,
-                        start_time=comb.start_time,
-                        end_time=comb.end_time,
-                        interval_type=comb.interval_type,
-                        # type: ignore
+                        start_time=tcomb.start_time,
+                        end_time=tcomb.end_time,
+                        interval_type=tcomb.interval_type,
+                        interval_criterion=interval_criterion,
                     )
                 else:
                     raise NotImplementedError(
-                        f'Operator "{str(comb.operator)}" not implemented'
+                        f'Operator "{str(tcomb.operator)}" not implemented'
                     )
             else:
                 raise ValueError(f"Invalid combination type: {type(comb)}")
@@ -509,7 +526,6 @@ class ExecutionGraph(nx.DiGraph):
             """
             conjunction = conjunction_from_combination(comb)
             components: list[logic.Expr | logic.Symbol] = []
-            s: logic.Expr | logic.Symbol
 
             for entry in comb:
                 if isinstance(entry, CriterionCombination):

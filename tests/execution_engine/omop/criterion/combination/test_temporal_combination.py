@@ -1,10 +1,13 @@
 import datetime
+from typing import Any, Dict, Self
 
 import pandas as pd
 import pendulum
 import pytest
+import sqlalchemy as sa
 
 from execution_engine.constants import CohortCategory
+from execution_engine.omop.criterion.abstract import Criterion, column_interval_type
 from execution_engine.omop.criterion.combination.temporal import (
     TemporalIndicatorCombination,
     TimeIntervalType,
@@ -13,7 +16,9 @@ from execution_engine.omop.criterion.condition_occurrence import ConditionOccurr
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
+from execution_engine.omop.db.omop import tables
 from execution_engine.task.process import get_processing_module
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
@@ -21,6 +26,7 @@ from tests._fixtures.concept import (
     concept_body_weight,
     concept_covid19,
     concept_heparin_ingredient,
+    concept_surgical_procedure,
     concept_unit_kg,
     concept_unit_mg,
 )
@@ -37,6 +43,8 @@ from tests.functions import intervals_to_df as intervals_to_df_orig
 from tests.mocks.criterion import MockCriterion
 
 process = get_processing_module()
+
+OMOP_SURGICAL_PROCEDURE = 4301351  # OMOP surgical procedure
 
 
 def intervals_to_df(result, by=None):
@@ -282,6 +290,11 @@ c2 = ConditionOccurrence(
 c3 = ProcedureOccurrence(
     category=CohortCategory.POPULATION,
     concept=concept_artificial_respiration,
+)
+
+c4 = ProcedureOccurrence(
+    category=CohortCategory.POPULATION,
+    concept=concept_surgical_procedure,
 )
 
 bodyweight_measurement_without_forward_fill = Measurement(
@@ -1481,6 +1494,173 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
         db_session.add_all(vos)
         db_session.commit()
 
+        self.run_criteria_test(
+            combination,
+            expected,
+            db_session,
+            criteria,
+            base_criterion,
+            observation_window,
+            persons,
+        )
+
+
+class PreOperativePatientsBeforeDayOfSurgery(Criterion):
+    """
+    Select patients who are pre-surgical in the timeframe between 42 days before the surgery and the day of the surgery.
+    """
+
+    _static = True
+
+    def __init__(self) -> None:
+        super().__init__(category=CohortCategory.POPULATION)
+        self._table = tables.ProcedureOccurrence.__table__.alias("po")
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Self:
+        """
+        Create an object from a dictionary.
+        """
+        return cls(**data)
+
+    def description(self) -> str:
+        """
+        Get a description of the criterion.
+        """
+        return self.__class__.__name__
+
+    def dict(self) -> dict:
+        """
+        Get a dictionary representation of the object.
+        """
+        return {
+            "category": self.category.value,
+            "class": self.__class__.__name__,
+        }
+
+    def _create_query(self) -> sa.Select:
+        """
+        Get the SQL Select query for data required by this criterion.
+        """
+
+        query = sa.select(
+            self._table.c.person_id,
+            column_interval_type(IntervalType.POSITIVE),
+            (
+                self._table.c.procedure_datetime
+                - sa.func.cast(sa.func.concat(24, "hour"), sa.Interval)
+            ).label("interval_start"),
+            (
+                self._table.c.procedure_datetime
+                - sa.func.cast(sa.func.concat(2, "hour"), sa.Interval)
+            ).label("interval_end"),
+        ).where(self._table.c.procedure_concept_id == OMOP_SURGICAL_PROCEDURE)
+
+        query = self._filter_base_persons(query)
+        query = self._filter_datetime(query)
+
+        return query
+
+
+c_preop = PreOperativePatientsBeforeDayOfSurgery()
+
+
+class TestCriterionCombinationIndividualWindow(TestCriterionCombinationDatabase):
+    """
+    Test class for testing criterion combinations on the database with individual windows,
+    i.e. windows whose length is dependend on some patient-specific event (here: surgery)
+    """
+
+    @pytest.fixture
+    def criteria(self, db_session):
+        # c4.id = 4  # surgical procedure
+
+        c_preop.id = 4
+        bodyweight_measurement_without_forward_fill.id = 5
+
+        self.register_criterion(c_preop, db_session)
+        self.register_criterion(bodyweight_measurement_without_forward_fill, db_session)
+
+        return [
+            c_preop,
+            bodyweight_measurement_without_forward_fill,
+        ]
+
+    @pytest.fixture
+    def patient_events(self, db_session, person_visit):
+
+        visit_occurrence = [vo for _, vo in person_visit]
+
+        entries = []
+        for i, vo in enumerate(visit_occurrence):
+            p = create_procedure(
+                vo=vo,
+                procedure_concept_id=concept_surgical_procedure.concept_id,
+                start_datetime=pendulum.parse("2023-03-02 17:00:00+01:00")
+                + datetime.timedelta(days=i),
+                end_datetime=pendulum.parse("2023-03-02 18:00:01+01:00")
+                + datetime.timedelta(days=i),
+            )
+            m = create_measurement(
+                vo=vo,
+                measurement_concept_id=concept_body_weight.concept_id,
+                measurement_datetime=p.procedure_datetime - datetime.timedelta(hours=6),
+                value_as_number=100,
+                unit_concept_id=concept_unit_kg.concept_id,
+            )
+
+            entries.extend([p, m])
+
+        db_session.add_all(entries)
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            ####################
+            # Explicit Times
+            ####################
+            (
+                TemporalIndicatorCombination.Presence(
+                    bodyweight_measurement_without_forward_fill,
+                    interval_criterion=c_preop,
+                    category=CohortCategory.POPULATION,
+                ),
+                {
+                    1: {
+                        (
+                            pendulum.parse("2023-03-01 17:00:00+01:00"),
+                            pendulum.parse("2023-03-02 15:00:00+01:00"),
+                        ),
+                    },
+                    2: {
+                        (
+                            pendulum.parse("2023-03-02 17:00:00+01:00"),
+                            pendulum.parse("2023-03-03 15:00:00+01:00"),
+                        ),
+                    },
+                    3: {
+                        (
+                            pendulum.parse("2023-03-03 17:00:00+01:00"),
+                            pendulum.parse("2023-03-04 15:00:00+01:00"),
+                        ),
+                    },
+                },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person_visit,
+        db_session,
+        base_criterion,
+        patient_events,
+        criteria,
+        combination,
+        expected,
+        observation_window,
+    ):
+        persons = [pv[0] for pv in person_visit]
         self.run_criteria_test(
             combination,
             expected,

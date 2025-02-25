@@ -480,6 +480,7 @@ class TemporalCount(BooleanFunction, ABC):
     start_time: time | None = None
     end_time: time | None = None
     interval_type: TimeIntervalType | None = None
+    interval_criterion: Any | None = None
 
 
 class TemporalMinCount(TemporalCount):
@@ -494,6 +495,7 @@ class TemporalMinCount(TemporalCount):
         start_time: time | None,
         end_time: time | None,
         interval_type: TimeIntervalType | None,
+        interval_criterion: Any | None,
         **kwargs: Any,
     ) -> "TemporalMinCount":
         """
@@ -504,6 +506,8 @@ class TemporalMinCount(TemporalCount):
         self.start_time = start_time
         self.end_time = end_time
         self.interval_type = interval_type
+        self.interval_criterion = interval_criterion
+
         return self
 
     def __reduce__(self) -> tuple[Callable, tuple]:
@@ -524,6 +528,7 @@ class TemporalMinCount(TemporalCount):
                     "start_time": self.start_time,
                     "end_time": self.end_time,
                     "interval_type": self.interval_type,
+                    "interval_criterion": self.interval_criterion,
                 },
             ),
         )
@@ -555,6 +560,7 @@ class TemporalMaxCount(TemporalCount):
         start_time: time | None,
         end_time: time | None,
         interval_type: TimeIntervalType | None,
+        interval_criterion: Any | None,
         **kwargs: Any,
     ) -> "TemporalMaxCount":
         """
@@ -565,6 +571,8 @@ class TemporalMaxCount(TemporalCount):
         self.start_time = start_time
         self.end_time = end_time
         self.interval_type = interval_type
+        self.interval_criterion = interval_criterion
+
         return self
 
     def __reduce__(self) -> tuple[Callable, tuple]:
@@ -585,6 +593,7 @@ class TemporalMaxCount(TemporalCount):
                     "start_time": self.start_time,
                     "end_time": self.end_time,
                     "interval_type": self.interval_type,
+                    "interval_criterion": self.interval_criterion,
                 },
             ),
         )
@@ -616,6 +625,7 @@ class TemporalExactCount(TemporalCount):
         start_time: time | None,
         end_time: time | None,
         interval_type: TimeIntervalType | None,
+        interval_criterion: Any | None,
         **kwargs: Any,
     ) -> "TemporalExactCount":
         """
@@ -627,6 +637,8 @@ class TemporalExactCount(TemporalCount):
         self.start_time = start_time
         self.end_time = end_time
         self.interval_type = interval_type
+        self.interval_criterion = interval_criterion
+
         return self
 
     def __reduce__(self) -> tuple[Callable, tuple]:
@@ -647,6 +659,7 @@ class TemporalExactCount(TemporalCount):
                     "start_time": self.start_time,
                     "end_time": self.end_time,
                     "interval_type": self.interval_type,
+                    "interval_criterion": self.interval_criterion,
                 },
             ),
         )
