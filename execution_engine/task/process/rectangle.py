@@ -667,6 +667,26 @@ def create_time_intervals(
 
     # Prepare to collect intervals
     intervals = []
+    previous_end = None
+    def add_interval(interval_start, interval_end, interval_type):
+        nonlocal previous_end
+        effective_start = max(interval_start, start_datetime)
+        effective_end = min(interval_end, end_datetime)
+        if effective_start < effective_end:
+            # We assert that the end point of the previous interval is
+            # properly below (not just below or equal) the start of
+            # the new interval because open/close events are generated
+            # from these intervals by sorting (using a non-stable
+            # method) which can result in an incorrect event order for
+            # touching intervals.
+            if previous_end is not None:
+                assert previous_end < effective_start
+            intervals.append(Interval(
+                lower=effective_start.timestamp(),
+                upper=effective_end.timestamp(),
+                type=interval_type,
+            ))
+            previous_end = effective_end
 
     # Current date to process
     current_date = start_datetime.date()
@@ -690,22 +710,37 @@ def create_time_intervals(
                 datetime.datetime.combine(current_date, end_time)
             )
 
-        # Ensure the start of the interval is not before start_datetime and end of interval is not after end_datetime
-        if start_interval < start_datetime:
-            start_interval = start_datetime
-        if end_interval > end_datetime:
-            end_interval = end_datetime
-
-        # Create the interval if it falls within the main datetime range
-        if (
-            start_interval < end_interval
-        ):  # Ensures we don't create an interval where start equals end due to adjustments
-            interval = Interval(
-                lower=start_interval.timestamp(),
-                upper=end_interval.timestamp(),
-                type=interval_type,
-            )
-            intervals.append(interval)
+        # Create the interval with the specified interval_type if it
+        # overlaps the main datetime range, otherwise fill the day
+        # with an interval of type "not applicable".
+        # TODO: what about intervals "before" the main datetime range?
+        if end_interval < start_datetime: # completely before datetime range
+            day_start = timezone.localize(
+                datetime.datetime.combine(
+                    current_date, datetime.time(0, 0, 0)
+                ))
+            day_end = timezone.localize(
+                datetime.datetime.combine(
+                    current_date, datetime.time(23, 59, 59)
+                ))
+            if (previous_end is not None) and day_start <= previous_end:
+                start = previous_end + datetime.timedelta(seconds=1)
+            else:
+                start = day_start
+            add_interval(start, day_end, IntervalType.NOT_APPLICABLE)
+        elif end_datetime < start_interval: # completely after datetime range
+            day_start = timezone.localize(
+                datetime.datetime.combine(
+                    current_date, datetime.time(0, 0, 0)
+                ))
+            if (previous_end is not None) and day_start <= previous_end:
+                start = previous_end + datetime.timedelta(seconds=1)
+            else:
+                start = day_start
+            add_interval(start, end_datetime, IntervalType.NOT_APPLICABLE)
+        else:
+            # Ensure the start of the interval is not before start_datetime and end of interval is not after end_datetime
+            add_interval(start_interval, end_interval, interval_type)
 
         # Move to the next day
         current_date += datetime.timedelta(days=1)

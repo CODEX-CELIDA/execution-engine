@@ -3188,6 +3188,8 @@ class TestCreateTimeIntervals(ProcessTest):
             interval_type=T.POSITIVE,
             timezone=timezone,
         )
+        # Ignore intervals of type NOT_APPLICABLE at the boundary of the period
+        intervals = [i for i in intervals if i.type == T.POSITIVE]
         assert len(intervals) == 3  # Expecting intervals for July 1st and 2nd
         assert (
             intervals[0].lower
@@ -3228,6 +3230,8 @@ class TestCreateTimeIntervals(ProcessTest):
             interval_type=T.POSITIVE,
             timezone=tz,
         )
+        # Ignore intervals of type NOT_APPLICABLE at the boundary of the period
+        intervals = [ i for i in intervals if i.type == T.POSITIVE ]
         assert (
             len(intervals) == 2
         )  # Expecting intervals for the nights of July 1st and 2nd
@@ -3262,6 +3266,8 @@ class TestCreateTimeIntervals(ProcessTest):
             interval_type=T.POSITIVE,
             timezone=timezone,
         )
+        # Ignore intervals of type NOT_APPLICABLE at the boundary of the period
+        intervals = [i for i in intervals if i.type == T.POSITIVE]
         assert (
             len(intervals) == 2
         )  # Expecting intervals for the nights of July 1st and 2nd
