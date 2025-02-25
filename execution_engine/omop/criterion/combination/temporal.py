@@ -24,7 +24,7 @@ class TimeIntervalType(StrEnum):
         """
         Get the string representation of the time interval type.
         """
-        return f'{self.__class__.__name__}("{self.value}")'
+        return f"{self.__class__.__name__}.{self.name}"
 
 
 class TemporalIndicatorCombination(CriterionCombination):
@@ -102,6 +102,15 @@ class TemporalIndicatorCombination(CriterionCombination):
             return f"{super().__str__()} from {self.start_time.strftime('%H:%M:%S')} to {self.end_time.strftime('%H:%M:%S')}"
         else:
             return super().__str__()
+
+    def _repr_pretty(self, level: int = 0) -> str:
+        children = [(None, c) for c in self._criteria]
+        params = [
+            ("interval_type", self.interval_type),
+            ("start_time", self.start_time),
+            ("end_time", self.end_time),
+        ]
+        return self._build_repr(children, params, level)
 
     def dict(self) -> Dict:
         """

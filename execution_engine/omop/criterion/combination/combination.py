@@ -7,6 +7,10 @@ from execution_engine.omop.criterion.abstract import AbstractCriterion, Criterio
 __all__ = ["CriterionCombination"]
 
 
+def snake_to_camel(s: str) -> str:
+    return "".join(word.capitalize() for word in s.lower().split("_"))
+
+
 class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
     """
     Base class for a combination of criteria (temporal or logical).
@@ -35,9 +39,9 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             Get the string representation of the operator.
             """
             if self.operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-                return f'{self.__class__.__name__}("{self.operator}", threshold={self.threshold})'
+                return f'{self.__class__.__name__}(operator="{self.operator}", threshold={self.threshold})'
             else:
-                return f'{self.__class__.__name__}("{self.operator}")'
+                return f'{self.__class__.__name__}(operator="{self.operator}")'
 
         def __eq__(self, other: object) -> bool:
             """
@@ -128,12 +132,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         return self._criteria[index]
 
-    def __repr__(self) -> str:
-        """
-        Get the string representation of the criterion combination.
-        """
-        return str(self)
-
     def description(self) -> str:
         """
         Description of this combination.
@@ -209,3 +207,89 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             combination.add(criterion_factory(**criterion))
 
         return combination
+
+    def _build_repr(
+        self,
+        children: Sequence[tuple[str | None, Any]],
+        params: list[tuple[str, Any]],
+        level: int = 0,
+    ) -> str:
+        """
+        Builds a multi-line string for this criterion combination,
+        properly indenting each level but avoiding double-indenting if
+        a child already handles indentation in its own _repr_pretty.
+        """
+        indent = " " * (2 * level)
+        child_indent = " " * (2 * (level + 1))
+
+        op = snake_to_camel(self.operator.operator)
+
+        lines: list[str] = []
+        kw_lines: list[str] = []
+        criteria_lines: list[str] = []
+
+        method_defined = hasattr(self, op) and callable(getattr(self, op))
+
+        if self._root:
+            params.append(("root_combination", self._root))
+
+        # if there is a specific method for this operator, use it
+        if method_defined:
+            lines.append(f"{indent}{self.__class__.__name__}.{op}(")
+            if self.operator.threshold is not None:
+                params.append(("threshold", self.operator.threshold))
+        else:
+            lines.append(f"{indent}{self.__class__.__name__}(")
+            params.append(("operator", self.operator))
+
+        # Each child on its own line
+        for key, child in children:
+            if hasattr(child, "_repr_pretty"):
+                # The child already handles its own indentation and multi-line formatting.
+                child_repr = child._repr_pretty(level + 1)
+                # We'll put a comma on the last line that the child produces.
+                child_lines = child_repr.split("\n")
+                child_lines[-1] += ","  # add trailing comma to the last line
+                if key is None:
+                    criteria_lines.extend(child_lines)
+                else:
+                    # If you have a key like "left=" or "right=", prepend that to the first line
+                    # or handle it similarly. One approach is:
+                    child_lines[0] = f"{child_indent}{key}={child_lines[0].lstrip()}"
+                    criteria_lines.extend(child_lines)
+            else:
+                # Fallback to normal repr, which we indent at this level
+                child_repr = repr(child)
+                if key is None:
+                    criteria_lines.append(child_indent + child_repr + ",")
+                else:
+                    criteria_lines.append(f"{child_indent}{key}={child_repr},")
+
+        params.append(("category", self.category))
+
+        for key, value in params:
+            kw_lines.append(f"{child_indent}{key}={repr(value)},")
+
+        if method_defined:
+            lines.extend(criteria_lines)
+            lines.extend(kw_lines)
+        else:
+            lines.extend(kw_lines)
+            lines.append(f"{child_indent}criteria=[")
+            lines.extend(criteria_lines)
+            lines.append(f"{child_indent}],")
+
+        lines.append(f"{indent})")
+
+        return "\n".join(lines)
+
+    def _repr_pretty(self, level: int = 0) -> str:
+        children = [(None, c) for c in self._criteria]
+
+        return self._build_repr(children, params=[], level=level)
+
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the criterion combination.
+        """
+        return self._repr_pretty(0)

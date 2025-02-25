@@ -60,6 +60,20 @@ class PopulationInterventionPair(Serializable):
         self.set_criteria(CohortCategory.POPULATION, population)
         self.set_criteria(CohortCategory.INTERVENTION, intervention)
 
+    def __repr__(self) -> str:
+        """
+        Get the string representation of the population/intervention pair.
+        """
+        return (
+            f"{self.__class__.__name__}(\n"
+            f"  name={self._name},\n"
+            f"  url={self._url},\n"
+            f"  base_criterion={repr(self._base_criterion)},\n"
+            f"  population={self._population._repr_pretty(level=1).strip()},\n"
+            f"  intervention={self._intervention._repr_pretty(level=1).strip()}\n"
+            f")"
+        )
+
     def set_criteria(
         self, category: CohortCategory, criteria: CriterionCombination | None
     ) -> None:

@@ -196,10 +196,10 @@ class TestTemporalIndicatorCombination:
         op = TemporalIndicatorCombination.Operator(operator, threshold)
 
         if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-            assert repr(op) == f'Operator("{operator}", threshold={threshold})'
+            assert repr(op) == f'Operator(operator="{operator}", threshold={threshold})'
             assert str(op) == f"{operator}(threshold={threshold})"
         else:
-            assert repr(op) == f'Operator("{operator}")'
+            assert repr(op) == f'Operator(operator="{operator}")'
             assert str(op) == f"{operator}"
 
     def test_repr(self):
@@ -213,8 +213,15 @@ class TestTemporalIndicatorCombination:
         )
 
         assert (
-            repr(combination)
-            == 'TemporalIndicatorCombination(operator=Operator("AT_LEAST", threshold=1), category=CohortCategory.POPULATION_INTERVENTION, interval_type=TimeIntervalType("morning_shift"))'
+            repr(combination) == "TemporalIndicatorCombination(\n"
+            "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
+            "  start_time=None,\n"
+            "  end_time=None,\n"
+            '  operator=Operator(operator="AT_LEAST", threshold=1),\n'
+            "  category=CohortCategory.POPULATION_INTERVENTION,\n"
+            "  criteria=[\n"
+            "  ],\n"
+            ")"
         )
 
         combination = TemporalIndicatorCombination(
@@ -225,8 +232,15 @@ class TestTemporalIndicatorCombination:
         )
 
         assert (
-            repr(combination)
-            == 'TemporalIndicatorCombination(operator=Operator("AT_LEAST", threshold=1), category=CohortCategory.POPULATION_INTERVENTION, start_time=datetime.time(8, 0), end_time=datetime.time(16, 0))'
+            repr(combination) == "TemporalIndicatorCombination(\n"
+            "  interval_type=None,\n"
+            "  start_time=datetime.time(8, 0),\n"
+            "  end_time=datetime.time(16, 0),\n"
+            '  operator=Operator(operator="AT_LEAST", threshold=1),\n'
+            "  category=CohortCategory.POPULATION_INTERVENTION,\n"
+            "  criteria=[\n"
+            "  ],\n"
+            ")"
         )
 
     def test_add_all(self):
