@@ -521,7 +521,6 @@ class Task:
         :param result: The result to store.
         :param base_data: The result of the base criterion.
         :param bind_params: The parameters.
-        :param observation_window: The observation window.
         :return: None.
         """
         if not result:
