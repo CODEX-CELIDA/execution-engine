@@ -392,7 +392,10 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
 
         d = super().dict()
-        d["interval_criterion"] = self.interval_criterion.dict()
+        d["interval_criterion"] = {
+            "class_name": self.interval_criterion.__class__.__name__,
+            "data": self.interval_criterion.dict(),
+        }
 
         return d
 

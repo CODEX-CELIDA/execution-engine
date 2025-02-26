@@ -7,6 +7,7 @@ from execution_engine.omop.criterion.combination.logical import (
     NonCommutativeLogicalCriterionCombination,
 )
 from execution_engine.omop.criterion.combination.temporal import (
+    PersonalWindowTemporalIndicatorCombination,
     TemporalIndicatorCombination,
 )
 from execution_engine.omop.criterion.concept import ConceptCriterion
@@ -42,6 +43,7 @@ class_map: dict[str, Type[Criterion] | Type[CriterionCombination]] = {
     "TidalVolumePerIdealBodyWeight": TidalVolumePerIdealBodyWeight,
     "VisitDetail": VisitDetail,
     "PointInTimeCriterion": PointInTimeCriterion,
+    "PersonalWindowTemporalIndicatorCombination": PersonalWindowTemporalIndicatorCombination,
 }
 
 
