@@ -17,9 +17,6 @@ from execution_engine.omop.criterion.combination.combination import CriterionCom
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
 )
-from execution_engine.omop.criterion.combination.temporal import (
-    TemporalIndicatorCombination,
-)
 
 
 def characteristic_code_to_criterion_combination_operator(
@@ -59,7 +56,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
         self,
         tfes: list[EvidenceVariableCharacteristicTimeFromEvent],
         combo: CriterionCombination,
-    ) -> TemporalIndicatorCombination:
+    ) -> CriterionCombination:
         """
         Parses the timeFromEvent elements and updates the CriterionCombination.
 

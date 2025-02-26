@@ -64,7 +64,7 @@ class TemporalIndicator(ABC):
     @abstractmethod
     def to_temporal_combination(
         self, combo: Criterion | CriterionCombination
-    ) -> TemporalIndicatorCombination:
+    ) -> CriterionCombination:
         """
         Wraps Criterion/CriterionCombinaion with a TemporalIndicatorCombination
         """
@@ -121,7 +121,7 @@ class TimeFromEvent(TemporalIndicator):
     @abstractmethod
     def to_temporal_combination(
         self, combo: Criterion | CriterionCombination
-    ) -> TemporalIndicatorCombination:
+    ) -> CriterionCombination:
         """
         Wraps Criterion/CriterionCombinaion with a TemporalIndicatorCombination
         """

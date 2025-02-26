@@ -93,8 +93,9 @@ class ExecutionEngine:
             )
             if recommendation is not None:
                 logging.info(
-                    f"Loaded recommendation {recommendation_url} (version={recommendation.version}, "
-                    f"package version={recommendation_package_version}) from database."
+                    f'Loaded recommendation "{recommendation.name}" ({recommendation.url}; '
+                    f"version={recommendation.version}, "
+                    f"package version={recommendation.package_version}) from database."
                 )
                 return recommendation
 
@@ -256,6 +257,11 @@ class ExecutionEngine:
                 else:
                     recommendation.set_id(rec_db.recommendation_id)
             else:
+                logging.info(
+                    f'Storing recommendation "{recommendation.name}" ({recommendation.url}; '
+                    f"version={recommendation.version}, "
+                    f"package version={recommendation.package_version}) to database."
+                )
                 query = (
                     insert(recommendation_table)
                     .values(
@@ -310,7 +316,7 @@ class ExecutionEngine:
             ).encode()
 
             rec_json: bytes = recommendation.json()
-            logging.info(f"Storing recommendation {recommendation.description}")
+
             update_query = (
                 update(recommendation_table)
                 .where(recommendation_table.recommendation_id == recommendation.id)
