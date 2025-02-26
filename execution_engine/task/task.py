@@ -450,7 +450,8 @@ class Task:
         :return: A DataFrame with the merged intervals.
         """
 
-        data_p = process.select_type(data[0], IntervalType.POSITIVE)
+        data_p = data[0]
+        # data_p = process.select_type(data[0], IntervalType.POSITIVE)
         # data_p = {key: val for key, val in data_p.items() if val}
 
         def get_start_end_from_interval_type(
