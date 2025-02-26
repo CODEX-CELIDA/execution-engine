@@ -102,9 +102,18 @@ async function loadGraph(recommendationId) {
                             return label;
 
                         } else if (ele.data('type').startsWith('Temporal') && ele.data('type').endsWith('Count')) {
-                            var label = ele.data('class')
+                            var label = ele.data('class');
+                            var intervalLabel = "";
 
-                            label += "[" + checkCount(ele) +'; ' + ele.data('interval_type') + "]";
+                            if (ele.data('interval_type')) {
+                                intervalLabel = ele.data('interval_type');
+                            } else if (ele.data('start_time') && ele.data('end_time')) {
+                                intervalLabel = ele.data('start_time') + " - " + ele.data('end_time');
+                            } else if (ele.data('interval_criterion')) {
+                                intervalLabel = ele.data('interval_criterion');
+                            }
+
+                            label += "[" + checkCount(ele) + "; " + intervalLabel + "]";
                             return label;
                         } else if (ele.data('type').endsWith('Count')) {
                             return ele.data('class') + '[' + checkCount(ele) + ']';

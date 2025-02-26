@@ -1,3 +1,4 @@
+from abc import ABC
 from datetime import time
 from enum import StrEnum
 from typing import Any, Dict, Iterator, Union
@@ -27,15 +28,14 @@ class TimeIntervalType(StrEnum):
         return f"{self.__class__.__name__}.{self.name}"
 
 
-class TemporalIndicatorCombination(CriterionCombination):
+class TemporalIndicatorCombination(CriterionCombination, ABC):
     """
-    A combination of criteria.
+    TemporalIndicatorCombination is an abstract base class for constructing temporal indicator
+    combinations used to evaluate patient data over time. It encapsulates the common logic such as
+    operator definitions (e.g., AT_LEAST, AT_MOST, EXACTLY) and the management of one or more criteria.
+    This class serves as the foundation for more specialized implementations that define how the time
+    windows for evaluation are determined.
     """
-
-    _interval_criterion: Criterion | CriterionCombination | None = None
-    interval_type: TimeIntervalType | None = None
-    start_time: time | None = None
-    end_time: time | None = None
 
     class Operator(CriterionCombination.Operator):
         """Operators for criterion combinations."""
@@ -63,10 +63,6 @@ class TemporalIndicatorCombination(CriterionCombination):
         operator: Operator,
         category: CohortCategory,
         criterion: Union[Criterion, "CriterionCombination"] | None = None,
-        interval_type: TimeIntervalType | None = None,
-        start_time: time | None = None,
-        end_time: time | None = None,
-        interval_criterion: Criterion | CriterionCombination | None = None,
     ):
         if criterion is not None:
             if not isinstance(criterion, (Criterion, CriterionCombination)):
@@ -79,33 +75,46 @@ class TemporalIndicatorCombination(CriterionCombination):
 
         super().__init__(operator=operator, category=category, criteria=criteria)
 
-        if interval_criterion is not None:
-            if not isinstance(interval_criterion, (Criterion, CriterionCombination)):
-                raise ValueError(
-                    f"Invalid criterion - expected Criterion or CriterionCombination, got {type(interval_criterion)}"
-                )
-        self._interval_criterion = interval_criterion
+
+class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
+    """
+    FixedWindowTemporalIndicatorCombination implements a temporal indicator combination that relies on
+    fixed time window specifications. It supports two mutually exclusive methods for defining these windows:
+    either via a pre-defined TimeIntervalType (e.g., morning, afternoon, or night shifts) or through explicit
+    start_time and end_time values. This class is intended for scenarios where the same evaluation window
+    applies uniformly across all patients, and it enforces validation to ensure only one method of window
+    specification is used.
+    """
+
+    interval_type: TimeIntervalType | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+
+    def __init__(
+        self,
+        operator: TemporalIndicatorCombination.Operator,
+        category: CohortCategory,
+        criterion: Union[Criterion, "CriterionCombination"] | None = None,
+        interval_type: TimeIntervalType | None = None,
+        start_time: time | None = None,
+        end_time: time | None = None,
+    ):
+        super().__init__(operator=operator, category=category, criterion=criterion)
 
         if interval_type:
             if start_time is not None or end_time is not None:
                 raise ValueError(
-                    "start_time and end_time must not be provided if an interval type is given"
+                    "start_time/end_time cannot be used together with interval_type"
                 )
-            if interval_criterion is not None:
-                raise ValueError(
-                    "interval_criterion must not be provided if an interval type is given"
-                )
-            if interval_type not in TimeIntervalType:
-                raise ValueError(f"Invalid interval type: {interval_type}")
-        elif interval_criterion:
-            if start_time is not None or end_time is not None:
-                raise ValueError(
-                    "start_time and end_time must not be provided if an interval_criterion is given"
-                )
+            # Validate the interval_type if needed
+            self.interval_type = interval_type
+            self.start_time = None
+            self.end_time = None
         else:
+            # Must have start_time and end_time
             if start_time is None or end_time is None:
                 raise ValueError(
-                    "Either interval_type, interval_criterion, or both start_time and end_time must be provided"
+                    "Either interval_type OR both start_time & end_time must be provided"
                 )
             if start_time >= end_time:
                 raise ValueError("start_time must be less than end_time")
@@ -113,14 +122,6 @@ class TemporalIndicatorCombination(CriterionCombination):
         self.interval_type = interval_type
         self.start_time = start_time
         self.end_time = end_time
-
-    def __iter__(self) -> Iterator[Union[Criterion, "CriterionCombination"]]:
-        """
-        Iterate over the criteria in the combination - first criteria, then interval criterion if present.
-        """
-        yield from super().__iter__()
-        if self._interval_criterion:
-            yield self._interval_criterion
 
     def __str__(self) -> str:
         """
@@ -142,13 +143,6 @@ class TemporalIndicatorCombination(CriterionCombination):
         ]
         return self._build_repr(children, params, level)
 
-    @property
-    def interval_criterion(self) -> Criterion | CriterionCombination | None:
-        """
-        Get the interval criterion.
-        """
-        return self._interval_criterion
-
     def dict(self) -> Dict:
         """
         Get the dictionary representation of the criterion combination.
@@ -162,7 +156,9 @@ class TemporalIndicatorCombination(CriterionCombination):
         return d
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "TemporalIndicatorCombination":
+    def from_dict(
+        cls, data: Dict[str, Any]
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a criterion combination from a dictionary.
         """
@@ -198,8 +194,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
-        interval_criterion: Criterion | CriterionCombination | None = None,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create an AT_LEAST combination of criteria.
         """
@@ -210,7 +205,6 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
-            interval_criterion=interval_criterion,
         )
 
     @classmethod
@@ -222,8 +216,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
-        interval_criterion: Criterion | CriterionCombination | None = None,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create an AT_LEAST combination of criteria.
         """
@@ -234,7 +227,6 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
-            interval_criterion=interval_criterion,
         )
 
     @classmethod
@@ -247,7 +239,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         start_time: time | None = None,
         end_time: time | None = None,
         interval_criterion: Criterion | CriterionCombination | None = None,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create an AT_MOST combination of criteria.
         """
@@ -258,7 +250,6 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
-            interval_criterion=interval_criterion,
         )
 
     @classmethod
@@ -270,8 +261,7 @@ class TemporalIndicatorCombination(CriterionCombination):
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
-        interval_criterion: Criterion | CriterionCombination | None = None,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create an EXACTLY combination of criteria.
         """
@@ -282,7 +272,6 @@ class TemporalIndicatorCombination(CriterionCombination):
             interval_type=interval_type,
             start_time=start_time,
             end_time=end_time,
-            interval_criterion=interval_criterion,
         )
 
     @classmethod
@@ -290,11 +279,10 @@ class TemporalIndicatorCombination(CriterionCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a MorningShift combination of criteria.
         """
-
         return cls.Presence(criterion, category, TimeIntervalType.MORNING_SHIFT)
 
     @classmethod
@@ -302,11 +290,10 @@ class TemporalIndicatorCombination(CriterionCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a AfternoonShift combination of criteria.
         """
-
         return cls.Presence(criterion, category, TimeIntervalType.AFTERNOON_SHIFT)
 
     @classmethod
@@ -314,11 +301,10 @@ class TemporalIndicatorCombination(CriterionCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a NightShift combination of criteria.
         """
-
         return cls.Presence(criterion, category, TimeIntervalType.NIGHT_SHIFT)
 
     @classmethod
@@ -326,11 +312,10 @@ class TemporalIndicatorCombination(CriterionCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a NightShiftBeforeMidnight combination of criteria.
         """
-
         return cls.Presence(
             criterion, category, TimeIntervalType.NIGHT_SHIFT_BEFORE_MIDNIGHT
         )
@@ -340,11 +325,10 @@ class TemporalIndicatorCombination(CriterionCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a NightShiftAfterMidnight combination of criteria.
         """
-
         return cls.Presence(
             criterion, category, TimeIntervalType.NIGHT_SHIFT_AFTER_MIDNIGHT
         )
@@ -354,11 +338,10 @@ class TemporalIndicatorCombination(CriterionCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a Day combination of criteria.
         """
-
         return cls.Presence(criterion, category, TimeIntervalType.DAY)
 
     @classmethod
@@ -366,9 +349,172 @@ class TemporalIndicatorCombination(CriterionCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         category: CohortCategory,
-    ) -> "TemporalIndicatorCombination":
+    ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a AnyTime combination of criteria.
         """
-
         return cls.Presence(criterion, category, TimeIntervalType.ANY_TIME)
+
+
+class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
+    """
+    PersonalWindowTemporalIndicatorCombination implements a temporal indicator combination based on
+    person-specific time windows. Instead of using fixed start/end times or a global TimeIntervalType, this
+    class leverages an interval_criterion to dynamically generate evaluation windows tailored to each
+    patient. This design is ideal for situations where the timing of events (such as post-operative periods)
+    varies between patients, enabling more personalized temporal assessments.
+    """
+
+    _interval_criterion: Criterion | CriterionCombination
+
+    def __init__(
+        self,
+        operator: TemporalIndicatorCombination.Operator,
+        category: CohortCategory,
+        criterion: Union[Criterion, "CriterionCombination"] | None,
+        interval_criterion: Criterion | CriterionCombination,
+    ):
+        super().__init__(operator=operator, category=category, criterion=criterion)
+
+        if not isinstance(interval_criterion, (Criterion, CriterionCombination)):
+            raise ValueError(
+                f"Invalid criterion - expected Criterion or CriterionCombination, got {type(interval_criterion)}"
+            )
+
+        self._interval_criterion = interval_criterion
+
+    def __iter__(self) -> Iterator[Union[Criterion, "CriterionCombination"]]:
+        """
+        Iterate over the criteria in the combination - first criteria, then interval criterion if present.
+        """
+        yield from super().__iter__()
+        yield self._interval_criterion
+
+    def __str__(self) -> str:
+        """
+        Get the string representation of the criterion combination.
+        """
+        base_str = super().__str__()
+        return f"{base_str} [Personal Windows via: {self.interval_criterion}]"
+
+    def _repr_pretty(self, level: int = 0) -> str:
+        children = [(None, c) for c in self._criteria]
+        params = [
+            ("interval_criterion", self.interval_criterion),
+        ]
+        return self._build_repr(children, params, level)
+
+    @property
+    def interval_criterion(self) -> Criterion | CriterionCombination:
+        """
+        Get the interval criterion.
+        """
+        return self._interval_criterion
+
+    def dict(self) -> Dict:
+        """
+        Get the dictionary representation of the criterion combination.
+        """
+
+        d = super().dict()
+        d["interval_criterion"] = self.interval_criterion.dict()
+
+        return d
+
+    @classmethod
+    def from_dict(
+        cls, data: Dict[str, Any]
+    ) -> "PersonalWindowTemporalIndicatorCombination":
+        """
+        Create a criterion combination from a dictionary.
+        """
+
+        from execution_engine.omop.criterion.factory import (
+            criterion_factory,  # needs to be here to avoid circular import
+        )
+
+        operator = cls.Operator(data["operator"], data["threshold"])
+        category = CohortCategory(data["category"])
+
+        combination = cls(
+            operator=operator,
+            category=category,
+            criterion=None,
+            interval_criterion=criterion_factory(**data["interval_criterion"]),
+        )
+
+        for criterion in data["criteria"]:
+            combination.add(criterion_factory(**criterion))
+
+        return combination
+
+    @classmethod
+    def Presence(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        category: CohortCategory,
+        interval_criterion: Criterion | CriterionCombination,
+    ) -> "PersonalWindowTemporalIndicatorCombination":
+        """
+        Create an AT_LEAST combination of criteria.
+        """
+        return cls(
+            operator=cls.Operator(cls.Operator.AT_LEAST, threshold=1),
+            category=category,
+            criterion=criterion,
+            interval_criterion=interval_criterion,
+        )
+
+    @classmethod
+    def MinCount(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        threshold: int,
+        category: CohortCategory,
+        interval_criterion: Criterion | CriterionCombination,
+    ) -> "TemporalIndicatorCombination":
+        """
+        Create an AT_LEAST combination of criteria.
+        """
+        return cls(
+            operator=cls.Operator(cls.Operator.AT_LEAST, threshold=threshold),
+            category=category,
+            criterion=criterion,
+            interval_criterion=interval_criterion,
+        )
+
+    @classmethod
+    def MaxCount(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        threshold: int,
+        category: CohortCategory,
+        interval_criterion: Criterion | CriterionCombination,
+    ) -> "TemporalIndicatorCombination":
+        """
+        Create an AT_MOST combination of criteria.
+        """
+        return cls(
+            operator=cls.Operator(cls.Operator.AT_MOST, threshold=threshold),
+            category=category,
+            criterion=criterion,
+            interval_criterion=interval_criterion,
+        )
+
+    @classmethod
+    def ExactCount(
+        cls,
+        criterion: Union[Criterion, "CriterionCombination"],
+        threshold: int,
+        category: CohortCategory,
+        interval_criterion: Criterion | CriterionCombination,
+    ) -> "TemporalIndicatorCombination":
+        """
+        Create an EXACTLY combination of criteria.
+        """
+        return cls(
+            operator=cls.Operator(cls.Operator.EXACTLY, threshold=threshold),
+            category=category,
+            criterion=criterion,
+            interval_criterion=interval_criterion,
+        )

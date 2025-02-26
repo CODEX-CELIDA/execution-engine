@@ -1,4 +1,4 @@
-from typing import Callable, Union, cast
+from typing import Union, cast
 
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
@@ -56,36 +56,6 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
     combination methods).
     """
 
-    @staticmethod
-    def _wrap_criteria_with_factory(
-        combo: CriterionCombination,
-        factory: Callable[
-            [Criterion | CriterionCombination], TemporalIndicatorCombination
-        ],
-    ) -> CriterionCombination:
-        """
-        Recursively wraps all Criterion instances within a combination using the factory.
-        """
-        # Create a new combination of the same type with the same operator
-        new_combo = combo.__class__(operator=combo.operator, category=combo.category)
-
-        # Loop through all elements
-        for element in combo:
-            if isinstance(element, LogicalCriterionCombination):
-                # Recursively wrap nested combinations
-                new_combo.add(
-                    FhirRecommendationParserV1._wrap_criteria_with_factory(
-                        element, factory
-                    )
-                )
-            elif isinstance(element, Criterion):
-                # Wrap individual criteria with the factory
-                new_combo.add(factory(element))
-            else:
-                raise ValueError(f"Unexpected element type: {type(element)}")
-
-        return new_combo
-
     def parse_time_from_event(
         self,
         tfes: list[EvidenceVariableCharacteristicTimeFromEvent],
@@ -111,12 +81,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
         converter = self.time_from_event_converters.get(tfe)
 
-        factory = converter.to_temporal_combination_factory()
-
-        new_combo = cast(
-            self._wrap_criteria_with_factory(combo, factory),
-            TemporalIndicatorCombination,
-        )
+        new_combo = converter.to_temporal_combination(combo)
 
         return new_combo
 

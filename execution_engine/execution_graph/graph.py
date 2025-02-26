@@ -11,6 +11,8 @@ from execution_engine.omop.criterion.combination.logical import (
     NonCommutativeLogicalCriterionCombination,
 )
 from execution_engine.omop.criterion.combination.temporal import (
+    FixedWindowTemporalIndicatorCombination,
+    PersonalWindowTemporalIndicatorCombination,
     TemporalIndicatorCombination,
 )
 
@@ -226,6 +228,7 @@ class ExecutionGraph(nx.DiGraph):
                 node_data["data"]["start_time"] = node.start_time
                 node_data["data"]["end_time"] = node.end_time
                 node_data["data"]["interval_type"] = node.interval_type
+                node_data["data"]["interval_criterion"] = repr(node.interval_criterion)
 
             if hasattr(node, "count_min"):
                 node_data["data"]["count_min"] = node.count_min
@@ -387,136 +390,101 @@ class ExecutionGraph(nx.DiGraph):
                     #   The problem is that we need a non-criterion sink node of the intervention and population in order
                     #   to store the results to the database without the criterion_id (as the result of the whole
                     #   intervention or population of this population/intervention pair).
-                    assert (
+
+                    if (
                         comb.operator.operator
-                        == LogicalCriterionCombination.Operator.AND
-                    ), (
-                        f"Invalid operator {str(comb.operator)} for root node. "
-                        f"Expected {LogicalCriterionCombination.Operator.AND}"
-                    )
+                        != LogicalCriterionCombination.Operator.AND
+                    ):
+                        raise AssertionError(
+                            f"Invalid operator {comb.operator} for root node. Expected AND."
+                        )
                     return logic.NonSimplifiableAnd
-                elif isinstance(comb, NonCommutativeLogicalCriterionCombination):
+
+                    # Handle non-commutative combinations.
+                if isinstance(comb, NonCommutativeLogicalCriterionCombination):
                     return logic.ConditionalFilter
-                elif comb.operator.operator == LogicalCriterionCombination.Operator.NOT:
-                    return logic.Not
-                elif comb.operator.operator == LogicalCriterionCombination.Operator.AND:
-                    return logic.And
-                elif comb.operator.operator == LogicalCriterionCombination.Operator.OR:
-                    return logic.Or
-                elif (
-                    comb.operator.operator
-                    == LogicalCriterionCombination.Operator.ALL_OR_NONE
-                ):
-                    return logic.AllOrNone
-                elif (
-                    comb.operator.operator
-                    == LogicalCriterionCombination.Operator.AT_LEAST
-                ):
+
+                op = comb.operator.operator
+
+                # Mapping of simple logical operators.
+                simple_ops = {
+                    LogicalCriterionCombination.Operator.NOT: logic.Not,
+                    LogicalCriterionCombination.Operator.AND: logic.And,
+                    LogicalCriterionCombination.Operator.OR: logic.Or,
+                    LogicalCriterionCombination.Operator.ALL_OR_NONE: logic.AllOrNone,
+                }
+                if op in simple_ops:
+                    return simple_ops[op]
+
+                # Mapping of count-based operators.
+                count_ops = {
+                    LogicalCriterionCombination.Operator.AT_LEAST: logic.MinCount,
+                    LogicalCriterionCombination.Operator.AT_MOST: logic.MaxCount,
+                    LogicalCriterionCombination.Operator.EXACTLY: logic.ExactCount,
+                }
+                if op in count_ops:
                     if comb.operator.threshold is None:
                         raise ValueError(
                             f"Threshold must be set for operator {comb.operator.operator}"
                         )
-                    return lambda *args, category: logic.MinCount(
-                        *args, threshold=comb.operator.threshold, category=category  # type: ignore
+                    return lambda *args, category: count_ops[op](
+                        *args, threshold=comb.operator.threshold, category=category
                     )
-                elif (
-                    comb.operator.operator
-                    == LogicalCriterionCombination.Operator.AT_MOST
-                ):
-                    if comb.operator.threshold is None:
+
+                raise NotImplementedError(f'Operator "{comb.operator}" not implemented')
+
+            ###################################################################################
+            elif isinstance(comb, TemporalIndicatorCombination):
+
+                interval_criterion: logic.BaseExpr | None = None
+                start_time = None
+                end_time = None
+                interval_type = None
+
+                if isinstance(comb, PersonalWindowTemporalIndicatorCombination):
+
+                    if isinstance(comb.interval_criterion, CriterionCombination):
+                        interval_criterion = _traverse(comb.interval_criterion)
+                    elif isinstance(comb.interval_criterion, Criterion):
+                        interval_criterion = logic.Symbol(comb.interval_criterion)
+                    else:
                         raise ValueError(
-                            f"Threshold must be set for operator {comb.operator.operator}"
+                            f"Invalid interval criterion type: {type(comb.interval_criterion)}"
                         )
-                    return lambda *args, category: logic.MaxCount(
-                        *args, threshold=comb.operator.threshold, category=category  # type: ignore
+
+                elif isinstance(comb, FixedWindowTemporalIndicatorCombination):
+                    start_time = comb.start_time
+                    end_time = comb.end_time
+                    interval_type = comb.interval_type
+
+                # Ensure a threshold is set.
+                if comb.operator.threshold is None:
+                    raise ValueError(
+                        f"Threshold must be set for operator {comb.operator.operator}"
                     )
-                elif (
-                    comb.operator.operator
-                    == LogicalCriterionCombination.Operator.EXACTLY
-                ):
-                    if comb.operator.threshold is None:
-                        raise ValueError(
-                            f"Threshold must be set for operator {comb.operator.operator}"
-                        )
-                    return lambda *args, category: logic.ExactCount(
-                        *args, threshold=comb.operator.threshold, category=category  # type: ignore
-                    )
-                else:
+
+                # Map the operator to the corresponding logic function.
+                op_map = {
+                    TemporalIndicatorCombination.Operator.AT_LEAST: logic.TemporalMinCount,
+                    TemporalIndicatorCombination.Operator.AT_MOST: logic.TemporalMaxCount,
+                    TemporalIndicatorCombination.Operator.EXACTLY: logic.TemporalExactCount,
+                }
+                op_func = op_map.get(comb.operator.operator, None)
+                if op_func is None:
                     raise NotImplementedError(
                         f'Operator "{str(comb.operator)}" not implemented'
                     )
 
-            elif isinstance(comb, TemporalIndicatorCombination):
+                return lambda *args, category: op_func(
+                    *args,
+                    threshold=comb.operator.threshold,
+                    category=category,
+                    start_time=start_time,
+                    end_time=end_time,
+                    interval_type=interval_type,
+                    interval_criterion=interval_criterion,
+                )
 
-                tcomb: TemporalIndicatorCombination = comb
-                interval_criterion: logic.Expr | logic.Symbol | None
-
-                if isinstance(tcomb.interval_criterion, CriterionCombination):
-                    interval_criterion = _traverse(tcomb.interval_criterion)
-                elif isinstance(tcomb.interval_criterion, Criterion):
-                    interval_criterion = logic.Symbol(tcomb.interval_criterion)
-                elif tcomb.interval_criterion is None:
-                    interval_criterion = None
-                else:
-                    raise ValueError(
-                        f"Invalid interval criterion type: {type(tcomb.interval_criterion)}"
-                    )
-
-                if (
-                    tcomb.operator.operator
-                    == TemporalIndicatorCombination.Operator.AT_LEAST
-                ):
-                    if tcomb.operator.threshold is None:
-                        raise ValueError(
-                            f"Threshold must be set for operator {tcomb.operator.operator}"
-                        )
-                    return lambda *args, category: logic.TemporalMinCount(
-                        *args,
-                        threshold=tcomb.operator.threshold,
-                        category=category,
-                        start_time=tcomb.start_time,
-                        end_time=tcomb.end_time,
-                        interval_type=tcomb.interval_type,  # type: ignore
-                        interval_criterion=interval_criterion,
-                    )
-                elif (
-                    tcomb.operator.operator
-                    == TemporalIndicatorCombination.Operator.AT_MOST
-                ):
-                    if tcomb.operator.threshold is None:
-                        raise ValueError(
-                            f"Threshold must be set for operator {tcomb.operator.operator}"
-                        )
-                    return lambda *args, category: logic.TemporalMaxCount(
-                        *args,
-                        threshold=tcomb.operator.threshold,
-                        category=category,  # type: ignore
-                        start_time=tcomb.start_time,
-                        end_time=tcomb.end_time,
-                        interval_type=tcomb.interval_type,  # type: ignore
-                        interval_criterion=interval_criterion,
-                    )
-                elif (
-                    tcomb.operator.operator
-                    == TemporalIndicatorCombination.Operator.EXACTLY
-                ):
-                    if tcomb.operator.threshold is None:
-                        raise ValueError(
-                            f"Threshold must be set for operator {tcomb.operator.operator}"
-                        )
-                    return lambda *args, category: logic.TemporalExactCount(
-                        *args,
-                        threshold=tcomb.operator.threshold,
-                        category=category,
-                        start_time=tcomb.start_time,
-                        end_time=tcomb.end_time,
-                        interval_type=tcomb.interval_type,
-                        interval_criterion=interval_criterion,
-                    )
-                else:
-                    raise NotImplementedError(
-                        f'Operator "{str(tcomb.operator)}" not implemented'
-                    )
             else:
                 raise ValueError(f"Invalid combination type: {type(comb)}")
 
