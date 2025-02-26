@@ -38,7 +38,6 @@ class PopulationInterventionPair(Serializable):
     (e.g. "has condition X and lab value Y >= Z").
     """
 
-    _id: int | None
     _name: str
     _population: CriterionCombination
     _intervention: CriterionCombination
@@ -50,9 +49,7 @@ class PopulationInterventionPair(Serializable):
         base_criterion: Criterion,
         population: CriterionCombination | None = None,
         intervention: CriterionCombination | None = None,
-        id: int | None = None,
     ) -> None:
-        self._id = id
         self._name = name
         self._url = url
         self._base_criterion = base_criterion

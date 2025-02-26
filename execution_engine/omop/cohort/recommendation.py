@@ -51,7 +51,6 @@ class Recommendation(Serializable):
         url: str,
         version: str,
         description: str,
-        recommendation_id: int | None = None,
         package_version: str | None = None,
     ) -> None:
         self._pi_pairs: list[cohort.PopulationInterventionPair] = pi_pairs
@@ -62,8 +61,6 @@ class Recommendation(Serializable):
         self._version: str = version
         self._description: str = description
         self._package_version: str | None = package_version
-        # The id is used in the recommendation_id field in the result tables.
-        self._id = recommendation_id
 
     def __repr__(self) -> str:
         """
@@ -130,6 +127,13 @@ class Recommendation(Serializable):
         Get the description of the recommendation.
         """
         return self._description
+
+    @property
+    def base_criterion(self) -> Criterion | None:
+        """
+        Get the base criterion of the recommendation.
+        """
+        return self._base_criterion
 
     def execution_graph(self) -> ExecutionGraph:
         """

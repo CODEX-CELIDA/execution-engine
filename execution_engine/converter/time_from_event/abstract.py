@@ -26,7 +26,7 @@ def _wrap_criteria_with_factory(
     Recursively wraps all Criterion instances within a combination using the factory.
     """
     # Create a new combination of the same type with the same operator
-    new_combo = combo.__class__(operator=combo.operator, category=combo.category)
+    new_combo = combo.__class__(operator=combo.operator)
 
     # Loop through all elements
     for element in combo:

@@ -9,22 +9,42 @@ class Serializable(ABC):
     """
 
     _id: int | None = None
+    """
+    The id is used in the database tables.
+    """
+
+    def set_id(self, value: int) -> None:
+        """
+        Assigns the database ID to the object. This can only be done once.
+
+        This ID corresponds to the primary key in the database and is set
+        when the object is persisted.
+
+        :param value: The database ID assigned to the object.
+        :raises ValueError: If the ID has already been set.
+        """
+        if self._id is not None:
+            raise ValueError("Database ID has already been set!")
+        self._id = value
 
     @property
     def id(self) -> int:
         """
-        Get the id of the object (used in the database).
+        Retrieves the database ID of the object.
+
+        This ID is only available after the object has been stored in the database.
+
+        :return: The database ID, or None if the object has not been stored yet.
         """
         if self._id is None:
-            raise ValueError("Id not set")
+            raise ValueError("Database ID has not been set yet!")
         return self._id
 
-    @id.setter
-    def id(self, value: int) -> None:
+    def is_persisted(self) -> bool:
         """
-        Set the id of the object (used in the database).
+        Returns True if the object has been stored in the database.
         """
-        self._id = value
+        return self._id is not None
 
     @abstractmethod
     def dict(self) -> dict:

@@ -141,7 +141,7 @@ class ExecutionEngine:
             # database, its _id slot is not None. Otherwise, register
             # the recommendation to store it into the database and
             # assign an id.
-            if recommendation._id is None:
+            if not recommendation.is_persisted():
                 self.register_recommendation(recommendation)
             run_id = self.register_run(
                 recommendation, start_datetime=start_datetime, end_datetime=end_datetime
@@ -193,14 +193,34 @@ class ExecutionEngine:
             recommendation = cohort.Recommendation.from_json(
                 rec_db.recommendation_json.decode()
             )
-            # All objects in the deserialized object graph must have
-            # an id.
-            assert recommendation._id is not None
-            assert recommendation._base_criterion._id is not None
-            for pi_pair in recommendation._pi_pairs:
-                assert pi_pair._id is not None
+
+            # we'll run registration again to set all ids
+            recommendation.set_id(rec_db.recommendation_id)
+
+            assert (
+                recommendation.base_criterion is not None
+            ), "Base Criterion must be set"
+            self.register_criterion(recommendation.base_criterion)
+
+            for pi_pair in recommendation.population_intervention_pairs():
+                self.register_population_intervention_pair(
+                    pi_pair, rec_db.recommendation_id
+                )
+
                 for criterion in pi_pair.flatten():
-                    assert criterion._id is not None
+                    self.register_criterion(criterion)
+
+            # All objects in the deserialized object graph must have an id.
+            assert recommendation.id is not None
+            assert recommendation.base_criterion is not None
+            assert recommendation.base_criterion.id is not None
+
+            for pi_pair in recommendation.population_intervention_pairs():
+                assert pi_pair.id is not None
+
+                for criterion in pi_pair.flatten():
+                    assert criterion.id is not None
+
             return recommendation
 
         return None
@@ -229,7 +249,12 @@ class ExecutionEngine:
             rec_db = con.execute(query).fetchone()
 
             if rec_db is not None:
-                recommendation.id = rec_db.recommendation_id
+                if recommendation.is_persisted():
+                    assert (
+                        recommendation.id == rec_db.recommendation_id
+                    ), "Recommendation IDs do not match"
+                else:
+                    recommendation.set_id(rec_db.recommendation_id)
             else:
                 query = (
                     insert(recommendation_table)
@@ -247,11 +272,17 @@ class ExecutionEngine:
                 )
 
                 result = con.execute(query)
-                recommendation.id = result.fetchone().recommendation_id
+                recommendation.set_id(result.fetchone().recommendation_id)
+
         # Register all child objects. After that, the recommendation
         # and all child objects have valid ids (either restored or
         # fresh).
-        self.register_criterion(recommendation._base_criterion)
+
+        if recommendation.base_criterion is None:
+            raise ValueError("Base Criterion must be set when storing recommendation")
+
+        self.register_criterion(recommendation.base_criterion)
+
         for pi_pair in recommendation.population_intervention_pairs():
             self.register_population_intervention_pair(
                 pi_pair, recommendation_id=recommendation.id
@@ -260,12 +291,14 @@ class ExecutionEngine:
                 self.register_criterion(criterion)
 
         assert recommendation.id is not None
-        # TODO(jmoringe): mypy doesn't like this one. Not sure why.
-        # assert recommendation._base_criterion._id is not None
-        for pi_pair in recommendation._pi_pairs:
-            assert pi_pair._id is not None
+        assert recommendation.base_criterion is not None
+        assert recommendation.base_criterion.id is not None
+
+        for pi_pair in recommendation.population_intervention_pairs():
+            assert pi_pair.id is not None
+
             for criterion in pi_pair.flatten():
-                assert criterion._id is not None
+                assert criterion.id is not None
 
         # Update the recommendation in the database with the final
         # JSON representation and execution graph (now that
@@ -306,7 +339,12 @@ class ExecutionEngine:
             pi_pair_db = con.execute(query).fetchone()
 
             if pi_pair_db is not None:
-                pi_pair.id = pi_pair_db.pi_pair_id
+                if pi_pair.is_persisted():
+                    assert (
+                        pi_pair.id == pi_pair_db.pi_pair_id
+                    ), "Population/Intervention Pair IDs do not match"
+                else:
+                    pi_pair.set_id(pi_pair_db.pi_pair_id)
             else:
                 query = (
                     insert(result_db.PopulationInterventionPair)
@@ -320,7 +358,7 @@ class ExecutionEngine:
                 )
 
                 result = con.execute(query)
-                pi_pair.id = result.fetchone().pi_pair_id
+                pi_pair.set_id(result.fetchone().pi_pair_id)
 
     def register_criterion(self, criterion: Criterion) -> None:
         """
@@ -337,7 +375,12 @@ class ExecutionEngine:
             criterion_db = con.execute(query).fetchone()
 
             if criterion_db is not None:
-                criterion.id = criterion_db.criterion_id
+                if criterion.is_persisted():
+                    assert (
+                        criterion.id == criterion_db.criterion_id
+                    ), "Criterion IDs do not match"
+                else:
+                    criterion.set_id(criterion_db.criterion_id)
             else:
                 query = (
                     insert(result_db.Criterion)
@@ -349,7 +392,7 @@ class ExecutionEngine:
                 )
 
                 result = con.execute(query)
-                criterion.id = result.fetchone().criterion_id
+                criterion.set_id(result.fetchone().criterion_id)
 
         assert criterion.id is not None
 
