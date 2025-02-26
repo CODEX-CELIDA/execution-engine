@@ -3,7 +3,6 @@ from datetime import time
 from enum import StrEnum
 from typing import Any, Dict, Iterator, Union
 
-from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.combination import CriterionCombination
 
@@ -61,7 +60,6 @@ class TemporalIndicatorCombination(CriterionCombination, ABC):
     def __init__(
         self,
         operator: Operator,
-        category: CohortCategory,
         criterion: Union[Criterion, "CriterionCombination"] | None = None,
     ):
         if criterion is not None:
@@ -73,7 +71,7 @@ class TemporalIndicatorCombination(CriterionCombination, ABC):
         else:
             criteria = None
 
-        super().__init__(operator=operator, category=category, criteria=criteria)
+        super().__init__(operator=operator, criteria=criteria)
 
 
 class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
@@ -93,13 +91,12 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
     def __init__(
         self,
         operator: TemporalIndicatorCombination.Operator,
-        category: CohortCategory,
         criterion: Union[Criterion, "CriterionCombination"] | None = None,
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
     ):
-        super().__init__(operator=operator, category=category, criterion=criterion)
+        super().__init__(operator=operator, criterion=criterion)
 
         if interval_type:
             if start_time is not None or end_time is not None:
@@ -168,11 +165,9 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         )
 
         operator = cls.Operator(data["operator"], data["threshold"])
-        category = CohortCategory(data["category"])
 
         combination = cls(
             operator=operator,
-            category=category,
             interval_type=data["interval_type"],
             # start_time and end_time is in isoformat !
             start_time=(
@@ -190,7 +185,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
     def Presence(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
@@ -200,7 +194,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_LEAST, threshold=1),
-            category=category,
             criterion=criterion,
             interval_type=interval_type,
             start_time=start_time,
@@ -212,7 +205,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
@@ -222,7 +214,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_LEAST, threshold=threshold),
-            category=category,
             criterion=criterion,
             interval_type=interval_type,
             start_time=start_time,
@@ -234,7 +225,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
@@ -245,7 +235,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_MOST, threshold=threshold),
-            category=category,
             criterion=criterion,
             interval_type=interval_type,
             start_time=start_time,
@@ -257,7 +246,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
         interval_type: TimeIntervalType | None = None,
         start_time: time | None = None,
         end_time: time | None = None,
@@ -267,7 +255,6 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.EXACTLY, threshold=threshold),
-            category=category,
             criterion=criterion,
             interval_type=interval_type,
             start_time=start_time,
@@ -278,82 +265,71 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
     def MorningShift(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a MorningShift combination of criteria.
         """
-        return cls.Presence(criterion, category, TimeIntervalType.MORNING_SHIFT)
+        return cls.Presence(criterion, TimeIntervalType.MORNING_SHIFT)
 
     @classmethod
     def AfternoonShift(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a AfternoonShift combination of criteria.
         """
-        return cls.Presence(criterion, category, TimeIntervalType.AFTERNOON_SHIFT)
+        return cls.Presence(criterion, TimeIntervalType.AFTERNOON_SHIFT)
 
     @classmethod
     def NightShift(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a NightShift combination of criteria.
         """
-        return cls.Presence(criterion, category, TimeIntervalType.NIGHT_SHIFT)
+        return cls.Presence(criterion, TimeIntervalType.NIGHT_SHIFT)
 
     @classmethod
     def NightShiftBeforeMidnight(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a NightShiftBeforeMidnight combination of criteria.
         """
-        return cls.Presence(
-            criterion, category, TimeIntervalType.NIGHT_SHIFT_BEFORE_MIDNIGHT
-        )
+        return cls.Presence(criterion, TimeIntervalType.NIGHT_SHIFT_BEFORE_MIDNIGHT)
 
     @classmethod
     def NightShiftAfterMidnight(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a NightShiftAfterMidnight combination of criteria.
         """
-        return cls.Presence(
-            criterion, category, TimeIntervalType.NIGHT_SHIFT_AFTER_MIDNIGHT
-        )
+        return cls.Presence(criterion, TimeIntervalType.NIGHT_SHIFT_AFTER_MIDNIGHT)
 
     @classmethod
     def Day(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a Day combination of criteria.
         """
-        return cls.Presence(criterion, category, TimeIntervalType.DAY)
+        return cls.Presence(criterion, TimeIntervalType.DAY)
 
     @classmethod
     def AnyTime(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "FixedWindowTemporalIndicatorCombination":
         """
         Create a AnyTime combination of criteria.
         """
-        return cls.Presence(criterion, category, TimeIntervalType.ANY_TIME)
+        return cls.Presence(criterion, TimeIntervalType.ANY_TIME)
 
 
 class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
@@ -370,11 +346,10 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
     def __init__(
         self,
         operator: TemporalIndicatorCombination.Operator,
-        category: CohortCategory,
         criterion: Union[Criterion, "CriterionCombination"] | None,
         interval_criterion: Criterion | CriterionCombination,
     ):
-        super().__init__(operator=operator, category=category, criterion=criterion)
+        super().__init__(operator=operator, criterion=criterion)
 
         if not isinstance(interval_criterion, (Criterion, CriterionCombination)):
             raise ValueError(
@@ -434,11 +409,9 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         )
 
         operator = cls.Operator(data["operator"], data["threshold"])
-        category = CohortCategory(data["category"])
 
         combination = cls(
             operator=operator,
-            category=category,
             criterion=None,
             interval_criterion=criterion_factory(**data["interval_criterion"]),
         )
@@ -452,7 +425,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
     def Presence(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
         interval_criterion: Criterion | CriterionCombination,
     ) -> "PersonalWindowTemporalIndicatorCombination":
         """
@@ -460,7 +432,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_LEAST, threshold=1),
-            category=category,
             criterion=criterion,
             interval_criterion=interval_criterion,
         )
@@ -470,7 +441,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
         interval_criterion: Criterion | CriterionCombination,
     ) -> "TemporalIndicatorCombination":
         """
@@ -478,7 +448,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_LEAST, threshold=threshold),
-            category=category,
             criterion=criterion,
             interval_criterion=interval_criterion,
         )
@@ -488,7 +457,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
         interval_criterion: Criterion | CriterionCombination,
     ) -> "TemporalIndicatorCombination":
         """
@@ -496,7 +464,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_MOST, threshold=threshold),
-            category=category,
             criterion=criterion,
             interval_criterion=interval_criterion,
         )
@@ -506,7 +473,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
         interval_criterion: Criterion | CriterionCombination,
     ) -> "TemporalIndicatorCombination":
         """
@@ -514,7 +480,6 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.EXACTLY, threshold=threshold),
-            category=category,
             criterion=criterion,
             interval_criterion=interval_criterion,
         )

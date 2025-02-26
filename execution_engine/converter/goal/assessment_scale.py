@@ -1,6 +1,6 @@
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from execution_engine.constants import SCT_ASSESSMENT_SCALE, CohortCategory
+from execution_engine.constants import SCT_ASSESSMENT_SCALE
 from execution_engine.converter.criterion import parse_code_value
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.omop.concepts import Concept
@@ -52,7 +52,6 @@ class AssessmentScaleGoal(Goal):
         Converts the goal to a criterion.
         """
         return Measurement(
-            category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,
         )

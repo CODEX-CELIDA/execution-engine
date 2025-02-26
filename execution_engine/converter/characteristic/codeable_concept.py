@@ -3,7 +3,6 @@ from typing import Type
 
 from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 
-from execution_engine.constants import CohortCategory
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.concepts import Concept
@@ -82,7 +81,6 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
     def to_positive_criterion(self) -> Criterion:
         """Converts this characteristic to a Criterion."""
         return self._criterion_class(
-            category=CohortCategory.POPULATION,
             concept=self.value,
             value=None,
             static=self._concept_value_static,

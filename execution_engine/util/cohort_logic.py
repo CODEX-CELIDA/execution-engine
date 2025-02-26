@@ -168,8 +168,9 @@ class Symbol(BaseExpr):
     """
 
     criterion: Criterion
+    category: CohortCategory
 
-    def __new__(cls, criterion: Criterion) -> "Symbol":
+    def __new__(cls, criterion: Criterion, category: CohortCategory) -> "Symbol":
         """
         Initialize a symbol.
 
@@ -178,6 +179,7 @@ class Symbol(BaseExpr):
         self = cast(Symbol, super().__new__(cls))
         self.args = ()
         self.criterion = criterion
+        self.category = category
 
         return self
 
@@ -197,15 +199,6 @@ class Symbol(BaseExpr):
         :return: Hash of the symbol.
         """
         return hash(self.criterion)
-
-    @property
-    def category(self) -> CohortCategory:
-        """
-        Get the cohort category of the symbol.
-
-        :return: The cohort category.
-        """
-        return self.criterion.category
 
     def __repr__(self) -> str:
         """

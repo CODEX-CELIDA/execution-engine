@@ -1,6 +1,5 @@
 from typing import Self, Type
 
-from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.criterion import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
@@ -79,7 +78,6 @@ class AssessmentAction(AbstractAction):
                 )
 
         criterion = cls(
-            category=CohortCategory.INTERVENTION,
             concept=self._code,
             timing=self._timing,
         )

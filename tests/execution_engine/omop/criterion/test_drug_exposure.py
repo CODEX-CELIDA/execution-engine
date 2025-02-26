@@ -38,15 +38,12 @@ class TestDrugExposure(TestCriterion):
             route: Concept | None,
         ) -> pd.DataFrame:
             criterion = DrugExposure(
-                category=CohortCategory.POPULATION,
                 ingredient_concept=ingredient_concept,
                 dose=dose,
                 route=route,
             )
             if exclude:
-                criterion = LogicalCriterionCombination.Not(
-                    criterion, category=criterion.category
-                )
+                criterion = LogicalCriterionCombination.Not(criterion)
 
             self.insert_criterion(db_session, criterion, observation_window)
 
@@ -54,7 +51,7 @@ class TestDrugExposure(TestCriterion):
                 db_session,
                 pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,
-                category=criterion.category,
+                category=CohortCategory.POPULATION,
             )
 
             return df

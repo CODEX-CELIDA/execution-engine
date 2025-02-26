@@ -2,7 +2,6 @@ from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction
 
 from execution_engine import constants
-from execution_engine.constants import CohortCategory
 from execution_engine.converter.criterion import get_extension_by_url
 from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
 from execution_engine.fhir.util import get_coding
@@ -65,6 +64,5 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
                 raise ValueError(f"Invalid action combination method: {method_code}")
 
         return LogicalCriterionCombination(
-            category=CohortCategory.INTERVENTION,
             operator=operator,
         )

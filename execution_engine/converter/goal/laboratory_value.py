@@ -1,6 +1,6 @@
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from execution_engine.constants import SCT_LAB_FINDINGS_SURVEILLANCE, CohortCategory
+from execution_engine.constants import SCT_LAB_FINDINGS_SURVEILLANCE
 from execution_engine.converter.criterion import parse_code_value
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.omop.concepts import Concept
@@ -51,7 +51,6 @@ class LaboratoryValueGoal(Goal):
         Converts the goal to a criterion.
         """
         return Measurement(
-            category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,
         )

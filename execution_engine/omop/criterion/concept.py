@@ -2,7 +2,7 @@ from typing import Any, Dict, cast
 
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory, OMOPConcepts
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.meta import SignatureReprMeta
@@ -41,14 +41,13 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
 
     def __init__(
         self,
-        category: CohortCategory,
         concept: Concept,
         value: Value | None = None,
         static: bool | None = None,
         timing: Timing | None = None,
         override_value_required: bool | None = None,
     ):
-        super().__init__(category=category)
+        super().__init__()
 
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
@@ -135,7 +134,6 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
         Get a JSON representation of the criterion.
         """
         return {
-            "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
                 self._value.model_dump(include_meta=True)
@@ -157,7 +155,6 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
         """
 
         return cls(
-            category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=(
                 cast(Value, value_factory(**data["value"]))

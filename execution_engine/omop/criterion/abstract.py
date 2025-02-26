@@ -94,18 +94,19 @@ class AbstractCriterion(Serializable, ABC, metaclass=SignatureReprABCMeta):
     Abstract base class for Criterion and CriterionCombination.
     """
 
-    def __init__(self, category: CohortCategory) -> None:
+    _base: bool = False
 
-        assert isinstance(
-            category, CohortCategory
-        ), f"category must be a CohortCategory, not {type(category)}"
+    def is_base(self) -> bool:
+        """
+        Check if this criterion is the base criterion.
+        """
+        return self._base
 
-        self._category: CohortCategory = category
-
-    @property
-    def category(self) -> CohortCategory:
-        """Return the category value."""
-        return self._category
+    def set_base(self, value: bool = True) -> None:
+        """
+        Set the base criterion.
+        """
+        self._base = value
 
     @property
     def type(self) -> str:
@@ -204,9 +205,6 @@ class Criterion(AbstractCriterion):
     Flag to indicate whether the filter_datetime function has been called.
     """
 
-    def __init__(self, category: CohortCategory) -> None:
-        super().__init__(category=category)
-
     def _set_omop_variables_from_domain(self, domain_id: str) -> None:
         """
         Set the OMOP table and column prefix based on the domain ID.
@@ -266,7 +264,7 @@ class Criterion(AbstractCriterion):
 
         query.description = self.description()
 
-        if self.category != CohortCategory.BASE:
+        if not self.is_base():
             if not self._filter_by_person_id_called:
                 raise ValueError(
                     "The filter_by_person_id function must be called while creating the query"

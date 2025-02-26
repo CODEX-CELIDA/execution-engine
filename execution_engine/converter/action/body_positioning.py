@@ -1,6 +1,5 @@
 from typing import Self
 
-from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.criterion import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
@@ -53,7 +52,6 @@ class BodyPositioningAction(AbstractAction):
         """Converts this characteristic to a Criterion."""
 
         return ProcedureOccurrence(
-            category=CohortCategory.INTERVENTION,
             concept=self._code,
             timing=self._timing,
         )

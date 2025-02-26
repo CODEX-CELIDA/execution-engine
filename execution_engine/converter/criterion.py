@@ -154,9 +154,7 @@ class CriterionConverter(ABC):
         """
         positive_criterion = self.to_positive_criterion()
         if self._exclude:
-            return LogicalCriterionCombination.Not(
-                positive_criterion, positive_criterion.category
-            )
+            return LogicalCriterionCombination.Not(positive_criterion)
         else:
             return positive_criterion
 

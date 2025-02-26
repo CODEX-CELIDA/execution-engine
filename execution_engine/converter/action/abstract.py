@@ -3,7 +3,6 @@ from typing import Self, Type, final
 
 from fhir.resources.timing import Timing as FHIRTiming
 
-from execution_engine.constants import CohortCategory
 from execution_engine.converter.criterion import CriterionConverter, parse_code
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.fhir.recommendation import RecommendationPlan
@@ -158,9 +157,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
             criteria = [goal.to_criterion() for goal in self.goals]
             if action is not None:
                 criteria.append(action)
-            return LogicalCriterionCombination.And(
-                *criteria, category=CohortCategory.INTERVENTION
-            )
+            return LogicalCriterionCombination.And(*criteria)
         else:
             return action  # type: ignore
 

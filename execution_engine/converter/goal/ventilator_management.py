@@ -2,10 +2,7 @@ from typing import Type
 
 from fhir.resources.plandefinition import PlanDefinitionGoal
 
-from execution_engine.constants import (
-    SCT_VENTILATOR_CARE_AND_ADJUSTMENT,
-    CohortCategory,
-)
+from execution_engine.constants import SCT_VENTILATOR_CARE_AND_ADJUSTMENT
 from execution_engine.converter.criterion import parse_code, parse_value
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.omop.concepts import Concept
@@ -66,13 +63,11 @@ class VentilatorManagementGoal(Goal):
         if self._code in CUSTOM_GOALS:
             cls = CUSTOM_GOALS[self._code]
             return cls(
-                category=CohortCategory.INTERVENTION,
                 concept=self._code,
                 value=self._value,
             )
 
         return Measurement(
-            category=CohortCategory.INTERVENTION,
             concept=self._code,
             value=self._value,
         )

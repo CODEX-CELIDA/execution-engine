@@ -3,7 +3,7 @@ from typing import Any, Dict
 from sqlalchemy import select
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory, OMOPConcepts
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import column_interval_type
 from execution_engine.settings import get_config
@@ -24,7 +24,8 @@ class ActivePatients(VisitOccurrence):
     """
 
     def __init__(self) -> None:
-        self._category = CohortCategory.BASE
+
+        self.set_base(True)  # this is a base criterion
 
         if get_config().episode_of_care_visit_detail:
             self._set_omop_variables_from_domain("visit_detail")

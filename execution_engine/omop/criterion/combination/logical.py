@@ -1,6 +1,5 @@
 from typing import Any, Dict, Iterator, Union
 
-from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.combination import CriterionCombination
 
@@ -43,14 +42,12 @@ class LogicalCriterionCombination(CriterionCombination):
     def Not(
         cls,
         criterion: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create a NOT "combination" of a single criterion.
         """
         return cls(
             operator=cls.Operator(cls.Operator.NOT),
-            category=category,
             criteria=[criterion],
         )
 
@@ -58,14 +55,12 @@ class LogicalCriterionCombination(CriterionCombination):
     def And(
         cls,
         *criteria: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create an AND combination of criteria.
         """
         return cls(
             operator=cls.Operator(cls.Operator.AND),
-            category=category,
             criteria=criteria,
         )
 
@@ -73,14 +68,12 @@ class LogicalCriterionCombination(CriterionCombination):
     def Or(
         cls,
         *criteria: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create an OR combination of criteria.
         """
         return cls(
             operator=cls.Operator(cls.Operator.OR),
-            category=category,
             criteria=criteria,
         )
 
@@ -89,14 +82,12 @@ class LogicalCriterionCombination(CriterionCombination):
         cls,
         *criteria: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create an AT_LEAST combination of criteria.
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_LEAST, threshold=threshold),
-            category=category,
             criteria=criteria,
         )
 
@@ -105,14 +96,12 @@ class LogicalCriterionCombination(CriterionCombination):
         cls,
         *criteria: Union[Criterion, "CriterionCombination"],
         threshold: int,
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create an AT_MOST combination of criteria.
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_MOST, threshold=threshold),
-            category=category,
             criteria=criteria,
         )
 
@@ -121,14 +110,12 @@ class LogicalCriterionCombination(CriterionCombination):
         cls,
         *criteria: Union[Criterion, "LogicalCriterionCombination"],
         threshold: int,
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create an EXACTLY combination of criteria.
         """
         return cls(
             operator=cls.Operator(cls.Operator.EXACTLY, threshold=threshold),
-            category=category,
             criteria=criteria,
         )
 
@@ -136,14 +123,12 @@ class LogicalCriterionCombination(CriterionCombination):
     def AllOrNone(
         cls,
         *criteria: Union[Criterion, "LogicalCriterionCombination"],
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create an ALL_OR_NONE combination of criteria.
         """
         return cls(
             operator=cls.Operator(cls.Operator.ALL_OR_NONE),
-            category=category,
             criteria=criteria,
         )
 
@@ -172,7 +157,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
     def __init__(
         self,
         operator: "NonCommutativeLogicalCriterionCombination.Operator",
-        category: CohortCategory,
         left: Union[Criterion, CriterionCombination] | None = None,
         right: Union[Criterion, CriterionCombination] | None = None,
         root_combination: bool = False,
@@ -180,7 +164,7 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         """
         Initialize the criterion combination.
         """
-        super().__init__(operator=operator, category=category)
+        super().__init__(operator=operator)
 
         self._criteria = []
         if left is not None:
@@ -220,7 +204,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
             self.operator == other.operator
             and self._left == other._left
             and self._right == other._right
-            and self.category == other.category
         )
 
     def __iter__(self) -> Iterator[Union[Criterion, "CriterionCombination"]]:
@@ -238,7 +221,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         right = self._right
         return {
             "operator": self._operator.operator,
-            "category": self.category.value,
             "left": {"class_name": left.__class__.__name__, "data": left.dict()},
             "right": {"class_name": right.__class__.__name__, "data": right.dict()},
         }
@@ -264,7 +246,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
 
         return cls(
             operator=cls.Operator(data["operator"]),
-            category=CohortCategory(data["category"]),
             left=criterion_factory(**data["left"]),
             right=criterion_factory(**data["right"]),
         )
@@ -274,7 +255,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         cls,
         left: Union[Criterion, "CriterionCombination"],
         right: Union[Criterion, "CriterionCombination"],
-        category: CohortCategory,
     ) -> "LogicalCriterionCombination":
         """
         Create a CONDITIONAL_FILTER combination of criteria.
@@ -291,7 +271,6 @@ class NonCommutativeLogicalCriterionCombination(LogicalCriterionCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.CONDITIONAL_FILTER),
-            category=category,
             left=left,
             right=right,
         )

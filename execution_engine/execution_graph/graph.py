@@ -30,14 +30,25 @@ class ExecutionGraph(nx.DiGraph):
 
     @classmethod
     def from_criterion_combination(
-        cls, combination: LogicalCriterionCombination, base_criterion: Criterion
+        cls,
+        population: CriterionCombination,
+        intervention: CriterionCombination,
+        base_criterion: Criterion,
     ) -> "ExecutionGraph":
         """
         Create a graph from a population and intervention criterion combination.
         """
-        return cls.from_expression(
-            cls.combination_to_expression(combination), base_criterion
+
+        p = cls.combination_to_expression(population, CohortCategory.POPULATION)
+        i = cls.combination_to_expression(intervention, CohortCategory.INTERVENTION)
+
+        pi = logic.LeftDependentToggle(
+            p,
+            i,
+            category=CohortCategory.POPULATION_INTERVENTION,
         )
+
+        return cls.from_expression(pi, base_criterion)
 
     def is_sink_of_category(
         self, expr: logic.Expr, graph: "ExecutionGraph", category: CohortCategory
@@ -90,6 +101,7 @@ class ExecutionGraph(nx.DiGraph):
         graph = cls()
         base_node = logic.Symbol(
             criterion=base_criterion,
+            category=CohortCategory.BASE,
         )
         graph.add_node(
             base_node,
@@ -351,7 +363,7 @@ class ExecutionGraph(nx.DiGraph):
         else:
             categories = [
                 CohortCategory.POPULATION,
-                CohortCategory.INTERVENTION,
+                # CohortCategory.INTERVENTION, # we don't store Intervention sink nodes anymore
                 CohortCategory.POPULATION_INTERVENTION,
             ]
 
@@ -369,11 +381,14 @@ class ExecutionGraph(nx.DiGraph):
                 set_predecessors_store(sink_node, self, hops)
 
     @staticmethod
-    def combination_to_expression(comb: CriterionCombination) -> logic.Expr:
+    def combination_to_expression(
+        comb: CriterionCombination, category: CohortCategory
+    ) -> logic.Expr:
         """
         Convert the CriterionCombination into an expression of And, Not, Or objects (and possibly more operators).
 
         :param comb: The criterion combination.
+        :param category: The CohortCategory of the expression.
         :return: The expression.
         """
 
@@ -446,7 +461,9 @@ class ExecutionGraph(nx.DiGraph):
                     if isinstance(comb.interval_criterion, CriterionCombination):
                         interval_criterion = _traverse(comb.interval_criterion)
                     elif isinstance(comb.interval_criterion, Criterion):
-                        interval_criterion = logic.Symbol(comb.interval_criterion)
+                        interval_criterion = logic.Symbol(
+                            comb.interval_criterion, category=category
+                        )
                     else:
                         raise ValueError(
                             f"Invalid interval criterion type: {type(comb.interval_criterion)}"
@@ -499,11 +516,11 @@ class ExecutionGraph(nx.DiGraph):
                 if isinstance(entry, CriterionCombination):
                     components.append(_traverse(entry))
                 elif isinstance(entry, Criterion):
-                    components.append(logic.Symbol(entry))
+                    components.append(logic.Symbol(entry, category=category))
                 else:
                     raise ValueError(f"Invalid entry type: {type(entry)}")
 
-            return conjunction(*components, category=comb.category)
+            return conjunction(*components, category=category)
 
         expression = _traverse(comb)
 

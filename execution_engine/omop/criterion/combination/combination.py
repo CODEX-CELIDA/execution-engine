@@ -1,7 +1,6 @@
 from abc import ABCMeta
 from typing import Any, Dict, Iterator, Sequence, Union, cast
 
-from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import AbstractCriterion, Criterion
 
 __all__ = ["CriterionCombination"]
@@ -54,14 +53,13 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
     def __init__(
         self,
         operator: Operator,
-        category: CohortCategory,
         criteria: Sequence[Union[Criterion, "CriterionCombination"]] | None = None,
         root_combination: bool = False,
     ):
         """
         Initialize the criterion combination.
         """
-        super().__init__(category=category)
+        super().__init__()
         self._operator = operator
 
         self._criteria: list[Union[Criterion, CriterionCombination]]
@@ -92,7 +90,7 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         """
         Get the name of the criterion combination.
         """
-        return f"{self.__class__.__name__}({self.operator}).{self.category.value}"
+        return f"{self.__class__.__name__}({self.operator})"
 
     @property
     def operator(self) -> "CriterionCombination.Operator":
@@ -145,7 +143,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         return {
             "operator": self._operator.operator,
             "threshold": self._operator.threshold,
-            "category": self._category.value,
             "criteria": [
                 {
                     "class_name": criterion.__class__.__name__,
@@ -173,10 +170,9 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         else:
             copy = self.__class__(
                 operator=self._operator,
-                category=self._category,
                 criteria=self._criteria,
             )
-            return LogicalCriterionCombination.Not(copy, self._category)
+            return LogicalCriterionCombination.Not(copy)
 
     def invert(self) -> AbstractCriterion:
         """
@@ -195,11 +191,9 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         )
 
         operator = cls.Operator(data["operator"], data["threshold"])
-        category = CohortCategory(data["category"])
 
         combination = cls(
             operator=operator,
-            category=category,
             root_combination=data["root"],
         )
 
@@ -264,8 +258,6 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
                     criteria_lines.append(child_indent + child_repr + ",")
                 else:
                     criteria_lines.append(f"{child_indent}{key}={child_repr},")
-
-        params.append(("category", self.category))
 
         for key, value in params:
             kw_lines.append(f"{child_indent}{key}={repr(value)},")
