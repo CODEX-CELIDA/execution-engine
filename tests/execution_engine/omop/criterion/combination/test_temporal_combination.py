@@ -9,7 +9,8 @@ import sqlalchemy as sa
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion, column_interval_type
 from execution_engine.omop.criterion.combination.temporal import (
-    TemporalIndicatorCombination,
+    FixedWindowTemporalIndicatorCombination,
+    PersonalWindowTemporalIndicatorCombination,
     TimeIntervalType,
 )
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
@@ -55,7 +56,7 @@ def intervals_to_df(result, by=None):
     return df
 
 
-class TestTemporalIndicatorCombination:
+class TestFixedWindowTemporalIndicatorCombination:
     """
     Test class for testing criterion combinations (without database).
     """
@@ -65,10 +66,10 @@ class TestTemporalIndicatorCombination:
         return [MockCriterion(f"c{i}") for i in range(1, 6)]
 
     def test_criterion_combination_init(self, mock_criteria):
-        operator = TemporalIndicatorCombination.Operator(
-            TemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
+        operator = FixedWindowTemporalIndicatorCombination.Operator(
+            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
         )
-        combination = TemporalIndicatorCombination(
+        combination = FixedWindowTemporalIndicatorCombination(
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
             start_time=datetime.time(8, 0),
@@ -79,10 +80,10 @@ class TestTemporalIndicatorCombination:
         assert len(combination) == 0
 
     def test_criterion_combination_add(self, mock_criteria):
-        operator = TemporalIndicatorCombination.Operator(
-            TemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
+        operator = FixedWindowTemporalIndicatorCombination.Operator(
+            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
         )
-        combination = TemporalIndicatorCombination(
+        combination = FixedWindowTemporalIndicatorCombination(
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
             start_time=datetime.time(8, 0),
@@ -98,10 +99,10 @@ class TestTemporalIndicatorCombination:
             assert criterion == mock_criteria[idx]
 
     def test_criterion_combination_dict(self, mock_criteria):
-        operator = TemporalIndicatorCombination.Operator(
-            TemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
+        operator = FixedWindowTemporalIndicatorCombination.Operator(
+            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
         )
-        combination = TemporalIndicatorCombination(
+        combination = FixedWindowTemporalIndicatorCombination(
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
             start_time=datetime.time(8, 0),
@@ -132,8 +133,8 @@ class TestTemporalIndicatorCombination:
 
         factory.register_criterion_class("MockCriterion", MockCriterion)
 
-        operator = TemporalIndicatorCombination.Operator(
-            TemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
+        operator = FixedWindowTemporalIndicatorCombination.Operator(
+            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
         )
 
         combination_data = {
@@ -150,7 +151,9 @@ class TestTemporalIndicatorCombination:
             ],
         }
 
-        combination = TemporalIndicatorCombination.from_dict(combination_data)
+        combination = FixedWindowTemporalIndicatorCombination.from_dict(
+            combination_data
+        )
 
         assert combination.operator == operator
         assert len(combination) == len(mock_criteria)
@@ -174,7 +177,9 @@ class TestTemporalIndicatorCombination:
             ],
         }
 
-        combination = TemporalIndicatorCombination.from_dict(combination_data)
+        combination = FixedWindowTemporalIndicatorCombination.from_dict(
+            combination_data
+        )
 
         assert combination.operator == operator
         assert len(combination) == len(mock_criteria)
@@ -190,18 +195,18 @@ class TestTemporalIndicatorCombination:
         with pytest.raises(
             AssertionError, match=f"Threshold must be set for operator {operator}"
         ):
-            TemporalIndicatorCombination.Operator(operator)
+            FixedWindowTemporalIndicatorCombination.Operator(operator)
 
     def test_operator(self):
         with pytest.raises(AssertionError, match=""):
-            TemporalIndicatorCombination.Operator("invalid")
+            FixedWindowTemporalIndicatorCombination.Operator("invalid")
 
     @pytest.mark.parametrize(
         "operator, threshold",
         [("AT_LEAST", 1), ("AT_MOST", 1), ("EXACTLY", 1)],
     )
     def test_operator_str(self, operator, threshold):
-        op = TemporalIndicatorCombination.Operator(operator, threshold)
+        op = FixedWindowTemporalIndicatorCombination.Operator(operator, threshold)
 
         if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
             assert repr(op) == f'Operator(operator="{operator}", threshold={threshold})'
@@ -211,17 +216,17 @@ class TestTemporalIndicatorCombination:
             assert str(op) == f"{operator}"
 
     def test_repr(self):
-        operator = TemporalIndicatorCombination.Operator(
-            TemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
+        operator = FixedWindowTemporalIndicatorCombination.Operator(
+            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
         )
-        combination = TemporalIndicatorCombination(
+        combination = FixedWindowTemporalIndicatorCombination(
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
             interval_type=TimeIntervalType.MORNING_SHIFT,
         )
 
         assert (
-            repr(combination) == "TemporalIndicatorCombination(\n"
+            repr(combination) == "FixedWindowTemporalIndicatorCombination(\n"
             "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
             "  start_time=None,\n"
             "  end_time=None,\n"
@@ -232,7 +237,7 @@ class TestTemporalIndicatorCombination:
             ")"
         )
 
-        combination = TemporalIndicatorCombination(
+        combination = FixedWindowTemporalIndicatorCombination(
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
             start_time=datetime.time(8, 0),
@@ -240,7 +245,7 @@ class TestTemporalIndicatorCombination:
         )
 
         assert (
-            repr(combination) == "TemporalIndicatorCombination(\n"
+            repr(combination) == "FixedWindowTemporalIndicatorCombination(\n"
             "  interval_type=None,\n"
             "  start_time=datetime.time(8, 0),\n"
             "  end_time=datetime.time(16, 0),\n"
@@ -252,10 +257,10 @@ class TestTemporalIndicatorCombination:
         )
 
     def test_add_all(self):
-        operator = TemporalIndicatorCombination.Operator(
-            TemporalIndicatorCombination.Operator.AT_MOST, threshold=1
+        operator = FixedWindowTemporalIndicatorCombination.Operator(
+            FixedWindowTemporalIndicatorCombination.Operator.AT_MOST, threshold=1
         )
-        combination = TemporalIndicatorCombination(
+        combination = FixedWindowTemporalIndicatorCombination(
             operator=operator,
             category=CohortCategory.POPULATION_INTERVENTION,
             interval_type=TimeIntervalType.MORNING_SHIFT,
@@ -438,7 +443,9 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Full Day
             ####################
             (
-                TemporalIndicatorCombination.Day(c1, CohortCategory.POPULATION),
+                FixedWindowTemporalIndicatorCombination.Day(
+                    c1, CohortCategory.POPULATION
+                ),
                 {
                     1: {
                         (
@@ -451,7 +458,9 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Day(c2, CohortCategory.POPULATION),
+                FixedWindowTemporalIndicatorCombination.Day(
+                    c2, CohortCategory.POPULATION
+                ),
                 {
                     1: {
                         (
@@ -464,7 +473,9 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Day(c3, CohortCategory.POPULATION),
+                FixedWindowTemporalIndicatorCombination.Day(
+                    c3, CohortCategory.POPULATION
+                ),
                 {
                     1: {
                         (
@@ -480,7 +491,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Explicit Times
             ####################
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c1,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -502,7 +513,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c1,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(18, 59),
@@ -524,7 +535,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c2,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -542,7 +553,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c3,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -551,7 +562,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 {1: set(), 2: set(), 3: set()},
             ),
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c3,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
@@ -572,7 +583,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Morning Shifts
             ####################
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -591,7 +602,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -606,7 +617,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -615,7 +626,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Afternoon Shifts
             ####################
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -634,7 +645,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -653,7 +664,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {
@@ -671,7 +682,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Night Shifts
             ####################
             (
-                TemporalIndicatorCombination.NightShift(
+                FixedWindowTemporalIndicatorCombination.NightShift(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -690,7 +701,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShift(
+                FixedWindowTemporalIndicatorCombination.NightShift(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -705,7 +716,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShift(
+                FixedWindowTemporalIndicatorCombination.NightShift(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -714,7 +725,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Partial Night Shifts (before midnight)
             #######################
             (
-                TemporalIndicatorCombination.NightShiftBeforeMidnight(
+                FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -733,7 +744,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShiftBeforeMidnight(
+                FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -748,7 +759,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShiftBeforeMidnight(
+                FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -757,7 +768,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Partial Night Shifts (after midnight)
             #######################
             (
-                TemporalIndicatorCombination.NightShiftAfterMidnight(
+                FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -772,7 +783,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShiftAfterMidnight(
+                FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -787,7 +798,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShiftAfterMidnight(
+                FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -870,7 +881,9 @@ class TestCriterionCombinationResultLongObservationWindow(
             # Full Day
             ####################
             (
-                TemporalIndicatorCombination.Day(c1, CohortCategory.POPULATION),
+                FixedWindowTemporalIndicatorCombination.Day(
+                    c1, CohortCategory.POPULATION
+                ),
                 {
                     1: {
                         (
@@ -883,7 +896,9 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Day(c2, CohortCategory.POPULATION),
+                FixedWindowTemporalIndicatorCombination.Day(
+                    c2, CohortCategory.POPULATION
+                ),
                 {
                     1: {
                         (
@@ -896,7 +911,9 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Day(c3, CohortCategory.POPULATION),
+                FixedWindowTemporalIndicatorCombination.Day(
+                    c3, CohortCategory.POPULATION
+                ),
                 {
                     1: {
                         (
@@ -912,7 +929,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # Explicit Times
             ####################
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c1,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -962,7 +979,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c2,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -988,7 +1005,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.Presence(
+                FixedWindowTemporalIndicatorCombination.Presence(
                     c3,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
@@ -1021,7 +1038,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # # Morning Shifts
             # ####################
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1068,7 +1085,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1091,7 +1108,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1121,7 +1138,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # # Afternoon Shifts
             # ####################
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1168,7 +1185,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1195,7 +1212,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1225,7 +1242,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # # Night Shifts
             # ####################
             (
-                TemporalIndicatorCombination.NightShift(
+                FixedWindowTemporalIndicatorCombination.NightShift(
                     c1, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1276,7 +1293,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShift(
+                FixedWindowTemporalIndicatorCombination.NightShift(
                     c2, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1299,7 +1316,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                TemporalIndicatorCombination.NightShift(
+                FixedWindowTemporalIndicatorCombination.NightShift(
                     c3, category=CohortCategory.POPULATION
                 ),
                 {
@@ -1372,7 +1389,7 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
 
     More precisely, the test ensures that point-in-time events like
     measurements interact correctly with PointInTimeCriteria and
-    TemporalIndicatorCombinations. A particular failure mode of this
+    FixedWindowTemporalIndicatorCombinations. A particular failure mode of this
     combination has been that single point-in-time event could lead to
     POSITIVE result interval on subsequent days due to forward_fill
     logic in PointInTimeCriterion.
@@ -1401,7 +1418,7 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
         "combination,expected",
         [
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     bodyweight_measurement_without_forward_fill,
                     category=CohortCategory.POPULATION,
                 ),
@@ -1415,14 +1432,14 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
                 },
             ),
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     bodyweight_measurement_without_forward_fill,
                     category=CohortCategory.POPULATION,
                 ),
                 {1: set()},
             ),
             (
-                TemporalIndicatorCombination.MorningShift(
+                FixedWindowTemporalIndicatorCombination.MorningShift(
                     bodyweight_measurement_with_forward_fill,
                     category=CohortCategory.POPULATION,
                 ),
@@ -1444,7 +1461,7 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
                 },
             ),
             (
-                TemporalIndicatorCombination.AfternoonShift(
+                FixedWindowTemporalIndicatorCombination.AfternoonShift(
                     bodyweight_measurement_with_forward_fill,
                     category=CohortCategory.POPULATION,
                 ),
@@ -1565,7 +1582,7 @@ class PreOperativePatientsBeforeDayOfSurgery(Criterion):
 c_preop = PreOperativePatientsBeforeDayOfSurgery()
 
 
-class TestCriterionCombinationIndividualWindow(TestCriterionCombinationDatabase):
+class TestPersonalWindowTemporalIndicatorCombination(TestCriterionCombinationDatabase):
     """
     Test class for testing criterion combinations on the database with individual windows,
     i.e. windows whose length is dependend on some patient-specific event (here: surgery)
@@ -1621,7 +1638,7 @@ class TestCriterionCombinationIndividualWindow(TestCriterionCombinationDatabase)
             # Explicit Times
             ####################
             (
-                TemporalIndicatorCombination.Presence(
+                PersonalWindowTemporalIndicatorCombination.Presence(
                     bodyweight_measurement_without_forward_fill,
                     interval_criterion=c_preop,
                     category=CohortCategory.POPULATION,

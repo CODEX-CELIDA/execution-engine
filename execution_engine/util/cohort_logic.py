@@ -480,7 +480,7 @@ class TemporalCount(BooleanFunction, ABC):
     start_time: time | None = None
     end_time: time | None = None
     interval_type: TimeIntervalType | None = None
-    interval_criterion: Any | None = None
+    interval_criterion: BaseExpr | None = None
 
 
 class TemporalMinCount(TemporalCount):
@@ -495,7 +495,7 @@ class TemporalMinCount(TemporalCount):
         start_time: time | None,
         end_time: time | None,
         interval_type: TimeIntervalType | None,
-        interval_criterion: Any | None,
+        interval_criterion: BaseExpr | None,
         **kwargs: Any,
     ) -> "TemporalMinCount":
         """
@@ -542,6 +542,8 @@ class TemporalMinCount(TemporalCount):
             interval = f"{self.start_time} - {self.end_time}"
         elif self.interval_type is not None:
             interval = self.interval_type.name
+        elif self.interval_criterion is not None:
+            interval = repr(self.interval_criterion)
         else:
             interval = "None"
 
@@ -560,7 +562,7 @@ class TemporalMaxCount(TemporalCount):
         start_time: time | None,
         end_time: time | None,
         interval_type: TimeIntervalType | None,
-        interval_criterion: Any | None,
+        interval_criterion: BaseExpr | None,
         **kwargs: Any,
     ) -> "TemporalMaxCount":
         """
@@ -607,6 +609,8 @@ class TemporalMaxCount(TemporalCount):
             interval = f"{self.start_time} - {self.end_time}"
         elif self.interval_type is not None:
             interval = self.interval_type.name
+        elif self.interval_criterion is not None:
+            interval = repr(self.interval_criterion)
         else:
             interval = "None"
 
@@ -625,7 +629,7 @@ class TemporalExactCount(TemporalCount):
         start_time: time | None,
         end_time: time | None,
         interval_type: TimeIntervalType | None,
-        interval_criterion: Any | None,
+        interval_criterion: BaseExpr | None,
         **kwargs: Any,
     ) -> "TemporalExactCount":
         """
@@ -673,6 +677,8 @@ class TemporalExactCount(TemporalCount):
             interval = f"{self.start_time} - {self.end_time}"
         elif self.interval_type is not None:
             interval = self.interval_type.name
+        elif self.interval_criterion is not None:
+            interval = repr(self.interval_criterion)
         else:
             interval = "None"
 
