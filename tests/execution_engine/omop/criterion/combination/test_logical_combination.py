@@ -268,9 +268,9 @@ class TestCriterionCombinationDatabase(TestCriterion):
             concept=concept_artificial_respiration,
         )
 
-        c1.id = 1
-        c2.id = 2
-        c3.id = 3
+        c1.set_id(1)
+        c2.set_id(2)
+        c3.set_id(3)
 
         self.register_criterion(c1, db_session)
         self.register_criterion(c2, db_session)
@@ -365,7 +365,7 @@ class TestCriterionCombinationDatabase(TestCriterion):
             comb = LogicalCriterionCombination.Not(comb)
 
         noop_criterion = NoopCriterion()
-        noop_criterion.id = 1005
+        noop_criterion.set_id(1005)
         noop_intervention = LogicalCriterionCombination.And(noop_criterion)
         self.register_criterion(noop_criterion, db_session)
 
@@ -738,9 +738,9 @@ class TestCriterionCombinationNoData(TestCriterionCombinationDatabase):
             value=ValueNumber(value_min=70, unit=concept_unit_kg),
         )
 
-        c1.id = 1
-        c2.id = 2
-        c3.id = 3
+        c1.set_id(1)
+        c2.set_id(2)
+        c3.set_id(3)
 
         self.register_criterion(c1, db_session)
         self.register_criterion(c2, db_session)
@@ -868,9 +868,9 @@ class TestCriterionCombinationConditionalFilter(TestCriterionCombinationDatabase
             concept=concept_covid19,
         )
 
-        c1.id = 1
-        c2.id = 2
-        c3.id = 3
+        c1.set_id(1)
+        c2.set_id(2)
+        c3.set_id(3)
 
         self.register_criterion(c1, db_session)
         self.register_criterion(c2, db_session)

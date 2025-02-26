@@ -41,7 +41,7 @@ class NoopCriterion(Criterion):
         """
         Create an object from a dictionary.
         """
-        return cls(**data)
+        return cls()
 
     def description(self) -> str:
         """
@@ -53,6 +53,4 @@ class NoopCriterion(Criterion):
         """
         Get a dictionary representation of the object.
         """
-        return {
-            "class": self.__class__.__name__,
-        }
+        return {}

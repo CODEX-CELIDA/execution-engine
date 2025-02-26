@@ -226,7 +226,7 @@ class TestCriterion:
     @pytest.fixture
     def base_criterion(self, db_session):
         c = PatientsActiveDuringPeriod()
-        c.id = -1
+        c.set_id(-1)
         self.register_criterion(c, db_session)
 
         return c
@@ -251,7 +251,7 @@ class TestCriterion:
         )
 
     def insert_criterion(self, db_session, criterion, observation_window: TimeRange):
-        criterion.id = self.criterion_id
+        criterion.set_id(self.criterion_id)
         self.register_criterion(criterion, db_session)
 
         query = criterion.create_query()

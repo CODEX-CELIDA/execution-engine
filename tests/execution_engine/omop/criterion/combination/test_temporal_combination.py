@@ -318,11 +318,18 @@ class TestCriterionCombinationDatabase(TestCriterion):
 
     @pytest.fixture
     def criteria(self, db_session):
-        c1.id = 1
-        c2.id = 2
-        c3.id = 3
-        bodyweight_measurement_without_forward_fill.id = 4
-        bodyweight_measurement_with_forward_fill.id = 5
+
+        for i, c in enumerate(
+            [
+                c1,
+                c2,
+                c3,
+                bodyweight_measurement_without_forward_fill,
+                bodyweight_measurement_with_forward_fill,
+            ]
+        ):
+            if not c.is_persisted():
+                c.set_id(i + 1)
 
         self.register_criterion(c1, db_session)
         self.register_criterion(c2, db_session)
@@ -350,7 +357,7 @@ class TestCriterionCombinationDatabase(TestCriterion):
     ):
 
         noop_criterion = NoopCriterion()
-        noop_criterion.id = 1005
+        noop_criterion.set_id(1005)
         noop_intervention = LogicalCriterionCombination.And(noop_criterion)
         self.register_criterion(noop_criterion, db_session)
 
@@ -1522,7 +1529,7 @@ class PreOperativePatientsBeforeDayOfSurgery(Criterion):
         """
         Create an object from a dictionary.
         """
-        return cls(**data)
+        return cls()
 
     def description(self) -> str:
         """
@@ -1534,9 +1541,7 @@ class PreOperativePatientsBeforeDayOfSurgery(Criterion):
         """
         Get a dictionary representation of the object.
         """
-        return {
-            "class": self.__class__.__name__,
-        }
+        return {}
 
     def _create_query(self) -> sa.Select:
         """
@@ -1573,10 +1578,12 @@ class TestPersonalWindowTemporalIndicatorCombination(TestCriterionCombinationDat
 
     @pytest.fixture
     def criteria(self, db_session):
-        # c4.id = 4  # surgical procedure
+        # c4.set_id(4)  # surgical procedure
 
-        c_preop.id = 4
-        bodyweight_measurement_without_forward_fill.id = 5
+        if not c_preop.is_persisted():
+            c_preop.set_id(4)
+        if not bodyweight_measurement_without_forward_fill.is_persisted():
+            bodyweight_measurement_without_forward_fill.set_id(5)
 
         self.register_criterion(c_preop, db_session)
         self.register_criterion(bodyweight_measurement_without_forward_fill, db_session)
