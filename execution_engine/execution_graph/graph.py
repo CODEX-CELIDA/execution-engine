@@ -446,7 +446,7 @@ class ExecutionGraph(nx.DiGraph):
                         *args, threshold=comb.operator.threshold, category=category
                     )
 
-                raise NotImplementedError(f'Operator "{comb.operator}" not implemented')
+                raise NotImplementedError(f'Logical combination operator "{comb.operator}" not implemented')
 
             ###################################################################################
             elif isinstance(comb, TemporalIndicatorCombination):
@@ -489,7 +489,7 @@ class ExecutionGraph(nx.DiGraph):
                 op_func = op_map.get(comb.operator.operator, None)
                 if op_func is None:
                     raise NotImplementedError(
-                        f'Operator "{str(comb.operator)}" not implemented'
+                        f'Temporal combination operator "{str(comb.operator)}" not implemented'
                     )
 
                 return lambda *args, category: op_func(
