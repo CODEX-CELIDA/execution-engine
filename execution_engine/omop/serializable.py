@@ -93,4 +93,4 @@ class Serializable(ABC):
         """
         Get the hash of the object.
         """
-        return hash(self.json())
+        return hash(self.__class__.__name__.encode() + self.json())
