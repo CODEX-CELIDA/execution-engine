@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.sql import Select
 
 import execution_engine.omop.db.omop.tables as omop_tables
-from execution_engine.constants import CohortCategory, OMOPConcepts
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     observation_end_datetime,
@@ -50,7 +50,6 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
 
     def __init__(
         self,
-        category: CohortCategory,
         concept: Concept,
         value: Value | None = None,
         static: bool | None = None,
@@ -59,7 +58,6 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
         forward_fill: bool = True,
     ):
         super().__init__(
-            category=category,
             concept=concept,
             value=value,
             static=static,

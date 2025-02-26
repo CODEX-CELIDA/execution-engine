@@ -28,6 +28,7 @@ from tests._fixtures.concept import (
     concept_unit_ml,
 )
 from tests._testdata import concepts
+from tests.execution_engine.omop.criterion.combination import NoopCriterion
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion, date_set
 from tests.functions import (
     create_condition,
@@ -65,7 +66,6 @@ class TestCriterionCombination:
         )
         combination = LogicalCriterionCombination(
             operator=operator,
-            category=CohortCategory.POPULATION_INTERVENTION,
         )
 
         assert combination.operator == operator
@@ -77,7 +77,6 @@ class TestCriterionCombination:
         )
         combination = LogicalCriterionCombination(
             operator=operator,
-            category=CohortCategory.POPULATION_INTERVENTION,
         )
 
         for criterion in mock_criteria:
@@ -94,7 +93,6 @@ class TestCriterionCombination:
         )
         combination = LogicalCriterionCombination(
             operator=operator,
-            category=CohortCategory.POPULATION_INTERVENTION,
         )
 
         for criterion in mock_criteria:
@@ -104,7 +102,6 @@ class TestCriterionCombination:
         assert combination_dict == {
             "operator": "AND",
             "threshold": None,
-            "category": "POPULATION_INTERVENTION",
             "criteria": [
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
@@ -119,7 +116,6 @@ class TestCriterionCombination:
         combination_data = {
             "operator": "AND",
             "threshold": None,
-            "category": "POPULATION_INTERVENTION",
             "criteria": [
                 {"class_name": "MockCriterion", "data": criterion.dict()}
                 for criterion in mock_criteria
@@ -159,7 +155,6 @@ class TestCriterionCombination:
 
         combination = LogicalCriterionCombination(
             operator=operator,
-            category=CohortCategory.POPULATION_INTERVENTION,
         )
         for criterion in mock_criteria:
             combination.add(criterion)
@@ -181,7 +176,6 @@ class TestCriterionCombination:
         )
         combination = NonCommutativeLogicalCriterionCombination(
             operator=operator,
-            category=CohortCategory.POPULATION_INTERVENTION,
             left=mock_criteria[0],
             right=mock_criteria[1],
         )
@@ -221,14 +215,9 @@ class TestCriterionCombination:
         )
         combination = LogicalCriterionCombination(
             operator=operator,
-            category=CohortCategory.POPULATION_INTERVENTION,
         )
 
-        assert repr(combination) == (
-            "LogicalCriterionCombination.And(\n"
-            "  category=CohortCategory.POPULATION_INTERVENTION,\n"
-            ")"
-        )
+        assert repr(combination) == ("LogicalCriterionCombination.And(\n" ")")
 
     def test_add_all(self):
         operator = LogicalCriterionCombination.Operator(
@@ -236,7 +225,6 @@ class TestCriterionCombination:
         )
         combination = LogicalCriterionCombination(
             operator=operator,
-            category=CohortCategory.POPULATION_INTERVENTION,
         )
 
         assert len(combination) == 0
@@ -263,7 +251,6 @@ class TestCriterionCombinationDatabase(TestCriterion):
     @pytest.fixture
     def criteria(self, db_session):
         c1 = DrugExposure(
-            category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
             dose=Dosage(
                 dose=ValueNumber(value_min=15, unit=concept_unit_mg),
@@ -274,12 +261,10 @@ class TestCriterionCombinationDatabase(TestCriterion):
         )
 
         c2 = ConditionOccurrence(
-            category=CohortCategory.POPULATION,
             concept=concept_covid19,
         )
 
         c3 = ProcedureOccurrence(
-            category=CohortCategory.POPULATION,
             concept=concept_artificial_respiration,
         )
 
@@ -345,11 +330,11 @@ class TestCriterionCombinationDatabase(TestCriterion):
         for arg in args:
             if arg.is_Not:
                 if arg.args[0].name == "c1":
-                    c1 = LogicalCriterionCombination.Not(c1, c1.category)
+                    c1 = LogicalCriterionCombination.Not(c1)
                 elif arg.args[0].name == "c2":
-                    c2 = LogicalCriterionCombination.Not(c2, c2.category)
+                    c2 = LogicalCriterionCombination.Not(c2)
                 elif arg.args[0].name == "c3":
-                    c3 = LogicalCriterionCombination.Not(c3, c3.category)
+                    c3 = LogicalCriterionCombination.Not(c3)
                 else:
                     raise ValueError(f"Unknown criterion {arg.args[0].name}")
 
@@ -359,14 +344,12 @@ class TestCriterionCombinationDatabase(TestCriterion):
             assert len(c.args) == 2
 
             comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
-                category=CohortCategory.POPULATION,
                 left=symbols[str(c.args[0])],
                 right=symbols[str(c.args[1])],
             )
 
         else:
             comb = LogicalCriterionCombination(
-                category=CohortCategory.POPULATION,
                 operator=LogicalCriterionCombination.Operator(
                     operator, threshold=threshold
                 ),
@@ -379,10 +362,19 @@ class TestCriterionCombinationDatabase(TestCriterion):
                     comb.add(symbols[str(symbol)])
 
         if exclude:
-            comb = LogicalCriterionCombination.Not(comb, comb.category)
+            comb = LogicalCriterionCombination.Not(comb)
+
+        noop_criterion = NoopCriterion()
+        noop_criterion.id = 1005
+        noop_intervention = LogicalCriterionCombination.And(noop_criterion)
+        self.register_criterion(noop_criterion, db_session)
 
         self.insert_criterion_combination(
-            db_session, comb, base_criterion, observation_window
+            db_session,
+            population=comb,
+            intervention=noop_intervention,
+            base_criterion=base_criterion,
+            observation_window=observation_window,
         )
 
         df = self.fetch_full_day_result(
@@ -727,7 +719,6 @@ class TestCriterionCombinationNoData(TestCriterionCombinationDatabase):
     @pytest.fixture
     def criteria(self, db_session):
         c1 = DrugExposure(
-            category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
             dose=Dosage(
                 dose=ValueNumber(value=100, unit=concept_unit_mg),
@@ -738,13 +729,11 @@ class TestCriterionCombinationNoData(TestCriterionCombinationDatabase):
         )
 
         c2 = Measurement(
-            category=CohortCategory.POPULATION,
             concept=concept_tidal_volume,
             value=ValueNumber(value_min=500, unit=concept_unit_ml),
         )
 
         c3 = Measurement(
-            category=CohortCategory.POPULATION,
             concept=concept_body_weight,
             value=ValueNumber(value_min=70, unit=concept_unit_kg),
         )
@@ -861,7 +850,6 @@ class TestCriterionCombinationConditionalFilter(TestCriterionCombinationDatabase
     @pytest.fixture
     def criteria(self, db_session):
         c1 = DrugExposure(
-            category=CohortCategory.POPULATION,
             ingredient_concept=concept_heparin_ingredient,
             dose=Dosage(
                 dose=ValueNumber(value=100, unit=concept_unit_mg),
@@ -872,13 +860,11 @@ class TestCriterionCombinationConditionalFilter(TestCriterionCombinationDatabase
         )
 
         c2 = Measurement(
-            category=CohortCategory.POPULATION,
             concept=concept_body_weight,
             value=ValueNumber(value_min=70, unit=concept_unit_kg),
         )
 
         c3 = ConditionOccurrence(
-            category=CohortCategory.POPULATION,
             concept=concept_covid19,
         )
 

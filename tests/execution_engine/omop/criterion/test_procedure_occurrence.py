@@ -63,7 +63,6 @@ class TestProcedureOccurrence(Occurrence):
             timing = Timing(duration=2 * TimeUnit.HOUR)
 
             criterion = ProcedureOccurrence(
-                category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
                 timing=timing,
@@ -75,7 +74,7 @@ class TestProcedureOccurrence(Occurrence):
                 db_session,
                 pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,
-                category=criterion.category,
+                category=CohortCategory.POPULATION,
             )
 
             return df
@@ -229,7 +228,6 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
                 timing=timing,
@@ -242,7 +240,7 @@ class TestProcedureOccurrence(Occurrence):
                 db_session,
                 pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,
-                category=criterion.category,
+                category=CohortCategory.POPULATION,
             )
             df = df.query('interval_type=="POSITIVE"')
 
@@ -320,7 +318,6 @@ class TestProcedureOccurrence(Occurrence):
             value: ValueNumber | None = None,
         ):
             criterion = ProcedureOccurrence(
-                category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
                 timing=timing,
@@ -332,7 +329,7 @@ class TestProcedureOccurrence(Occurrence):
                 db_session,
                 pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,
-                category=criterion.category,
+                category=CohortCategory.POPULATION,
             )
             df = df.query('interval_type=="POSITIVE"')
 
@@ -350,7 +347,6 @@ class TestProcedureOccurrence(Occurrence):
 
     def test_serialization(self, concept):
         original = ProcedureOccurrence(
-            category=CohortCategory.POPULATION,
             concept=concept,
             value=None,
             timing=Timing(

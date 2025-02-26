@@ -85,7 +85,6 @@ class PopulationInterventionPair(Serializable):
         """
 
         root_combination = LogicalCriterionCombination(
-            category=category,
             operator=LogicalCriterionCombination.Operator("AND"),
             root_combination=True,
         )
@@ -139,8 +138,12 @@ class PopulationInterventionPair(Serializable):
         Get the execution graph for the population/intervention pair.
         """
 
-        p = ExecutionGraph.combination_to_expression(self._population)
-        i = ExecutionGraph.combination_to_expression(self._intervention)
+        p = ExecutionGraph.combination_to_expression(
+            self._population, category=CohortCategory.POPULATION
+        )
+        i = ExecutionGraph.combination_to_expression(
+            self._intervention, category=CohortCategory.INTERVENTION
+        )
 
         # filter all intervention criteria by the output of the population - this is performed to filter out
         # intervention events that outside of the population intervals (i.e. the time windows during which

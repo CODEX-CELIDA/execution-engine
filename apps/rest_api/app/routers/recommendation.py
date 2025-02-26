@@ -50,7 +50,6 @@ async def recommendation_criteria(
         data.append(
             {
                 "description": c.description(),
-                "cohort_category": c.category,
             }
         )
 

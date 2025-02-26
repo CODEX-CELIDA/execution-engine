@@ -12,6 +12,7 @@ from execution_engine.constants import CohortCategory
 from execution_engine.execution_graph import ExecutionGraph
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.combination.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.celida.views import (
     full_day_coverage,
@@ -287,20 +288,40 @@ class TestCriterion:
         db_session.commit()
 
     def insert_criterion_combination(
-        self, db_session, combination, base_criterion, observation_window: TimeRange
+        self,
+        db_session,
+        population: CriterionCombination,
+        intervention: CriterionCombination,
+        base_criterion: Criterion,
+        observation_window: TimeRange,
     ):
-        graph = ExecutionGraph.from_criterion_combination(combination, base_criterion)
+        graph = ExecutionGraph.from_criterion_combination(
+            population, intervention, base_criterion
+        )
 
         # we need to add a NoDataPreservingAnd node to insert NEGATIVE intervals
-        sink_node = graph.sink_node(CohortCategory.POPULATION)
+        p_sink_node = graph.sink_node(CohortCategory.POPULATION)
+        pi_sink_node = graph.sink_node(CohortCategory.POPULATION_INTERVENTION)
+
         p_combination_node = cohort_logic.NoDataPreservingAnd(
-            sink_node, category=CohortCategory.POPULATION
+            p_sink_node, category=CohortCategory.POPULATION
+        )
+
+        pi_combination_node = cohort_logic.NoDataPreservingAnd(
+            pi_sink_node, category=CohortCategory.POPULATION_INTERVENTION
         )
 
         graph.add_node(
             p_combination_node, store_result=True, category=CohortCategory.POPULATION
         )
-        graph.add_edge(sink_node, p_combination_node)
+        graph.add_node(
+            pi_combination_node,
+            store_result=True,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        graph.add_edge(p_sink_node, p_combination_node)
+        graph.add_edge(pi_sink_node, pi_combination_node)
 
         graph.set_sink_nodes_store(bind_params={"pi_pair_id": self.pi_pair_id})
 
@@ -388,7 +409,6 @@ class TestCriterion:
             value: ValueNumber | ValueConcept | None = None,
         ) -> pd.DataFrame:
             criterion = criterion_class(
-                category=CohortCategory.POPULATION,
                 concept=concept,
                 value=value,
                 static=None,
@@ -400,7 +420,7 @@ class TestCriterion:
                 db_session,
                 pi_pair_id=self.pi_pair_id,
                 criterion_id=self.criterion_id,
-                category=criterion.category,
+                category=CohortCategory.POPULATION,
             )
 
             return df

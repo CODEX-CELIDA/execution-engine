@@ -2,7 +2,6 @@ from typing import Any, Dict, cast
 
 from sqlalchemy import CTE, ColumnElement, Select, select
 
-from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     column_interval_type,
@@ -24,7 +23,6 @@ class PointInTimeCriterion(ConceptCriterion):
 
     def __init__(
         self,
-        category: CohortCategory,
         concept: Concept,
         value: Value | None = None,
         static: bool | None = None,
@@ -33,7 +31,6 @@ class PointInTimeCriterion(ConceptCriterion):
         forward_fill: bool = True,
     ):
         super().__init__(
-            category=category,
             concept=concept,
             value=value,
             static=static,

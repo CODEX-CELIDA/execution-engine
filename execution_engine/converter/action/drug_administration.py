@@ -6,7 +6,7 @@ from fhir.resources.activitydefinition import ActivityDefinition
 from fhir.resources.dosage import Dosage as FHIRDosage
 
 from execution_engine.clients import omopdb
-from execution_engine.constants import EXT_DOSAGE_CONDITION, CohortCategory
+from execution_engine.constants import EXT_DOSAGE_CONDITION
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.criterion import (
     get_extension_by_url,
@@ -285,7 +285,6 @@ class DrugAdministrationAction(AbstractAction):
         if not self._dosages:
             # no dosages, just return the drug exposure
             return DrugExposure(
-                category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=None,
                 route=None,
@@ -293,7 +292,6 @@ class DrugAdministrationAction(AbstractAction):
 
         for dosage in self._dosages:
             drug_action = DrugExposure(
-                category=CohortCategory.INTERVENTION,
                 ingredient_concept=self._ingredient_concept,
                 dose=dosage["dose"],
                 route=dosage.get("route", None),
@@ -316,7 +314,6 @@ class DrugAdministrationAction(AbstractAction):
                     )
 
                 ext_criterion = PointInTimeCriterion(
-                    category=CohortCategory.INTERVENTION,
                     concept=extension["code"],
                     value=extension["value"],
                 )
@@ -326,7 +323,6 @@ class DrugAdministrationAction(AbstractAction):
                 # Thus, the actual drug administration (drug_action, "right") must only be fulfilled if the
                 # condition (ext_criterion, "left") is fulfilled. Thus, we here add this conditional filter.
                 comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
-                    category=CohortCategory.INTERVENTION,
                     left=ext_criterion,
                     right=drug_action,
                 )
@@ -338,7 +334,6 @@ class DrugAdministrationAction(AbstractAction):
             result = drug_actions[0]
         else:
             result = LogicalCriterionCombination(
-                category=CohortCategory.INTERVENTION,
                 operator=LogicalCriterionCombination.Operator("OR"),
             )
             result.add_all(drug_actions)

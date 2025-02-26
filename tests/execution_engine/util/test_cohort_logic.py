@@ -29,14 +29,13 @@ from tests.mocks.criterion import MockCriterion
 dummy_criterion = MockCriterion(
     name="dummy_criterion",
     exclude=False,
-    category=CohortCategory.POPULATION,
 )
 
 
 x, y, z = (
-    Symbol(MockCriterion("x", False, CohortCategory.POPULATION)),
-    Symbol(MockCriterion("y", False, CohortCategory.POPULATION)),
-    Symbol(MockCriterion("z", False, CohortCategory.POPULATION)),
+    Symbol(MockCriterion("x", False), category=CohortCategory.POPULATION),
+    Symbol(MockCriterion("y", False), category=CohortCategory.POPULATION),
+    Symbol(MockCriterion("z", False), category=CohortCategory.POPULATION),
 )
 
 
@@ -54,7 +53,7 @@ class TestExpr:
 # Tests for Symbol
 class TestSymbol:
     def test_symbol_creation(self):
-        symbol = Symbol(dummy_criterion)
+        symbol = Symbol(dummy_criterion, category=CohortCategory.POPULATION)
         assert str(symbol) == "MockCriterion[dummy_criterion]"
         assert symbol.criterion == dummy_criterion
 
@@ -215,7 +214,7 @@ class TestSymbolMultiprocessing:
     @pytest.fixture(
         params=[
             Expr(1, 2, 3, category=CohortCategory.POPULATION),
-            Symbol(dummy_criterion),
+            Symbol(dummy_criterion, category=CohortCategory.POPULATION),
             BooleanFunction(1, 2, 3, category=CohortCategory.POPULATION),
             Or(1, 2, 3, category=CohortCategory.POPULATION),
             And(1, 2, 3, category=CohortCategory.POPULATION),

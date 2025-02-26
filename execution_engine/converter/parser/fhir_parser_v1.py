@@ -8,7 +8,6 @@ from fhir.resources.evidencevariable import (
 from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction
 
 from execution_engine import fhir
-from execution_engine.constants import CohortCategory
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.converter.goal.abstract import Goal
@@ -124,7 +123,6 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                     threshold=None,  # or parse an actual threshold if needed
                 )
                 combo = LogicalCriterionCombination(
-                    category=CohortCategory.POPULATION,
                     operator=operator,
                 )
 
@@ -133,7 +131,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
                 if characteristic.exclude:
                     combo = LogicalCriterionCombination.Not(
-                        combo, CohortCategory.POPULATION
+                        combo,
                     )
 
                 if characteristic.timeFromEvent is not None:
@@ -165,7 +163,6 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
         # Otherwise, gather them under an ALL_OF (AND) combination by default:
         combo = LogicalCriterionCombination(
-            category=CohortCategory.POPULATION,
             operator=LogicalCriterionCombination.Operator(
                 LogicalCriterionCombination.Operator.AND
             ),
@@ -257,6 +254,5 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                 )
 
         return LogicalCriterionCombination(
-            category=CohortCategory.INTERVENTION,
             operator=operator,
         )

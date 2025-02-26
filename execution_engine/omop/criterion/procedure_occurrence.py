@@ -3,7 +3,6 @@ from typing import Any, Dict, cast
 from sqlalchemy import case, func, select
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     SQL_ONE_SECOND,
@@ -24,14 +23,12 @@ class ProcedureOccurrence(ContinuousCriterion):
 
     def __init__(
         self,
-        category: CohortCategory,
         concept: Concept,
         value: ValueNumber | None = None,
         timing: Timing | None = None,
         static: bool | None = None,
     ) -> None:
         super().__init__(
-            category=category,
             concept=concept,
             value=value,
             static=static,
@@ -158,7 +155,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         assert self._concept is not None, "Concept must be set"
 
         return {
-            "category": self._category.value,
             "concept": self._concept.model_dump(),
             "value": (
                 self._value.model_dump(include_meta=True)
@@ -189,7 +185,6 @@ class ProcedureOccurrence(ContinuousCriterion):
         ), "timing must be a ValueNumber"
 
         return cls(
-            category=CohortCategory(data["category"]),
             concept=Concept(**data["concept"]),
             value=value,
             timing=cast(Timing, timing),

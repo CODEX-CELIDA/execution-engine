@@ -4,7 +4,7 @@ from typing import Any, Dict
 from sqlalchemy import Column, and_, case, func, select, true
 from sqlalchemy.sql import Select
 
-from execution_engine.constants import CohortCategory, OMOPConcepts
+from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import (
     SQL_ONE_SECOND,
@@ -29,7 +29,6 @@ class DrugExposure(Criterion):
 
     def __init__(
         self,
-        category: CohortCategory,
         ingredient_concept: Concept,
         dose: Dosage | None,
         route: Concept | None,
@@ -37,7 +36,7 @@ class DrugExposure(Criterion):
         """
         Initialize the drug administration action.
         """
-        super().__init__(category=category)
+        super().__init__()
         self._set_omop_variables_from_domain("drug")
         self._ingredient_concept = ingredient_concept
 
@@ -356,7 +355,6 @@ class DrugExposure(Criterion):
         Return a dictionary representation of the criterion.
         """
         return {
-            "category": self._category.value,
             "ingredient_concept": self._ingredient_concept.model_dump(),
             "dose": (
                 self._dose.model_dump(include_meta=True)
@@ -377,7 +375,6 @@ class DrugExposure(Criterion):
         assert dose is None or isinstance(dose, Dosage), "Dose must be a Dosage or None"
 
         return cls(
-            category=CohortCategory(data["category"]),
             ingredient_concept=Concept(**data["ingredient_concept"]),
             dose=dose,
             route=Concept(**data["route"]) if data["route"] is not None else None,
