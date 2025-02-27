@@ -1,6 +1,6 @@
 from typing import Any, Dict, cast
 
-from sqlalchemy import case, func, select
+from sqlalchemy import ColumnElement, case, func, select
 from sqlalchemy.sql import Select
 
 from execution_engine.omop.concepts import Concept
@@ -14,6 +14,7 @@ from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import Timing
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.factory import value_factory
+from execution_engine.util.value.time import ValueCount
 
 __all__ = ["ProcedureOccurrence"]
 
@@ -52,6 +53,20 @@ class ProcedureOccurrence(ContinuousCriterion):
 
         c_start_datetime = self._table.c["procedure_datetime"]
         c_end_datetime = self._table.c["procedure_end_datetime"]
+
+        def add_conditional_column(
+            query: Select, conditional_column: ColumnElement
+        ) -> Select:
+            """
+            Add timing columns to the query.
+            """
+            query = query.add_columns(
+                conditional_column,
+                c_start_datetime.label("interval_start"),
+                c_end_datetime.label("interval_end"),
+            )
+
+            return query
 
         if self._timing is not None:
             frequency = self._timing.frequency
@@ -105,24 +120,22 @@ class ProcedureOccurrence(ContinuousCriterion):
                     duration.to_sql(table=None, column_name=c_duration)
                 )
 
-                query = query.add_columns(
-                    conditional_column,
-                    c_start_datetime.label("interval_start"),
-                    c_end_datetime.label("interval_end"),
-                )
+                query = add_conditional_column(query, conditional_column)
             elif self._timing.count is not None:
-                raise NotImplementedError("Count timing not implemented yet")
+                if self._timing.count != ValueCount.parse(">=1"):
+                    # not sure what this would imply. we need to have the count in some interval to be able to
+                    # mark the whole interval as "positive" if the count is fulfilled"
+                    raise NotImplementedError("Count>1 timing not implemented yet")
+                else:
+                    # count=1 => we'll handle this as a usual occurrence criterion
+                    conditional_column = column_interval_type(IntervalType.POSITIVE)
+                    query = add_conditional_column(query, conditional_column)
             else:
                 raise ValueError("Timing must have an interval, duration or count")
         else:
             # no timing is given, so we just need to check that the procedure is performed
             conditional_column = column_interval_type(IntervalType.POSITIVE)
-
-            query = query.add_columns(
-                conditional_column,
-                c_start_datetime.label("interval_start"),
-                c_end_datetime.label("interval_end"),
-            )
+            query = add_conditional_column(query, conditional_column)
 
         return query
 
