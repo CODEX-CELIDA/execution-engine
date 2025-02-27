@@ -182,9 +182,9 @@ class RecommendationPlan:
             self._action: fhir.resources.plandefinition.PlanDefinitionAction = (
                 action_def
             )
-            self._activity: fhir.resources.activitydefinition.ActivityDefinition | None = (
-                None
-            )
+            self._activity: (
+                fhir.resources.activitydefinition.ActivityDefinition | None
+            ) = None
             self._package_version = package_version
 
             # an action must not necessarily contain an activity definition (e.g. ventilator management)
@@ -233,6 +233,12 @@ class RecommendationPlan:
         ) -> list[PlanDefinitionGoal]:
             """Get the goals for this action."""
             return self._goals
+
+        def model_dump(self) -> dict:
+            """
+            Return the FHIR PlanDefinitionAction model dump
+            """
+            return self.fhir().model_dump()
 
     def __init__(
         self, canonical_url: str, package_version: str, fhir_connector: FHIRClient

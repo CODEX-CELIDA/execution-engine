@@ -232,7 +232,7 @@ class VocabularyFactory:
         if system_uri in self._vocabulary:
             return self._vocabulary[system_uri]
         else:
-            raise VocabularyNotFoundError(f"Vocabulary {system_uri} not found")
+            raise VocabularyNotFoundError(f'Vocabulary "{system_uri}" not found')
 
 
 class StandardVocabulary:

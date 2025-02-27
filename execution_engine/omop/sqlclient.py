@@ -328,6 +328,9 @@ class OMOPSQLClient:
         """
         logging.info(f"Requesting standard concept: {vocabulary} #{code}")
 
+        if code is None:
+            raise ValueError("Code must be set")
+
         concept = omop.Concept.__table__.alias("c")
         query = concept.select().where(
             and_(

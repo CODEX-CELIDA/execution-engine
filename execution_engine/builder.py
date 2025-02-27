@@ -6,6 +6,7 @@ from execution_engine.converter.action.body_positioning import BodyPositioningAc
 from execution_engine.converter.action.drug_administration import (
     DrugAdministrationAction,
 )
+from execution_engine.converter.action.procedure import ProcedureAction
 from execution_engine.converter.action.ventilator_management import (
     VentilatorManagementAction,
 )
@@ -58,6 +59,7 @@ _default_converters: CriterionConverterType = {
         VentilatorManagementAction,
         BodyPositioningAction,
         AssessmentAction,
+        ProcedureAction,
     ],
     "goal": [LaboratoryValueGoal, VentilatorManagementGoal, AssessmentScaleGoal],
     "time_from_event": [],
