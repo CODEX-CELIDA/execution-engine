@@ -798,3 +798,11 @@ def find_overlapping_personal_windows(
             result[person_id] = overlapping_windows
 
     return result
+
+def find_rectangles_with_count(data: list[PersonIntervals]) -> PersonIntervals:
+    if len(data) == 0:
+        return {}
+    else:
+        keys = data[0].keys()
+        return {key: _impl.find_rectangles_with_count([ intervals[key] for intervals in data ])
+                for key in keys}

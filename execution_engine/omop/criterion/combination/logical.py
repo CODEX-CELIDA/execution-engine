@@ -16,6 +16,7 @@ class LogicalCriterionCombination(CriterionCombination):
         AND = "AND"
         OR = "OR"
         AT_LEAST = "AT_LEAST"
+        CAPPED_AT_LEAST = "CAPPED_AT_LEAST"
         AT_MOST = "AT_MOST"
         EXACTLY = "EXACTLY"
         ALL_OR_NONE = "ALL_OR_NONE"
@@ -26,13 +27,14 @@ class LogicalCriterionCombination(CriterionCombination):
                 "AND",
                 "OR",
                 "AT_LEAST",
+                "CAPPED_AT_LEAST",
                 "AT_MOST",
                 "EXACTLY",
                 "ALL_OR_NONE",
             ], f"Invalid operator {operator}"
 
             self.operator = operator
-            if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
+            if operator in ["AT_LEAST", "CAPPED_AT_LEAST", "AT_MOST", "EXACTLY"]:
                 assert (
                     threshold is not None
                 ), f"Threshold must be set for operator {operator}"
@@ -88,6 +90,20 @@ class LogicalCriterionCombination(CriterionCombination):
         """
         return cls(
             operator=cls.Operator(cls.Operator.AT_LEAST, threshold=threshold),
+            criteria=criteria,
+        )
+
+    @classmethod
+    def CappedAtLeast(
+            cls,
+            *criteria: Union[Criterion, "CriterionCombination"],
+            threshold: int,
+    ) -> "LogicalCriterionCombination":
+        """
+        Create an CAPPED_AT_LEAST combination of criteria.
+        """
+        return cls(
+            operator=cls.Operator(cls.Operator.CAPPED_AT_LEAST, threshold=threshold),
             criteria=criteria,
         )
 
