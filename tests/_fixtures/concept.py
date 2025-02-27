@@ -51,6 +51,17 @@ concept_surgical_procedure = Concept(
     invalid_reason=None,
 )
 
+concept_delir_screening = Concept( # TODO(jmoringe): copied from above (concept_artificial_respiration)
+    concept_id=4230167,
+    concept_name="Delir Screening",
+    domain_id="Procedure",
+    vocabulary_id="SNOMED",
+    concept_class_id="Procedure",
+    standard_concept="S",
+    concept_code="40617009",
+    invalid_reason=None,
+)
+
 concept_covid19 = Concept(
     concept_id=37311061,
     concept_name="COVID-19",

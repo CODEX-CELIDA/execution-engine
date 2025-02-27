@@ -438,6 +438,7 @@ class ExecutionGraph(nx.DiGraph):
                     LogicalCriterionCombination.Operator.AT_LEAST: logic.MinCount,
                     LogicalCriterionCombination.Operator.AT_MOST: logic.MaxCount,
                     LogicalCriterionCombination.Operator.EXACTLY: logic.ExactCount,
+                    LogicalCriterionCombination.Operator.CAPPED_AT_LEAST: logic.CappedMinCount,
                 }
                 if op in count_ops:
                     if comb.operator.threshold is None:

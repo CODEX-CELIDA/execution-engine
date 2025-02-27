@@ -453,6 +453,72 @@ class ExactCount(Count):
         return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
 
 
+class CappedCount(BooleanFunction, ABC):
+    """
+    Base class representing a COUNT operation with an upper cap.
+
+    This class distinguishes COUNT operations that are subject to an implicit
+    maximum constraint, ensuring that they do not exceed what is achievable
+    given external limitations.
+
+    Unlike regular COUNT operations, the threshold in this class is not assumed
+    to be unbounded. However, no explicit handling of the maximum occurs here;
+    it is enforced externally.
+
+    This class should not be instantiated directly but used as a base for specific
+    capped count operations like CappedMinCount.
+    """
+
+    count_min: int | None = None
+    count_max: int | None = None
+
+
+class CappedMinCount(CappedCount):
+    """
+    Class representing a MIN_COUNT operation with an implicit upper cap.
+
+    This behaves like MinCount but acknowledges that the minimum required count
+    is subject to an external upper constraint. If the requested threshold exceeds
+    what is achievable, the actual threshold will be limited to the maximum possible
+    count, which is determined externally.
+
+    The enforcement of this cap does not occur within this class; rather, it is
+    expected to be handled by the surrounding logic.
+
+    The threshold parameter defines the minimum number of overlapping intervals
+    required, but in practice, it will not exceed the externally imposed cap.
+    """
+
+    def __new__(
+        cls, *args: Any, threshold: int | None, **kwargs: Any
+    ) -> "CappedMinCount":
+        """
+        Create a new CappedMinCount object.
+        """
+        self = cast(CappedMinCount, super().__new__(cls, *args, **kwargs))
+        self.count_min = threshold
+        return self
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g., when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (self.args, {"category": self.category, "threshold": self.count_min}),
+        )
+
+    def __repr__(self) -> str:
+        """
+        Represent the expression in a readable format.
+        """
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+
+
 class AllOrNone(BooleanFunction):
     """
     Class representing a logical ALL_OR_NONE operation.
