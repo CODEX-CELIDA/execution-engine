@@ -14,7 +14,7 @@ from execution_engine.omop.criterion.combination.logical import (
 from execution_engine.omop.criterion.combination.temporal import (
     FixedWindowTemporalIndicatorCombination,
     PersonalWindowTemporalIndicatorCombination,
-    TimeIntervalType, TemporalIndicatorCombination,
+    TimeIntervalType,
 )
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
@@ -27,9 +27,9 @@ from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
-    concept_delir_screening,
     concept_body_weight,
     concept_covid19,
+    concept_delir_screening,
     concept_heparin_ingredient,
     concept_surgical_procedure,
     concept_unit_kg,
@@ -208,10 +208,16 @@ class TestFixedWindowTemporalIndicatorCombination:
         op = FixedWindowTemporalIndicatorCombination.Operator(operator, threshold)
 
         if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-            assert repr(op) == f'Operator(operator="{operator}", threshold={threshold})'
+            assert (
+                repr(op)
+                == f'TemporalIndicatorCombination.Operator(operator="{operator}", threshold={threshold})'
+            )
             assert str(op) == f"{operator}(threshold={threshold})"
         else:
-            assert repr(op) == f'Operator(operator="{operator}")'
+            assert (
+                repr(op)
+                == f'TemporalIndicatorCombination.Operator(operator="{operator}")'
+            )
             assert str(op) == f"{operator}"
 
     def test_repr(self):
@@ -228,9 +234,7 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
             "  start_time=None,\n"
             "  end_time=None,\n"
-            '  operator=Operator(operator="AT_LEAST", threshold=1),\n'
-            "  criteria=[\n"
-            "  ],\n"
+            '  operator=TemporalIndicatorCombination.Operator(operator="AT_LEAST", threshold=1),\n'
             ")"
         )
 
@@ -245,9 +249,7 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  interval_type=None,\n"
             "  start_time=datetime.time(8, 0),\n"
             "  end_time=datetime.time(16, 0),\n"
-            '  operator=Operator(operator="AT_LEAST", threshold=1),\n'
-            "  criteria=[\n"
-            "  ],\n"
+            '  operator=TemporalIndicatorCombination.Operator(operator="AT_LEAST", threshold=1),\n'
             ")"
         )
 
@@ -309,6 +311,7 @@ delir_screening = ProcedureOccurrence(
     concept=concept_delir_screening,
 )
 
+
 class TestCriterionCombinationDatabase(TestCriterion):
     """
     Test class for testing criterion combinations on the database.
@@ -323,13 +326,13 @@ class TestCriterionCombinationDatabase(TestCriterion):
     @pytest.fixture
     def criteria(self, db_session):
         criteria = [
-                c1,
-                c2,
-                c3,
-                bodyweight_measurement_without_forward_fill,
-                bodyweight_measurement_with_forward_fill,
-                delir_screening,
-            ]
+            c1,
+            c2,
+            c3,
+            bodyweight_measurement_without_forward_fill,
+            bodyweight_measurement_with_forward_fill,
+            delir_screening,
+        ]
         for i, c in enumerate(criteria):
             if not c.is_persisted():
                 c.set_id(i + 1)
@@ -1668,6 +1671,7 @@ class TestPersonalWindowTemporalIndicatorCombination(TestCriterionCombinationDat
             persons,
         )
 
+
 class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase):
     """This test ensures that counting criteria with minimum count
     thresholds adapt to the temporal interval of the population
@@ -1683,13 +1687,17 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
 
     @pytest.fixture
     def observation_window(self) -> TimeRange:
-        return TimeRange(name="observation", start="2025-02-18 13:55:00Z", end="2025-02-22 11:00:00Z")
+        return TimeRange(
+            name="observation", start="2025-02-18 13:55:00Z", end="2025-02-22 11:00:00Z"
+        )
 
     def patient_events(self, db_session, visit_occurrence):
-        c1 = create_condition(vo=visit_occurrence,
-                              condition_concept_id=concept_covid19.concept_id,
-                              condition_start_datetime=pendulum.parse("2025-02-19 22:00:00+01:00"),
-                              condition_end_datetime=pendulum.parse("2025-02-22 02:00:00+01:00"))
+        c1 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2025-02-19 22:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2025-02-22 02:00:00+01:00"),
+        )
         # One screen on the 19th
         e1 = create_procedure(
             vo=visit_occurrence,
@@ -1725,7 +1733,7 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
             start_datetime=pendulum.parse("2025-02-22 04:00:00+01:00"),
             end_datetime=pendulum.parse("2025-02-22 04:01:00+01:00"),
         )
-        db_session.add_all([c1,e1,e2,e3,e4,e5])
+        db_session.add_all([c1, e1, e2, e3, e4, e5])
         db_session.commit()
 
     @pytest.mark.parametrize(
@@ -1777,13 +1785,14 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
         observation_window,
         criteria,
     ):
-        persons = [person[0]] # only one person
+        persons = [person[0]]  # only one person
         vos = [
             create_visit(
                 person_id=person.person_id,
                 visit_start_datetime=observation_window.start
                 + datetime.timedelta(hours=3),
-                visit_end_datetime=observation_window.end - datetime.timedelta(hours=6.5),
+                visit_end_datetime=observation_window.end
+                - datetime.timedelta(hours=6.5),
                 visit_concept_id=concepts.INTENSIVE_CARE,
             )
             for person in persons

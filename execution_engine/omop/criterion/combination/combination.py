@@ -273,11 +273,12 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             lines.extend(criteria_lines)
             lines.append(f"{child_indent}],")
         else:
-            assert len(criteria_lines) == 1
+            assert len(criteria_lines) <= 1
             lines.extend(kw_lines)
-            lines.append(
-                f"{child_indent}{children_param_name}={criteria_lines[0].strip()}"
-            )
+            if criteria_lines:
+                lines.append(
+                    f"{child_indent}{children_param_name}={criteria_lines[0].strip()}"
+                )
 
         lines.append(f"{indent})")
 
