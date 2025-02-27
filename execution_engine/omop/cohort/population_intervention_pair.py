@@ -63,8 +63,8 @@ class PopulationInterventionPair(Serializable):
         """
         return (
             f"{self.__class__.__name__}(\n"
-            f"  name={self._name},\n"
-            f"  url={self._url},\n"
+            f"  name={repr(self._name)},\n"
+            f"  url={repr(self._url)},\n"
             f"  base_criterion={repr(self._base_criterion)},\n"
             f"  population={self._population._repr_pretty(level=1).strip()},\n"
             f"  intervention={self._intervention._repr_pretty(level=1).strip()}\n"

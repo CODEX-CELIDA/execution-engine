@@ -38,9 +38,9 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
             Get the string representation of the operator.
             """
             if self.operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-                return f'{self.__class__.__name__}(operator="{self.operator}", threshold={self.threshold})'
+                return f'{self.__class__.__qualname__}(operator="{self.operator}", threshold={self.threshold})'
             else:
-                return f'{self.__class__.__name__}(operator="{self.operator}")'
+                return f'{self.__class__.__qualname__}(operator="{self.operator}")'
 
         def __eq__(self, other: object) -> bool:
             """
@@ -207,6 +207,8 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         children: Sequence[tuple[str | None, Any]],
         params: list[tuple[str, Any]],
         level: int = 0,
+        children_param_name: str = "criteria",
+        children_is_sequence: bool = True,
     ) -> str:
         """
         Builds a multi-line string for this criterion combination,
@@ -265,11 +267,17 @@ class CriterionCombination(AbstractCriterion, metaclass=ABCMeta):
         if method_defined:
             lines.extend(criteria_lines)
             lines.extend(kw_lines)
-        else:
+        elif children_is_sequence:
             lines.extend(kw_lines)
-            lines.append(f"{child_indent}criteria=[")
+            lines.append(f"{child_indent}{children_param_name}=[")
             lines.extend(criteria_lines)
             lines.append(f"{child_indent}],")
+        else:
+            assert len(criteria_lines) == 1
+            lines.extend(kw_lines)
+            lines.append(
+                f"{child_indent}{children_param_name}={criteria_lines[0].strip()}"
+            )
 
         lines.append(f"{indent})")
 

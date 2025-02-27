@@ -75,14 +75,13 @@ class Recommendation(Serializable):
         return (
             f"{self.__class__.__name__}(\n"
             f"  pi_pairs={pi_repr},\n"
-            f"  base_criterion={self._base_criterion},\n"
-            f"  name='{self._name}',\n"
-            f"  title='{self._title}',\n"
-            f"  url='{self._url}',\n"
-            f"  version='{self._version}',\n"
-            f"  description='{self._description}',\n"
-            f"  recommendation_id={self._id}\n"
-            f"  package_version='{self._package_version}',\n"
+            f"  base_criterion={repr(self._base_criterion)},\n"
+            f"  name={repr(self._name)},\n"
+            f"  title={repr(self._title)},\n"
+            f"  url={repr(self._url)},\n"
+            f"  version={repr(self._version)},\n"
+            f"  description={repr(self._description)},\n"
+            f"  package_version={repr(self._package_version)},\n"
             f")"
         )
 

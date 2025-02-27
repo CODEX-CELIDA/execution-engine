@@ -79,7 +79,7 @@ class SignatureReprMeta(type):
         original_repr = namespace.get("__repr__")
 
         if not original_repr:
-            # Try to find an __init__ in the bases
+            # Try to find an __repr__ in the bases
             for base in reversed(bases):
                 if base.__repr__ is not object.__repr__:
                     original_repr = base.__repr__
@@ -91,23 +91,30 @@ class SignatureReprMeta(type):
         ):
 
             def __repr__(self: object) -> str:
+                # Case 1: No real __init__ found at all => just return ClassName()
+                if original_init is None:
+                    return f"{name}()"
+
+                # Case 2: If the class or its parents do define an __init__, we check
+                # for _init_args. If the class isn't wrapping init, your class would
+                # have to set _init_args itself (or you'll just get a normal object repr).
                 if not hasattr(self, "_init_args"):
                     return super(type(self), self).__repr__()
-                sig = inspect.signature(original_init) if original_init else None
+
+                # Build param=value only if they differ from default
+                sig = inspect.signature(original_init)
                 parts = []
-                if sig:
-                    for param_name, param in sig.parameters.items():
-                        if param_name == "self":
-                            continue
-                        default = param.default
-                        # Only show params if they differ from the default
-                        if (
-                            param_name in self._init_args
-                            and self._init_args[param_name] != default
-                        ):
-                            parts.append(
-                                f"{param_name}={repr(self._init_args[param_name])}"
-                            )
+                for param_name, param in sig.parameters.items():
+                    if param_name == "self":
+                        continue
+                    default = param.default
+                    if (
+                        param_name in self._init_args
+                        and self._init_args[param_name] != default
+                    ):
+                        parts.append(
+                            f"{param_name}={repr(self._init_args[param_name])}"
+                        )
                 return f"{name}({', '.join(parts)})"
 
             # Tag it so children know it's auto-generated

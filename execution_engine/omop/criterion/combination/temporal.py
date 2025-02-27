@@ -73,6 +73,17 @@ class TemporalIndicatorCombination(CriterionCombination, ABC):
 
         super().__init__(operator=operator, criteria=criteria)
 
+    def _repr_pretty(self, level: int = 0) -> str:
+        children = [(None, c) for c in self._criteria]
+
+        return self._build_repr(
+            children,
+            params=[],
+            level=level,
+            children_param_name="criterion",
+            children_is_sequence=False,
+        )
+
 
 class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
     """
@@ -138,7 +149,13 @@ class FixedWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
             ("start_time", self.start_time),
             ("end_time", self.end_time),
         ]
-        return self._build_repr(children, params, level)
+        return self._build_repr(
+            children,
+            params=params,
+            level=level,
+            children_param_name="criterion",
+            children_is_sequence=False,
+        )
 
     def dict(self) -> Dict:
         """
@@ -377,7 +394,13 @@ class PersonalWindowTemporalIndicatorCombination(TemporalIndicatorCombination):
         params = [
             ("interval_criterion", self.interval_criterion),
         ]
-        return self._build_repr(children, params, level)
+        return self._build_repr(
+            children,
+            params=params,
+            level=level,
+            children_param_name="criterion",
+            children_is_sequence=False,
+        )
 
     @property
     def interval_criterion(self) -> Criterion | CriterionCombination:
