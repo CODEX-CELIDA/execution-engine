@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Self, Type, final
+from typing import Type, final
 
 from fhir.resources.timing import Timing as FHIRTiming
 
@@ -47,7 +47,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
     @classmethod
     @abstractmethod
-    def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> "AbstractAction":
         """Creates a new action from a FHIR PlanDefinition."""
         raise NotImplementedError()
 

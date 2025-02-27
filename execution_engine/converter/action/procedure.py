@@ -1,4 +1,4 @@
-from typing import Self, Type
+from typing import Type
 
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.criterion import parse_code
@@ -41,7 +41,7 @@ class ProcedureAction(AbstractAction):
         self._timing = timing
 
     @classmethod
-    def from_fhir(cls, action_def: RecommendationPlan.Action) -> Self:
+    def from_fhir(cls, action_def: RecommendationPlan.Action) -> AbstractAction:
         """Creates a new action from a FHIR PlanDefinition."""
         assert (
             action_def.activity_definition_fhir is not None

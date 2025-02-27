@@ -87,11 +87,35 @@ def parse_value(
         value_obj = ValueConcept(value=value_omop_concept)
     elif isinstance(value, Quantity):
         # Check if there's a code to determine if we use ValueNumber or ValueScalar
+
+        value_min = None
+        value_max = None
+        value_numeric = value.value if value.value is not None else 0
+
+        if value.comparator is not None:
+            # we add/remove just a little bit from value numeric if > or < is used
+            # this is a dirty trick because fhir Range datatype is always inclusive and
+            # we mimic this behavior here.
+            eps = float(value_numeric) / 1e5
+            match value.comparator:
+                case "<=" | "<":
+                    value_max = value_numeric - (eps if value.comparator == "<" else 0)
+                    value_numeric = None
+                case ">=" | ">":
+                    value_min = value_numeric + (eps if value.comparator == "<" else 0)
+                    value_numeric = None
+                case _:
+                    raise ValueError(f'Unknown quantity operator: "{value.comparator}"')
+
         if value.code is None:
-            value_obj = ValueScalar(value=value.value)
+            value_obj = ValueScalar(
+                value_min=value_min, value_max=value_max, value=value_numeric
+            )
         else:
             value_obj = ValueNumber(
-                value=value.value,
+                value_min=value_min,
+                value_max=value_max,
+                value=value_numeric,
                 unit=standard_vocabulary.get_standard_unit_concept(value.code),
             )
     elif isinstance(value, Range):

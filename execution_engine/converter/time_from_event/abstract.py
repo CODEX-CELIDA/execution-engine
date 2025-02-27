@@ -103,8 +103,16 @@ class TimeFromEvent(TemporalIndicator):
 
         value = None
 
+        if tfe.range is not None and tfe.quantity is not None:
+            raise ValueError(
+                "Must specify either Range or Quantity in characteristic.timeFromEvent, not both."
+            )
+
         if tfe.range is not None:
             value = cast(ValueNumeric, parse_value(tfe.range))
+
+        if tfe.quantity is not None:
+            value = cast(ValueNumeric, parse_value(tfe.quantity))
 
         return cls(value)
 
