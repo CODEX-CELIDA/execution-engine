@@ -38,13 +38,15 @@ class ExecutionGraph(nx.DiGraph):
         """
         Create a graph from a population and intervention criterion combination.
         """
+        from execution_engine.omop.cohort import PopulationInterventionPair
 
         p = cls.combination_to_expression(population, CohortCategory.POPULATION)
         i = cls.combination_to_expression(intervention, CohortCategory.INTERVENTION)
+        i_filtered = PopulationInterventionPair.filter_symbols(i, p)
 
         pi = logic.LeftDependentToggle(
             p,
-            i,
+            i_filtered,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
 
