@@ -58,7 +58,7 @@ class TestParseCode:
     def test_parse_code(self, monkeypatch):
         mock_get_standard_concept = MagicMock()
         monkeypatch.setattr(
-            "execution_engine.omop.vocabulary.standard_vocabulary.get_standard_concept",
+            "execution_engine.omop.vocabulary.standard_vocabulary.get_concept",
             mock_get_standard_concept,
         )
 
@@ -66,7 +66,9 @@ class TestParseCode:
         codeable_concept = CodeableConcept.model_construct(coding=[coding])
         parse_code(codeable_concept)
 
-        mock_get_standard_concept.assert_called_once_with("http://example.com", "123")
+        mock_get_standard_concept.assert_called_once_with(
+            "http://example.com", "123", standard=True
+        )
 
 
 class TestCodeDisplay:

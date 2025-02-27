@@ -56,9 +56,9 @@ class TestVocabularyFactory:
         vf = VocabularyFactory()
 
         with pytest.raises(
-            VocabularyNotFoundError, match="Vocabulary not_found not found"
+            VocabularyNotFoundError, match='Vocabulary "does-not-exist" not found'
         ):
-            vf.get("not_found")
+            vf.get("does-not-exist")
 
         assert isinstance(vf.get(LOINC.system_uri), LOINC)
         assert isinstance(vf.get(SNOMEDCT.system_uri), SNOMEDCT)
