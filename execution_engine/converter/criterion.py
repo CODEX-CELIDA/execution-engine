@@ -17,6 +17,7 @@ from execution_engine.omop.criterion.combination.logical import (
 )
 from execution_engine.omop.vocabulary import standard_vocabulary
 from execution_engine.util.value import Value, ValueConcept, ValueNumber
+from execution_engine.util.value.value import ValueScalar
 
 
 def select_value(
@@ -45,12 +46,12 @@ def parse_code_value(
     return parse_code(code), parse_value(value_parent, value_prefix)
 
 
-def parse_code(code: CodeableConcept) -> Concept:
+def parse_code(code: CodeableConcept, standard: bool = True) -> Concept:
     """
     Parses a FHIR code into a standard OMOP concept.
     """
     cc = get_coding(code)
-    return standard_vocabulary.get_standard_concept(cc.system, cc.code)
+    return standard_vocabulary.get_concept(cc.system, cc.code, standard=standard)
 
 
 def code_display(code: CodeableConcept) -> str:
@@ -85,28 +86,44 @@ def parse_value(
         )
         value_obj = ValueConcept(value=value_omop_concept)
     elif isinstance(value, Quantity):
-        value_obj = ValueNumber(
-            value=value.value,
-            unit=standard_vocabulary.get_standard_unit_concept(value.code),
-        )
+        # Check if there's a code to determine if we use ValueNumber or ValueScalar
+        if value.code is None:
+            value_obj = ValueScalar(value=value.value)
+        else:
+            value_obj = ValueNumber(
+                value=value.value,
+                unit=standard_vocabulary.get_standard_unit_concept(value.code),
+            )
     elif isinstance(value, Range):
-        if value.low is not None and value.high is not None:
-            assert (
-                value.low.code == value.high.code
-            ), "Range low and high unit must be the same"
-
-        unit_code = value.low.code if value.low is not None else value.high.code
-
+        # Handle the case where range has low/high with or without code
         def value_or_none(x: Quantity | None) -> float | None:
             if x is None:
                 return None
             return x.value
 
-        value_obj = ValueNumber(
-            unit=standard_vocabulary.get_standard_unit_concept(unit_code),
-            value_min=value_or_none(value.low),
-            value_max=value_or_none(value.high),
-        )
+        low_code = value.low.code if value.low is not None else None
+        high_code = value.high.code if value.high is not None else None
+
+        # If both low/high exist, ensure they share the same unit
+        if value.low is not None and value.high is not None:
+            assert low_code == high_code, "Range low and high unit must be the same"
+
+        # Decide if we have a code at all
+        unit_code = low_code if low_code is not None else high_code
+
+        if unit_code is None:
+            # No code => ValueScalar
+            value_obj = ValueScalar(
+                value_min=value_or_none(value.low),
+                value_max=value_or_none(value.high),
+            )
+        else:
+            value_obj = ValueNumber(
+                unit=standard_vocabulary.get_standard_unit_concept(unit_code),
+                value_min=value_or_none(value.low),
+                value_max=value_or_none(value.high),
+            )
+
     else:
         raise NotImplementedError(f"Value type {type(value)} not implemented")
 
@@ -178,7 +195,8 @@ class CriterionConverterFactory:
                 return converter.from_fhir(fhir)
 
         message = f"Cannot find a converter for the given FHIR element: {fhir.__class__.__name__}"
-        if fhir.id is not None:
+
+        if getattr(fhir, "id", None) is not None:
             message += f' (id="{fhir.id}")'
 
         message += f"\nFHIR element details: {json.dumps(fhir.model_dump(), indent=2)}"

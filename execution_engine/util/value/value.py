@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Type, TypeVar, cast
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy import (
     ColumnClause,
     ColumnElement,
@@ -305,6 +305,25 @@ class ValueNumber(ValueNumeric[float, Concept]):
         """
         c_unit = self._get_column(table, "unit_concept_id")
         return c_unit == self.unit.concept_id
+
+
+class ValueScalar(ValueNumeric[float, None]):
+    """
+    A numeric value without a unit.
+    """
+
+    unit: None = None
+
+    _validate_value = field_validator("value", mode="before")(check_int)
+    _validate_value_min = field_validator("value_min", mode="before")(check_int)
+    _validate_value_max = field_validator("value_max", mode="before")(check_int)
+    _validate_no_unit = field_validator("unit", mode="before")(check_unit_none)
+
+    def supports_units(self) -> bool:
+        """
+        Returns true if this type of value supports units.
+        """
+        return False
 
 
 class ValueConcept(Value):

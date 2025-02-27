@@ -100,7 +100,11 @@ class TimeFromEvent(TemporalIndicator):
         ), f"Expected timeFromEvent type, got {fhir.__class__.__name__}"
 
         tfe: EvidenceVariableCharacteristicTimeFromEvent = fhir
-        value = cast(ValueNumeric, parse_value(tfe.range))
+
+        value = None
+
+        if tfe.range is not None:
+            value = cast(ValueNumeric, parse_value(tfe.range))
 
         return cls(value)
 

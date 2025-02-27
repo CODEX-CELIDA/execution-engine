@@ -64,6 +64,12 @@ class ValueCount(ValueNumeric[NonNegativeInt, None]):
     _validate_value_max = field_validator("value_max", mode="before")(check_int)
     _validate_no_unit = field_validator("unit", mode="before")(check_unit_none)
 
+    def supports_units(self) -> bool:
+        """
+        Returns true if this type of value supports units.
+        """
+        return False
+
 
 class ValueDuration(ValueNumeric[float, TimeUnit]):
     """
