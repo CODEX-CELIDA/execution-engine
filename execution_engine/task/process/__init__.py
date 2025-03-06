@@ -1,3 +1,4 @@
+import copy
 import importlib
 import os
 import sys
@@ -46,11 +47,4 @@ AnyInterval = Interval | IntervalWithCount | IntervalWithTypeCounts
 
 I = TypeVar('I', bound = AnyInterval)
 def interval_like(interval: I, start: datetime, end: datetime) -> I:
-    # TODO(jmoringe): return interval._replace(lower=start, upper=end)
-    if isinstance(interval, Interval):
-        return Interval(start, end, interval.type)
-    elif isinstance(interval, IntervalWithCount):
-        return IntervalWithCount(start, end, interval.type, interval.count)
-    else:
-        assert isinstance(interval, IntervalWithTypeCounts)
-        return IntervalWithTypeCounts(start, end, interval.counts)
+    return copy.copy(interval)._replace(lower=start, upper=end)
