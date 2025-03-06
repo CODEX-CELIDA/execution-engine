@@ -169,7 +169,9 @@ class ResultInterval(Base):  # noqa: D101
     interval_start: Mapped[datetime]
     interval_end: Mapped[datetime]
     interval_type = mapped_column(IntervalTypeEnum)
-
+    interval_ratio: Mapped[float] = mapped_column(
+        nullable=True
+    )
     execution_run: Mapped["ExecutionRun"] = relationship(
         primaryjoin="ResultInterval.run_id == ExecutionRun.run_id",
     )

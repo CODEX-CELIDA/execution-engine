@@ -2,7 +2,7 @@ import datetime
 import importlib
 import logging
 import os
-from typing import Callable, cast
+from typing import Callable, cast, List
 
 import numpy as np
 import pendulum
@@ -12,7 +12,7 @@ from sqlalchemy import CursorResult
 from execution_engine.util.interval import IntervalType, interval_datetime
 from execution_engine.util.types import TimeRange
 
-from . import Interval, IntervalWithCount
+from . import Interval, IntervalWithCount, AnyInterval, GeneralizedInterval, interval_like
 
 PROCESS_RECTANGLE_VERSION = os.getenv("PROCESS_RECTANGLE_VERSION", "auto")
 
@@ -566,17 +566,11 @@ def mask_intervals(
         for person_id, intervals in mask.items()
     }
 
-    result = {}
-    for person_id in data:
-        # intersect every interval in data with every interval in mask
-        person_result = _impl.intersect_interval_lists(
-            data[person_id], person_mask[person_id]
-        )
-        if not person_result:
-            continue
-
-        result[person_id] = person_result
-
+    def intersection_interval(start: int, end: int, intervals: List[GeneralizedInterval]) -> GeneralizedInterval:
+        left_interval, right_interval = intervals
+        if left_interval is not None and right_interval is not None:
+            return interval_like(right_interval, start, end)
+    result = find_rectangles([person_mask, data], intersection_interval)
     return result
 
 

@@ -13,8 +13,9 @@ from execution_engine.util.interval import (
 )
 from execution_engine.util.value import ValueNumber, ValueNumeric
 from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
+from execution_engine.task.process import AnyInterval
 
-PersonIntervals = dict[int, Any]
+PersonIntervals = dict[int, AnyInterval]
 
 
 class TimeRange(BaseModel):

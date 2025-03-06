@@ -578,6 +578,18 @@ class Task:
             run_id=bind_params["run_id"],
             cohort_category=self.category,
         )
+        def interval_data(interval):
+            data = dict(
+                interval_start=interval.lower,
+                interval_end=interval.upper,
+                interval_type=interval.type,
+            )
+            if isinstance(interval, Interval):
+                data["interval_ratio"] = None
+            else:
+                assert isinstance(interval, IntervalWithCount)
+                data["interval_ratio"] = interval.count
+            return data
 
         try:
             with get_engine().begin() as conn:
@@ -586,9 +598,7 @@ class Task:
                     [
                         {
                             "person_id": person_id,
-                            "interval_start": normalized_interval.lower,
-                            "interval_end": normalized_interval.upper,
-                            "interval_type": normalized_interval.type,
+                            **interval_data(normalized_interval),
                             **params,
                         }
                         for person_id, intervals in result.items()
