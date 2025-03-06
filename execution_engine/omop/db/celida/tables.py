@@ -27,15 +27,14 @@ from execution_engine.omop.db.omop.schema import SCHEMA_NAME as OMOP_SCHEMA_NAME
 from execution_engine.util.interval import IntervalType
 
 # Use the "public" schema so that tables in different schemas can
-# these enums easily without introducing depedencies between the
-# respective schemas. Note that replicate the enum definitions in each
+# use these enums easily without introducing dependencies between the
+# respective schemas. Note that replicating the enum definitions in each
 # schema would not work when data must be exchanged between the
 # schemas because enum definitions in separate schemas, even if
 # identical in terms of enum values, are considered distinct and
 # incompatible.
 IntervalTypeEnum = Enum(IntervalType, name="interval_type", schema="public")
 CohortCategoryEnum = Enum(CohortCategory, name="cohort_category", schema="public")
-
 
 
 class Recommendation(Base):  # noqa: D101

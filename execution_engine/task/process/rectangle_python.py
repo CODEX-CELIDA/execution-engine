@@ -325,7 +325,9 @@ def intersect_interval_lists(
     :return: The list of intersections.
     """
     return union_rects(
-        [item for x in left for y in right for item in intersect_rects([x, y])]
+        [item for x in left
+              for y in right
+              for item in intersect_rects([x, y])]
     )
 
 
