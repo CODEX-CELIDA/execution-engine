@@ -3,6 +3,8 @@ import os
 import sys
 import types
 from collections import namedtuple
+from datetime import datetime
+from typing import TypeVar
 
 
 def get_processing_module(
@@ -39,3 +41,16 @@ def get_processing_module(
 Interval = namedtuple("Interval", ["lower", "upper", "type"])
 IntervalWithCount = namedtuple("IntervalWithCount", ["lower", "upper", "type", "count"])
 IntervalWithTypeCounts = namedtuple("IntervalWithTypeCounts", ["lower", "upper", "counts"])
+
+AnyInterval = Interval | IntervalWithCount | IntervalWithTypeCounts
+
+I = TypeVar('I', bound = AnyInterval)
+def interval_like(interval: I, start: datetime, end: datetime) -> I:
+    # TODO(jmoringe): return interval._replace(lower=start, upper=end)
+    if isinstance(interval, Interval):
+        return Interval(start, end, interval.type)
+    elif isinstance(interval, IntervalWithCount):
+        return IntervalWithCount(start, end, interval.type, interval.count)
+    else:
+        assert isinstance(interval, IntervalWithTypeCounts)
+        return IntervalWithTypeCounts(start, end, interval.counts)

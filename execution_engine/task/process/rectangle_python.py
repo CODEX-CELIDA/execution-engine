@@ -1,11 +1,13 @@
 import copy
 import datetime
+import typing
 from functools import reduce
+from typing import Callable
 
 import numpy as np
 from sortedcontainers import SortedDict, SortedList
 
-from execution_engine.task.process import Interval, IntervalWithCount, IntervalWithTypeCounts
+from execution_engine.task.process import Interval, IntervalWithCount, IntervalWithTypeCounts, AnyInterval
 from execution_engine.util.interval import IntervalType
 
 MODULE_IMPLEMENTATION = "python"
@@ -293,6 +295,20 @@ def intervals_to_events(
         key=lambda i: (i[0]),
     )
 
+def intervals_to_events2(
+    intervals: list[Interval], closing_offset: int = 1
+) -> list[tuple[int, bool, AnyInterval]]:
+    """
+    Converts the intervals to a list of events.
+
+    The events are a sorted list of the opening/closing points of all rectangles.
+
+    :param intervals: The intervals.
+    :return: The events.
+    """
+    events =   [ (i.lower,                  True,  i) for i in intervals ] \
+             + [ (i.upper + closing_offset, False, i) for i in intervals ]
+    return sorted(events,key=lambda i: i[0])
 
 def intervals_with_count_to_events(
     intervals: list[IntervalWithCount],
@@ -496,5 +512,62 @@ def find_rectangles_with_count(all_intervals: list[list[Interval]]) -> list[Inte
 
         old_count = counts.get(interval_type, 0)
         counts[interval_type] = old_count + (1 if open_ else -1)
+
+    return result
+
+IntervalConstructor = Callable[[datetime.datetime, datetime.datetime, typing.List[AnyInterval]], AnyInterval]
+
+def find_rectangles(all_intervals: list[list[Interval]],
+                    interval_constructor: IntervalConstructor) \
+        -> list[IntervalWithTypeCounts]:
+    """
+    For multiple parallel "tracks" of intervals, identify temporal
+    intervals in which no change occurs on any "track". For each such
+    interval, report the number of active intervals grouped by
+    interval type across all "tracks". When there is no interval on a
+    track for a given temporal interval, act as if a negative interval
+    was present there.
+
+    :param all_intervals: A list of intervals that are checked for overlap with the windows.
+    :return: A list of windows that have any overlap with the intervals.
+    """
+    # Convert all intervals into a list of events sorted by
+    # time. Multiple events at the same point in time are not a
+    # problem here: since we simply count the number of "active"
+    # intervals the result does not depend on the order in which we
+    # process the events.
+    track_count = len(all_intervals)
+    #events = list()
+    #for j, intervals in enumerate(all_intervals):
+    #    new_events = [ (t, o, i, j) for (t, o, i) in intervals_to_events2(intervals, closing_offset=0) ]
+    #    events = events + new_events
+    events = [
+        (t, o, i, j) for j, intervals in enumerate(all_intervals)
+                     for (t, o, i) in intervals_to_events2(intervals, closing_offset=0)
+    ]
+    events.sort(key=lambda i: i[0])
+
+    # The result will be a list of intervals
+    result = []
+    def add_segment(start, end, original_intervals):
+        # We consider the period between 23:59:59 of a day and
+        # 00:00:00 of the following day to be empty.
+        if not (start == end - 1 and datetime.datetime.fromtimestamp(end).time() == datetime.time(0, 0, 0)):
+            new_interval = interval_constructor(start, end, original_intervals)
+            if new_interval is not None:
+                result.append(new_interval)
+
+    # Step through events and emit result intervals whenever the
+    # counts change.
+    active_intervals = [None]*track_count
+    previous_time = events[0][0]
+    for (time, open_, interval, track) in events:
+        if previous_time is None:
+            previous_time = time
+        elif not previous_time == time:
+            add_segment(previous_time, time, active_intervals)
+            previous_time = time
+
+        active_intervals[track] = interval if open_ else None
 
     return result

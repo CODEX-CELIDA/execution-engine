@@ -2,7 +2,7 @@ import datetime
 import importlib
 import logging
 import os
-from typing import Callable, cast
+from typing import Callable, cast, List
 
 import numpy as np
 import pendulum
@@ -12,7 +12,7 @@ from sqlalchemy import CursorResult
 from execution_engine.util.interval import IntervalType, interval_datetime
 from execution_engine.util.types import TimeRange
 
-from . import Interval, IntervalWithCount
+from . import Interval, IntervalWithCount, AnyInterval, interval_like
 
 PROCESS_RECTANGLE_VERSION = os.getenv("PROCESS_RECTANGLE_VERSION", "auto")
 
@@ -566,17 +566,22 @@ def mask_intervals(
         for person_id, intervals in mask.items()
     }
 
-    result = {}
-    for person_id in data:
-        # intersect every interval in data with every interval in mask
-        person_result = _impl.intersect_interval_lists(
-            data[person_id], person_mask[person_id]
-        )
-        if not person_result:
-            continue
-
-        result[person_id] = person_result
-
+    # Old code:
+    # result = {}
+    # for person_id in data:
+    #     # intersect every interval in data with every interval in mask
+    #     person_result = _impl.intersect_interval_lists(
+    #         data[person_id], person_mask[person_id]
+    #     )
+    #     if not person_result:
+    #         continue
+    #
+    #     result[person_id] = person_result
+    def intersection_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+        left_interval, right_interval = intervals
+        if left_interval is not None and right_interval is not None:
+            return interval_like(right_interval, start, end)
+    result = find_rectangles([person_mask, data], intersection_interval)
     return result
 
 
@@ -800,9 +805,19 @@ def find_overlapping_personal_windows(
     return result
 
 def find_rectangles_with_count(data: list[PersonIntervals]) -> PersonIntervals:
+    # TODO(jmoringe): can this use _process_interval?
     if len(data) == 0:
         return {}
     else:
         keys = data[0].keys()
         return {key: _impl.find_rectangles_with_count([ intervals[key] for intervals in data ])
+                for key in keys}
+
+def find_rectangles(data: list[PersonIntervals], interval_constructor: Callable) -> PersonIntervals:
+    # TODO(jmoringe): can this use _process_interval?
+    if len(data) == 0:
+        return {}
+    else:
+        keys = data[0].keys()
+        return {key: _impl.find_rectangles([ intervals[key] for intervals in data ], interval_constructor)
                 for key in keys}

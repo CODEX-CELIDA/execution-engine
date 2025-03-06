@@ -3,6 +3,8 @@ import datetime
 import json
 import logging
 from enum import Enum, auto
+from time import sleep
+from typing import List
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
@@ -13,7 +15,8 @@ from execution_engine.omop.criterion.combination.temporal import TimeIntervalTyp
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
-from execution_engine.task.process import Interval, get_processing_module
+from execution_engine.task.process import Interval, get_processing_module, IntervalWithCount, IntervalWithTypeCounts, \
+    AnyInterval, interval_like
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
@@ -304,7 +307,11 @@ class Task:
                     effective_count_min = max(0, self.expr.count_min - not_applicable_count)
                     positive_count = counts.get(IntervalType.POSITIVE, 0)
                     effective_type = IntervalType.POSITIVE if positive_count >= effective_count_min else IntervalType.NEGATIVE
-                    key_result.append(Interval(interval.lower, interval.upper, effective_type))
+                    #
+                    base_count = sum(counts.values()) - not_applicable_count
+                    ratio = positive_count / base_count if base_count > 0 else 1
+                    #
+                    key_result.append(IntervalWithCount(interval.lower, interval.upper, effective_type, ratio))
                 result[key] = key_result
             return result
         elif isinstance(self.expr, logic.AllOrNone):
@@ -339,8 +346,13 @@ class Task:
         ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
 
         if isinstance(self.expr, logic.NoDataPreservingAnd):
-            result = process.intersect_intervals(data)
-        elif isinstance(self.expr, logic.NoDataPreservingOr):
+            # Old code: result = process.intersect_intervals(data)
+            def intersection_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+                if all( i is not None for i in intervals):
+                    return interval_like(intervals[-1], start, end)
+            result = process.find_rectangles(data, intersection_interval)
+        else:
+            assert isinstance(self.expr, logic.NoDataPreservingOr)
             result = process.union_intervals(data)
 
         # todo: the only difference between this function and handle_binary_logical_operator is the following lines
@@ -352,7 +364,14 @@ class Task:
             interval_type=IntervalType.NEGATIVE,
         )
 
-        result = process.concat_intervals([result, result_negative])
+        # Old code: result = process.concat_intervals([result, result_negative])
+        def union_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+            left_interval, right_interval = intervals
+            if right_interval is not None:
+                return interval_like(right_interval, start, end)
+            elif left_interval is not None:
+                return interval_like(left_interval, start, end)
+        result = process.find_rectangles([result, result_negative], union_interval)
 
         return result
 
@@ -435,9 +454,21 @@ class Task:
             interval_type=interval_type,
         )
 
-        result_p_and_i = process.intersect_intervals([data_p, right])
+        # Old code: result_p_and_i = process.intersect_intervals([data_p, right])
+        def new_pi_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+            left_interval, right_interval = intervals
+            if left_interval is not None and right_interval is not None:
+                return interval_like(right_interval, start, end)
+        result_p_and_i = process.find_rectangles([data_p, right], new_pi_interval)
 
-        result = process.concat_intervals([result_not_p, result_p_and_i])
+        # Old code: result = process.concat_intervals([result_not_p, result_p_and_i])
+        def new_union_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+            left_interval, right_interval = intervals
+            if right_interval is not None:
+                return interval_like(right_interval, start, end)
+            elif left_interval is not None:
+                return interval_like(left_interval, start, end)
+        result = process.find_rectangles([result_not_p, result_p_and_i], new_union_interval)
 
         # fill remaining time with NEGATIVE
         result_no_data = process.complementary_intervals(
@@ -447,7 +478,8 @@ class Task:
             interval_type=IntervalType.NEGATIVE,
         )
 
-        result = process.concat_intervals([result, result_no_data])
+        # Old code: result = process.concat_intervals([result, result_no_data])
+        result = process.find_rectangles([result, result_no_data], new_union_interval)
 
         return result
 
@@ -564,6 +596,19 @@ class Task:
             run_id=bind_params["run_id"],
             cohort_category=self.category,
         )
+        def interval_data(interval):
+            data = dict(
+                interval_start=interval.lower,
+                interval_end=interval.upper,
+            )
+            if isinstance(interval, Interval):
+                data["interval_type"] = interval.type
+                data["interval_ratio"] = None
+            else:
+                assert isinstance(interval, IntervalWithCount)
+                data["interval_type"] = interval.type
+                data["interval_ratio"] = interval.count
+            return data
 
         try:
             with get_engine().begin() as conn:
@@ -572,9 +617,7 @@ class Task:
                     [
                         {
                             "person_id": person_id,
-                            "interval_start": normalized_interval.lower,
-                            "interval_end": normalized_interval.upper,
-                            "interval_type": normalized_interval.type,
+                            **interval_data(normalized_interval),
                             **params,
                         }
                         for person_id, intervals in result.items()
