@@ -713,7 +713,6 @@ def create_time_intervals(
         # Create the interval with the specified interval_type if it
         # overlaps the main datetime range, otherwise fill the day
         # with an interval of type "not applicable".
-        # TODO: what about intervals "before" the main datetime range?
         if end_interval < start_datetime: # completely before datetime range
             day_start = timezone.localize(
                 datetime.datetime.combine(
