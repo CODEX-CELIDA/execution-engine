@@ -308,7 +308,7 @@ class TestValueConcept:
     def test_str(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
         assert (
-            repr(value_concept)
+            str(value_concept)
             == "Value == Concept(concept_id=1, concept_name='Test Concept', concept_code='unit', domain_id='units', vocabulary_id='test', concept_class_id='test', standard_concept=None, invalid_reason=None)"
         )
 
@@ -316,7 +316,7 @@ class TestValueConcept:
         value_concept = ValueConcept(value=test_concept)
         assert (
             repr(value_concept)
-            == "Value == Concept(concept_id=1, concept_name='Test Concept', concept_code='unit', domain_id='units', vocabulary_id='test', concept_class_id='test', standard_concept=None, invalid_reason=None)"
+            == "ValueConcept(value=Concept(concept_id=1, concept_name='Test Concept', concept_code='unit', domain_id='units', vocabulary_id='test', concept_class_id='test', standard_concept=None, invalid_reason=None))"
         )
 
     def test_dict(self, test_concept):

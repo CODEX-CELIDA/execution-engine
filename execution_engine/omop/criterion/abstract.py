@@ -140,8 +140,12 @@ class Criterion(AbstractCriterion):
 
     _OMOP_TABLE: Type[Base]
     _OMOP_COLUMN_PREFIX: str
-    _OMOP_VALUE_REQUIRED: bool = False
     _OMOP_DOMAIN: str
+
+    _value_required: bool = False
+    """
+    Specifies whether a value must be set for this criterion.
+    """
 
     _static: bool
     """
@@ -217,7 +221,8 @@ class Criterion(AbstractCriterion):
         self._OMOP_DOMAIN = domain_id.title()
         self._OMOP_TABLE = domain["table"]
         self._OMOP_COLUMN_PREFIX = domain_id.lower()
-        self._OMOP_VALUE_REQUIRED = cast(bool, domain["value_required"])
+
+        self._value_required = cast(bool, domain["value_required"])
         self._static = cast(bool, domain["static"])
         self._table = cast(Base, domain["table"]).__table__.alias(self.table_alias)
 
@@ -253,7 +258,7 @@ class Criterion(AbstractCriterion):
         self._filter_by_person_id_called = False
         self._filter_datetime_called = False
 
-        if self._OMOP_VALUE_REQUIRED and (
+        if self._value_required and (
             not hasattr(self, "_value") or self._value is None
         ):
             raise ValueError(
