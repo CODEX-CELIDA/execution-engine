@@ -66,7 +66,7 @@ class PointInTimeCriterion(ConceptCriterion):
         Get the SQL representation of the criterion.
         """
 
-        if self._OMOP_VALUE_REQUIRED:
+        if self._value_required:
             assert self._value is not None, "Value is required for this criterion"
 
         if self._static:

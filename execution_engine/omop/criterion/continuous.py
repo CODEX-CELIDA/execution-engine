@@ -12,7 +12,7 @@ class ContinuousCriterion(ConceptCriterion):
         """
         Get the SQL representation of the criterion.
         """
-        if self._OMOP_VALUE_REQUIRED:
+        if self._value_required:
             raise NotImplementedError("ContinuousCriterion does not support value")
 
         query = self._sql_header()
