@@ -37,7 +37,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
     """
 
     _criterion_class: Type[Criterion]
-    _concept_code: str
+    _concept_code: list[str] | str  # todo: we should make this list[str] only
     _concept_vocabulary: Type[AbstractVocabulary]
     _goals: list[Goal]
 
@@ -58,9 +58,16 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
     ) -> bool:
         """Checks if the given FHIR definition is a valid action in the context of CPG-on-EBM-on-FHIR."""
         cc = get_coding(action_def.fhir().code)
-        return (
-            cls._concept_vocabulary.is_system(cc.system)
-            and cc.code == cls._concept_code
+
+        concepts = (
+            cls._concept_code
+            if isinstance(cls._concept_code, list)
+            else [cls._concept_code]
+        )
+
+        return any(
+            cls._concept_vocabulary.is_system(cc.system) and cc.code == code
+            for code in concepts
         )
 
     @classmethod
@@ -138,7 +145,7 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
     @abstractmethod
     def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
-        """Converts this characteristic to a Criterion."""
+        """Converts this action to a Criterion."""
         raise NotImplementedError()
 
     @final
