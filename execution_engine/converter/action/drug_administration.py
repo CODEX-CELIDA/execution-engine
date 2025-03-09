@@ -47,7 +47,10 @@ class DrugAdministrationAction(AbstractAction):
     A drug administration action.
     """
 
-    _concept_code = "432102000"  # Administration of substance (procedure)
+    _concept_code = [
+        "432102000",  # Administration of substance (procedure)
+        "18629005",  # Administration of drug or medicament (procedure)
+    ]
     _concept_vocabulary = SNOMEDCT
 
     class DosageDefinition(TypedDict):

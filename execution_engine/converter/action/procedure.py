@@ -1,5 +1,3 @@
-from typing import Type
-
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.criterion import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
@@ -8,7 +6,6 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.logical import (
     LogicalCriterionCombination,
 )
-from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.observation import Observation
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
@@ -63,28 +60,33 @@ class ProcedureAction(AbstractAction):
     def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
         """Converts this characteristic to a Criterion."""
 
-        cls: Type[ConceptCriterion]
+        criterion: Criterion
 
         match self._code.domain_id:
             case "Procedure":
-                cls = ProcedureOccurrence
+                criterion = ProcedureOccurrence(
+                    concept=self._code,
+                    timing=self._timing,
+                )
             case "Measurement":
-                cls = Measurement
+                # we need to explicitly set the VALUE_REQUIRED flag to false, otherwise creating the query will raise an error
+                # as Observation and Measurement normally expect a value.
+                criterion = Measurement(
+                    concept=self._code,
+                    override_value_required=False,
+                    timing=self._timing,
+                )
             case "Observation":
-                cls = Observation
+                # we need to explicitly set the VALUE_REQUIRED flag to false, otherwise creating the query will raise an error
+                # as Observation and Measurement normally expect a value.
+                criterion = Observation(
+                    concept=self._code,
+                    override_value_required=False,
+                    timing=self._timing,
+                )
             case _:
                 raise ValueError(
                     f"Concept domain {self._code.domain_id} is not supported for {self.__class__.__name__}]"
                 )
-
-        criterion = cls(
-            concept=self._code,
-            timing=self._timing,
-        )
-
-        # we need to explicitly set the VALUE_REQUIRED flag to false after creation of the object,
-        # otherwise creating the query will raise an error as Observation and Measurement normally expect
-        # a value.
-        criterion._OMOP_VALUE_REQUIRED = False
 
         return criterion

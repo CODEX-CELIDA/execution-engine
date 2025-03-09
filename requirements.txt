@@ -7,13 +7,13 @@ pandas==2.2.3
 psycopg[binary]==3.2.5
 sqlalchemy==2.0.38
 pydantic==2.10.6
-pydantic-settings==2.8.0
+pydantic-settings==2.8.1
 uvicorn[standard]==0.34.0
-fastapi==0.115.8
+fastapi==0.115.11
 pendulum==3.0.0
 networkx==3.4.2
 numpy==2.2.3
 pytz==2025.1
 cython==3.0.12
-setuptools==75.8.0
+setuptools==75.8.2
 sortedcontainers==2.4.0

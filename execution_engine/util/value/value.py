@@ -351,7 +351,7 @@ class ValueConcept(Value):
 
         return clause
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         """
         Get the string representation of the value.
         """

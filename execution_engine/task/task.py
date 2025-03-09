@@ -3,7 +3,6 @@ import datetime
 import json
 import logging
 from enum import Enum, auto
-from time import sleep
 from typing import List
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
@@ -15,8 +14,13 @@ from execution_engine.omop.criterion.combination.temporal import TimeIntervalTyp
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
-from execution_engine.task.process import Interval, get_processing_module, IntervalWithCount, IntervalWithTypeCounts, \
-    AnyInterval, interval_like
+from execution_engine.task.process import (
+    Interval,
+    IntervalWithCount,
+    TInterval,
+    get_processing_module,
+    interval_like,
+)
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
@@ -300,18 +304,32 @@ class Task:
             intervals_with_count = process.find_rectangles_with_count(data)
             result = dict()
             for key, intervals in intervals_with_count.items():
+
                 key_result = []
+
                 for interval in intervals:
                     counts = interval.counts
                     not_applicable_count = counts.get(IntervalType.NOT_APPLICABLE, 0)
-                    effective_count_min = max(0, self.expr.count_min - not_applicable_count)
+
+                    # we require at least one positive interval to be present in any case (hence the max(1, ...))
+                    effective_count_min = max(
+                        1, self.expr.count_min - not_applicable_count
+                    )
                     positive_count = counts.get(IntervalType.POSITIVE, 0)
-                    effective_type = IntervalType.POSITIVE if positive_count >= effective_count_min else IntervalType.NEGATIVE
+                    effective_type = (
+                        IntervalType.POSITIVE
+                        if positive_count >= effective_count_min
+                        else IntervalType.NEGATIVE
+                    )
                     #
                     base_count = sum(counts.values()) - not_applicable_count
                     ratio = positive_count / base_count if base_count > 0 else 1
                     #
-                    key_result.append(IntervalWithCount(interval.lower, interval.upper, effective_type, ratio))
+                    key_result.append(
+                        IntervalWithCount(
+                            interval.lower, interval.upper, effective_type, ratio
+                        )
+                    )
                 result[key] = key_result
             return result
         elif isinstance(self.expr, logic.AllOrNone):
@@ -347,9 +365,15 @@ class Task:
 
         if isinstance(self.expr, logic.NoDataPreservingAnd):
             # Old code: result = process.intersect_intervals(data)
-            def intersection_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
-                if all( i is not None for i in intervals):
+            def intersection_interval(
+                start: datetime.datetime,
+                end: datetime.datetime,
+                intervals: List[TInterval],
+            ) -> TInterval | None:
+                if all(i is not None for i in intervals):
                     return interval_like(intervals[-1], start, end)
+                return None
+
             result = process.find_rectangles(data, intersection_interval)
         else:
             assert isinstance(self.expr, logic.NoDataPreservingOr)
@@ -365,12 +389,18 @@ class Task:
         )
 
         # Old code: result = process.concat_intervals([result, result_negative])
-        def union_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+        def union_interval(
+            start: datetime.datetime,
+            end: datetime.datetime,
+            intervals: List[TInterval | None],
+        ) -> TInterval | None:
             left_interval, right_interval = intervals
             if right_interval is not None:
                 return interval_like(right_interval, start, end)
             elif left_interval is not None:
                 return interval_like(left_interval, start, end)
+            return None
+
         result = process.find_rectangles([result, result_negative], union_interval)
 
         return result
@@ -455,20 +485,34 @@ class Task:
         )
 
         # Old code: result_p_and_i = process.intersect_intervals([data_p, right])
-        def new_pi_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+        def new_pi_interval(
+            start: datetime.datetime,
+            end: datetime.datetime,
+            intervals: List[TInterval | None],
+        ) -> TInterval | None:
             left_interval, right_interval = intervals
             if left_interval is not None and right_interval is not None:
                 return interval_like(right_interval, start, end)
+            return None
+
         result_p_and_i = process.find_rectangles([data_p, right], new_pi_interval)
 
         # Old code: result = process.concat_intervals([result_not_p, result_p_and_i])
-        def new_union_interval(start: datetime, end: datetime, intervals: List[AnyInterval]):
+        def new_union_interval(
+            start: datetime.datetime,
+            end: datetime.datetime,
+            intervals: List[TInterval | None],
+        ) -> TInterval | None:
             left_interval, right_interval = intervals
             if right_interval is not None:
                 return interval_like(right_interval, start, end)
             elif left_interval is not None:
                 return interval_like(left_interval, start, end)
-        result = process.find_rectangles([result_not_p, result_p_and_i], new_union_interval)
+            return None
+
+        result = process.find_rectangles(
+            [result_not_p, result_p_and_i], new_union_interval
+        )
 
         # fill remaining time with NEGATIVE
         result_no_data = process.complementary_intervals(
@@ -596,7 +640,8 @@ class Task:
             run_id=bind_params["run_id"],
             cohort_category=self.category,
         )
-        def interval_data(interval):
+
+        def interval_data(interval: TInterval) -> dict[str, int]:
             data = dict(
                 interval_start=interval.lower,
                 interval_end=interval.upper,

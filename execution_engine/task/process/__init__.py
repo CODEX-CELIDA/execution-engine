@@ -41,10 +41,28 @@ def get_processing_module(
 
 Interval = namedtuple("Interval", ["lower", "upper", "type"])
 IntervalWithCount = namedtuple("IntervalWithCount", ["lower", "upper", "type", "count"])
-IntervalWithTypeCounts = namedtuple("IntervalWithTypeCounts", ["lower", "upper", "counts"])
+IntervalWithTypeCounts = namedtuple(
+    "IntervalWithTypeCounts", ["lower", "upper", "counts"]
+)
 
 AnyInterval = Interval | IntervalWithCount | IntervalWithTypeCounts
 
-I = TypeVar('I', bound = AnyInterval)
-def interval_like(interval: I, start: datetime, end: datetime) -> I:
-    return copy.copy(interval)._replace(lower=start, upper=end)
+TInterval = TypeVar("TInterval", bound=AnyInterval)
+
+
+def interval_like(interval: TInterval, start: datetime, end: datetime) -> TInterval:
+    """
+    Return a copy of the given interval with its lower and upper bounds replaced.
+
+    Args:
+        interval (I): The interval to copy. Must be one of Interval, IntervalWithCount, or IntervalWithTypeCounts.
+        start (datetime): The new lower bound.
+        end (datetime): The new upper bound.
+
+    Returns:
+        I: A copy of the interval with updated lower and upper bounds.
+    """
+
+    return copy.copy(interval)._replace(
+        lower=start, upper=end
+    )  # type: ignore[return-value]

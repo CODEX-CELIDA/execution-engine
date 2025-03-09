@@ -49,6 +49,10 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
     ):
         super().__init__()
 
+        assert (
+            isinstance(value, Value) or value is None
+        ), f"Value must be None or an instance of Value, got {type(value)} instead."
+
         self._set_omop_variables_from_domain(concept.domain_id)
         self._concept = concept
         self._value = value
@@ -66,7 +70,7 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
         if override_value_required is not None and isinstance(
             override_value_required, bool
         ):
-            self._OMOP_VALUE_REQUIRED = override_value_required
+            self._value_required = override_value_required
 
     @property
     def concept(self) -> Concept:

@@ -1730,8 +1730,8 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
         e5 = create_procedure(
             vo=visit_occurrence,
             procedure_concept_id=concept_delir_screening.concept_id,
-            start_datetime=pendulum.parse("2025-02-22 04:00:00+01:00"),
-            end_datetime=pendulum.parse("2025-02-22 04:01:00+01:00"),
+            start_datetime=pendulum.parse("2025-02-22 01:30:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 01:31:00+01:00"),
         )
         db_session.add_all([c1, e1, e2, e3, e4, e5])
         db_session.commit()
@@ -1801,6 +1801,85 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
         self.patient_events(db_session, vos[0])
 
         db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_criterion_combination(
+            db_session, population, intervention, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        df = df.query("interval_type == 'POSITIVE'")
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = set(
+                result[["interval_start", "interval_end"]].itertuples(
+                    index=False, name=None
+                )
+            )
+            assert result_tuples == expected[person.person_id]
+
+    @pytest.mark.parametrize(
+        "population,intervention,expected",
+        [
+            (
+                LogicalCriterionCombination.And(c2),
+                LogicalCriterionCombination.CappedAtLeast(
+                    *[
+                        FixedWindowTemporalIndicatorCombination.Day(
+                            criterion=shift_class(criterion=delir_screening),
+                        )
+                        for shift_class in [
+                            FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight,
+                            FixedWindowTemporalIndicatorCombination.MorningShift,
+                            FixedWindowTemporalIndicatorCombination.AfternoonShift,
+                            FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight,
+                        ]
+                    ],
+                    threshold=2,
+                ),
+                {1: set()},
+            ),
+        ],
+    )
+    def test_at_least_combination_on_database_no_measurements(
+        self,
+        person,
+        db_session,
+        population,
+        intervention,
+        base_criterion,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = [person[0]]  # only one person
+
+        vos = [
+            create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=pendulum.parse("2025-02-18 13:55:00Z"),
+                visit_end_datetime=pendulum.parse("2025-02-22 11:00:00Z"),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            for person in persons
+        ]
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        c1 = create_condition(
+            vo=vos[0],
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2025-02-19 16:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2025-02-22 02:00:00+01:00"),
+        )
+        db_session.add_all([c1])
         db_session.commit()
 
         self.insert_criterion_combination(

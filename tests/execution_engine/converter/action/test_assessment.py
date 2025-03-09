@@ -38,4 +38,4 @@ class TestAssessmentAction:
         assert isinstance(criterion, criterion_class)
         assert criterion._concept == code
         assert criterion._timing == timing
-        assert criterion._OMOP_VALUE_REQUIRED is False
+        assert criterion._value_required is False
