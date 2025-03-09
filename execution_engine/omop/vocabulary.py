@@ -4,6 +4,10 @@ from typing import Type
 from execution_engine.clients import omopdb
 from execution_engine.omop.concepts import Concept, CustomConcept
 
+OMOP_INTENSIVE_CARE = 32037
+OMOP_INPATIENT_VISIT = 9201
+OMOP_OUTPATIENT_VISIT = 9202
+
 
 class VocabularyNotFoundError(Exception):
     """
@@ -97,6 +101,15 @@ class ATCDE(AbstractStandardVocabulary):
     omop_vocab_name = "ATC"
 
 
+class ICD10GM(AbstractStandardVocabulary):
+    """
+    ICD10 German Modification
+    """
+
+    system_uri = "http://fhir.de/CodeSystem/dimdi/icd-10-gm"
+    omop_vocab_name = "ICD10GM"
+
+
 class UCUM(AbstractStandardVocabulary):
     """
     UCUM vocabulary.
@@ -164,7 +177,9 @@ class KontaktartDE(AbstractMappedVocabulary):
 
     system_uri = "http://fhir.de/CodeSystem/kontaktart-de"
     map = {
-        "intensivstationaer": 32037,
+        "intensivstationaer": OMOP_INTENSIVE_CARE,
+        "vorstationaer": OMOP_OUTPATIENT_VISIT,
+        "normalstationaer": OMOP_INPATIENT_VISIT,
     }
 
 
@@ -216,6 +231,7 @@ class VocabularyFactory:
         self.register(KontaktartDE)
         self.register(UCUM)
         self.register(ATCDE)
+        self.register(ICD10GM)
         self.register(CODEXCELIDA)
 
     def register(self, vocabulary: Type[AbstractVocabulary]) -> None:
