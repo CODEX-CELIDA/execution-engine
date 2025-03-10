@@ -1,6 +1,5 @@
-import itertools
 import re
-from typing import Any, Dict, Iterator, Self
+from typing import Any, Dict, Iterator, Self, cast
 
 import networkx as nx
 from sqlalchemy import (
@@ -15,17 +14,13 @@ from sqlalchemy import (
     select,
 )
 
-import execution_engine.util.cohort_logic as logic
+import execution_engine.util.logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_graph import ExecutionGraph
-from execution_engine.omop import cohort
-
-# )
-from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.combination import CriterionCombination
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
+from execution_engine.omop.cohort.population_intervention_pair import (
+    PopulationInterventionPairExpr,
 )
+from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.serializable import Serializable
@@ -44,7 +39,7 @@ class Recommendation(Serializable):
 
     def __init__(
         self,
-        pi_pairs: list[cohort.PopulationInterventionPair],
+        expr: logic.BooleanFunction,
         base_criterion: Criterion,
         name: str,
         title: str,
@@ -53,7 +48,7 @@ class Recommendation(Serializable):
         description: str,
         package_version: str | None = None,
     ) -> None:
-        self._pi_pairs: list[cohort.PopulationInterventionPair] = pi_pairs
+        self._expr: logic.BooleanFunction = expr
         self._base_criterion: Criterion = base_criterion
         self._name: str = name
         self._title: str = title
@@ -67,7 +62,7 @@ class Recommendation(Serializable):
         Get the string representation of the recommendation.
         """
         pi_repr = "\n".join(
-            [("    " + line) for line in repr(self._pi_pairs).split("\n")]
+            [("    " + line) for line in repr(self._expr).split("\n")]
         ).strip()
         pi_repr = (
             pi_repr[0] + "\n    " + pi_repr[1:-2] + pi_repr[-2] + "\n  " + pi_repr[-1]
@@ -111,7 +106,7 @@ class Recommendation(Serializable):
         """
         Get the version of the recommendation.
         """
-        return self._version  #
+        return self._version
 
     @property
     def package_version(self) -> str | None:
@@ -142,86 +137,88 @@ class Recommendation(Serializable):
         execution maps of the individual population/intervention pairs of the recommendation.
         """
 
-        p_nodes = []
-        pi_nodes = []
-        pi_graphs = []
+        # p_sink_nodes = []
+        # pi_sink_nodes = []
 
-        for pi_pair in self._pi_pairs:
-            pi_graph = pi_pair.execution_graph()
+        common_graph = ExecutionGraph.from_expression(
+            self._expr,
+            base_criterion=self._base_criterion,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
 
-            p_nodes.append(pi_graph.sink_node(CohortCategory.POPULATION))
-            pi_nodes.append(pi_graph.sink_node(CohortCategory.POPULATION_INTERVENTION))
-            pi_graphs.append(pi_graph)
+        # for pi_pair in self.population_intervention_pairs():
+        #     subgraph: ExecutionGraph = cast(ExecutionGraph, common_graph.subgraph(nx.ancestors(common_graph, pi_pair) | {pi_pair}))
+        #     p_sink_nodes.append(subgraph.sink_node(CohortCategory.POPULATION))
+        #     pi_sink_nodes.append(subgraph.sink_node(CohortCategory.POPULATION_INTERVENTION))
+
+        p_sink_nodes = common_graph.sink_nodes(CohortCategory.POPULATION)
 
         p_combination_node = logic.NoDataPreservingOr(
-            *p_nodes, category=CohortCategory.POPULATION
+            *common_graph.sink_nodes(CohortCategory.POPULATION)
         )
-        pi_combination_node = logic.NoDataPreservingAnd(
-            *pi_nodes, category=CohortCategory.POPULATION_INTERVENTION
-        )
-
-        common_graph = nx.compose_all(pi_graphs)
+        # pi_combination_node = logic.NoDataPreservingAnd(
+        #     *pi_sink_nodes,
+        # )
 
         common_graph.add_node(
             p_combination_node, store_result=True, category=CohortCategory.POPULATION
         )
 
-        common_graph.add_node(
-            pi_combination_node,
-            store_result=True,
-            category=CohortCategory.POPULATION_INTERVENTION,
-        )
+        # common_graph.add_node(
+        #     pi_combination_node,
+        #     store_result=True,
+        #     category=CohortCategory.POPULATION_INTERVENTION,
+        # )
 
-        common_graph.add_edges_from((src, p_combination_node) for src in p_nodes)
-        common_graph.add_edges_from((src, pi_combination_node) for src in pi_nodes)
+        common_graph.add_edges_from((src, p_combination_node) for src in p_sink_nodes)
+        # common_graph.add_edges_from((src, pi_combination_node) for src in pi_sink_nodes)
+
+        import json
+
+        with open("/home/glichtner/cyto.json", "w") as f:
+            json.dump({"elements": common_graph.to_cytoscape_dict()}, f, indent=4)
+
+        if not nx.is_directed_acyclic_graph(common_graph):
+            raise ValueError("The recommendation execution graph is not a DAG.")
 
         return common_graph
-
-    def criteria(self) -> CriterionCombination:
-        """
-        Get the criteria of the recommendation.
-        """
-        criteria = LogicalCriterionCombination(
-            operator=LogicalCriterionCombination.Operator("OR"),
-            root_combination=True,
-        )
-
-        for pi_pair in self._pi_pairs:
-            criteria.add(pi_pair.criteria())
-
-        return criteria
 
     def flatten(self) -> list[Criterion]:
         """
         Retrieve all criteria in a flat list
         """
-        return list(itertools.chain(*[pi_pair.flatten() for pi_pair in self._pi_pairs]))
 
-    def population_intervention_pairs(
-        self,
-    ) -> Iterator[cohort.PopulationInterventionPair]:
+        def traverse(expr: logic.Expr) -> list[Criterion]:
+            if expr.is_Atom:
+                assert isinstance(expr, logic.Symbol), f"Expected Symbol, got {expr}"
+                return [expr.criterion]
+
+            gathered = []
+            for sub_expr in expr.args:
+                gathered.extend(traverse(sub_expr))
+            return gathered
+
+        return [self._base_criterion] + traverse(self._expr)
+
+    def population_intervention_pairs(self) -> Iterator[PopulationInterventionPairExpr]:
         """
-        Iterate over the population/intervention pairs.
+        Iterate over all PopulationInterventionPairExpr in the expression tree.
         """
-        yield from self._pi_pairs
+
+        def traverse(expr: logic.Expr) -> Iterator[PopulationInterventionPairExpr]:
+            if isinstance(expr, PopulationInterventionPairExpr):
+                yield expr
+            else:
+                for sub_expr in expr.args:
+                    yield from traverse(sub_expr)
+
+        yield from traverse(self._expr)
 
     def __str__(self) -> str:
         """
         Get the string representation of the recommendation.
         """
         return f"Recommendation(name='{self._name}', description='{self.description}')"
-
-    def __len__(self) -> int:
-        """
-        Get the number of population/intervention pairs.
-        """
-        return len(self._pi_pairs)
-
-    def __getitem__(self, index: int) -> cohort.PopulationInterventionPair:
-        """
-        Get the population/intervention pair at the given index.
-        """
-        return self._pi_pairs[index]
 
     @staticmethod
     def to_table(name: str) -> Table:
@@ -276,10 +273,11 @@ class Recommendation(Serializable):
         """
         self._id = None
 
-        for pi_pair in self._pi_pairs:
+        for pi_pair in self.population_intervention_pairs():
             pi_pair._id = None
-            for criterion in pi_pair.flatten():
-                criterion._id = None
+
+        for criterion in self.flatten():
+            criterion._id = None
 
     def dict(self) -> dict:
         """
@@ -287,7 +285,7 @@ class Recommendation(Serializable):
         """
         base_criterion = self._base_criterion
         return {
-            "population_intervention_pairs": [c.dict() for c in self._pi_pairs],
+            "expr": self._expr.dict(),
             "base_criterion": {
                 "class_name": base_criterion.__class__.__name__,
                 "data": base_criterion.dict(),
@@ -311,10 +309,9 @@ class Recommendation(Serializable):
         ), "Base criterion must be a Criterion"
 
         return cls(
-            pi_pairs=[
-                cohort.PopulationInterventionPair.from_dict(c)
-                for c in data["population_intervention_pairs"]
-            ],
+            expr=cast(
+                logic.BooleanFunction, logic.BooleanFunction.from_dict(data["expr"])
+            ),
             base_criterion=base_criterion,
             name=data["recommendation_name"],
             title=data["recommendation_title"],

@@ -14,7 +14,7 @@ from execution_engine.converter.recommendation_factory import (
     FhirToRecommendationFactory,
 )
 from execution_engine.omop import cohort
-from execution_engine.omop.cohort import PopulationInterventionPair
+from execution_engine.omop.cohort import PopulationInterventionPairExpr
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida import tables as result_db
 from execution_engine.omop.serializable import Serializable
@@ -208,8 +208,8 @@ class ExecutionEngine:
                     pi_pair, rec_db.recommendation_id
                 )
 
-                for criterion in pi_pair.flatten():
-                    self.register_criterion(criterion)
+            for criterion in recommendation.flatten():
+                self.register_criterion(criterion)
 
             # All objects in the deserialized object graph must have an id.
             assert recommendation.id is not None
@@ -219,8 +219,8 @@ class ExecutionEngine:
             for pi_pair in recommendation.population_intervention_pairs():
                 assert pi_pair.id is not None
 
-                for criterion in pi_pair.flatten():
-                    assert criterion.id is not None
+            for criterion in recommendation.flatten():
+                assert criterion.id is not None
 
             return recommendation
 
@@ -293,8 +293,9 @@ class ExecutionEngine:
             self.register_population_intervention_pair(
                 pi_pair, recommendation_id=recommendation.id
             )
-            for criterion in pi_pair.flatten():
-                self.register_criterion(criterion)
+
+        for criterion in recommendation.flatten():
+            self.register_criterion(criterion)
 
         assert recommendation.id is not None
         assert recommendation.base_criterion is not None
@@ -303,8 +304,8 @@ class ExecutionEngine:
         for pi_pair in recommendation.population_intervention_pairs():
             assert pi_pair.id is not None
 
-            for criterion in pi_pair.flatten():
-                assert criterion.id is not None
+        for criterion in recommendation.flatten():
+            assert criterion.id is not None
 
         # Update the recommendation in the database with the final
         # JSON representation and execution graph (now that
@@ -329,7 +330,7 @@ class ExecutionEngine:
             con.execute(update_query)
 
     def register_population_intervention_pair(
-        self, pi_pair: PopulationInterventionPair, recommendation_id: int
+        self, pi_pair: PopulationInterventionPairExpr, recommendation_id: int
     ) -> None:
         """
         Registers the Population/Intervention Pair in the result database.

@@ -26,6 +26,7 @@ from execution_engine.omop.db.omop.tables import (
     VisitOccurrence,
 )
 from execution_engine.omop.serializable import Serializable
+from execution_engine.util import logic
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.sql import SelectInto, select_into
 from execution_engine.util.types import PersonIntervals, TimeRange
@@ -89,7 +90,9 @@ def create_conditional_interval_column(condition: ColumnElement) -> ColumnElemen
     )
 
 
-class AbstractCriterion(Serializable, ABC, metaclass=SignatureReprABCMeta):
+class AbstractCriterion(
+    logic.Symbol, Serializable, ABC, metaclass=SignatureReprABCMeta
+):
     """
     Abstract base class for Criterion and CriterionCombination.
     """

@@ -6,9 +6,9 @@ from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.omop.vocabulary import AbstractVocabulary
+from execution_engine.util import logic
 
 
 class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
@@ -78,10 +78,12 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
 
         return c
 
-    def to_positive_criterion(self) -> Criterion:
+    def to_positive_expression(self) -> logic.BaseExpr:
         """Converts this characteristic to a Criterion."""
-        return self._criterion_class(
-            concept=self.value,
-            value=None,
-            static=self._concept_value_static,
+        return logic.Symbol(
+            criterion=self._criterion_class(
+                concept=self.value,
+                value=None,
+                static=self._concept_value_static,
+            )
         )

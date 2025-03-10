@@ -4,9 +4,9 @@ from execution_engine.constants import SCT_LAB_FINDINGS_SURVEILLANCE
 from execution_engine.converter.criterion import parse_code_value
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.vocabulary import SNOMEDCT
+from execution_engine.util import logic
 from execution_engine.util.value import Value
 
 
@@ -46,11 +46,13 @@ class LaboratoryValueGoal(Goal):
 
         return cls(exclude=False, code=code, value=value)
 
-    def to_positive_criterion(self) -> Criterion:
+    def to_positive_expression(self) -> logic.Symbol:
         """
         Converts the goal to a criterion.
         """
-        return Measurement(
-            concept=self._code,
-            value=self._value,
+        return logic.Symbol(
+            Measurement(
+                concept=self._code,
+                value=self._value,
+            )
         )
