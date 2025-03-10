@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -27,6 +27,9 @@ class RecommendationRun(BaseModel):
     observation_end_datetime: datetime
     run_datetime: datetime
     recommendation_name: str
+    recommendation_title: str
+    recommendation_url: str
+    recommendation_description: str
 
 
 class Interval(BaseModel):
@@ -43,3 +46,13 @@ class Interval(BaseModel):
     interval_start: datetime
     interval_end: datetime
     cohort_category: str
+
+
+class DayCoverage(BaseModel):
+    """
+    Represents a single day of coverage in a recommendation run.
+    """
+
+    person_id: int
+    cohort_category: str
+    valid_date: date  # Add this to match `view_full_day_coverage`
