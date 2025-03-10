@@ -51,9 +51,7 @@ class AssessmentScaleGoal(Goal):
         """
         Converts the goal to a criterion.
         """
-        return logic.Symbol(
-            criterion=Measurement(
-                concept=self._code,
-                value=self._value,
-            )
+        return Measurement(
+            concept=self._code,
+            value=self._value,
         )

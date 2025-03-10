@@ -87,4 +87,4 @@ class ProcedureAction(AbstractAction):
                     f"Concept domain {self._code.domain_id} is not supported for {self.__class__.__name__}]"
                 )
 
-        return logic.Symbol(criterion=criterion)
+        return criterion

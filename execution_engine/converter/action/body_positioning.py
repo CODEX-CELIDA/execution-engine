@@ -48,9 +48,7 @@ class BodyPositioningAction(AbstractAction):
     def _to_expression(self) -> logic.Symbol:
         """Converts this characteristic to a Criterion."""
 
-        return logic.Symbol(
-            criterion=ProcedureOccurrence(
-                concept=self._code,
-                timing=self._timing,
-            )
+        return ProcedureOccurrence(
+            concept=self._code,
+            timing=self._timing,
         )

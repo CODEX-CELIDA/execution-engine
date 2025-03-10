@@ -76,9 +76,8 @@ class ExecutionGraph(nx.DiGraph):
         expr = copy.deepcopy(expr)
 
         graph = cls()
-        base_node = logic.Symbol(
-            criterion=base_criterion,
-        )
+        base_node = base_criterion
+
         graph.add_node(
             base_node,
             category=CohortCategory.BASE,
@@ -203,7 +202,7 @@ class ExecutionGraph(nx.DiGraph):
                     "id": id(node),
                     "label": str(node),
                     "class": (
-                        node.criterion.__class__.__name__
+                        node.__class__.__name__
                         if isinstance(node, logic.Symbol)
                         else node.__class__.__name__
                     ),
@@ -226,23 +225,24 @@ class ExecutionGraph(nx.DiGraph):
 
             if isinstance(node, logic.Symbol):
 
-                node_data["data"]["criterion_id"] = node.criterion._id
+                assert isinstance(
+                    node, Criterion
+                ), f"Expected Criterion, got {type(node)}"
+
+                node_data["data"]["criterion_id"] = node.id
 
                 def criterion_attr(attr: str) -> str | None:
-                    if (
-                        hasattr(node.criterion, attr)
-                        and getattr(node.criterion, attr) is not None
-                    ):
-                        return str(getattr(node.criterion, attr))
+                    if hasattr(node, attr) and getattr(node, attr) is not None:
+                        return str(getattr(node, attr))
                     return None
 
                 try:
-                    if node.criterion.concept is not None:
+                    if node.concept is not None:
                         node_data["data"].update(
                             {
                                 "concept": (
-                                    node.criterion.concept.model_dump()
-                                    if node.criterion.concept is not None
+                                    node.concept.model_dump()
+                                    if node.concept is not None
                                     else None
                                 ),
                                 "value": criterion_attr("value"),
@@ -267,7 +267,7 @@ class ExecutionGraph(nx.DiGraph):
 
             if self.nodes[node]["category"] == CohortCategory.BASE:
                 node_data["data"]["base_criterion"] = str(
-                    node.criterion
+                    node
                 )  # Ensure this is serializable
 
             nodes.append(node_data)
@@ -311,7 +311,7 @@ class ExecutionGraph(nx.DiGraph):
             }[self.nodes[node]["category"]]
 
             if node.is_Atom:
-                label = node.criterion.description()
+                label = node.description()
             else:
                 label = node.__class__.__name__
                 symbols = {

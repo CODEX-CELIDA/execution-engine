@@ -282,21 +282,17 @@ class DrugAdministrationAction(AbstractAction):
 
         if not self._dosages:
             # no dosages, just return the drug exposure
-            return logic.Symbol(
-                criterion=DrugExposure(
-                    ingredient_concept=self._ingredient_concept,
-                    dose=None,
-                    route=None,
-                )
+            return DrugExposure(
+                ingredient_concept=self._ingredient_concept,
+                dose=None,
+                route=None,
             )
 
         for dosage in self._dosages:
-            drug_action = logic.Symbol(
-                criterion=DrugExposure(
-                    ingredient_concept=self._ingredient_concept,
-                    dose=dosage["dose"],
-                    route=dosage.get("route", None),
-                )
+            drug_action = DrugExposure(
+                ingredient_concept=self._ingredient_concept,
+                dose=dosage["dose"],
+                route=dosage.get("route", None),
             )
 
             extensions = dosage.get("extensions", None)
@@ -315,11 +311,9 @@ class DrugAdministrationAction(AbstractAction):
                         f"Extension type {extension['type']} not supported yet"
                     )
 
-                ext_criterion = logic.Symbol(
-                    criterion=PointInTimeCriterion(
-                        concept=extension["code"],
-                        value=extension["value"],
-                    )
+                ext_criterion = PointInTimeCriterion(
+                    concept=extension["code"],
+                    value=extension["value"],
                 )
 
                 # A Conditional Filter returns `right` iff left is POSITIVE, otherwise it returns NEGATIVE

@@ -55,13 +55,11 @@ class Task:
 
     def __init__(
         self,
-        expr: logic.Expr,
-        criterion: Criterion | None,
+        expr: logic.BaseExpr,
         bind_params: dict | None,
         store_result: bool = False,
     ) -> None:
         self.expr = expr
-        self.criterion = criterion
         self.dependencies: list[Task] = []
         self.status = TaskStatus.PENDING
         self.bind_params = bind_params if bind_params is not None else {}
@@ -126,13 +124,12 @@ class Task:
             if len(self.dependencies) == 0 or self.expr.is_Atom:
                 # atomic expressions (i.e. criterion)
 
-                assert (
-                    self.criterion is not None
-                ), "criterion shall not be None for atomic expression"
-
                 logging.debug(f"Running criterion - '{self.name()}'")
+
+                assert isinstance(self.expr, Criterion), "Dependency is not a Criterion"
+
                 result = self.handle_criterion(
-                    self.criterion, bind_params, base_data, observation_window
+                    self.expr, bind_params, base_data, observation_window
                 )
 
                 logging.debug(f"Storing results - '{self.name()}'")
@@ -566,7 +563,7 @@ class Task:
                 return
 
         pi_pair_id = bind_params.get("pi_pair_id", None)
-        criterion_id = self.criterion.id if self.expr.is_Atom else None  # type: ignore # when expr.is_Atom, criterion is not None
+        criterion_id = self.expr.id if self.expr.is_Atom else None  # type: ignore # when expr.is_Atom, criterion is not None
 
         if self.expr.is_Atom:
             assert pi_pair_id is None, "pi_pair_id shall be None for criterion"
@@ -654,7 +651,4 @@ class Task:
         """
         Returns a string representation of the Task object.
         """
-        if self.expr.is_Atom:
-            return f"Task(criterion={self.expr}, category={self.category})"
-        else:
-            return f"Task({self.expr}), category={self.category})"
+        return f"Task({self.expr}), category={self.category})"

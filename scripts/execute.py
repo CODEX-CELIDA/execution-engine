@@ -92,9 +92,9 @@ base_url = "https://www.netzwerk-universitaetsmedizin.de/fhir/codex-celida/guide
 recommendation_package_version = "v1.5.2"
 
 urls = [
-    "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
-    "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
-    "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
+    # "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
+    # "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
+    # "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
     "covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-peep",
     "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation",
     "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation",

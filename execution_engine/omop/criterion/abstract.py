@@ -1,6 +1,6 @@
 import copy
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Self, Type, TypedDict, cast
+from typing import Any, Callable, Dict, Self, Type, TypedDict, cast
 
 import sqlalchemy
 from sqlalchemy import CTE, Alias, ColumnElement, Date, Integer
@@ -91,7 +91,7 @@ def create_conditional_interval_column(condition: ColumnElement) -> ColumnElemen
 
 
 class AbstractCriterion(
-    logic.Symbol, Serializable, ABC, metaclass=SignatureReprABCMeta
+    Serializable, logic.Symbol, ABC, metaclass=SignatureReprABCMeta
 ):
     """
     Abstract base class for Criterion and CriterionCombination.
@@ -136,6 +136,41 @@ class AbstractCriterion(
         Get the name of the criterion.
         """
         return self.description()
+
+    def get_instance_variables(self, immutable: bool = False) -> dict | tuple:
+        """
+        Get the instance variables of the criterion.
+        """
+
+        if immutable:
+            return tuple(
+                sorted(self._init_args.items())  # type: ignore[attr-defined] # this is set due to metaclass
+            )
+        return self._init_args  # type: ignore[attr-defined] # this is set due to metaclass
+
+    @classmethod
+    def _recreate(  # type: ignore[override]
+        cls, kwargs: Any, id: int | None
+    ) -> "AbstractCriterion":
+        """
+        Recreate an expression from its arguments.
+        """
+        expr = cast(AbstractCriterion, cls(**kwargs))
+
+        if id is not None:
+            expr.set_id(id)
+
+        return expr
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, and arguments.
+        """
+        return self._recreate, (self.get_instance_variables(), self._id)
 
 
 class Criterion(AbstractCriterion):
