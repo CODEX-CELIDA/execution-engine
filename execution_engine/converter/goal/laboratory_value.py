@@ -50,9 +50,7 @@ class LaboratoryValueGoal(Goal):
         """
         Converts the goal to a criterion.
         """
-        return logic.Symbol(
-            Measurement(
-                concept=self._code,
-                value=self._value,
-            )
+        return Measurement(
+            concept=self._code,
+            value=self._value,
         )

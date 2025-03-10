@@ -80,10 +80,8 @@ class AbstractCodeableConceptCharacteristic(AbstractCharacteristic):
 
     def to_positive_expression(self) -> logic.BaseExpr:
         """Converts this characteristic to a Criterion."""
-        return logic.Symbol(
-            criterion=self._criterion_class(
-                concept=self.value,
-                value=None,
-                static=self._concept_value_static,
-            )
+        return self._criterion_class(
+            concept=self.value,
+            value=None,
+            static=self._concept_value_static,
         )

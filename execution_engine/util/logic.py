@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from datetime import time
 from typing import Any, Callable, Dict, Type, cast
 
-from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
 from execution_engine.omop.serializable import Serializable
 
@@ -28,21 +27,6 @@ class BaseExpr(ABC):
         Recreate an expression from its arguments.
         """
         return cast(Expr, cls(*args, **kwargs))
-
-    def __new__(cls, *args: Any, **kwargs: Any) -> "BaseExpr":
-        """
-        Initialize a new instance of the class.
-        """
-        new_self = super().__new__(cls)
-
-        # we must not allow the __init__ function because of possible infinite recursion when using the __new__ function
-        # (see https://pdarragh.github.io/blog/2017/05/22/oddities-in-pythons-new-method/)
-        if "__init__" in cls.__dict__:
-            raise AttributeError(
-                f"__init__ is not allowed in subclass {cls.__name__} of BaseExpr"
-            )
-
-        return new_self
 
     @abstractmethod
     def __eq__(self, other: Any) -> bool:
@@ -177,7 +161,15 @@ class Expr(BaseExpr):
 
         :param args: Arguments for the expression.
         """
-        self = cast(Expr, super().__new__(cls, *args))
+        self = cast(Expr, super().__new__(cls))
+
+        # we must not allow the __init__ function because of possible infinite recursion when using the __new__ function
+        # (see https://pdarragh.github.io/blog/2017/05/22/oddities-in-pythons-new-method/)
+        if "__init__" in cls.__dict__:
+            raise AttributeError(
+                f"__init__ is not allowed in subclass {cls.__name__} of BaseExpr"
+            )
+
         self.args = args
 
         return self
@@ -232,44 +224,14 @@ class Symbol(BaseExpr):
     Class representing a symbolic variable.
     """
 
-    criterion: Criterion
-
-    def __new__(cls, criterion: Criterion) -> "Symbol":
+    def __new__(cls, *args: Any, **kwargs: Any) -> "Symbol":
         """
         Initialize a symbol.
-
-        :param criterion: The criterion of the symbol.
         """
         self = cast(Symbol, super().__new__(cls))
-        self.criterion = criterion
         self.args = ()
 
         return self
-
-    def __eq__(self, other: Any) -> bool:
-        """
-        Check if this symbol is equal to another symbol.
-
-        :param other: The other symbol.
-        :return: True if equal, False otherwise.
-        """
-        return isinstance(other, Symbol) and self.criterion == other.criterion
-
-    def __hash__(self) -> int:
-        """
-        Get the hash of this symbol.
-
-        :return: Hash of the symbol.
-        """
-        return hash(self.criterion)
-
-    def __repr__(self) -> str:
-        """
-        Represent the symbol.
-
-        :return: Name of the symbol.
-        """
-        return self.criterion.description()
 
     @property
     def is_Atom(self) -> bool:

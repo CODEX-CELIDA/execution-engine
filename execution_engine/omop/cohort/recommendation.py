@@ -188,10 +188,10 @@ class Recommendation(Serializable):
         Retrieve all criteria in a flat list
         """
 
-        def traverse(expr: logic.Expr) -> list[Criterion]:
+        def traverse(expr: logic.BaseExpr) -> list[Criterion]:
             if expr.is_Atom:
-                assert isinstance(expr, logic.Symbol), f"Expected Symbol, got {expr}"
-                return [expr.criterion]
+                assert isinstance(expr, Criterion), f"Expected Symbol, got {expr}"
+                return [expr]
 
             gathered = []
             for sub_expr in expr.args:
@@ -205,7 +205,7 @@ class Recommendation(Serializable):
         Iterate over all PopulationInterventionPairExpr in the expression tree.
         """
 
-        def traverse(expr: logic.Expr) -> Iterator[PopulationInterventionPairExpr]:
+        def traverse(expr: logic.BaseExpr) -> Iterator[PopulationInterventionPairExpr]:
             if isinstance(expr, PopulationInterventionPairExpr):
                 yield expr
             else:

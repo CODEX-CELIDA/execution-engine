@@ -35,10 +35,8 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
 
     def to_positive_expression(self) -> logic.Symbol:
         """Converts this characteristic to a Criterion."""
-        return logic.Symbol(
-            criterion=self._criterion_class(
-                concept=self.type,
-                value=self.value,
-                static=self._concept_value_static,
-            )
+        return self._criterion_class(
+            concept=self.type,
+            value=self.value,
+            static=self._concept_value_static,
         )

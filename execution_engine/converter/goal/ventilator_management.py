@@ -62,16 +62,12 @@ class VentilatorManagementGoal(Goal):
         """
         if self._code in CUSTOM_GOALS:
             cls = CUSTOM_GOALS[self._code]
-            return logic.Symbol(
-                cls(
-                    concept=self._code,
-                    value=self._value,
-                )
-            )
-
-        return logic.Symbol(
-            Measurement(
+            return cls(
                 concept=self._code,
                 value=self._value,
             )
+
+        return Measurement(
+            concept=self._code,
+            value=self._value,
         )
