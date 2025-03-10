@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 import pandas as pd
 import sqlalchemy
-from sqlalchemy import and_, bindparam, event, func, select, text
+from sqlalchemy import NullPool, and_, bindparam, event, func, select, text
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql import Insert, Select
@@ -83,6 +83,7 @@ class OMOPSQLClient:
         result_schema: str,
         timezone: str = "Europe/Berlin",
         disable_triggers: bool = False,
+        null_pool: bool = False,
     ) -> None:
         """Initialize the OMOP SQL client."""
 
@@ -97,6 +98,9 @@ class OMOPSQLClient:
             connection_string,
             connect_args={"options": "-csearch_path={}".format(self._data_schema)},
             future=True,
+            poolclass=(
+                NullPool if null_pool else None
+            ),  # <--- ensures no persistent pool
         )
 
         if disable_triggers:
