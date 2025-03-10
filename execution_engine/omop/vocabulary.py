@@ -110,6 +110,15 @@ class ICD10GM(AbstractStandardVocabulary):
     omop_vocab_name = "ICD10GM"
 
 
+class ICD10CM(AbstractStandardVocabulary):
+    """
+    ICD10 Clinical Modification
+    """
+
+    system_uri = "http://hl7.org/fhir/sid/icd-10-cm"
+    omop_vocab_name = "ICD10CM"
+
+
 class UCUM(AbstractStandardVocabulary):
     """
     UCUM vocabulary.
@@ -232,6 +241,7 @@ class VocabularyFactory:
         self.register(UCUM)
         self.register(ATCDE)
         self.register(ICD10GM)
+        self.register(ICD10CM)
         self.register(CODEXCELIDA)
 
     def register(self, vocabulary: Type[AbstractVocabulary]) -> None:
