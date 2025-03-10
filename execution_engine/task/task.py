@@ -6,7 +6,7 @@ from enum import Enum, auto
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
-import execution_engine.util.cohort_logic as logic
+import execution_engine.util.logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
@@ -72,7 +72,7 @@ class Task:
         """
         Returns the category of the task.
         """
-        return self.expr.category
+        return self.bind_params["category"]
 
     def get_base_task(self) -> "Task":
         """
@@ -655,6 +655,6 @@ class Task:
         Returns a string representation of the Task object.
         """
         if self.expr.is_Atom:
-            return f"Task(criterion={self.expr}, category={self.expr.category})"
+            return f"Task(criterion={self.expr}, category={self.category})"
         else:
-            return f"Task({self.expr}), category={self.expr.category})"
+            return f"Task({self.expr}), category={self.category})"

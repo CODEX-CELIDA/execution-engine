@@ -3,13 +3,11 @@ from execution_engine.converter.criterion import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.observation import Observation
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.vocabulary import SNOMEDCT
+from execution_engine.util import logic
 from execution_engine.util.types import Timing
 
 
@@ -57,7 +55,7 @@ class ProcedureAction(AbstractAction):
 
         return cls(exclude=exclude, code=code, timing=timing)
 
-    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
+    def _to_expression(self) -> logic.Symbol:
         """Converts this characteristic to a Criterion."""
 
         criterion: Criterion
@@ -89,4 +87,4 @@ class ProcedureAction(AbstractAction):
                     f"Concept domain {self._code.domain_id} is not supported for {self.__class__.__name__}]"
                 )
 
-        return criterion
+        return logic.Symbol(criterion=criterion)

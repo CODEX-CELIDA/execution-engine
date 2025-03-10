@@ -33,7 +33,7 @@ class TestAssessmentAction:
     def test_assessment_action(self, code, timing, criterion_class):
         action = AssessmentAction(exclude=False, code=code, timing=timing)
 
-        criterion = action.to_criterion()
+        criterion = action.to_positive_expression()
 
         assert isinstance(criterion, criterion_class)
         assert criterion._concept == code

@@ -5,7 +5,7 @@ import pytest
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
-from execution_engine.util.cohort_logic import (
+from execution_engine.util.logic import (
     AllOrNone,
     And,
     BooleanFunction,

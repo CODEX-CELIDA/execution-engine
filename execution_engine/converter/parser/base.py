@@ -5,7 +5,7 @@ from fhir.resources.evidencevariable import EvidenceVariable
 from execution_engine import fhir
 from execution_engine.converter.criterion import CriterionConverterFactory
 from execution_engine.converter.temporal import TemporalIndicatorConverterFactory
-from execution_engine.omop.criterion.combination.combination import CriterionCombination
+from execution_engine.util import logic as logic
 
 
 class FhirRecommendationParserInterface(ABC):
@@ -24,10 +24,9 @@ class FhirRecommendationParserInterface(ABC):
         self.time_from_event_converters = time_from_event_converters
 
     @abstractmethod
-    def parse_characteristics(self, ev: EvidenceVariable) -> CriterionCombination:
+    def parse_characteristics(self, ev: EvidenceVariable) -> logic.BooleanFunction:
         """
-        Parses the EvidenceVariable characteristics and returns either a single Criterion
-        or a LogicalCriterionCombination
+        Parses the EvidenceVariable characteristics and returns a BooleanFunction
         """
         raise NotImplementedError()
 
@@ -36,7 +35,7 @@ class FhirRecommendationParserInterface(ABC):
         self,
         actions_def: list[fhir.RecommendationPlan.Action],
         rec_plan: fhir.RecommendationPlan,
-    ) -> CriterionCombination:
+    ) -> logic.BooleanFunction:
         """
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
         corresponding action selection behavior.

@@ -25,7 +25,7 @@ from execution_engine.task import (  # noqa: F401     -- required for the mock.p
     task,
 )
 from execution_engine.task.process import get_processing_module
-from execution_engine.util import cohort_logic
+from execution_engine.util import logic
 from execution_engine.util.db import add_result_insert
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import TimeRange
@@ -213,14 +213,14 @@ class TestCriterion:
         ).scalar()
 
         if not exists:
-            new_criterion = celida_tables.PopulationInterventionPair(
+            pi_pair = celida_tables.PopulationInterventionPair(
                 pi_pair_id=id_,
                 recommendation_id=-1,
                 pi_pair_url="https://example.com",
                 pi_pair_name=name,
                 pi_pair_hash=hash(name),
             )
-            db_session.add(new_criterion)
+            db_session.add(pi_pair)
             db_session.commit()
 
     @pytest.fixture
@@ -303,11 +303,11 @@ class TestCriterion:
         p_sink_node = graph.sink_node(CohortCategory.POPULATION)
         pi_sink_node = graph.sink_node(CohortCategory.POPULATION_INTERVENTION)
 
-        p_combination_node = cohort_logic.NoDataPreservingAnd(
+        p_combination_node = logic.NoDataPreservingAnd(
             p_sink_node, category=CohortCategory.POPULATION
         )
 
-        pi_combination_node = cohort_logic.NoDataPreservingAnd(
+        pi_combination_node = logic.NoDataPreservingAnd(
             pi_sink_node, category=CohortCategory.POPULATION_INTERVENTION
         )
 

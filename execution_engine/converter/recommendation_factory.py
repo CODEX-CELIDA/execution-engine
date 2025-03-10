@@ -3,8 +3,11 @@ from execution_engine.builder import ExecutionEngineBuilder
 from execution_engine.converter.parser.factory import FhirRecommendationParserFactory
 from execution_engine.fhir.client import FHIRClient
 from execution_engine.omop import cohort
-from execution_engine.omop.cohort import PopulationInterventionPair
+from execution_engine.omop.cohort.population_intervention_pair import (
+    PopulationInterventionPairExpr,
+)
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
+from execution_engine.util import logic as logic
 
 
 class FhirToRecommendationFactory:
@@ -57,29 +60,30 @@ class FhirToRecommendationFactory:
             fhir_connector=fhir_client,
         )
 
-        pi_pairs: list[PopulationInterventionPair] = []
+        pi_pairs: list[PopulationInterventionPairExpr] = []
 
         base_criterion = PatientsActiveDuringPeriod()
 
         for rec_plan in rec.plans():
-            pi_pair = PopulationInterventionPair(
+
+            # parse population and create criteria
+            population_criteria = parser.parse_characteristics(rec_plan.population)
+
+            # parse intervention and create criteria
+            actions = parser.parse_actions(rec_plan.actions, rec_plan)
+
+            pi_pair = PopulationInterventionPairExpr(
+                population_expr=population_criteria,
+                intervention_expr=actions,
                 name=rec_plan.name,
                 url=rec_plan.url,
                 base_criterion=base_criterion,
             )
 
-            # parse population and create criteria
-            population_criteria = parser.parse_characteristics(rec_plan.population)
-            pi_pair.set_population(population_criteria)
-
-            # parse intervention and create criteria
-            actions = parser.parse_actions(rec_plan.actions, rec_plan)
-            pi_pair.add_intervention(actions)
-
             pi_pairs.append(pi_pair)
 
         recommendation = cohort.Recommendation(
-            pi_pairs,
+            expr=logic.Or(*pi_pairs),
             base_criterion=base_criterion,
             url=rec.url,
             name=rec.name,

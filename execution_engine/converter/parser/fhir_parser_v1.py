@@ -1,4 +1,4 @@
-from typing import Union, cast
+from typing import Callable, Type, cast
 
 from fhir.resources.evidencevariable import (
     EvidenceVariable,
@@ -12,33 +12,37 @@ from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.converter.parser.base import FhirRecommendationParserInterface
-from execution_engine.omop.criterion.abstract import AbstractCriterion, Criterion
-from execution_engine.omop.criterion.combination.combination import CriterionCombination
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
+from execution_engine.util import logic as logic
 
 
-def characteristic_code_to_criterion_combination_operator(
+def characteristic_code_to_expression(
     code: str, threshold: int | None = None
-) -> LogicalCriterionCombination.Operator:
+) -> Type[logic.BooleanFunction] | Callable:
     """
     Convert a characteristic combination code (from FHIR) to a criterion combination operator (for OMOP).
     """
-    mapping = {
-        "all-of": LogicalCriterionCombination.Operator.AND,
-        "any-of": LogicalCriterionCombination.Operator.OR,
-        "at-least": LogicalCriterionCombination.Operator.AT_LEAST,
-        "at-most": LogicalCriterionCombination.Operator.AT_MOST,
-        "exactly": LogicalCriterionCombination.Operator.EXACTLY,
-        "all-or-none": LogicalCriterionCombination.Operator.ALL_OR_NONE,
+    simple_ops = {
+        "all-of": logic.And,
+        "any-of": logic.Or,
+        "all-or-none": logic.AllOrNone,
     }
 
-    if code not in mapping:
-        raise NotImplementedError(f"Unknown combination code: {code}")
-    return LogicalCriterionCombination.Operator(
-        operator=mapping[code], threshold=threshold
-    )
+    count_ops = {
+        "at-least": logic.MinCount,
+        "at-most": logic.MaxCount,
+        "exactly": logic.ExactCount,
+        "all-or-none": logic.AllOrNone,
+    }
+
+    if code in simple_ops:
+        return simple_ops[code]
+
+    if code in count_ops:
+        if threshold is None:
+            raise ValueError(f"Threshold must be set for operator {code}")
+        return lambda *args, category: count_ops[code](*args, threshold=threshold)
+
+    raise NotImplementedError(f'Combination "{code}" not implemented')
 
 
 class FhirRecommendationParserV1(FhirRecommendationParserInterface):
@@ -55,17 +59,17 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
     def parse_time_from_event(
         self,
         tfes: list[EvidenceVariableCharacteristicTimeFromEvent],
-        combo: CriterionCombination,
-    ) -> CriterionCombination:
+        combo: logic.BooleanFunction,
+    ) -> logic.BooleanFunction:
         """
-        Parses the timeFromEvent elements and updates the CriterionCombination.
+        Parses the timeFromEvent elements and updates the logic.BooleanFunction.
 
         Root element timeFromEvent specifies the time within which the population is valid.
         Non-root elements act as filters for the criteria they are attached to, meaning only criteria within the timeFromEvent timeframe will be observed to determine if the patient is part of the population.
 
         Args:
             tfes (list[EvidenceVariableCharacteristicTimeFromEvent]): List of timeFromEvent elements.
-            combo (CriterionCombination): The criterion combination to update.
+            combo (logic.BooleanFunction): The criterion combination to update.
 
         Returns:
             TemporalIndicatorCombination: Updated criterion combination.
@@ -79,31 +83,31 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
         new_combo = converter.to_temporal_combination(combo)
 
-        if not isinstance(new_combo, CriterionCombination):
-            raise ValueError(f"Expected CriterionCombination, got {type(new_combo)}")
+        if not isinstance(new_combo, logic.BooleanFunction):
+            raise ValueError(f"Expected BooleanFunction, got {type(new_combo)}")
 
         return new_combo
 
-    def parse_characteristics(self, ev: EvidenceVariable) -> CriterionCombination:
+    def parse_characteristics(self, ev: EvidenceVariable) -> logic.BooleanFunction:
         """
-        Parses the EvidenceVariable characteristics and returns either a single Criterion
-        or a CriterionCombination.
+        Parses the EvidenceVariable characteristics and returns either a BooleanFunction.
 
         Root element timeFromEvent specifies the time within which the population is valid.
-        Non-root elements act as filters for the criteria they are attached to, meaning only criteria within the timeFromEvent timeframe will be observed to determine if the patient is part of the population.
+        Non-root elements act as filters for the criteria they are attached to, meaning only criteria within the
+        timeFromEvent timeframe will be observed to determine if the patient is part of the population.
 
         Args:
             ev (EvidenceVariable): The evidence variable to parse.
 
         Returns:
-            CriterionCombination: The parsed criterion combination.
+            BooleanFunction: The parsed criterion combination.
         """
 
         def build_criterion(
             characteristic: EvidenceVariableCharacteristic, is_root: bool
-        ) -> Union[Criterion, CriterionCombination]:
+        ) -> logic.BaseExpr:
             """
-            Recursively build Criterion or CriterionCombination from a single
+            Recursively build Symbol or BooleanFunction from a single
             EvidenceVariableCharacteristic.
 
             Args:
@@ -111,26 +115,27 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                 is_root (bool): Indicates if the characteristic is the root element.
 
             Returns:
-                Union[Criterion, CriterionCombination]: The built criterion or criterion combination.
+                Union[Symbol, BooleanFunction]: The built criterion or criterion combination.
             """
 
-            combo: CriterionCombination
+            combo: logic.BooleanFunction
 
             # If this characteristic is itself a combination
             if characteristic.definitionByCombination is not None:
-                operator = characteristic_code_to_criterion_combination_operator(
+                expr = characteristic_code_to_expression(
                     characteristic.definitionByCombination.code,
                     threshold=None,  # or parse an actual threshold if needed
                 )
-                combo = LogicalCriterionCombination(
-                    operator=operator,
-                )
+
+                children = []
 
                 for sub_char in characteristic.definitionByCombination.characteristic:
-                    combo.add(build_criterion(sub_char, is_root=False))
+                    children.append(build_criterion(sub_char, is_root=False))
+
+                combo = expr(*children)
 
                 if characteristic.exclude:
-                    combo = LogicalCriterionCombination.Not(
+                    combo = logic.Not(
                         combo,
                     )
 
@@ -144,10 +149,10 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
             # Else it's a single characteristic
             converter = self.characteristics_converters.get(characteristic)
             converter = cast(AbstractCharacteristic, converter)
-            crit = converter.to_criterion()
+            crit = converter.to_expression()
 
-            if not isinstance(crit, AbstractCriterion):
-                raise ValueError(f"Expected AbstractCriterion, got {type(crit)}")
+            if not isinstance(crit, logic.BaseExpr):
+                raise ValueError(f"Expected BaseExpr, got {type(crit)}")
 
             return crit
 
@@ -158,17 +163,16 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
             and ev.characteristic[0].definitionByCombination is not None
         ):
             combo = build_criterion(ev.characteristic[0], is_root=True)
-            assert isinstance(combo, CriterionCombination)
+            assert isinstance(combo, logic.BooleanFunction)
             return combo
 
         # Otherwise, gather them under an ALL_OF (AND) combination by default:
-        combo = LogicalCriterionCombination(
-            operator=LogicalCriterionCombination.Operator(
-                LogicalCriterionCombination.Operator.AND
-            ),
-        )
+        children = []
+
         for c in ev.characteristic:
-            combo.add(build_criterion(c, is_root=True))
+            children.append(build_criterion(c, is_root=True))
+
+        combo = logic.And(*children)
 
         return combo
 
@@ -176,7 +180,7 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
         self,
         actions_def: list[fhir.RecommendationPlan.Action],
         rec_plan: fhir.RecommendationPlan,
-    ) -> CriterionCombination:
+    ) -> logic.BooleanFunction:
         """
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
         corresponding action selection behavior.
@@ -185,9 +189,9 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
         def action_to_combination(
             actions_def: list[fhir.RecommendationPlan.Action],
             parent: fhir.RecommendationPlan | fhir.RecommendationPlan.Action,
-        ) -> CriterionCombination:
+        ) -> logic.BooleanFunction:
             # loop through PlanDefinition.action elements and find the corresponding Action object (by action.code)
-            actions: list[Criterion | CriterionCombination] = []
+            actions: list[logic.BaseExpr] = []
 
             for action_def in actions_def:
                 # check if is combination of actions
@@ -208,23 +212,25 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
                         goal = cast(Goal, goal)
                         action_conv.goals.append(goal)
 
-                    actions.append(action_conv.to_criterion())
+                    actions.append(action_conv.to_expression())
 
-            action_combination = self.parse_action_combination_method(parent.fhir())
+            action_combination_expr = self.parse_action_combination_method(
+                parent.fhir()
+            )
 
             for action_criterion in actions:
-                if not isinstance(action_criterion, (CriterionCombination, Criterion)):
+                if not isinstance(
+                    action_criterion, (logic.Symbol, logic.BooleanFunction)
+                ):
                     raise ValueError(f"Invalid action type: {type(action_criterion)}")
 
-                action_combination.add(action_criterion)
-
-            return action_combination
+            return action_combination_expr(*actions)
 
         return action_to_combination(actions_def, rec_plan)
 
     def parse_action_combination_method(
         self, action_parent: PlanDefinition | PlanDefinitionAction
-    ) -> CriterionCombination:
+    ) -> Type[logic.BooleanFunction] | Callable:
         """
         Get the correct action combination based on the action selection behavior.
         """
@@ -237,22 +243,22 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
         selection_behavior = selection_behaviors[0]
 
+        expr: Type[logic.BooleanFunction] | Callable
+
         match selection_behavior:
             case "any" | "one-or-more":
-                operator = LogicalCriterionCombination.Operator("OR")
+                expr = logic.Or
             case "all":
-                operator = LogicalCriterionCombination.Operator("AND")
+                expr = logic.And
             case "all-or-none":
-                operator = LogicalCriterionCombination.Operator("ALL_OR_NONE")
+                expr = logic.AllOrNone
             case "exactly-one":
-                operator = LogicalCriterionCombination.Operator("EXACTLY", threshold=1)
+                expr = lambda *args: logic.ExactCount(*args, threshold=1)
             case "at-most-one":
-                operator = LogicalCriterionCombination.Operator("AT_MOST", threshold=1)
+                expr = lambda *args: logic.MaxCount(*args, threshold=1)
             case _:
                 raise NotImplementedError(
                     f"Selection behavior {selection_behavior} not implemented."
                 )
 
-        return LogicalCriterionCombination(
-            operator=operator,
-        )
+        return expr

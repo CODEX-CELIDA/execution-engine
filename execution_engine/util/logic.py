@@ -1,10 +1,18 @@
 from abc import ABC, abstractmethod
 from datetime import time
-from typing import Any, Callable, cast
+from typing import Any, Callable, Dict, Type, cast
 
-from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
+from execution_engine.omop.serializable import Serializable
+
+_EXPR_CLASSES: dict[str, Type["BaseExpr"]] = {}
+
+
+def register_expr_class(cls: Type["BaseExpr"]) -> Type["BaseExpr"]:
+    """Decorator to register expression classes by their class name."""
+    _EXPR_CLASSES[cls.__name__] = cls
+    return cls
 
 
 class BaseExpr(ABC):
@@ -17,7 +25,7 @@ class BaseExpr(ABC):
     @classmethod
     def _recreate(cls, args: Any, kwargs: dict) -> "Expr":
         """
-        Recreate an expression from its arguments and category.
+        Recreate an expression from its arguments.
         """
         return cast(Expr, cls(*args, **kwargs))
 
@@ -70,11 +78,11 @@ class BaseExpr(ABC):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments.
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, and arguments.
         """
         return self._recreate, (self.args, self.get_instance_variables())
 
@@ -97,24 +105,80 @@ class BaseExpr(ABC):
         else:
             return instance_vars
 
+    def dict(self) -> dict:
+        """
+        Serialize this expression (and its children) into a dict.
+        """
+        data: dict[str, Any] = {"type": self.__class__.__name__}
+        # Store the class name, so we know which subclass to instantiate on from_dict
+
+        # Store instance variables (like thresholds, category, etc.) except for args
+        # (They come from get_instance_variables in your snippet)
+        instance_vars = self.get_instance_variables(immutable=False)
+        for key in instance_vars:
+            if isinstance(instance_vars[key], Serializable):
+                data[key] = instance_vars[key].dict()
+            else:
+                data[key] = instance_vars[key]
+
+        # Also store the expression's children by recursing
+        if self.args:
+            serialized_args = []
+            for arg in self.args:
+                if isinstance(arg, (BaseExpr, Serializable)):
+                    serialized_args.append(arg.dict())  # Recursively serialize
+                else:
+                    # If non-expression objects appear in .args, store them directly
+                    serialized_args.append(arg)
+            data["args"] = serialized_args
+
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "BaseExpr":
+        """
+        Rebuild an expression (of the correct subclass) from the given dict.
+        """
+        expr_type = data["type"]
+
+        # Find the actual subclass
+        if expr_type not in _EXPR_CLASSES:
+            raise ValueError(f"No registered expression class named '{expr_type}'")
+        sub_cls = _EXPR_CLASSES[expr_type]
+
+        # Deserialize child expressions
+        children = []
+        for arg_data in data.get("args", []):
+            if isinstance(arg_data, dict) and "type" in arg_data:
+                # It's a nested BaseExpr
+                child_expr = cls.from_dict(arg_data)
+                children.append(child_expr)
+            else:
+                # It's a literal (int, str, etc.)
+                children.append(arg_data)
+
+        instance_vars = {
+            key: val for key, val in data.items() if key not in ("type", "args")
+        }
+
+        return sub_cls._recreate(tuple(children), instance_vars)
+
 
 class Expr(BaseExpr):
     """
     Class for expressions that require a category.
     """
 
-    category: CohortCategory
+    # todo: isn't this now a bit redundant with the BaseExpr class? (because we've removed category)
 
-    def __new__(cls, *args: Any, category: CohortCategory) -> "Expr":
+    def __new__(cls, *args: Any) -> "Expr":
         """
-        Initialize an expression with given arguments and a mandatory category.
+        Initialize an expression with given arguments.
 
         :param args: Arguments for the expression.
-        :param category: Mandatory category of the expression.
         """
         self = cast(Expr, super().__new__(cls, *args))
         self.args = args
-        self.category = category
 
         return self
 
@@ -122,7 +186,7 @@ class Expr(BaseExpr):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}({', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}({', '.join(map(repr, self.args))})"
 
     def __eq__(self, other: Any) -> bool:
         """
@@ -162,24 +226,23 @@ class Expr(BaseExpr):
         return isinstance(self, Not)
 
 
+@register_expr_class
 class Symbol(BaseExpr):
     """
     Class representing a symbolic variable.
     """
 
     criterion: Criterion
-    category: CohortCategory
 
-    def __new__(cls, criterion: Criterion, category: CohortCategory) -> "Symbol":
+    def __new__(cls, criterion: Criterion) -> "Symbol":
         """
         Initialize a symbol.
 
         :param criterion: The criterion of the symbol.
         """
         self = cast(Symbol, super().__new__(cls))
-        self.args = ()
         self.criterion = criterion
-        self.category = category
+        self.args = ()
 
         return self
 
@@ -227,6 +290,7 @@ class Symbol(BaseExpr):
         return False
 
 
+@register_expr_class
 class BooleanFunction(Expr):
     """
     Base class for boolean functions like OR, AND, and NOT.
@@ -285,6 +349,7 @@ class BooleanFunction(Expr):
             return super().__repr__()
 
 
+@register_expr_class
 class Or(BooleanFunction):
     """
     Class representing a logical OR operation.
@@ -302,6 +367,7 @@ class Or(BooleanFunction):
         return super().__new__(cls, *args, **kwargs)
 
 
+@register_expr_class
 class And(BooleanFunction):
     """
     Class representing a logical AND operation.
@@ -319,6 +385,7 @@ class And(BooleanFunction):
         return super().__new__(cls, *args, **kwargs)
 
 
+@register_expr_class
 class Not(BooleanFunction):
     """
     Class representing a logical NOT operation.
@@ -340,6 +407,7 @@ class Not(BooleanFunction):
         return cast(Not, super().__new__(cls, *args, **kwargs))
 
 
+@register_expr_class
 class Count(BooleanFunction, ABC):
     """
     Class representing a logical COUNT operation.
@@ -353,6 +421,7 @@ class Count(BooleanFunction, ABC):
     count_max: int | None = None
 
 
+@register_expr_class
 class MinCount(Count):
     """
     Class representing a logical MIN_COUNT operation.
@@ -368,24 +437,25 @@ class MinCount(Count):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, and arguments.
         """
         return (
             self._recreate,
-            (self.args, {"category": self.category, "threshold": self.count_min}),
+            (self.args, {"threshold": self.count_min}),
         )
 
     def __repr__(self) -> str:
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))})"
 
 
+@register_expr_class
 class MaxCount(Count):
     """
     Class representing a logical MAX_COUNT operation.
@@ -401,24 +471,25 @@ class MaxCount(Count):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments.
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class and arguments.
         """
         return (
             self._recreate,
-            (self.args, {"category": self.category, "threshold": self.count_max}),
+            (self.args, {"threshold": self.count_max}),
         )
 
     def __repr__(self) -> str:
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_max}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}(threshold={self.count_max}; {', '.join(map(repr, self.args))})"
 
 
+@register_expr_class
 class ExactCount(Count):
     """
     Class representing a logical EXACT_COUNT operation.
@@ -435,24 +506,25 @@ class ExactCount(Count):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments.
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, and arguments.
         """
         return (
             self._recreate,
-            (self.args, {"category": self.category, "threshold": self.count_min}),
+            (self.args, {"threshold": self.count_min}),
         )
 
     def __repr__(self) -> str:
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))})"
 
 
+@register_expr_class
 class CappedCount(BooleanFunction, ABC):
     """
     Base class representing a COUNT operation with an upper cap.
@@ -473,6 +545,7 @@ class CappedCount(BooleanFunction, ABC):
     count_max: int | None = None
 
 
+@register_expr_class
 class CappedMinCount(CappedCount):
     """
     Class representing a MIN_COUNT operation with an implicit upper cap.
@@ -501,30 +574,32 @@ class CappedMinCount(CappedCount):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments.
 
         Required for pickling (e.g., when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, and arguments.
         """
         return (
             self._recreate,
-            (self.args, {"category": self.category, "threshold": self.count_min}),
+            (self.args, {"threshold": self.count_min}),
         )
 
     def __repr__(self) -> str:
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))})"
 
 
+@register_expr_class
 class AllOrNone(BooleanFunction):
     """
     Class representing a logical ALL_OR_NONE operation.
     """
 
 
+@register_expr_class
 class TemporalCount(BooleanFunction, ABC):
     """
     Class representing a logical COUNT operation.
@@ -542,6 +617,7 @@ class TemporalCount(BooleanFunction, ABC):
     interval_criterion: BaseExpr | None = None
 
 
+@register_expr_class
 class TemporalMinCount(TemporalCount):
     """
     Class representing a logical temporal MIN_COUNT operation.
@@ -571,18 +647,17 @@ class TemporalMinCount(TemporalCount):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments.
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, and arguments.
         """
         return (
             self._recreate,
             (
                 self.args,
                 {
-                    "category": self.category,
                     "threshold": self.count_min,
                     "start_time": self.start_time,
                     "end_time": self.end_time,
@@ -606,9 +681,10 @@ class TemporalMinCount(TemporalCount):
         else:
             interval = "None"
 
-        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min}; {', '.join(map(repr, self.args))})"
 
 
+@register_expr_class
 class TemporalMaxCount(TemporalCount):
     """
     Class representing a logical MAX_COUNT operation.
@@ -638,18 +714,17 @@ class TemporalMaxCount(TemporalCount):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments.
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, and arguments.
         """
         return (
             self._recreate,
             (
                 self.args,
                 {
-                    "category": self.category,
                     "threshold": self.count_max,
                     "start_time": self.start_time,
                     "end_time": self.end_time,
@@ -673,9 +748,10 @@ class TemporalMaxCount(TemporalCount):
         else:
             interval = "None"
 
-        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_max}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_max}; {', '.join(map(repr, self.args))})"
 
 
+@register_expr_class
 class TemporalExactCount(TemporalCount):
     """
     Class representing a logical EXACT_COUNT operation.
@@ -706,18 +782,17 @@ class TemporalExactCount(TemporalCount):
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
-        Reduce the expression to its arguments and category.
+        Reduce the expression to its arguments.
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, and arguments.
         """
         return (
             self._recreate,
             (
                 self.args,
                 {
-                    "category": self.category,
                     "threshold": self.count_min,
                     "start_time": self.start_time,
                     "end_time": self.end_time,
@@ -741,9 +816,10 @@ class TemporalExactCount(TemporalCount):
         else:
             interval = "None"
 
-        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min}; {', '.join(map(repr, self.args))}, category='{self.category}')"
+        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min}; {', '.join(map(repr, self.args))})"
 
 
+@register_expr_class
 class NonSimplifiableAnd(BooleanFunction):
     """
     A NonSimplifiableAnd object represents a logical AND operation that cannot be simplified.
@@ -783,6 +859,7 @@ class NonSimplifiableAnd(BooleanFunction):
 
 
 # todo: can we rename to more meaningful name?
+@register_expr_class
 class NoDataPreservingAnd(BooleanFunction):
     """
     A And object represents a logical AND operation.
@@ -798,6 +875,7 @@ class NoDataPreservingAnd(BooleanFunction):
         return cast(NoDataPreservingAnd, super().__new__(cls, *args, **kwargs))
 
 
+@register_expr_class
 class NoDataPreservingOr(BooleanFunction):
     """
     A Or object represents a logical OR operation.
@@ -813,6 +891,7 @@ class NoDataPreservingOr(BooleanFunction):
         return cast(NoDataPreservingOr, super().__new__(cls, *args, **kwargs))
 
 
+@register_expr_class
 class LeftDependentToggle(BooleanFunction):
     """
     A LeftDependentToggle object represents a logical AND operation if the left operand is positive,
@@ -838,10 +917,22 @@ class LeftDependentToggle(BooleanFunction):
         return self.args[1]
 
 
+@register_expr_class
 class ConditionalFilter(BooleanFunction):
     """
     A ConditionalFilter object returns the right operand if the left operand is POSITIVE,
     and NEGATIVE otherwise
+
+
+    A conditional filter returns `right` iff `left` is POSITIVE, otherwise NEGATIVE.
+
+    | left     | right    | Result   |
+    |----------|----------|----------|
+    | NEGATIVE |    *     | NEGATIVE |
+    | NO_DATA  |    *     | NEGATIVE |
+    | POSITIVE | POSITIVE | POSITIVE |
+    | POSITIVE | NEGATIVE | NEGATIVE |
+    | POSITIVE | NO_DATA  | NO_DATA  |
     """
 
     def __new__(

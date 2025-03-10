@@ -2,10 +2,6 @@ from typing import Self
 
 from execution_engine.converter.action.abstract import AbstractAction
 from execution_engine.fhir.recommendation import RecommendationPlan
-from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
 from execution_engine.omop.vocabulary import SNOMEDCT
 
 
@@ -29,6 +25,6 @@ class VentilatorManagementAction(AbstractAction):
             exclude=False,
         )  # fixme: no way to exclude goals (e.g. "do not ventilate")
 
-    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
+    def _to_expression(self) -> None:
         """Converts this characteristic to a Criterion."""
         return None
