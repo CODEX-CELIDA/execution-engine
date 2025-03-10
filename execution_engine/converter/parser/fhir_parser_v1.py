@@ -79,6 +79,9 @@ class FhirRecommendationParserV1(FhirRecommendationParserInterface):
 
         new_combo = converter.to_temporal_combination(combo)
 
+        if not isinstance(new_combo, CriterionCombination):
+            raise ValueError(f"Expected CriterionCombination, got {type(new_combo)}")
+
         return new_combo
 
     def parse_characteristics(self, ev: EvidenceVariable) -> CriterionCombination:
