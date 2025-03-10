@@ -27,6 +27,7 @@ def get_engine() -> OMOPSQLClient:
     return OMOPSQLClient(
         **get_config().omop.model_dump(by_alias=True),
         timezone=get_config().timezone,
+        null_pool=get_config().multiprocessing_use,
     )
 
 
