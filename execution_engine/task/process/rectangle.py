@@ -563,7 +563,7 @@ def mask_intervals(
             )
             for interval in intervals
         ]
-        for person_id, intervals in mask.items()
+        for person_id, intervals in mask.items() if person_id in data
     }
 
     def intersection_interval(start: int, end: int, intervals: List[GeneralizedInterval]) -> GeneralizedInterval:
