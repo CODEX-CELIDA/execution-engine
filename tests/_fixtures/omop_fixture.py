@@ -154,6 +154,7 @@ def celida_recommendation(
             recommendation_url="https://example.com",
             recommendation_version="1.0",
             recommendation_package_version="1.0",
+            recommendation_description="my_description",
             recommendation_hash=hash("my_recommendation"),
             recommendation_json="{}".encode(),
             create_datetime=datetime.datetime.now(),
@@ -185,6 +186,8 @@ def celida_recommendation(
         criterion = Criterion(
             criterion_id=criterion_id,
             criterion_description="my_description",
+            criterion_concept_id=0,
+            criterion_json="{}".encode(),
             criterion_hash=hash("my_criterion"),
         )
         db_session.add(criterion)
