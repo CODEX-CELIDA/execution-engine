@@ -5,10 +5,26 @@ from functools import reduce
 import numpy as np
 from sortedcontainers import SortedDict, SortedList
 
-from execution_engine.task.process import Interval, IntervalWithCount, IntervalWithTypeCounts
+from execution_engine.task.process import Interval, IntervalWithCount, IntervalWithTypeCounts, AnyInterval
 from execution_engine.util.interval import IntervalType
 
 MODULE_IMPLEMENTATION = "python"
+
+
+def intervals_to_events(
+    intervals: list[AnyInterval], closing_offset: int = 1
+) -> list[tuple[int, bool, AnyInterval]]:
+    """
+    Converts the intervals to a list of events.
+
+    The events are a sorted list of the opening/closing points of all rectangles.
+
+    :param intervals: The intervals.
+    :return: The events.
+    """
+    events =   [ (i.lower,                  True,  i) for i in intervals ] \
+             + [ (i.upper + closing_offset, False, i) for i in intervals ]
+    return sorted(events,key=lambda i: i[0])
 
 
 def union_rects(intervals: list[Interval]) -> list[Interval]:
@@ -30,7 +46,8 @@ def union_rects(intervals: list[Interval]) -> list[Interval]:
         cur_x = -np.inf
         open_y = SortedList()
 
-        for x_min, start_point, y_max in events:
+        for x_min, start_point, interval in events:
+            y_max = interval.type
             if x_min > cur_x:
                 # previously unvisited x
                 cur_x = x_min
@@ -99,7 +116,7 @@ def union_rects_with_count(
         return []
 
     with IntervalType.union_order():
-        events = intervals_with_count_to_events(intervals)
+        events = intervals_to_events(intervals)
 
         union = []
 
@@ -119,7 +136,8 @@ def union_rects_with_count(
                     break
             return max_key
 
-        for x, start_point, y, count_event in events:
+        for x, start_point, interval in events:
+            y, count_event = interval.type, interval.count
             if start_point:
                 y_max = get_y_max()
 
@@ -249,7 +267,8 @@ def intersect_rects(intervals: list[Interval]) -> list[Interval]:
         y_min = np.inf
         end_point = np.inf
 
-        for cur_x, start_point, y_max in events:
+        for cur_x, start_point, interval in events:
+            y_max = interval.type
             if start_point:
                 if end_point < cur_x:
                     # we already hit an endpoint and here starts a new one, so the intersection is empty
@@ -272,46 +291,6 @@ def intersect_rects(intervals: list[Interval]) -> list[Interval]:
                 end_point = cur_x
 
         return [Interval(lower=x_min, upper=end_point - 1, type=y_min)]
-
-
-def intervals_to_events(
-    intervals: list[Interval], closing_offset: int = 1
-) -> list[tuple[int, bool, IntervalType]]:
-    """
-    Converts the intervals to a list of events.
-
-    The events are a sorted list of the opening/closing points of all rectangles.
-
-    :param intervals: The intervals.
-    :return: The events.
-    """
-    events = [(i.lower, True, i.type) for i in intervals] + [
-        (i.upper + closing_offset, False, i.type) for i in intervals
-    ]
-    return sorted(
-        events,
-        key=lambda i: (i[0]),
-    )
-
-
-def intervals_with_count_to_events(
-    intervals: list[IntervalWithCount],
-) -> list[tuple[int, bool, IntervalType, int]]:
-    """
-    Converts the intervals to a list of events.
-
-    The events are a sorted list of the opening/closing points of all rectangles.
-
-    :param intervals: The intervals.
-    :return: The events.
-    """
-    events = [(i.lower, True, i.type, i.count) for i in intervals] + [
-        (i.upper + 1, False, i.type, i.count) for i in intervals
-    ]
-    return sorted(
-        events,
-        key=lambda i: (i[0]),
-    )
 
 
 def intersect_interval_lists(
@@ -433,15 +412,15 @@ def find_overlapping_windows(
     active_intervals = 0
     for window_event, interval_event in interleaved_events():
         if window_event:
-            time, open_, interval_type = window_event
-            window_open(time, interval_type) if open_ else window_close(time)
+            time, open_, interval = window_event
+            window_open(time, interval.type) if open_ else window_close(time)
         else:
-            time, open_, type_ = interval_event
+            time, open_, interval = interval_event
             active_intervals += (1 if open_ else -1)
             if active_intervals == 0: # 1 -> 0 transition
                 interval_unsatisfied(time)
             elif active_intervals == 1: # 0 -> 1 transition
-                interval_satisfied(time, type_)
+                interval_satisfied(time, interval.type)
 
     # Return the list of unique intersecting windows
     return intersecting_windows
@@ -487,13 +466,14 @@ def find_rectangles_with_count(all_intervals: list[list[Interval]]) -> list[Inte
     # counts change.
     counts = dict()
     previous_time = events[0][0]
-    for (time, open_, interval_type) in events:
+    for (time, open_, interval) in events:
         if previous_time is None:
             previous_time = time
         elif not previous_time == time:
             add_segment(previous_time, time, copy.copy(counts))
             previous_time = time
 
+        interval_type = interval.type
         old_count = counts.get(interval_type, 0)
         counts[interval_type] = old_count + (1 if open_ else -1)
 

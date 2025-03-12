@@ -3,6 +3,7 @@ import os
 import sys
 import types
 from collections import namedtuple
+from typing import TypeVar
 
 
 def get_processing_module(
@@ -39,3 +40,8 @@ def get_processing_module(
 Interval = namedtuple("Interval", ["lower", "upper", "type"])
 IntervalWithCount = namedtuple("IntervalWithCount", ["lower", "upper", "type", "count"])
 IntervalWithTypeCounts = namedtuple("IntervalWithTypeCounts", ["lower", "upper", "counts"])
+
+AnyInterval = Interval | IntervalWithCount | IntervalWithTypeCounts
+GeneralizedInterval = None | AnyInterval
+
+TInterval = TypeVar('TInterval', bound = AnyInterval)
