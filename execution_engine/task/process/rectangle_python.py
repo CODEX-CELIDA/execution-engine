@@ -1,6 +1,8 @@
 import copy
 import datetime
-from functools import reduce
+import typing
+from functools import reduce, cmp_to_key
+from typing import Callable
 
 import numpy as np
 from sortedcontainers import SortedDict, SortedList
@@ -477,4 +479,124 @@ def find_rectangles_with_count(all_intervals: list[list[Interval]]) -> list[Inte
         old_count = counts.get(interval_type, 0)
         counts[interval_type] = old_count + (1 if open_ else -1)
 
+    return result
+
+IntervalConstructor = Callable[[int, int, typing.List[AnyInterval]], AnyInterval]
+
+def find_rectangles(all_intervals: list[list[AnyInterval]],
+                    interval_constructor: IntervalConstructor) \
+        -> list[AnyInterval]:
+    """For multiple parallel "tracks" of intervals, identify temporal
+    intervals in which no change occurs on any "track". For each such
+    interval, call interval_constructor to determine how the interval
+    should be represented in the overall result. To this end,
+    interval_constructor receives a list "active" intervals the
+    elements of which are either None or an interval from
+    all_intervals and returns either None or an interval. The returned
+    None values and intervals are further processed into the overall
+    return value by merging adjacent intervals without "payload"
+    change.
+
+    :param all_intervals: A list of intervals that are checked for overlap with the windows.
+    :param interval_constructor: A callable that accepts a start time,
+                                 an end time and a list of "active"
+                                 intervals and returns None or an
+                                 interval. The list of active
+                                 intervals has the same length as
+                                 all_intervals and each element is
+                                 either None or an element from the
+                                 corresponding list in all_intervals.
+    :return: A list of intervals computed by interval_constructor such
+             that adjacent intervals (i.e. without gaps between them)
+             have different "payloads".
+    """
+    # Convert all intervals into a single list of events sorted by
+    # time. Multiple events at the same point in time can be problem
+    # here: If an interval open event and an interval close event on
+    # the same track happen at the same time (which happens for
+    # adjacent intervals on that track), we must order the close event
+    # before the open event, otherwise our tracking of active
+    # intervals would get confused.
+    track_count = len(all_intervals)
+    events = [
+        (time, event, interval, j)
+        for j, intervals in enumerate(all_intervals)
+        for (time, event, interval) in intervals_to_events(intervals, closing_offset=0)
+    ]
+    def compare_events(event1, event2):
+        if event1[0] < event2[0]: # event1 is earlier
+            return -1
+        elif event2[0] < event1[0]: # event2 is earlier
+            return 1
+        elif (event1[3] == event2[3]  # at the same time and on same track,
+             and event1[1] == False): # sort close events before open events
+            return -1
+        else: # at the same time, but different tracks => any order is fine
+            return 1
+    events.sort(key = cmp_to_key(compare_events))
+
+    # The result will be a list of intervals produced by
+    # interval_constructor.
+    result = []
+    previous_end = None
+    def add_segment(start, end, original_intervals):
+        nonlocal previous_end
+        if previous_end == start and len(result) > 0:
+            result[-1] = result[-1]._replace(upper=previous_end - 1)
+        interval = interval_constructor(start, end, original_intervals)
+        if interval is not None: # interval type negative is implicit
+            result.append(interval)
+            previous_end = end
+
+    def no_gap_between_points_in_time(end_time, start_time):
+        # Since points in time for intervals are quantized to whole
+        # seconds and intervals are closed (inclusive) for both start
+        # and end points, two adjacent intervals like
+        # [START_TIME1, 10:59:59] [11:00:00, END_TIME2]
+        # have no gap between them and can be considered a single
+        # continuous interval [START_TIME1, END_TIME2].
+        return (end_time == start_time) or (end_time == start_time - 1)
+
+    def is_same_result(active_intervals1, active_intervals2):
+        # When we have to decide whether to extend a result interval
+        # or start a new one, we compare the state for the existing
+        # result interval with the new state. The states are derived
+        # from the respective lists of active intervals by calling
+        # interval_constructor (with fake points in time) .
+        return (interval_constructor(0,0,active_intervals1)
+                == interval_constructor(0,0,active_intervals2))
+
+    active_intervals = [None] * track_count
+    def process_event_for_point_in_time(index, point_time):
+        nonlocal active_intervals
+        high_time = point_time
+        any_open = False
+        for i in range(index, len(events)):
+            time, open_, interval, track = events[i]
+            if no_gap_between_points_in_time(point_time, time):
+                high_time = max(high_time, time)
+                any_open |= open_
+            else:
+                return i, time, active_intervals.copy(), high_time if any_open else high_time + 1
+            active_intervals[track] = interval if open_ else None
+        return None, None, None, None
+
+    if not len(events) == 0:
+        # Step through event "clusters" with a common point in time and
+        # emit result intervals with unchanged interval "payload".
+        index, time = 0, events[0][0]
+        interval_start_time = time
+        index, time, interval_start_state, high_time = process_event_for_point_in_time(index, time)
+        while index:
+            new_index, new_time, maybe_end_state, high_time = process_event_for_point_in_time(index, time)
+            # Diagram for this program point:
+            # |___potential_result_interval___||                 |
+            #                                 index              new_index
+            # interval_start_time             time               new_time
+            # interval_start_state            maybe_end_state
+            #                                  high_time
+            if (maybe_end_state is None) or (not is_same_result(interval_start_state, maybe_end_state)):
+                add_segment(interval_start_time, time, interval_start_state)
+                interval_start_time, interval_start_state = high_time, maybe_end_state
+            index, time = new_index, new_time
     return result

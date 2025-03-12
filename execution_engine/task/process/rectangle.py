@@ -799,9 +799,22 @@ def find_overlapping_personal_windows(
     return result
 
 def find_rectangles_with_count(data: list[PersonIntervals]) -> PersonIntervals:
+    # TODO(jmoringe): can this use _process_interval?
     if len(data) == 0:
         return {}
     else:
         keys = data[0].keys()
         return {key: _impl.find_rectangles_with_count([ intervals[key] for intervals in data ])
+                for key in keys}
+
+def find_rectangles(data: list[PersonIntervals], interval_constructor: Callable) -> PersonIntervals:
+    # TODO(jmoringe): can this use _process_interval?
+    if len(data) == 0:
+        return {}
+    else:
+        keys = set()
+        for track in data:
+            keys |= track.keys()
+        return {key: _impl.find_rectangles([ intervals.get(key, []) for intervals in data ],
+                                           interval_constructor)
                 for key in keys}
