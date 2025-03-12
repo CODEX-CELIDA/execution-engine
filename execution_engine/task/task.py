@@ -456,36 +456,28 @@ class Task:
 
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
-
-        data_p = process.select_type(left, IntervalType.POSITIVE)
-
+        # observation_window_intervals extends the result to the
+        # correct temporal range; Its type is not important.
+        observation_window_intervals = {key: [Interval(observation_window.start.timestamp(),
+                                                       observation_window.end.timestamp(),
+                                                       IntervalType.POSITIVE)]
+                                        for key in left.keys()}
         if isinstance(self.expr, logic.LeftDependentToggle):
-            interval_type = IntervalType.NOT_APPLICABLE
-        elif isinstance(self.expr, logic.ConditionalFilter):
-            interval_type = IntervalType.NEGATIVE
+            fill_type = IntervalType.NOT_APPLICABLE
+        else:
+            assert isinstance(self.expr, logic.ConditionalFilter)
+            fill_type = IntervalType.NEGATIVE
 
-        result_not_p = process.complementary_intervals(
-            data_p,
-            reference=base_data,
-            observation_window=observation_window,
-            interval_type=interval_type,
-        )
-
-        result_p_and_i = process.intersect_intervals([data_p, right])
-
-        result = process.concat_intervals([result_not_p, result_p_and_i])
-
-        # fill remaining time with NEGATIVE
-        result_no_data = process.complementary_intervals(
-            result,
-            reference=base_data,
-            observation_window=observation_window,
-            interval_type=IntervalType.NEGATIVE,
-        )
-
-        result = process.concat_intervals([result, result_no_data])
-
-        return result
+        def new_interval(start: int, end: int, intervals: List[GeneralizedInterval]) -> GeneralizedInterval:
+            left_interval, right_interval, observation_window_ = intervals
+            if (left_interval is None) or not left_interval.type == IntervalType.POSITIVE :
+                # no left_interval or not positive -> use fill type
+                return Interval(start, end, fill_type)
+            elif right_interval is not None:
+                return interval_like(right_interval, start, end)
+            else: # left_interval but not right_interval -> implicit negative
+                return None
+        return process.find_rectangles([left, right, observation_window_intervals], new_interval)
 
     def handle_temporal_operator(
         self, data: list[PersonIntervals], observation_window: TimeRange
