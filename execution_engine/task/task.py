@@ -354,8 +354,19 @@ class Task:
         ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
 
         if isinstance(self.expr, logic.NoDataPreservingAnd):
-            result = process.intersect_intervals(data)
-        elif isinstance(self.expr, logic.NoDataPreservingOr):
+            def intersection_interval(start: int, end: int, intervals: List[GeneralizedInterval]) -> GeneralizedInterval:
+                with IntervalType.intersection_order():
+                    min_interval = min(intervals, key = lambda i: IntervalType.NEGATIVE if i is None else i.type)
+                if min_interval is not None:
+                    return interval_like(min_interval, start, end)
+                else:
+                    # Explicit representation of negative intervals is
+                    # required here because the database views do not
+                    # understand the implicit representation.
+                    return Interval(start, end, IntervalType.NEGATIVE)
+            result = process.find_rectangles(data, intersection_interval)
+        else:
+            assert isinstance(self.expr, logic.NoDataPreservingOr)
             result = process.union_intervals(data)
 
         # todo: the only difference between this function and handle_binary_logical_operator is the following lines
@@ -367,7 +378,17 @@ class Task:
             interval_type=IntervalType.NEGATIVE,
         )
 
-        result = process.concat_intervals([result, result_negative])
+        def union_interval(start: int, end: int, intervals: List[GeneralizedInterval]) -> GeneralizedInterval:
+            with IntervalType.union_order():
+                max_interval = max(intervals, key=lambda i: IntervalType.NEGATIVE if i is None else i.type)
+            if max_interval is not None:
+                return interval_like(max_interval, start, end)
+            else:
+                # Explicit representation of negative intervals is
+                # required here because the database views do not
+                # understand the implicit representation.
+                return Interval(start, end, IntervalType.NEGATIVE)
+        result = process.find_rectangles([result, result_negative], union_interval)
 
         return result
 
