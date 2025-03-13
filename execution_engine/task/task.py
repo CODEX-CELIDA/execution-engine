@@ -494,6 +494,8 @@ class Task:
             return cnf.start, cnf.end
 
         assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
+        assert self.expr.count_min == 1
+        assert self.expr.count_max is None
 
         if self.expr.interval_criterion is not None:
             # last element is the indicator windows
