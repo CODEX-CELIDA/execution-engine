@@ -1,7 +1,10 @@
 import pandas as pd
 from pydantic import BaseModel
 
+from execution_engine.util import serializable
 
+
+@serializable.register_class
 class Concept(BaseModel, frozen=True):  # type: ignore
     """Represents an OMOP Standard Vocabulary concept."""
 
@@ -35,23 +38,14 @@ class Concept(BaseModel, frozen=True):  # type: ignore
         return self.concept_id < 0
 
 
-class CustomConcept(Concept):
+@serializable.register_class
+class CustomConcept(Concept, frozen=True):
     """Represents a custom concept."""
 
-    def __init__(
-        self, name: str, concept_code: str, domain_id: str, vocabulary_id: str
-    ) -> None:
-        """Creates a custom concept."""
-        super().__init__(
-            concept_id=-1,
-            concept_name=name,
-            concept_code=concept_code,
-            domain_id=domain_id,
-            vocabulary_id=vocabulary_id,
-            concept_class_id="Custom",
-            standard_concept=None,
-            invalid_reason=None,
-        )
+    concept_id: int = -1
+    concept_class_id: str = "Custom"
+    standard_concept: str | None = None
+    invalid_reason: str | None = None
 
     @property
     def id(self) -> int:

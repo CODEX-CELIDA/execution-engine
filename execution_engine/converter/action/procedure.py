@@ -71,7 +71,7 @@ class ProcedureAction(AbstractAction):
                 # as Observation and Measurement normally expect a value.
                 criterion = Measurement(
                     concept=self._code,
-                    override_value_required=False,
+                    value_required=False,
                     timing=self._timing,
                 )
             case "Observation":
@@ -79,7 +79,7 @@ class ProcedureAction(AbstractAction):
                 # as Observation and Measurement normally expect a value.
                 criterion = Observation(
                     concept=self._code,
-                    override_value_required=False,
+                    value_required=False,
                     timing=self._timing,
                 )
             case _:

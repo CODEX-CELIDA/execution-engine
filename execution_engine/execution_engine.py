@@ -17,8 +17,8 @@ from execution_engine.omop import cohort
 from execution_engine.omop.cohort import PopulationInterventionPairExpr
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida import tables as result_db
-from execution_engine.omop.serializable import Serializable
 from execution_engine.task import runner
+from execution_engine.util.serializable import Serializable
 
 
 class ExecutionEngine:

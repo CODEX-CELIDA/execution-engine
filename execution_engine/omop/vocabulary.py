@@ -201,7 +201,7 @@ class CODEXCELIDA(AbstractVocabulary):
     vocab_id = "CODEX_CELIDA"
     map = {
         "tvpibw": CustomConcept(
-            name="Tidal volume / ideal body weight (ARDSnet)",
+            concept_name="Tidal volume / ideal body weight (ARDSnet)",
             concept_code="tvpibw",
             domain_id="Measurement",
             vocabulary_id=vocab_id,

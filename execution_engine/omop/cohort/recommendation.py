@@ -1,7 +1,7 @@
+import copy
 import re
-from typing import Any, Dict, Iterator, Self, cast
+from typing import Iterator
 
-import networkx as nx
 from sqlalchemy import (
     Column,
     Date,
@@ -21,12 +21,11 @@ from execution_engine.omop.cohort.population_intervention_pair import (
     PopulationInterventionPairExpr,
 )
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.factory import criterion_factory
 from execution_engine.omop.db.celida.tables import ResultInterval
-from execution_engine.omop.serializable import Serializable
+from execution_engine.util.serializable import SerializableDataClass
 
 
-class Recommendation(Serializable):
+class Recommendation(SerializableDataClass):
     """
     A recommendation OMOP as a collection of separate population/intervention pairs.
 
@@ -129,6 +128,61 @@ class Recommendation(Serializable):
         """
         return self._base_criterion
 
+    @classmethod
+    def filter_symbols(cls, node: logic.Expr, filter_: logic.Expr) -> logic.Expr:
+        """
+        Filter (=AND-combine) all symbols by the applied filter function
+
+        Used to filter all intervention criteria (symbols) by the population output in order to exclude
+        all intervention events outside the population intervals, which may otherwise interfere with corrected
+        determination of temporal combination, i.e. the presence of an intervention event during some time window.
+        """
+
+        if isinstance(node, logic.Symbol):
+            return logic.LeftDependentToggle(left=filter_, right=node)
+        elif isinstance(node, logic.Expr):
+            converted_args = [cls.filter_symbols(a, filter_) for a in node.args]
+
+            if any(a is not b for a, b in zip(node.args, converted_args)):
+                node.update_args(*converted_args)
+
+        return node
+
+    @classmethod
+    def filter_intervention_criteria_by_population(cls, expr: logic.Expr) -> logic.Expr:
+        """
+        Filter all intervention criteria by the output of the population.
+        """
+
+        from execution_engine.omop.cohort import PopulationInterventionPairExpr
+
+        # we might make changes to the expression (e.g. filtering), so we must preserve
+        # the original expression from the caller
+        expr = copy.deepcopy(expr)
+
+        def traverse(
+            expr: logic.Expr,
+        ) -> None:
+            if isinstance(expr, PopulationInterventionPairExpr):
+                p, i = expr.left, expr.right
+
+                # filter all intervention criteria by the output of the population - this is performed to filter out
+                # intervention events that outside of the population intervals (i.e. the time windows during which
+                # patients are part of the population) as otherwise events outside of the population time may be picked up
+                # by Temporal criteria that determine the presence of some event or condition during a specific time window.
+                i = cls.filter_symbols(i, filter_=p)
+
+                traverse(i)
+                traverse(p)
+
+            elif not expr.is_Atom:
+                for child in expr.args:
+                    traverse(child)
+
+        traverse(expr)
+
+        return expr
+
     def execution_graph(self) -> ExecutionGraph:
         """
         Get the execution maps of the full recommendation.
@@ -137,49 +191,25 @@ class Recommendation(Serializable):
         execution maps of the individual population/intervention pairs of the recommendation.
         """
 
-        # p_sink_nodes = []
-        # pi_sink_nodes = []
+        expr_filtered = self.filter_intervention_criteria_by_population(self._expr)
 
         common_graph = ExecutionGraph.from_expression(
-            self._expr,
+            expr_filtered,
             base_criterion=self._base_criterion,
             category=CohortCategory.POPULATION_INTERVENTION,
         )
-
-        # for pi_pair in self.population_intervention_pairs():
-        #     subgraph: ExecutionGraph = cast(ExecutionGraph, common_graph.subgraph(nx.ancestors(common_graph, pi_pair) | {pi_pair}))
-        #     p_sink_nodes.append(subgraph.sink_node(CohortCategory.POPULATION))
-        #     pi_sink_nodes.append(subgraph.sink_node(CohortCategory.POPULATION_INTERVENTION))
 
         p_sink_nodes = common_graph.sink_nodes(CohortCategory.POPULATION)
 
         p_combination_node = logic.NoDataPreservingOr(
             *common_graph.sink_nodes(CohortCategory.POPULATION)
         )
-        # pi_combination_node = logic.NoDataPreservingAnd(
-        #     *pi_sink_nodes,
-        # )
 
         common_graph.add_node(
             p_combination_node, store_result=True, category=CohortCategory.POPULATION
         )
 
-        # common_graph.add_node(
-        #     pi_combination_node,
-        #     store_result=True,
-        #     category=CohortCategory.POPULATION_INTERVENTION,
-        # )
-
         common_graph.add_edges_from((src, p_combination_node) for src in p_sink_nodes)
-        # common_graph.add_edges_from((src, pi_combination_node) for src in pi_sink_nodes)
-
-        import json
-
-        with open("/home/glichtner/cyto.json", "w") as f:
-            json.dump({"elements": common_graph.to_cytoscape_dict()}, f, indent=4)
-
-        if not nx.is_directed_acyclic_graph(common_graph):
-            raise ValueError("The recommendation execution graph is not a DAG.")
 
         return common_graph
 
@@ -278,45 +308,3 @@ class Recommendation(Serializable):
 
         for criterion in self.flatten():
             criterion._id = None
-
-    def dict(self) -> dict:
-        """
-        Get the combination as a dictionary.
-        """
-        base_criterion = self._base_criterion
-        return {
-            "expr": self._expr.dict(),
-            "base_criterion": {
-                "class_name": base_criterion.__class__.__name__,
-                "data": base_criterion.dict(),
-            },
-            "recommendation_name": self._name,
-            "recommendation_title": self._title,
-            "recommendation_url": self._url,
-            "recommendation_version": self._version,
-            "recommendation_package_version": self._package_version,
-            "recommendation_description": self._description,
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> Self:
-        """
-        Create a combination from a dictionary.
-        """
-        base_criterion = criterion_factory(**data["base_criterion"])
-        assert isinstance(
-            base_criterion, Criterion
-        ), "Base criterion must be a Criterion"
-
-        return cls(
-            expr=cast(
-                logic.BooleanFunction, logic.BooleanFunction.from_dict(data["expr"])
-            ),
-            base_criterion=base_criterion,
-            name=data["recommendation_name"],
-            title=data["recommendation_title"],
-            url=data["recommendation_url"],
-            version=data["recommendation_version"],
-            description=data["recommendation_description"],
-            package_version=data["recommendation_package_version"],
-        )

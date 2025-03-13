@@ -1,5 +1,3 @@
-from typing import Any, Dict, cast
-
 from sqlalchemy import ColumnElement, case, func, select
 from sqlalchemy.sql import Select
 
@@ -13,7 +11,6 @@ from execution_engine.omop.criterion.continuous import ContinuousCriterion
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import Timing
 from execution_engine.util.value import ValueNumber
-from execution_engine.util.value.factory import value_factory
 from execution_engine.util.value.time import ValueCount
 
 __all__ = ["ProcedureOccurrence"]
@@ -160,45 +157,3 @@ class ProcedureOccurrence(ContinuousCriterion):
             parts.append(f"dose={str(self._timing)}")
 
         return f"{self.__class__.__name__}[" + ", ".join(parts) + "]"
-
-    def dict(self) -> dict[str, Any]:
-        """
-        Return a dictionary representation of the criterion.
-        """
-        assert self._concept is not None, "Concept must be set"
-
-        return {
-            "concept": self._concept.model_dump(),
-            "value": (
-                self._value.model_dump(include_meta=True)
-                if self._value is not None
-                else None
-            ),
-            "timing": (
-                self._timing.model_dump(include_meta=True)
-                if self._timing is not None
-                else None
-            ),
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ProcedureOccurrence":
-        """
-        Create a procedure occurrence criterion from a dictionary representation.
-        """
-
-        value = value_factory(**data["value"]) if data["value"] is not None else None
-        timing = value_factory(**data["timing"]) if data["timing"] is not None else None
-
-        assert (
-            isinstance(value, ValueNumber) or value is None
-        ), "value must be a ValueNumber"
-        assert (
-            isinstance(timing, ValueNumber | Timing) or timing is None
-        ), "timing must be a ValueNumber"
-
-        return cls(
-            concept=Concept(**data["concept"]),
-            value=value,
-            timing=cast(Timing, timing),
-        )

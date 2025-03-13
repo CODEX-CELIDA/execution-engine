@@ -22,7 +22,7 @@ class TaskCreator:
 
         def node_to_task(expr: logic.Expr, attr: dict) -> Task:
             store_result = attr.get("store_result", False)
-            bind_params = attr.get("bind_params", {})
+            bind_params = attr.get("bind_params", {}).copy()
             bind_params["category"] = attr["category"]
 
             task = Task(

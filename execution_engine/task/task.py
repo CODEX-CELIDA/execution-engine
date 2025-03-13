@@ -9,11 +9,11 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlch
 import execution_engine.util.logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
 from execution_engine.task.process import Interval, get_processing_module
+from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
@@ -494,7 +494,11 @@ class Task:
         assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
 
         if self.expr.interval_criterion is not None:
+
             # last element is the indicator windows
+            assert (
+                len(data) >= 2
+            ), "TemporalCount with indicator criterion requires at least two inputs"
             data, indicator_personal_windows = data[:-1], data[-1]
 
             result = process.find_overlapping_personal_windows(
@@ -623,7 +627,10 @@ class Task:
 
         Uniqueness is guaranteed by prepending the base64-encoded hash of the Task object.
         """
-        return f"[{self.id()}] {str(self)}"
+        if self.expr.is_Atom:
+            return f"[{self.id()}] {str(self)}"
+        else:
+            return f"[{self.id()}] {self.expr.__class__.__name__}()"
 
     def id(self) -> str:
         """

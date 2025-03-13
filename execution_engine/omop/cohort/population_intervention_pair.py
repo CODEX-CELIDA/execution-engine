@@ -2,10 +2,9 @@ from typing import cast
 
 import execution_engine.util.logic as logic
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.serializable import Serializable
 
 
-class PopulationInterventionPairExpr(logic.LeftDependentToggle, Serializable):
+class PopulationInterventionPairExpr(logic.LeftDependentToggle):
     """
     A logical expression that ties together a population expression and an intervention expression,
     plus any extra info like name, url, base_criterion, etc.
@@ -71,29 +70,20 @@ class PopulationInterventionPairExpr(logic.LeftDependentToggle, Serializable):
         """
         return self._base_criterion
 
-    def __repr__(self) -> str:
+    def dict(self, include_id: bool = False) -> dict:
         """
-        Return a string representation of the object.
+        Get a dictionary representation of the object.
         """
-        return (
-            f"{self.__class__.__name__}("
-            f"name={self.name!r}, "
-            f"url={self.url!r}, "
-            f"base_criterion={self.base_criterion!r}, "
-            f"left={self.left!r}, right={self.right!r}, "
+        data = super().dict(include_id=include_id)
+        del data["data"]["left"]
+        del data["data"]["right"]
+        data["data"].update(
+            {
+                "population_expr": self.left.dict(include_id=include_id),
+                "intervention_expr": self.right.dict(include_id=include_id),
+                "name": self.name,
+                "url": self.url,
+                "base_criterion": self.base_criterion.dict(include_id=include_id),
+            }
         )
-
-    def get_instance_variables(self, immutable: bool = False) -> dict | tuple:
-        """
-        Get the instance variables of the object.
-        """
-        # Include the base class instance variables plus the ones we added:
-        base_vars = cast(dict, super().get_instance_variables(immutable=False))
-        base_vars["name"] = self.name
-        base_vars["url"] = self.url
-        base_vars["base_criterion"] = self.base_criterion
-
-        # Convert to tuple if needed
-        if immutable:
-            return tuple(sorted(base_vars.items()))
-        return base_vars
+        return data
