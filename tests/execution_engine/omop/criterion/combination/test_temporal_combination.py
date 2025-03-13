@@ -1902,3 +1902,243 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
                 )
             )
             assert result_tuples == expected[person.person_id]
+
+
+class TestIntervalRatio(TestCriterionCombinationDatabase):
+    """This test ensures that counting criteria with minimum count
+    thresholds adapt to the temporal interval of the population
+    criterion.
+
+    As a concrete test case, this class applies an intervention
+    criterion that requires a procedure to be performed in at least
+    two of three shifts for each day. However, if the hospital stay
+    ends during a given day, shifts on that day but outside the
+    hospital stay should not count towards the threshold of the
+    criterion.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            name="observation", start="2025-02-18 13:55:00Z", end="2025-02-23 11:00:00Z"
+        )
+
+    def patient_events(self, db_session, visit_occurrence):
+        c1 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2025-02-23 02:00:00+01:00"),
+        )
+        # One screen on the 19th
+        e1_night = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-19 23:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-19 23:01:00+01:00"),
+        )
+        # Two screen on the 20th
+        e2_morn = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-20 08:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-20 08:01:00+01:00"),
+        )
+        e2_late = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-20 15:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-20 15:01:00+01:00"),
+        )
+        # Three screenings on the 21st
+        e3_morn = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 08:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 08:01:00+01:00"),
+        )
+        e3_late = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 15:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 15:01:00+01:00"),
+        )
+        e3_night = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 23:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 23:01:00+01:00"),
+        )
+        # Four screenings on the 22st
+        e4_night_pre = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 01:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 01:01:00+01:00"),
+        )
+        e4_morn = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 08:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 08:01:00+01:00"),
+        )
+        e4_late = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 15:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 15:01:00+01:00"),
+        )
+        e4_night = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 23:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 23:01:00+01:00"),
+        )
+        db_session.add_all(
+            [
+                c1,
+                e1_night,
+                e2_morn,
+                e2_late,
+                e3_morn,
+                e3_late,
+                e3_night,
+                e4_night_pre,
+                e4_morn,
+                e4_late,
+                e4_night,
+            ]
+        )
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "population,intervention,expected",
+        [
+            (
+                LogicalCriterionCombination.And(c2),  # population
+                LogicalCriterionCombination.CappedAtLeast(
+                    *[
+                        FixedWindowTemporalIndicatorCombination.Day(
+                            criterion=shift_class(criterion=delir_screening),
+                        )
+                        for shift_class in [
+                            FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight,
+                            FixedWindowTemporalIndicatorCombination.MorningShift,
+                            FixedWindowTemporalIndicatorCombination.AfternoonShift,
+                            FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight,
+                        ]
+                    ],
+                    threshold=4,
+                ),
+                {
+                    1: [
+                        # The criterion should be fulfilled on the day
+                        # before the discharge and on the day of the
+                        # discharge even though the actual number of
+                        # screenings on the latter day is just 1.
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",  # workaround, is actually really a nan value
+                            pendulum.parse("2025-02-18 16:55:00Z"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            1 / 3,  # one this day, only 3 shifts are possible,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-19 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0.5,
+                            pendulum.parse("2025-02-20 00:00:00+01:00"),
+                            pendulum.parse("2025-02-20 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0.75,
+                            pendulum.parse("2025-02-21 00:00:00+01:00"),
+                            pendulum.parse("2025-02-21 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            1.0,
+                            pendulum.parse("2025-02-22 00:00:00+01:00"),
+                            pendulum.parse("2025-02-22 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0,
+                            pendulum.parse("2025-02-23 00:00:00+01:00"),
+                            pendulum.parse("2025-02-23 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",  # workaround, is actually really a nan value
+                            pendulum.parse("2025-02-23 02:00:01+01:00"),
+                            pendulum.parse("2025-02-23 04:30:00Z"),
+                        ),
+                    ]
+                },
+            ),
+        ],
+    )
+    def test_interval_ratio_on_database(
+        self,
+        person,
+        db_session,
+        population,
+        intervention,
+        base_criterion,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = [person[0]]  # only one person
+        vos = [
+            create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end
+                - datetime.timedelta(hours=6.5),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            for person in persons
+        ]
+
+        self.patient_events(db_session, vos[0])
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_criterion_combination(
+            db_session, population, intervention, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = list(
+                result[
+                    [
+                        "interval_type",
+                        "interval_ratio",
+                        "interval_start",
+                        "interval_end",
+                    ]
+                ]
+                .fillna("nan")
+                .itertuples(index=False, name=None)
+            )
+
+            for result_tuple, expected_tuple in zip(
+                result_tuples, expected[person.person_id]
+            ):
+                assert result_tuple == expected_tuple

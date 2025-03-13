@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 from enum import Enum, auto
+from typing import List
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
@@ -13,7 +14,14 @@ from execution_engine.omop.criterion.combination.temporal import TimeIntervalTyp
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
-from execution_engine.task.process import Interval, get_processing_module
+from execution_engine.task.process import (
+    Interval,
+    IntervalWithCount,
+    AnyInterval,
+    GeneralizedInterval,
+    get_processing_module,
+    interval_like,
+)
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
@@ -294,31 +302,26 @@ class Task:
                 max_count=self.expr.count_max,
             )
         elif isinstance(self.expr, logic.CappedCount):
-            intervals_with_count = process.find_rectangles_with_count(data)
-            result = dict()
-            for key, intervals in intervals_with_count.items():
-
-                key_result = []
-
+            def interval_counts(start: int, end: int, intervals: List[AnyInterval]) -> GeneralizedInterval:
+                positive_count = 0
+                not_applicable_count = 0
                 for interval in intervals:
-                    counts = interval.counts
-                    not_applicable_count = counts.get(IntervalType.NOT_APPLICABLE, 0)
+                    if interval is None or interval.type == IntervalType.NEGATIVE:
+                        pass
+                    elif interval.type == IntervalType.POSITIVE:
+                        positive_count += 1
+                    elif interval.type == IntervalType.NOT_APPLICABLE:
+                        not_applicable_count += 1
+                # we require at least one positive interval to be present in any case (hence the max(1, ...))
+                effective_count_min = max(1, self.expr.count_min - not_applicable_count)
+                if positive_count >= effective_count_min:
+                    effective_type = IntervalType.POSITIVE
+                else:
+                    effective_type = IntervalType.NEGATIVE
+                ratio = positive_count / effective_count_min
+                return IntervalWithCount(start, end, effective_type, ratio)
+            return process.find_rectangles(data, interval_counts)
 
-                    # we require at least one positive interval to be present in any case (hence the max(1, ...))
-                    effective_count_min = max(
-                        1, self.expr.count_min - not_applicable_count
-                    )
-                    positive_count = counts.get(IntervalType.POSITIVE, 0)
-                    effective_type = (
-                        IntervalType.POSITIVE
-                        if positive_count >= effective_count_min
-                        else IntervalType.NEGATIVE
-                    )
-                    key_result.append(
-                        Interval(interval.lower, interval.upper, effective_type)
-                    )
-                result[key] = key_result
-            return result
         elif isinstance(self.expr, logic.AllOrNone):
             raise NotImplementedError("AllOrNone is not implemented yet.")
         else:

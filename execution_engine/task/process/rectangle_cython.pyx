@@ -1,7 +1,5 @@
-import copy
-import datetime
 import typing
-from functools import reduce, cmp_to_key
+from functools import cmp_to_key
 from typing import Callable
 
 cimport numpy as np
@@ -9,7 +7,7 @@ cimport numpy as np
 import numpy as np
 from sortedcontainers import SortedDict
 
-from execution_engine.task.process import Interval, IntervalWithCount, IntervalWithTypeCounts, AnyInterval
+from execution_engine.task.process import Interval, IntervalWithCount, AnyInterval
 from execution_engine.util.interval import IntervalType
 
 DEF SCHAR_MIN = -128
@@ -433,59 +431,6 @@ def find_overlapping_windows(
     # Return the list of unique intersecting windows
     return intersecting_windows
 
-def find_rectangles_with_count(all_intervals: list[list[Interval]]) -> list[IntervalWithTypeCounts]:
-    """
-    For multiple parallel "tracks" of intervals, identify temporal
-    intervals in which no change occurs on any "track". For each such
-    interval, report the number of active intervals grouped by
-    interval type across all "tracks". When there is no interval on a
-    track for a given temporal interval, act as if a negative interval
-    was present there.
-
-    :param all_intervals: A list of intervals that are checked for overlap with the windows.
-    :return: A list of windows that have any overlap with the intervals.
-    """
-    # Convert all intervals into a list of events sorted by
-    # time. Multiple events at the same point in time are not a
-    # problem here: since we simply count the number of "active"
-    # intervals the result does not depend on the order in which we
-    # process the events.
-    track_count = len(all_intervals)
-    events = reduce(lambda acc, intervals: acc + intervals_to_events(intervals, closing_offset=0),
-                    all_intervals,
-                    [])
-    events.sort(key=lambda i: i[0])
-
-    # The result will be a list of intervals
-    result = []
-    def add_segment(start, end, type_counts):
-        # We consider the period between 23:59:59 of a day and
-        # 00:00:00 of the following day to be empty.
-        if not (start == end - 1 and datetime.datetime.fromtimestamp(end).time() == datetime.time(0, 0, 0)):
-            # Assume implicit negative intervals: increase the count
-            # for the negative type as needed so that the overall
-            # count is equal to track_count.
-            missing = track_count - sum(type_counts.values())
-            if missing > 0:
-                type_counts[IntervalType.NEGATIVE] = type_counts.get(IntervalType.NEGATIVE, 0) + missing
-            result.append(IntervalWithTypeCounts(start, end, type_counts))
-
-    # Step through events and emit result intervals whenever the
-    # counts change.
-    counts = dict()
-    previous_time = events[0][0]
-    for (time, open_, interval) in events:
-        if previous_time is None:
-            previous_time = time
-        elif not previous_time == time:
-            add_segment(previous_time, time, copy.copy(counts))
-            previous_time = time
-
-        interval_type = interval.type
-        old_count = counts.get(interval_type, 0)
-        counts[interval_type] = old_count + (1 if open_ else -1)
-
-    return result
 
 IntervalConstructor = Callable[[int, int, typing.List[AnyInterval]], AnyInterval]
 
