@@ -741,23 +741,6 @@ def create_time_intervals(
     return intervals
 
 
-def find_overlapping_windows(
-    windows: list[Interval], data: PersonIntervals
-) -> PersonIntervals:
-    """
-    Returns a list of windows that overlap with any interval in the intervals list. A window is included in the
-    result if it overlaps in any part with any of the given intervals, not just where they intersect. The entire
-    window is returned, not just the overlapping segment.
-
-    Note that a single, common list of windows is used for all persons.
-
-    :param windows: A list of windows, where each window is defined as an interval.
-    :param data: The dict with intervals that are checked for overlap with the windows.
-    :return: A list of windows that have any overlap with the intervals.
-    """
-    return {key: _impl.find_overlapping_windows(windows, data[key]) for key in data}
-
-
 def find_overlapping_personal_windows(
     windows: PersonIntervals, data: PersonIntervals
 ) -> PersonIntervals:

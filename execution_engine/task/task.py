@@ -551,7 +551,49 @@ class Task:
                     timezone=get_config().timezone,
                 )
 
-            result = process.find_overlapping_windows(indicator_windows, data_p)
+            # Create a "temporary window interval" for each window
+            # interval. Associate with each temporary window interval
+            # all data intervals that overlap it. The association
+            # works by assigning a unique id to each temporary window
+            # interval.
+            ids = dict() # window_interval -> unique id
+            infos = dict() # unique id -> list of overlapping data intervals
+            def temporary_window_interval(start: int, end: int, intervals: List[AnyInterval]):
+                window_interval, data_interval = intervals
+                if window_interval is None or window_interval.type == IntervalType.NOT_APPLICABLE:
+                    return Interval(start, end, IntervalType.NOT_APPLICABLE)
+                else:
+                    window_id = ids.get(window_interval, len(ids))
+                    ids[window_interval] = window_id
+                    info = infos.get(window_id, set())
+                    infos[window_id] = info
+                    data_interval_type = data_interval.type if data_interval is not None else IntervalType.NEGATIVE
+                    info.add(data_interval_type)
+                    return IntervalWithCount(start, end, IntervalType.POSITIVE, window_id)
+            person_indicator_windows = { key: indicator_windows for key in data_p.keys() }
+            result = process.find_rectangles([ person_indicator_windows, data_p], temporary_window_interval)
+            # Turn the temporary window intervals into the final
+            # intervals by computing the interval types based on the
+            # respective overlapping data intervals.
+            def finalize_interval(interval):
+                if isinstance(interval, IntervalWithCount):
+                    window_id = interval.count
+                    data_intervals = infos[window_id]
+                    # TODO(jmoringe): there should be a way to implement this with max(data_intervals)
+                    if IntervalType.POSITIVE in data_intervals:
+                        interval_type = IntervalType.POSITIVE
+                    elif IntervalType.NEGATIVE in data_intervals:
+                        interval_type = IntervalType.NEGATIVE
+                    elif IntervalType.NOT_APPLICABLE in data_intervals:
+                        interval_type = IntervalType.NOT_APPLICABLE
+                    else:
+                        assert IntervalType.NO_DATA in data_intervals
+                        interval_type = IntervalType.NO_DATA
+                    return Interval(interval.lower, interval.upper, interval_type)
+                else:
+                    return interval
+            result = { key: [ finalize_interval(i) for i in intervals ]
+                       for key, intervals in result.items() }
 
         return result
 
