@@ -17,8 +17,8 @@ from execution_engine.omop import cohort
 from execution_engine.omop.cohort import PopulationInterventionPairExpr
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida import tables as result_db
-from execution_engine.omop.serializable import Serializable
 from execution_engine.task import runner
+from execution_engine.util.serializable import Serializable
 
 
 class ExecutionEngine:
@@ -208,7 +208,7 @@ class ExecutionEngine:
                     pi_pair, rec_db.recommendation_id
                 )
 
-            for criterion in recommendation.flatten():
+            for criterion in recommendation.atoms():
                 self.register_criterion(criterion)
 
             # All objects in the deserialized object graph must have an id.
@@ -219,7 +219,7 @@ class ExecutionEngine:
             for pi_pair in recommendation.population_intervention_pairs():
                 assert pi_pair.id is not None
 
-            for criterion in recommendation.flatten():
+            for criterion in recommendation.atoms():
                 assert criterion.id is not None
 
             return recommendation
@@ -294,7 +294,7 @@ class ExecutionEngine:
                 pi_pair, recommendation_id=recommendation.id
             )
 
-        for criterion in recommendation.flatten():
+        for criterion in recommendation.atoms():
             self.register_criterion(criterion)
 
         assert recommendation.id is not None
@@ -304,7 +304,7 @@ class ExecutionEngine:
         for pi_pair in recommendation.population_intervention_pairs():
             assert pi_pair.id is not None
 
-        for criterion in recommendation.flatten():
+        for criterion in recommendation.atoms():
             assert criterion.id is not None
 
         # Update the recommendation in the database with the final

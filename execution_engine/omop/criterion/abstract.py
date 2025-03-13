@@ -1,6 +1,5 @@
-import copy
-from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Self, Type, TypedDict, cast
+from abc import abstractmethod
+from typing import Type, TypedDict, cast
 
 import sqlalchemy
 from sqlalchemy import CTE, Alias, ColumnElement, Date, Integer
@@ -11,7 +10,6 @@ from sqlalchemy.sql.functions import concat
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.meta import SignatureReprABCMeta
 from execution_engine.omop.db.base import DateTimeWithTimeZone
 from execution_engine.omop.db.celida.tables import IntervalTypeEnum, ResultInterval
 from execution_engine.omop.db.omop.tables import (
@@ -25,13 +23,13 @@ from execution_engine.omop.db.omop.tables import (
     VisitDetail,
     VisitOccurrence,
 )
-from execution_engine.omop.serializable import Serializable
 from execution_engine.util import logic
 from execution_engine.util.interval import IntervalType
+from execution_engine.util.serializable import SerializableDataClassABC
 from execution_engine.util.sql import SelectInto, select_into
 from execution_engine.util.types import PersonIntervals, TimeRange
 
-__all__ = ["AbstractCriterion", "Criterion"]
+__all__ = ["Criterion"]
 
 Domain = TypedDict(
     "Domain",
@@ -90,90 +88,7 @@ def create_conditional_interval_column(condition: ColumnElement) -> ColumnElemen
     )
 
 
-class AbstractCriterion(
-    Serializable, logic.Symbol, ABC, metaclass=SignatureReprABCMeta
-):
-    """
-    Abstract base class for Criterion and CriterionCombination.
-    """
-
-    _base: bool = False
-
-    def is_base(self) -> bool:
-        """
-        Check if this criterion is the base criterion.
-        """
-        return self._base
-
-    def set_base(self, value: bool = True) -> None:
-        """
-        Set the base criterion.
-        """
-        self._base = value
-
-    @property
-    def type(self) -> str:
-        """
-        Get the type of the criterion.
-        """
-        return self.__class__.__name__
-
-    def copy(self) -> "AbstractCriterion":
-        """
-        Copy the criterion.
-        """
-        return copy.copy(self)
-
-    @abstractmethod
-    def description(self) -> str:
-        """
-        Return a description of the criterion.
-        """
-        raise NotImplementedError()
-
-    def __str__(self) -> str:
-        """
-        Get the name of the criterion.
-        """
-        return self.description()
-
-    def get_instance_variables(self, immutable: bool = False) -> dict | tuple:
-        """
-        Get the instance variables of the criterion.
-        """
-
-        if immutable:
-            return tuple(
-                sorted(self._init_args.items())  # type: ignore[attr-defined] # this is set due to metaclass
-            )
-        return self._init_args  # type: ignore[attr-defined] # this is set due to metaclass
-
-    @classmethod
-    def _recreate(  # type: ignore[override]
-        cls, kwargs: Any, id: int | None
-    ) -> "AbstractCriterion":
-        """
-        Recreate an expression from its arguments.
-        """
-        expr = cast(AbstractCriterion, cls(**kwargs))
-
-        if id is not None:
-            expr.set_id(id)
-
-        return expr
-
-    def __reduce__(self) -> tuple[Callable, tuple]:
-        """
-        Reduce the expression to its arguments.
-
-        Required for pickling (e.g. when using multiprocessing).
-
-        :return: Tuple of the class, and arguments.
-        """
-        return self._recreate, (self.get_instance_variables(), self._id)
-
-
-class Criterion(AbstractCriterion):
+class Criterion(SerializableDataClassABC, logic.Symbol):
     """A criterion in a recommendation."""
 
     _OMOP_TABLE: Type[Base]
@@ -200,6 +115,11 @@ class Criterion(AbstractCriterion):
     """
     The table that is used to pre-filter person_ids (usually a table that includes all person_ids that were active
     during the recommendation period).
+    """
+
+    _base: bool = False
+    """
+    Specifies whether this criterion is the base criterion (i.e. the criterion that selects the initial cohort).
     """
 
     DOMAINS: dict[str, Domain] = {
@@ -247,6 +167,34 @@ class Criterion(AbstractCriterion):
     Flag to indicate whether the filter_datetime function has been called.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+
+    def is_base(self) -> bool:
+        """
+        Check if this criterion is the base criterion.
+        """
+        return self._base
+
+    def set_base(self, value: bool = True) -> None:
+        """
+        Set the base criterion.
+        """
+        self._base = value
+
+    @abstractmethod
+    def description(self) -> str:
+        """
+        Return a description of the criterion.
+        """
+        raise NotImplementedError()
+
+    def __str__(self) -> str:
+        """
+        Get the name of the criterion.
+        """
+        return self.description()
+
     def _set_omop_variables_from_domain(self, domain_id: str) -> None:
         """
         Set the OMOP table and column prefix based on the domain ID.
@@ -263,6 +211,19 @@ class Criterion(AbstractCriterion):
         self._value_required = cast(bool, domain["value_required"])
         self._static = cast(bool, domain["static"])
         self._table = cast(Base, domain["table"]).__table__.alias(self.table_alias)
+
+    # @property
+    # def type(self) -> str:
+    #     """
+    #     Get the type of the criterion.
+    #     """
+    #     return self.__class__.__name__
+    #
+    # def copy(self) -> "AbstractCriterion":
+    #     """
+    #     Copy the criterion.
+    #     """
+    #     return copy.copy(self)
 
     @property
     def table_alias(self) -> str:
@@ -651,14 +612,6 @@ class Criterion(AbstractCriterion):
         query.description = query.select.description
 
         return query
-
-    @classmethod
-    @abstractmethod
-    def from_dict(cls, data: Dict[str, Any]) -> Self:
-        """
-        Create a criterion from a JSON object.
-        """
-        raise NotImplementedError()
 
     def cte_interval_starts(
         self,

@@ -1,5 +1,4 @@
 import logging
-from typing import Any, Dict
 
 from sqlalchemy import Column, and_, case, func, select, true
 from sqlalchemy.sql import Select
@@ -17,7 +16,6 @@ from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.sql import SelectInto
 from execution_engine.util.types import Dosage
-from execution_engine.util.value.factory import value_factory
 
 __all__ = ["DrugExposure"]
 
@@ -349,33 +347,3 @@ class DrugExposure(Criterion):
             parts.append(f"route={route.concept_name}")
 
         return f"{self.__class__.__name__}[" + ", ".join(parts) + "]"
-
-    def dict(self) -> dict[str, Any]:
-        """
-        Return a dictionary representation of the criterion.
-        """
-        return {
-            "ingredient_concept": self._ingredient_concept.model_dump(),
-            "dose": (
-                self._dose.model_dump(include_meta=True)
-                if self._dose is not None
-                else None
-            ),
-            "route": self._route.model_dump() if self._route is not None else None,
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DrugExposure":
-        """
-        Create a drug exposure criterion from a dictionary representation.
-        """
-
-        dose = value_factory(**data["dose"]) if data["dose"] is not None else None
-
-        assert dose is None or isinstance(dose, Dosage), "Dose must be a Dosage or None"
-
-        return cls(
-            ingredient_concept=Concept(**data["ingredient_concept"]),
-            dose=dose,
-            route=Concept(**data["route"]) if data["route"] is not None else None,
-        )

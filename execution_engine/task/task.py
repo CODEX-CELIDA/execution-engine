@@ -9,11 +9,11 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlch
 import execution_engine.util.logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
 from execution_engine.task.process import Interval, get_processing_module
+from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
@@ -93,6 +93,32 @@ class Task:
 
         return find_base_task(self)
 
+    def select_predecessor_result(
+        self, expr: logic.BaseExpr, data: list[PersonIntervals]
+    ) -> PersonIntervals:
+        """
+        Select the result results of the predecessor task from the given expression.
+
+        This is required in expressions where order is important, e.g. in BinaryNonCommutativeOperator.
+        As the nx.DiGraph (and by inheritance, ExecutionGraph) does not store the order of the predecessors,
+        we need to find the predecessor task by its expression and select the result from the data.
+
+        :param expr: The expression of the predecessor task.
+        :param data: The input data.
+        :return: The result of the predecessor task.
+        """
+        if len(self.dependencies) == 0:
+            raise ValueError("Task has no dependencies.")
+
+        idx = next((i for i, t in enumerate(self.dependencies) if t.expr == expr), None)
+
+        if idx is None:
+            raise ValueError(
+                f"Task with expression '{str(expr)}' not found in dependencies."
+            )
+
+        return data[idx]
+
     def run(
         self,
         data: list[PersonIntervals],
@@ -159,20 +185,16 @@ class Task:
                     ),
                 ):
                     result = self.handle_binary_logical_operator(data)
-                elif isinstance(
-                    self.expr, (logic.LeftDependentToggle, logic.ConditionalFilter)
-                ):
+                elif isinstance(self.expr, (logic.BinaryNonCommutativeOperator)):
                     result = self.handle_left_dependent_toggle(
-                        left=data[0],
-                        right=data[1],
+                        left=self.select_predecessor_result(self.expr.left, data),
+                        right=self.select_predecessor_result(self.expr.right, data),
                         base_data=base_data,
                         observation_window=observation_window,
                     )
-                elif isinstance(self.expr, logic.NoDataPreservingAnd):
-                    result = self.handle_no_data_preserving_operator(
-                        data, base_data, observation_window
-                    )
-                elif isinstance(self.expr, logic.NoDataPreservingOr):
+                elif isinstance(
+                    self.expr, (logic.NoDataPreservingAnd, logic.NoDataPreservingOr)
+                ):
                     result = self.handle_no_data_preserving_operator(
                         data, base_data, observation_window
                     )
@@ -182,6 +204,13 @@ class Task:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
                 if self.store_result:
+                    if (
+                        not isinstance(self.expr, logic.NoDataPreservingAnd)
+                        and not self.expr.is_Atom
+                    ):
+                        result = self.insert_negative_intervals(
+                            result, base_data, observation_window
+                        )
                     logging.debug(f"Storing results - '{self.name()}'")
                     self.store_result_in_db(result, base_data, bind_params)
 
@@ -352,19 +381,14 @@ class Task:
             result = process.intersect_intervals(data)
         elif isinstance(self.expr, logic.NoDataPreservingOr):
             result = process.union_intervals(data)
+        else:
+            raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
         # todo: the only difference between this function and handle_binary_logical_operator is the following lines
         #  - can we merge?
-        result_negative = process.complementary_intervals(
-            result,
-            reference=base_data,
-            observation_window=observation_window,
-            interval_type=IntervalType.NEGATIVE,
+        return self.insert_negative_intervals(
+            data=result, base_data=base_data, observation_window=observation_window
         )
-
-        result = process.concat_intervals([result, result_negative])
-
-        return result
 
     def handle_left_dependent_toggle(
         self,
@@ -494,7 +518,11 @@ class Task:
         assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
 
         if self.expr.interval_criterion is not None:
+
             # last element is the indicator windows
+            assert (
+                len(data) >= 2
+            ), "TemporalCount with indicator criterion requires at least two inputs"
             data, indicator_personal_windows = data[:-1], data[-1]
 
             result = process.find_overlapping_personal_windows(
@@ -532,6 +560,35 @@ class Task:
                 )
 
             result = process.find_overlapping_windows(indicator_windows, data_p)
+
+        return result
+
+    def insert_negative_intervals(
+        self,
+        data: PersonIntervals,
+        base_data: PersonIntervals,
+        observation_window: TimeRange,
+    ) -> PersonIntervals:
+        """
+        Inserts negative intervals into the result.
+
+        Usually, negative intervals are implicit. This functions fills all gaps between other intervals with negative
+        intervals.
+
+        :param data: The input data.
+        :param base_data: The result of the base criterion.
+        :param observation_window: The observation window.
+        :return: A DataFrame with the merged intervals.
+        """
+
+        data_negative = process.complementary_intervals(
+            data,
+            reference=base_data,
+            observation_window=observation_window,
+            interval_type=IntervalType.NEGATIVE,
+        )
+
+        result = process.concat_intervals([data, data_negative])
 
         return result
 
@@ -623,7 +680,10 @@ class Task:
 
         Uniqueness is guaranteed by prepending the base64-encoded hash of the Task object.
         """
-        return f"[{self.id()}] {str(self)}"
+        if self.expr.is_Atom:
+            return f"[{self.id()}] {str(self)}"
+        else:
+            return f"[{self.id()}] {self.expr.__class__.__name__}()"
 
     def id(self) -> str:
         """

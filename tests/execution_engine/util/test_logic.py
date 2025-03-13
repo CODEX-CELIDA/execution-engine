@@ -4,7 +4,7 @@ from multiprocessing import Process, Queue
 import pytest
 
 from execution_engine.constants import CohortCategory
-from execution_engine.omop.criterion.combination.temporal import TimeIntervalType
+from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.logic import (
     AllOrNone,
     And,

@@ -21,6 +21,8 @@ __all__ = [
     "check_int",
 ]
 
+from execution_engine.util import serializable
+
 ValueT = TypeVar("ValueT")
 UnitT = TypeVar("UnitT")
 ValueNumericClassT = TypeVar("ValueNumericClassT", bound="ValueNumeric")
@@ -90,6 +92,7 @@ def get_precision(value: float | int) -> int:
     )  # the number of digits after the decimal point is the precision
 
 
+@serializable.register_class
 class Value(BaseModel, ABC):
     """A value in a criterion."""
 
@@ -145,6 +148,7 @@ class Value(BaseModel, ABC):
         return hasattr(self, "unit")
 
 
+@serializable.register_class
 class ValueNumeric(Value, Generic[ValueT, UnitT]):
     """
     A value of type number.
@@ -294,6 +298,7 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
         return and_(*clauses)
 
 
+@serializable.register_class
 class ValueNumber(ValueNumeric[float, Concept]):
     """
     A float value with a unit of type Concept.
@@ -307,6 +312,7 @@ class ValueNumber(ValueNumeric[float, Concept]):
         return c_unit == self.unit.concept_id
 
 
+@serializable.register_class
 class ValueScalar(ValueNumeric[float, None]):
     """
     A numeric value without a unit.
@@ -323,6 +329,7 @@ class ValueScalar(ValueNumeric[float, None]):
         return False
 
 
+@serializable.register_class
 class ValueConcept(Value):
     """
     A value of type concept.

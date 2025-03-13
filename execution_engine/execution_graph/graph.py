@@ -1,5 +1,4 @@
-import copy
-from typing import Any
+from typing import Any, cast
 
 import networkx as nx
 
@@ -41,27 +40,6 @@ class ExecutionGraph(nx.DiGraph):
         return self.out_degree(expr) == 0
 
     @classmethod
-    def filter_symbols(cls, node: logic.Expr, filter_: logic.Expr) -> logic.Expr:
-        """
-        Filter (=AND-combine) all symbols by the applied filter function
-
-        Used to filter all intervention criteria (symbols) by the population output in order to exclude
-        all intervention events outside the population intervals, which may otherwise interfere with corrected
-        determination of temporal combination, i.e. the presence of an intervention event during some time window.
-        """
-
-        if isinstance(node, logic.Symbol):
-            return logic.LeftDependentToggle(left=filter_, right=node)
-
-        if hasattr(node, "args") and isinstance(node.args, tuple):
-            converted_args = [cls.filter_symbols(a, filter_) for a in node.args]
-
-            if any(a is not b for a, b in zip(node.args, converted_args)):
-                node.args = tuple(converted_args)
-
-        return node
-
-    @classmethod
     def from_expression(
         cls, expr: logic.Expr, base_criterion: Criterion, category: CohortCategory
     ) -> "ExecutionGraph":
@@ -71,9 +49,7 @@ class ExecutionGraph(nx.DiGraph):
 
         from execution_engine.omop.cohort import PopulationInterventionPairExpr
 
-        # we might make changes to the expression (e.g. filtering), so we must preserve
-        # the original expression from the caller
-        expr = copy.deepcopy(expr)
+        expr_hash = hash(expr)
 
         graph = cls()
         base_node = base_criterion
@@ -89,42 +65,33 @@ class ExecutionGraph(nx.DiGraph):
             parent: logic.Expr | None = None,
             category: CohortCategory = category,
         ) -> None:
+
+            graph.add_node(expr, category=category, store_result=False)
+
+            if parent is not None:
+                assert expr in graph.nodes
+                assert parent in graph.nodes
+                graph.add_edge(expr, parent)
+
             if isinstance(expr, PopulationInterventionPairExpr):
                 # special case for PopulationInterventionPairExpr:
                 # we need explicitly set the category of the population and intervention nodes
 
                 p, i = expr.left, expr.right
 
-                # filter all intervention criteria by the output of the population - this is performed to filter out
-                # intervention events that outside of the population intervals (i.e. the time windows during which
-                # patients are part of the population) as otherwise events outside of the population time may be picked up
-                # by Temporal criteria that determine the presence of some event or condition during a specific time window.
-
-                # the following command changes expr, i.e. we must not add expr before this command to the graph
-
-                i = cls.filter_symbols(i, filter_=p)
-
                 traverse(i, parent=expr, category=CohortCategory.INTERVENTION)
                 traverse(p, parent=expr, category=CohortCategory.POPULATION)
 
-                graph.add_node(expr, category=category, store_result=False)
+                # create a subgraph for the pair in order to determine the sink nodes (i.e. the nodes that have no
+                # outgoing edges) for POPULATION and POPULATION_INTERVENTION and mark them for storing their result
+                # in the database
+                subgraph = cast(
+                    ExecutionGraph, graph.subgraph(nx.ancestors(graph, expr) | {expr})
+                )
+                subgraph.set_sink_nodes_store(bind_params=dict(pi_pair_id=expr.id))
 
-                if parent is not None:
-                    graph.add_edge(expr, parent)
-
-                subgraph = graph.subgraph(nx.ancestors(graph, expr) | {expr})
-
-                subgraph.set_sink_nodes_store(bind_params=dict(pi_pair_id=expr._id))
-
-                # children are already traversed
-                return
-
-            graph.add_node(expr, category=category, store_result=False)
-
-            if parent is not None:
-                graph.add_edge(expr, parent)
-
-            if expr.is_Atom:
+            elif expr.is_Atom:
+                assert expr in graph.nodes
                 graph.nodes[expr]["store_result"] = True
                 graph.add_edge(base_node, expr)
             else:
@@ -132,6 +99,9 @@ class ExecutionGraph(nx.DiGraph):
                     traverse(child, parent=expr, category=category)
 
         traverse(expr, category=category)
+
+        if hash(expr) != expr_hash:
+            raise ValueError("Expression has been modified during traversal")
 
         return graph
 
@@ -219,6 +189,7 @@ class ExecutionGraph(nx.DiGraph):
                         self.nodes[node]["store_result"]
                     ),  # Convert to string if necessary
                     "is_sink": self.is_sink(node),
+                    "is_atom": node.is_Atom,
                     "bind_params": self.nodes[node]["bind_params"],
                 }
             }

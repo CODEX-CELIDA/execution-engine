@@ -46,7 +46,7 @@ async def recommendation_criteria(
 
     data = []
 
-    for c in recommendation.flatten():
+    for c in recommendation.atoms():
         data.append(
             {
                 "description": c.description(),

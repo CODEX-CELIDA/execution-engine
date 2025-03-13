@@ -55,9 +55,9 @@ class TemporalIndicator(ABC):
         raise NotImplementedError("must be implemented by class")
 
     @abstractmethod
-    def to_temporal_combination(self, combo: logic.BaseExpr) -> logic.TemporalCount:
+    def to_temporal_combination(self, expr: logic.BaseExpr) -> logic.Expr:
         """
-        Wraps Criterion/CriterionCombinaion with a TemporalIndicatorCombination
+        Wraps Criterion/CriterionCombination with a TemporalIndicatorCombination
         """
         raise NotImplementedError("must be implemented by class")
 
@@ -122,8 +122,8 @@ class TimeFromEvent(TemporalIndicator):
         return cls._event_vocabulary.is_system(cc.system) and cc.code == cls._event_code
 
     @abstractmethod
-    def to_temporal_combination(self, combo: logic.BaseExpr) -> logic.TemporalCount:
+    def to_temporal_combination(self, expr: logic.BaseExpr) -> logic.Expr:
         """
-        Wraps Criterion/CriterionCombinaion with a TemporalIndicatorCombination
+        Wraps expression with a TemporalIndicatorCombination
         """
         raise NotImplementedError("must be implemented by class")

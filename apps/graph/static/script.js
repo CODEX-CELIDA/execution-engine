@@ -129,15 +129,15 @@ async function loadGraph(recommendationId) {
                         return nodeColors[ele.data('category')] || '#666'; // Assign color based on 'type', with a default
                     },
                     'shape': function(ele) {
-                        return nodeShapes[ele.data('type')] || 'star'; // Assign color based on 'type', with a default
+                        return nodeShapes[ele.data("is_atom") ? "Symbol" : ele.data('type')] || 'star'; // Assign color based on 'type', with a default
                     },
                     'text-valign': 'center',
                     'color': '#000000',
                     'width': function(ele) {
-                        return ele.data('type') === 'Symbol' ? '120px': '40px';
+                        return ele.data('is_atom') ? '120px': '40px';
                     },
                     'height': function(ele) {
-                        return ele.data('type') === 'Symbol' ? '80px': '40px';
+                        return ele.data('is_atom') ? '80px': '40px';
                     },
                     'font-size': '10px',
                     'text-wrap': 'wrap',
