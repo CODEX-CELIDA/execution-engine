@@ -5,14 +5,15 @@ from typing import Iterable, Sequence
 import pandas as pd
 import pendulum
 import pytest
-from sqlalchemy import Column, Date, Integer, MetaData, Table, select
+from sqlalchemy import Column, Date, Integer, MetaData, Table, select, update
 
 import execution_engine.omop.db.celida.tables as celida_tables
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_graph import ExecutionGraph
+from execution_engine.omop.cohort import PopulationInterventionPairExpr
+from execution_engine.omop.cohort.graph_builder import RecommendationGraphBuilder
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.combination import CriterionCombination
 from execution_engine.omop.criterion.visit_occurrence import PatientsActiveDuringPeriod
 from execution_engine.omop.db.celida.views import (
     full_day_coverage,
@@ -25,7 +26,7 @@ from execution_engine.task import (  # noqa: F401     -- required for the mock.p
     task,
 )
 from execution_engine.task.process import get_processing_module
-from execution_engine.util import logic
+from execution_engine.util import datetime_converter, logic
 from execution_engine.util.db import add_result_insert
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import TimeRange
@@ -60,6 +61,27 @@ def date_set(tc: Iterable):
     Convert an iterable of timestamps to a set of dates.
     """
     return set(pendulum.parse(t).date() for t in tc)
+
+
+def store_execution_graph(graph: ExecutionGraph, db_session, recommendation_id: int):
+    import json
+
+    from execution_engine.omop.db.celida import tables as result_db
+
+    rec_graph: bytes = json.dumps(
+        graph.to_cytoscape_dict(), sort_keys=True, default=datetime_converter
+    ).encode()
+
+    update_query = (
+        update(result_db.Recommendation)
+        .where(result_db.Recommendation.recommendation_id == recommendation_id)
+        .values(
+            recommendation_execution_graph=rec_graph,
+        )
+    )
+
+    db_session.execute(update_query)
+    db_session.commit()
 
 
 class TestCriterion:
@@ -187,7 +209,7 @@ class TestCriterion:
 
         exists = db_session.query(
             db_session.query(celida_tables.Criterion)
-            .filter_by(criterion_id=criterion.id)
+            .filter_by(criterion_hash=str(hash(criterion)))
             .exists()
         ).scalar()
 
@@ -195,7 +217,7 @@ class TestCriterion:
             new_criterion = celida_tables.Criterion(
                 criterion_id=criterion.id,
                 criterion_description=criterion.description(),
-                criterion_hash=hash(criterion),
+                criterion_hash=str(hash(criterion)),
             )
             db_session.add(new_criterion)
             db_session.commit()
@@ -251,7 +273,11 @@ class TestCriterion:
         )
 
     def insert_criterion(self, db_session, criterion, observation_window: TimeRange):
-        criterion.set_id(self.criterion_id)
+
+        criterion.set_id(
+            self.criterion_id + 1
+        )  # +1 to avoid collision with the criterion saved in
+        # omop_fixture.py::celida_recommendation()
         self.register_criterion(criterion, db_session)
 
         query = criterion.create_query()
@@ -287,43 +313,29 @@ class TestCriterion:
 
         db_session.commit()
 
-    def insert_criterion_combination(
+    def insert_expression(
         self,
         db_session,
-        population: CriterionCombination,
-        intervention: CriterionCombination,
+        population: logic.Expr,
+        intervention: logic.Expr,
         base_criterion: Criterion,
         observation_window: TimeRange,
     ):
-        graph = ExecutionGraph.from_criterion_combination(
-            population, intervention, base_criterion
+        # population_expr is assigned a NoDataPreservingAnd to ensure creation of negative intervals
+        pi_pair = PopulationInterventionPairExpr(
+            population_expr=logic.NonSimplifiableAnd(population),
+            intervention_expr=intervention,
+            base_criterion=base_criterion,
+            name="Test",
+            url="https://example.com",
         )
+        pi_pair.set_id(self.pi_pair_id)
 
-        # we need to add a NoDataPreservingAnd node to insert NEGATIVE intervals
-        p_sink_node = graph.sink_node(CohortCategory.POPULATION)
-        pi_sink_node = graph.sink_node(CohortCategory.POPULATION_INTERVENTION)
+        graph = RecommendationGraphBuilder.build(pi_pair, base_criterion)
 
-        p_combination_node = logic.NoDataPreservingAnd(
-            p_sink_node, category=CohortCategory.POPULATION
+        store_execution_graph(
+            graph=graph, db_session=db_session, recommendation_id=self.recommendation_id
         )
-
-        pi_combination_node = logic.NoDataPreservingAnd(
-            pi_sink_node, category=CohortCategory.POPULATION_INTERVENTION
-        )
-
-        graph.add_node(
-            p_combination_node, store_result=True, category=CohortCategory.POPULATION
-        )
-        graph.add_node(
-            pi_combination_node,
-            store_result=True,
-            category=CohortCategory.POPULATION_INTERVENTION,
-        )
-
-        graph.add_edge(p_sink_node, p_combination_node)
-        graph.add_edge(pi_sink_node, pi_combination_node)
-
-        graph.set_sink_nodes_store(bind_params={"pi_pair_id": self.pi_pair_id})
 
         params = observation_window.model_dump() | {"run_id": self.run_id}
 
