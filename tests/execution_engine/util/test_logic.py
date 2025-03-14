@@ -33,9 +33,9 @@ dummy_criterion = MockCriterion(
 
 
 x, y, z = (
-    Symbol(MockCriterion("x", False), category=CohortCategory.POPULATION),
-    Symbol(MockCriterion("y", False), category=CohortCategory.POPULATION),
-    Symbol(MockCriterion("z", False), category=CohortCategory.POPULATION),
+    MockCriterion("x", False),
+    MockCriterion("y", False),
+    MockCriterion("z", False),
 )
 
 
@@ -213,20 +213,20 @@ def worker(queue: Queue, symbol: Symbol):
 class TestSymbolMultiprocessing:
     @pytest.fixture(
         params=[
-            Expr(1, 2, 3, category=CohortCategory.POPULATION),
-            Symbol(dummy_criterion, category=CohortCategory.POPULATION),
-            BooleanFunction(1, 2, 3, category=CohortCategory.POPULATION),
-            Or(1, 2, 3, category=CohortCategory.POPULATION),
-            And(1, 2, 3, category=CohortCategory.POPULATION),
-            Not(1, category=CohortCategory.POPULATION),
-            MinCount(1, 2, 3, threshold=2, category=CohortCategory.POPULATION),
-            MaxCount(1, 2, 3, threshold=2, category=CohortCategory.POPULATION),
-            ExactCount(1, 2, 3, threshold=2, category=CohortCategory.POPULATION),
-            AllOrNone(1, 2, 3, category=CohortCategory.POPULATION),
-            NonSimplifiableAnd(1, 2, 3, category=CohortCategory.POPULATION),
-            NoDataPreservingAnd(1, 2, 3, category=CohortCategory.POPULATION),
-            NoDataPreservingOr(1, 2, 3, category=CohortCategory.POPULATION),
-            LeftDependentToggle(left=1, right=2, category=CohortCategory.POPULATION),
+            Expr(1, 2, 3),
+            Symbol(dummy_criterion),
+            BooleanFunction(1, 2, 3),
+            Or(1, 2, 3),
+            And(1, 2, 3),
+            Not(1),
+            MinCount(1, 2, 3, threshold=2),
+            MaxCount(1, 2, 3, threshold=2),
+            ExactCount(1, 2, 3, threshold=2),
+            AllOrNone(1, 2, 3),
+            NonSimplifiableAnd(1, 2, 3),
+            NoDataPreservingAnd(1, 2, 3),
+            NoDataPreservingOr(1, 2, 3),
+            LeftDependentToggle(left=1, right=2),
             TemporalMinCount(
                 1,
                 2,
@@ -236,7 +236,6 @@ class TestSymbolMultiprocessing:
                 end_time=None,
                 interval_type=TimeIntervalType.DAY,
                 interval_criterion=None,
-                category=CohortCategory.POPULATION,
             ),
             TemporalMaxCount(
                 1,
@@ -247,7 +246,6 @@ class TestSymbolMultiprocessing:
                 end_time=None,
                 interval_type=TimeIntervalType.MORNING_SHIFT,
                 interval_criterion=None,
-                category=CohortCategory.POPULATION,
             ),
             TemporalExactCount(
                 1,
@@ -258,7 +256,6 @@ class TestSymbolMultiprocessing:
                 end_time=None,
                 interval_type=TimeIntervalType.NIGHT_SHIFT,
                 interval_criterion=None,
-                category=CohortCategory.POPULATION,
             ),
         ],
         ids=lambda expr: expr.__class__.__name__,

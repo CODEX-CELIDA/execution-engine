@@ -81,7 +81,7 @@ class TestConcept:
 class TestCustomConcept:
     def test_init(self):
         custom_concept = CustomConcept(
-            name="Test Custom Concept",
+            concept_name="Test Custom Concept",
             concept_code="CC123",
             domain_id="Test Domain",
             vocabulary_id="Test Vocabulary",
@@ -97,7 +97,7 @@ class TestCustomConcept:
 
     def test_id_property(self):
         custom_concept = CustomConcept(
-            name="Test Custom Concept",
+            concept_name="Test Custom Concept",
             concept_code="CC123",
             domain_id="Test Domain",
             vocabulary_id="Test Vocabulary",
@@ -107,7 +107,7 @@ class TestCustomConcept:
 
     def test_str(self):
         custom_concept = CustomConcept(
-            name="Test Custom Concept",
+            concept_name="Test Custom Concept",
             concept_code="CC123",
             domain_id="Test Domain",
             vocabulary_id="Test Vocabulary",

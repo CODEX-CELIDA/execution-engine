@@ -64,8 +64,8 @@ class TestDrugAdministration:
             ],
         )
 
-        comb = action.to_expression()
-        criteria = list(comb)
+        expr = action.to_expression()
+        criteria = list(expr.args)
 
         assert len(criteria) == 3
         assert all(isinstance(c, DrugExposure) for c in criteria)

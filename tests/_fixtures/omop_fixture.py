@@ -140,7 +140,6 @@ def celida_recommendation(
     )
     from execution_engine.omop.db.celida.schema import SCHEMA_NAME as CELIDA_SCHEMA_NAME
     from execution_engine.omop.db.celida.tables import (
-        Criterion,
         ExecutionRun,
         PopulationInterventionPair,
         Recommendation,
@@ -182,13 +181,13 @@ def celida_recommendation(
         db_session.add(pi_pair)
         db_session.commit()
 
-        criterion = Criterion(
-            criterion_id=criterion_id,
-            criterion_description="my_description",
-            criterion_hash=hash("my_criterion"),
-        )
-        db_session.add(criterion)
-        db_session.commit()
+        # criterion = Criterion(
+        #     criterion_id=criterion_id,
+        #     criterion_description="my_description",
+        #     criterion_hash=hash("my_criterion"),
+        # )
+        # db_session.add(criterion)
+        # db_session.commit()
 
         yield {
             "run_id": run_id,

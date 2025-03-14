@@ -1,5 +1,3 @@
-from typing import Any, Dict, Self
-
 from sqlalchemy import Select
 
 from execution_engine.omop.concepts import Concept
@@ -34,19 +32,6 @@ class MockCriterion(Criterion):
 
     def description(self) -> str:
         return f"MockCriterion[{self._name}]"
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> Self:
-        return cls(
-            name=data["name"],
-            exclude=data["exclude"],
-        )
-
-    def dict(self) -> dict[str, Any]:
-        return {
-            "name": self._name,
-            "exclude": self._exclude,
-        }
 
     def __repr__(self) -> str:
         return self.description()
