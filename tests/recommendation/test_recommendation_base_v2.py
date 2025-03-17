@@ -553,8 +553,6 @@ class TestRecommendationBaseV2(TestRecommendationBase):
             for item in generate_combinations(c, self.invalid_combinations)
         ]
 
-        # combinations = [combinations[0]]
-
         self.insert_criteria_into_database(db_session, combinations)
 
         df_criterion_entries = self.generate_criterion_entries(combinations)
