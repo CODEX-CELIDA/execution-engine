@@ -43,6 +43,13 @@ class TaskCreator:
 
         flattened_tasks = list(tasks.values())
 
+        # we will make sure all tasks are depickled correctly
+        for i, node in enumerate(tasks):
+            if logic.Expr.from_dict(node.dict(include_id=True)) != node:
+                raise RuntimeError(
+                    "Expected depickled node to be the same as initial node."
+                )
+
         assert (
             len(set(flattened_tasks))
             == len(flattened_tasks)

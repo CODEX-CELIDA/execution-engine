@@ -282,7 +282,7 @@ class Serializable(metaclass=RegisteredPostInitMeta):
         if not isinstance(other, self.__class__):
             return False
 
-        return self._hash == other._hash
+        return hash(self) == hash(other)
 
     def rehash(self) -> None:
         """

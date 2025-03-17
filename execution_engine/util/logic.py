@@ -620,6 +620,19 @@ class TemporalCount(CommutativeOperator, SerializableABC):
         Get a dictionary representation of the object.
         """
         data = super().dict(include_id=include_id)
+
+        if self.interval_criterion:
+            args, pop = self.args[:-1], self.args[-1]
+
+            if pop != self.interval_criterion:
+                raise ValueError(
+                    f"Expected last argument to be the interval_criterion, got {str(pop)}"
+                )
+
+            data["data"]["args"] = [
+                arg_to_dict(arg, include_id=include_id) for arg in args
+            ]
+
         data["data"].update(
             {
                 "threshold": self.count_min,
