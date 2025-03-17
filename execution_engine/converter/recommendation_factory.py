@@ -1,7 +1,12 @@
 from execution_engine import fhir
 from execution_engine.builder import ExecutionEngineBuilder
+from execution_engine.converter.parser.base import FhirRecommendationParserInterface
 from execution_engine.converter.parser.factory import FhirRecommendationParserFactory
 from execution_engine.fhir.client import FHIRClient
+from execution_engine.fhir.recommendation import (
+    RecommendationPlan,
+    RecommendationPlanCollection,
+)
 from execution_engine.omop import cohort
 from execution_engine.omop.cohort.population_intervention_pair import (
     PopulationInterventionPairExpr,
@@ -60,34 +65,12 @@ class FhirToRecommendationFactory:
             fhir_connector=fhir_client,
         )
 
-        pi_pairs: list[PopulationInterventionPairExpr] = []
-
-        base_criterion = PatientsActiveDuringPeriod()
-        base_criterion.dict()
-        for rec_plan in rec.plans():
-
-            # parse population and create criteria
-            population_criteria = parser.parse_characteristics(rec_plan.population)
-
-            # parse intervention and create criteria
-            actions = parser.parse_actions(rec_plan.actions, rec_plan)
-
-            # population_expr is assigned a NonSimplifiableAnd to ensure creation of negative intervals
-            # todo: not sure we really need this - we can just always create negative intervals when store_results=True
-            # in the graph
-            pi_pair = PopulationInterventionPairExpr(
-                population_expr=population_criteria,
-                intervention_expr=actions,
-                name=rec_plan.name,
-                url=rec_plan.url,
-                base_criterion=base_criterion,
-            )
-
-            pi_pairs.append(pi_pair)
+        # Recursively build a single expression from the nested plans/collections:
+        expr = self._parse_collection(rec.plans(), parser)
 
         recommendation = cohort.Recommendation(
-            expr=logic.Or(*pi_pairs),
-            base_criterion=base_criterion,
+            expr=expr,
+            base_criterion=PatientsActiveDuringPeriod(),
             url=rec.url,
             name=rec.name,
             title=rec.title,
@@ -97,3 +80,46 @@ class FhirToRecommendationFactory:
         )
 
         return recommendation
+
+    def _parse_collection(
+        self,
+        plan_or_collection: RecommendationPlanCollection | RecommendationPlan,
+        parser: FhirRecommendationParserInterface,
+    ) -> logic.Expr:
+        """
+        Recursively parse a single RecommendationPlan or a nested RecommendationPlanCollection
+        into a logic.Expr. If it's a collection, gather each sub-item's expression and combine
+        them using parser.parse_action_combination_method(...).
+        """
+        if isinstance(plan_or_collection, RecommendationPlan):
+            # Parse a leaf plan: build a population + interventions expression (e.g. PopulationInterventionPairExpr)
+            population_criteria = parser.parse_characteristics(
+                plan_or_collection.population
+            )
+            intervention_criteria = parser.parse_actions(
+                plan_or_collection.actions, plan_or_collection
+            )
+            return PopulationInterventionPairExpr(
+                population_expr=population_criteria,
+                intervention_expr=intervention_criteria,
+                name=plan_or_collection.name,
+                url=plan_or_collection.url,
+                base_criterion=PatientsActiveDuringPeriod(),
+            )
+
+        elif isinstance(plan_or_collection, RecommendationPlanCollection):
+            # Recursively parse all sub-items
+            sub_exprs = [
+                self._parse_collection(sub_item, parser)
+                for sub_item in plan_or_collection.plans
+            ]
+
+            combination_op = parser.parse_action_combination_method(
+                plan_or_collection.fhir
+            )
+
+            # Combine all sub-expressions with the appropriate operator
+            return combination_op(*sub_exprs)
+
+        else:
+            raise TypeError("Unknown plan_or_collection type.")

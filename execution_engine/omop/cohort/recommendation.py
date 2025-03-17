@@ -38,7 +38,7 @@ class Recommendation(SerializableDataClass):
 
     def __init__(
         self,
-        expr: logic.BooleanFunction,
+        expr: logic.Expr,
         base_criterion: Criterion,
         name: str,
         title: str,
@@ -47,7 +47,7 @@ class Recommendation(SerializableDataClass):
         description: str,
         package_version: str | None = None,
     ) -> None:
-        self._expr: logic.BooleanFunction = expr
+        self._expr: logic.Expr = expr
         self._base_criterion: Criterion = base_criterion
         self._name: str = name
         self._title: str = title

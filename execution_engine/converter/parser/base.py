@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import Callable, Type
 
 from fhir.resources.evidencevariable import EvidenceVariable
+from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction
 
 from execution_engine import fhir
 from execution_engine.converter.criterion import CriterionConverterFactory
@@ -39,5 +41,15 @@ class FhirRecommendationParserInterface(ABC):
         """
         Parses the actions of a Recommendation (PlanDefinition) and returns a list of Action objects and the
         corresponding action selection behavior.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def parse_action_combination_method(
+        self, action_parent: PlanDefinition | PlanDefinitionAction
+    ) -> Type[logic.BooleanFunction] | Callable:
+        """
+        Parses the action combination method of a Recommendation (PlanDefinition) and returns the corresponding
+        combination method in form of a logical expression.
         """
         raise NotImplementedError()

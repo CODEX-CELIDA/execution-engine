@@ -22,7 +22,12 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
         """Creates a new Characteristic instance from a FHIR EvidenceVariable.characteristic."""
         assert cls.valid(characteristic), "Invalid characteristic definition"
 
-        type_omop_concept = parse_code(characteristic.definitionByTypeAndValue.type)
+        try:
+            type_omop_concept = parse_code(characteristic.definitionByTypeAndValue.type)
+        except ValueError:
+            type_omop_concept = parse_code(
+                characteristic.definitionByTypeAndValue.type, standard=False
+            )
         value = parse_value(
             value_parent=characteristic.definitionByTypeAndValue, value_prefix="value"
         )

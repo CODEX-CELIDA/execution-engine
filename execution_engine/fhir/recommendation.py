@@ -1,4 +1,5 @@
 import logging
+from typing import Tuple, Union, cast
 
 import fhir
 from fhir.resources.activitydefinition import ActivityDefinition
@@ -23,7 +24,9 @@ class Recommendation:
         self.fhir = fhir_connector
 
         self._recommendation: PlanDefinition | None = None
-        self._recommendation_plans: list[RecommendationPlan] = []
+        self._recommendation_plans: RecommendationPlanCollection = (
+            RecommendationPlanCollection(fhir=None)
+        )
 
         self.load(url)
 
@@ -96,7 +99,7 @@ class Recommendation:
 
         return self._recommendation.description
 
-    def plans(self) -> list["RecommendationPlan"]:
+    def plans(self) -> "RecommendationPlanCollection":
         """
         Return the recommendation plans of this recommendation (i.e. the individual,
         non-overlapping parts or steps of the recommendation).
@@ -107,19 +110,86 @@ class Recommendation:
         """
         Load the recommendation from the FHIR server.
         """
-        self._recommendation = self.fetch_recommendation(url)
+        self._recommendation, self._recommendation_plans = self.fetch_recommendation(
+            url
+        )
+        logging.info("Recommendation loaded.")
 
-        for rec_action in self._recommendation.action:
-            rec_plan = RecommendationPlan(
-                rec_action.definitionCanonical,
+    def _build_population_intervention_pair_collection(
+        self, plan_def: PlanDefinition
+    ) -> "RecommendationPlanCollection":
+        """
+        Build and return a RecommendationPlanCollection for the given PlanDefinition.
+
+        If the PlanDefinition is of type "eca-rule", we create a single RecommendationPlan
+        and add it as the sole entry in the collection. If it is of type "workflow-definition",
+        we recursively process any sub-actions referencing other PlanDefinitions and add
+        their collections/plans as entries.
+
+        :param plan_def: The loaded PlanDefinition resource.
+        :return: A RecommendationPlanCollection containing one or more RecommendationPlans (or nested collections).
+        """
+
+        cc = get_coding(plan_def.type, CS_PLAN_DEFINITION_TYPE)
+
+        collection = RecommendationPlanCollection(fhir=plan_def)
+
+        if cc.code == "eca-rule":
+            plan = RecommendationPlan(
+                plan_def.url,
                 package_version=self._package_version,
                 fhir_connector=self.fhir,
             )
-            self._recommendation_plans.append(rec_plan)
+            collection.add_plan(plan)
 
-        logging.info("Recommendation loaded.")
+        elif cc.code == "workflow-definition":
+            # Recursively build sub-items for each referenced PlanDefinition
+            if plan_def.action:
+                for sub_action in plan_def.action:
+                    if sub_action.definitionCanonical:
+                        sub_plan_def = cast(
+                            PlanDefinition,
+                            self.fhir.fetch_resource(
+                                "PlanDefinition",
+                                sub_action.definitionCanonical,
+                                self._package_version,
+                            ),
+                        )
+                        sub_item = self._build_population_intervention_pair_collection(
+                            sub_plan_def
+                        )
+                        collection.add_plan(sub_item)
+        else:
+            raise ValueError(f"Unknown PlanDefinition type: {cc.code}")
 
-    def fetch_recommendation(self, canonical_url: str) -> PlanDefinition:
+        return collection
+
+    def fetch_recommendation(
+        self, canonical_url: str
+    ) -> Tuple[PlanDefinition, "RecommendationPlanCollection"]:
+        """
+        Fetches the PlanDefinition, then checks if it's an 'eca-rule' or 'workflow-definition'.
+        If it's 'eca-rule', this is effectively a single RecommendationPlan;
+        if it's 'workflow-definition', it's a RecommendationPlanCollection.
+
+        (Only changes shown below: how you might branch to a new or refactored _build_plan_or_collection.)
+        """
+        plan_def = cast(
+            PlanDefinition,
+            self.fhir.fetch_resource(
+                "PlanDefinition", canonical_url, self._package_version
+            ),
+        )
+        cc = get_coding(plan_def.type, CS_PLAN_DEFINITION_TYPE)
+
+        plan_collection = self._build_population_intervention_pair_collection(plan_def)
+
+        if cc.code not in ("eca-rule", "workflow-definition"):
+            raise ValueError(f"Unknown recommendation type: {cc.code}")
+
+        return plan_def, plan_collection
+
+    def fetch_recommendation_DELETEME(self, canonical_url: str) -> PlanDefinition:
         """
         Fetch the recommendation specified by the canonical URL from the FHIR server.
 
@@ -286,8 +356,8 @@ class RecommendationPlan:
 
         This method checks if the PlanDefinition resource referenced by the canonical
         URL is a recommendation (i.e. PlanDefinition.type = #workflow-definition). If
-        it is an recommendation-plan instead (i.e. PlanDefinition.type = #eca-rule),
-        it will fetch the PlanDefinition that is referenced by the extension[partOf].
+        it is a recommendation-plan instead (i.e. PlanDefinition.type = #eca-rule),
+        it will recursively fetch the PlanDefinitions.
 
         :param canonical_url: Canonical URL of the recommendation
         :return: FHIR PlanDefinition
@@ -364,3 +434,50 @@ class RecommendationPlan:
         characteristics defined using EvidenceVariableCharacteristic.definitionByCombination.
         """
         return characteristic.definitionByCombination is not None
+
+
+class RecommendationPlanCollection:
+    """
+    Represents a collection of RecommendationPlan objects or nested RecommendationPlanCollection objects.
+
+    This class is used to aggregate multiple recommendation plans into a single structure,
+    enabling the recursive composition of recommendation workflows.
+    """
+
+    def __init__(self, fhir: PlanDefinition | None) -> None:
+        """
+        Create a collection of RecommendationPlans or nested RecommendationPlanCollection objects.
+
+        :param combination_method: A string indicating how these plans should be combined
+                                   (e.g. "AND", "OR", "SEQUENCE").
+        """
+        self._fhir = fhir
+        self._plans: list[RecommendationPlan | RecommendationPlanCollection] = []
+
+    @property
+    def fhir(self) -> PlanDefinition | None:
+        """
+        Retrieve the FHIR PlanDefinition resource associated with this collection.
+
+        :return: The FHIR PlanDefinition if set; otherwise, None.
+        """
+        return self._fhir
+
+    @property
+    def plans(self) -> list["RecommendationPlan | RecommendationPlanCollection"]:
+        """
+        Retrieve the list of recommendation plans or nested recommendation plan collections.
+
+        :return: A list containing RecommendationPlan objects or nested RecommendationPlanCollection objects.
+        """
+        return self._plans
+
+    def add_plan(
+        self, plan: Union[RecommendationPlan, "RecommendationPlanCollection"]
+    ) -> None:
+        """
+        Add a recommendation plan or a nested recommendation plan collection to this collection.
+
+        :param plan: The RecommendationPlan or RecommendationPlanCollection to be added.
+        """
+        self._plans.append(plan)

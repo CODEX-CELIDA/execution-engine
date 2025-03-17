@@ -65,7 +65,7 @@ class TestRecommendation(RecommendationFixtures):
             {"status": "draft", "action": []}
         )
         with patch.object(
-            test_class, "fetch_recommendation", return_value=plan_definition
+            test_class, "fetch_recommendation", return_value=(plan_definition, None)
         ) as _fixture:
             yield _fixture
 
@@ -125,24 +125,7 @@ class TestRecommendation(RecommendationFixtures):
 
         # Test
         with pytest.raises(
-            ValueError, match=r"Unknown recommendation type: unknown-type"
-        ):
-            _ = Recommendation(
-                canonical_url,
-                package_version="latest",
-                fhir_connector=FHIRClient("http://fhir.example.com"),
-            )
-
-    def test_recommendation_fetch_with_no_partof_extension(
-        self, mock_fetch_resource_no_partOf
-    ):
-        # Setup
-        canonical_url = "http://test.com/PlanDefinition/123"
-
-        # Test
-        with pytest.raises(
-            ValueError,
-            match=r"No partOf extension found in PlanDefinition, can't fetch recommendation.",
+            ValueError, match=r"Unknown PlanDefinition type: unknown-type"
         ):
             _ = Recommendation(
                 canonical_url,
