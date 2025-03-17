@@ -72,7 +72,7 @@ class FhirToRecommendationFactory:
             # parse intervention and create criteria
             actions = parser.parse_actions(rec_plan.actions, rec_plan)
 
-            # population_expr is assigned a NoDataPreservingAnd to ensure creation of negative intervals
+            # population_expr is assigned a NonSimplifiableAnd to ensure creation of negative intervals
             # todo: not sure we really need this - we can just always create negative intervals when store_results=True
             # in the graph
             pi_pair = PopulationInterventionPairExpr(

@@ -29,7 +29,15 @@ from execution_engine.util.serializable import SerializableDataClassABC
 from execution_engine.util.sql import SelectInto, select_into
 from execution_engine.util.types import PersonIntervals, TimeRange
 
-__all__ = ["Criterion"]
+__all__ = [
+    "Criterion",
+    "column_interval_type",
+    "create_conditional_interval_column",
+    "SQL_ONE_SECOND",
+    "observation_start_datetime",
+    "observation_end_datetime",
+    "run_id",
+]
 
 Domain = TypedDict(
     "Domain",
@@ -283,9 +291,12 @@ class Criterion(SerializableDataClassABC, logic.Symbol):
         ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
 
         # assert that the output columns are person_id, interval_start, interval_end, type
-        assert set([c.name for c in query.selected_columns]) == set(
-            ["person_id", "interval_start", "interval_end", "interval_type"]
-        ), "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
+        assert set([c.name for c in query.selected_columns]) == {
+            "person_id",
+            "interval_start",
+            "interval_end",
+            "interval_type",
+        }, "Query must select 4 columns: person_id, interval_start, interval_end, interval_type"
 
         return query
 

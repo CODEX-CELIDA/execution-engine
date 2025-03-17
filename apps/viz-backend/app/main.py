@@ -89,8 +89,6 @@ def get_execution_graph(recommendation_id: int, db: Session = Depends(get_db)) -
     if not result:
         raise HTTPException(status_code=404, detail="Recommendation not found")
 
-    print(result)
-
     # Decode the bytes to a string and parse it as JSON
     execution_graph = json.loads(result.recommendation_execution_graph.decode("utf-8"))
 

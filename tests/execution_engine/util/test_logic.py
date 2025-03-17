@@ -13,8 +13,6 @@ from execution_engine.util.logic import (
     LeftDependentToggle,
     MaxCount,
     MinCount,
-    NoDataPreservingAnd,
-    NoDataPreservingOr,
     NonSimplifiableAnd,
     Not,
     Or,
@@ -178,28 +176,6 @@ class TestNonSimplifiableAnd:
         assert non_simp_and1 == non_simp_and2
 
 
-class TestNoDataPreservingAnd:
-    def test_no_data_preserving_and_creation(self):
-        no_data_and = NoDataPreservingAnd(x, y)
-        assert isinstance(no_data_and, NoDataPreservingAnd)
-        assert no_data_and.args[0] == x
-        assert no_data_and.args[1] == y
-
-        assert not no_data_and.is_Not
-        assert not no_data_and.is_Atom
-
-
-class TestNoDataPreservingOr:
-    def test_no_data_preserving_or_creation(self):
-        no_data_or = NoDataPreservingOr(x, y)
-        assert isinstance(no_data_or, NoDataPreservingOr)
-        assert no_data_or.args[0] == x
-        assert no_data_or.args[1] == y
-
-        assert not no_data_or.is_Not
-        assert not no_data_or.is_Atom
-
-
 class TestLeftDependentToggle:
     def test_left_dependent_toggle_creation(self):
         left_expr = x
@@ -236,8 +212,6 @@ class TestSymbolMultiprocessing:
             ExactCount(1, 2, 3, threshold=2),
             AllOrNone(1, 2, 3),
             NonSimplifiableAnd(1, 2, 3),
-            NoDataPreservingAnd(1, 2, 3),
-            NoDataPreservingOr(1, 2, 3),
             LeftDependentToggle(left=1, right=2),
             TemporalMinCount(
                 1,

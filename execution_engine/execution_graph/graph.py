@@ -292,8 +292,6 @@ class ExecutionGraph(nx.DiGraph):
                     "LeftDependentToggle": "=>",
                     "NonSimplifiableOr": "!|",
                     "NonSimplifiableAnd": "!&",
-                    "NoDataPreservingAnd": "NDP-&",
-                    "NoDataPreservingOr": "NPD-|",
                     "MinCount": "Min",
                     "MaxCount": "Max",
                     "ExactCount": "Exact",

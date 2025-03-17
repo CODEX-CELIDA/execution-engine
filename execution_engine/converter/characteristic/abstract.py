@@ -61,9 +61,9 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         return self._type
 
     @type.setter
-    def type(self, type: Concept) -> None:
+    def type(self, type_: Concept) -> None:
         """Sets the type of this characteristic."""
-        self._type = type
+        self._type = type_
 
     @property
     def value(self) -> Any:

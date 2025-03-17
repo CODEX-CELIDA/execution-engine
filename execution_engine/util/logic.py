@@ -90,7 +90,7 @@ class Expr(BaseExpr):
         """
         raise NotImplementedError("update_args must be implemented by subclasses")
 
-    def __new__(cls, *args: Any) -> "Expr":
+    def __new__(cls, *args: Any, **kwargs: Any) -> "Expr":
         """
         Initialize an expression with given arguments.
 
@@ -610,7 +610,7 @@ class TemporalCount(CommutativeOperator, SerializableABC):
             if start_time >= end_time:
                 raise ValueError("start_time must be less than end_time")
 
-        elif interval_criterion and not isinstance(interval_criterion, (BaseExpr)):
+        elif interval_criterion and not isinstance(interval_criterion, BaseExpr):
             raise ValueError(
                 f"Invalid criterion - expected Criterion or CriterionCombination, got {type(interval_criterion)}"
             )
@@ -691,35 +691,25 @@ class NonSimplifiableAnd(CommutativeOperator):
         return cast(NonSimplifiableAnd, super().__new__(cls, *args, **kwargs))
 
 
-# todo: can we rename to more meaningful name?
-class NoDataPreservingAnd(CommutativeOperator):
+class NonSimplifiableOr(CommutativeOperator):
     """
-    A And object represents a logical AND operation.
+    A NonSimplifiableOr object represents a logical Or operation that cannot be simplified.
 
-    See Task.handle_no_data_preserving_operator for the rules. Currently, the only difference between this operator
-    and the And operator is that during handling of this operator, the negative intervals are added explicitly.
-    """
+    Simplified here means that when this operator is used on a single argument, still this operator is returned
+    instead of the argument itself, as is the case with the sympy.Or operator.
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> "NoDataPreservingAnd":
-        """
-        Create a new NoDataPreservingAnd object.
-        """
-        return cast(NoDataPreservingAnd, super().__new__(cls, *args, **kwargs))
-
-
-class NoDataPreservingOr(CommutativeOperator):
-    """
-    A Or object represents a logical OR operation.
-
-    See Task.handle_no_data_preserving_operator for the rules. Currently, the only difference between this operator
-    and the And operator is that during handling of this operator, the negative intervals are added explicitly.
+    The reason for this operator is that if there is a single population or intervention criterion, the And/Or
+    operators would simplify to the criterion itself. In that case, the _whole_ population or intervention expression of
+    the respective population/intervention pair, which should be written to the database with criterion_id = None, would
+    be lost (i.e. not written, because there is no graph execution node that would perform this. This operator prevents
+    that.
     """
 
-    def __new__(cls, *args: Any, **kwargs: Any) -> "NoDataPreservingOr":
+    def __new__(cls, *args: Any, **kwargs: Any) -> "NonSimplifiableOr":
         """
-        Create a new NoDataPreservingOr object.
+        Create a new NonSimplifiableOr object.
         """
-        return cast(NoDataPreservingOr, super().__new__(cls, *args, **kwargs))
+        return cast(NonSimplifiableOr, super().__new__(cls, *args, **kwargs))
 
 
 class BinaryNonCommutativeOperator(BooleanFunction, SerializableABC):

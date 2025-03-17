@@ -173,41 +173,25 @@ class Task:
                     result = self.handle_unary_logical_operator(
                         data, base_data, observation_window
                     )
+                elif isinstance(self.expr, logic.TemporalCount):
+                    result = self.handle_temporal_operator(data, observation_window)
                 elif isinstance(
                     self.expr,
-                    (
-                        logic.And,
-                        logic.Or,
-                        logic.NonSimplifiableAnd,
-                        logic.Count,
-                        logic.CappedCount,
-                        logic.AllOrNone,
-                    ),
+                    (logic.CommutativeOperator),
                 ):
                     result = self.handle_binary_logical_operator(data)
-                elif isinstance(self.expr, (logic.BinaryNonCommutativeOperator)):
+                elif isinstance(self.expr, logic.BinaryNonCommutativeOperator):
                     result = self.handle_left_dependent_toggle(
                         left=self.select_predecessor_result(self.expr.left, data),
                         right=self.select_predecessor_result(self.expr.right, data),
                         base_data=base_data,
                         observation_window=observation_window,
                     )
-                elif isinstance(
-                    self.expr, (logic.NoDataPreservingAnd, logic.NoDataPreservingOr)
-                ):
-                    result = self.handle_no_data_preserving_operator(
-                        data, base_data, observation_window
-                    )
-                elif isinstance(self.expr, logic.TemporalCount):
-                    result = self.handle_temporal_operator(data, observation_window)
                 else:
                     raise ValueError(f"Unsupported expression type: {type(self.expr)}")
 
                 if self.store_result:
-                    if (
-                        not isinstance(self.expr, logic.NoDataPreservingAnd)
-                        and not self.expr.is_Atom
-                    ):
+                    if not self.expr.is_Atom:
                         result = self.insert_negative_intervals(
                             result, base_data, observation_window
                         )
@@ -296,7 +280,7 @@ class Task:
         self, data: list[PersonIntervals]
     ) -> PersonIntervals:
         """
-        Handles a binary logical operator (And or Or) by merging or intersecting the intervals of the
+        Handles a binary logical operator by using the appropriate processing function.
 
         :param data: The input data.
         :return: A DataFrame with the merged or intersected intervals.
@@ -311,7 +295,7 @@ class Task:
 
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
             result = process.intersect_intervals(data)
-        elif isinstance(self.expr, logic.Or):
+        elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
             result = process.union_intervals(data)
         elif isinstance(self.expr, logic.Count):
             result = process.count_intervals(data)
@@ -352,43 +336,6 @@ class Task:
             raise ValueError(f"Unsupported expression type: {self.expr}")
 
         return result
-
-    def handle_no_data_preserving_operator(
-        self,
-        data: list[PersonIntervals],
-        base_data: PersonIntervals,
-        observation_window: TimeRange,
-    ) -> PersonIntervals:
-        """
-        Handles a NoDataPreservingAnd/Or operator.
-
-        These are used to combine POPULATION, INTERVENTION and POPULATION/INTERVENTION results from different
-        population/intervention pairs into a single result (i.e. the full recommendation's POPULATION etc.).
-
-        The POSITIVE intervals are intersected (And) or merged (Or), the NO_DATA intervals are intersected and the
-        remaining intervals are set to NEGATIVE.
-
-        :param data: The input data.
-        :param base_data: The result of the base criterion.
-        :param observation_window: The observation window.
-        :return: A DataFrame with the merged intervals.
-        """
-        assert isinstance(
-            self.expr, (logic.NoDataPreservingAnd, logic.NoDataPreservingOr)
-        ), "Dependency is not a NoDataPreservingAnd / NoDataPreservingOr expression."
-
-        if isinstance(self.expr, logic.NoDataPreservingAnd):
-            result = process.intersect_intervals(data)
-        elif isinstance(self.expr, logic.NoDataPreservingOr):
-            result = process.union_intervals(data)
-        else:
-            raise ValueError(f"Unsupported expression type: {type(self.expr)}")
-
-        # todo: the only difference between this function and handle_binary_logical_operator is the following lines
-        #  - can we merge?
-        return self.insert_negative_intervals(
-            data=result, base_data=base_data, observation_window=observation_window
-        )
 
     def handle_left_dependent_toggle(
         self,

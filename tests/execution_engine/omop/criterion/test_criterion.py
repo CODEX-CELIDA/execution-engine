@@ -321,7 +321,7 @@ class TestCriterion:
         base_criterion: Criterion,
         observation_window: TimeRange,
     ):
-        # population_expr is assigned a NoDataPreservingAnd to ensure creation of negative intervals
+        # population_expr is assigned a NonSimplifiableAnd to ensure creation of negative intervals
         pi_pair = PopulationInterventionPairExpr(
             population_expr=logic.NonSimplifiableAnd(population),
             intervention_expr=intervention,

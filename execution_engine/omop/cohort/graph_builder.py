@@ -120,7 +120,7 @@ class RecommendationGraphBuilder:
             bind_params={}, desired_category=CohortCategory.POPULATION_INTERVENTION
         )
 
-        p_combination_node = logic.NoDataPreservingOr(*p_sink_nodes)
+        p_combination_node = logic.NonSimplifiableOr(*p_sink_nodes)
         graph.add_node(
             p_combination_node, store_result=True, category=CohortCategory.POPULATION
         )

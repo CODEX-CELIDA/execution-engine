@@ -1,3 +1,5 @@
+from abc import ABC
+
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import OMOPConcepts
@@ -21,7 +23,7 @@ STATIC_CLINICAL_CONCEPTS = [
 # TODO: Only use weight etc from the current encounter/visit!
 
 
-class ConceptCriterion(Criterion):
+class ConceptCriterion(Criterion, ABC):
     """
     Abstract class for a criterion based on an OMOP concept and optional value.
 

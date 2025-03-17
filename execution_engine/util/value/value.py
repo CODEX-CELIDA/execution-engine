@@ -18,7 +18,10 @@ __all__ = [
     "ValueNumeric",
     "ValueNumber",
     "ValueConcept",
+    "ValueScalar",
     "check_int",
+    "check_unit_none",
+    "check_value_min_max_none",
 ]
 
 from execution_engine.util import serializable
