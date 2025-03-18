@@ -3,7 +3,7 @@ import datetime
 import json
 import logging
 from enum import Enum, auto
-from typing import List
+from typing import List, Any
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
@@ -551,49 +551,63 @@ class Task:
                     timezone=get_config().timezone,
                 )
 
-            # Create a "temporary window interval" for each window
-            # interval. Associate with each temporary window interval
-            # all data intervals that overlap it. The association
-            # works by assigning a unique id to each temporary window
+            # Incrementally compute the interval type for each window
             # interval.
-            ids = dict() # window_interval -> unique id
-            infos = dict() # unique id -> list of overlapping data intervals
-            def temporary_window_interval(start: int, end: int, intervals: List[AnyInterval]):
+            window_types: dict[AnyInterval, Any] = dict() # window interval -> interval type
+            def update_window_type(window_interval, data_interval):
+                window_type = window_types.get(window_interval.lower, None)
+                if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
+                    if window_type is not IntervalType.POSITIVE:
+                        window_type = IntervalType.NEGATIVE
+                elif data_interval.type is IntervalType.POSITIVE:
+                    window_type = IntervalType.POSITIVE
+                elif data_interval.type is IntervalType.NOT_APPLICABLE:
+                    if window_type is None:
+                        window_type = IntervalType.NOT_APPLICABLE
+                else:
+                    assert data_interval.type is IntervalType.NO_DATA
+                    if window_type is None:
+                        window_type = IntervalType.NO_DATA
+                window_types[window_interval.lower] = window_type
+                return window_type
+            # The boundaries of the result intervals are identical to
+            # those of the window intervals. In addition, update the
+            # result interval window types based on the data
+            # intervals.
+            def is_same_interval(left_intervals, right_intervals):
+                left_window_interval, left_data_interval = left_intervals
+                right_window_interval, right_data_interval = right_intervals
+                if right_window_interval is None:
+                    if left_window_interval is None:
+                        return True
+                    else:
+                        update_window_type(left_window_interval, left_data_interval)
+                        return False
+                else:
+                    update_window_type(right_window_interval, right_data_interval)
+                    if left_window_interval is None:
+                        return False
+                    else:
+                        if left_window_interval is right_window_interval:
+                            return True
+                        else:
+                            update_window_type(left_window_interval, left_data_interval)
+                            return False
+            # Create result intervals based on the computed interval
+            # types.
+            def result_interval(start: int, end: int, intervals: List[AnyInterval]):
                 window_interval, data_interval = intervals
-                if window_interval is None or window_interval.type == IntervalType.NOT_APPLICABLE:
+                if window_interval is None or window_interval.type is IntervalType.NOT_APPLICABLE:
                     return Interval(start, end, IntervalType.NOT_APPLICABLE)
                 else:
-                    window_id = ids.get(window_interval, len(ids))
-                    ids[window_interval] = window_id
-                    info = infos.get(window_id, set())
-                    infos[window_id] = info
-                    data_interval_type = data_interval.type if data_interval is not None else IntervalType.NEGATIVE
-                    info.add(data_interval_type)
-                    return IntervalWithCount(start, end, IntervalType.POSITIVE, window_id)
+                    window_type = window_types.get(window_interval.lower, None)
+                    if window_type is None:
+                        window_type = update_window_type(window_interval, data_interval)
+                    return Interval(start, end, window_type)
             person_indicator_windows = { key: indicator_windows for key in data_p.keys() }
-            result = process.find_rectangles([ person_indicator_windows, data_p], temporary_window_interval)
-            # Turn the temporary window intervals into the final
-            # intervals by computing the interval types based on the
-            # respective overlapping data intervals.
-            def finalize_interval(interval):
-                if isinstance(interval, IntervalWithCount):
-                    window_id = interval.count
-                    data_intervals = infos[window_id]
-                    # TODO(jmoringe): there should be a way to implement this with max(data_intervals)
-                    if IntervalType.POSITIVE in data_intervals:
-                        interval_type = IntervalType.POSITIVE
-                    elif IntervalType.NEGATIVE in data_intervals:
-                        interval_type = IntervalType.NEGATIVE
-                    elif IntervalType.NOT_APPLICABLE in data_intervals:
-                        interval_type = IntervalType.NOT_APPLICABLE
-                    else:
-                        assert IntervalType.NO_DATA in data_intervals
-                        interval_type = IntervalType.NO_DATA
-                    return Interval(interval.lower, interval.upper, interval_type)
-                else:
-                    return interval
-            result = { key: [ finalize_interval(i) for i in intervals ]
-                       for key, intervals in result.items() }
+            result = process.find_rectangles([ person_indicator_windows, data_p],
+                                             result_interval,
+                                             is_same_result=is_same_interval)
 
         return result
 
