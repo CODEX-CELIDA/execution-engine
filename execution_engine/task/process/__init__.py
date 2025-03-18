@@ -1,4 +1,3 @@
-import copy
 import importlib
 import os
 import sys
@@ -59,6 +58,4 @@ def interval_like(interval: TInterval, start: int, end: int) -> TInterval:
         I: A copy of the interval with updated lower and upper bounds.
     """
 
-    return copy.copy(interval)._replace(
-        lower=start, upper=end
-    )  # type: ignore[return-value]m
+    return interval._replace(lower=start, upper=end)  # type: ignore[return-value]
