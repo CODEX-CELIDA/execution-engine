@@ -556,45 +556,76 @@ class Task:
             # all data intervals that overlap it. The association
             # works by assigning a unique id to each temporary window
             # interval.
-            ids: dict[AnyInterval, int] = dict() # window_interval -> unique id
-            interval_types: List[None | IntervalType] = list() # unique id -> list of overlapping data intervals
+            window_intervals: dict[AnyInterval, Interval] = dict() # window interval -> temporary interval
+            def is_same_interval(left_intervals, right_intervals):
+                left_window_interval, left_data_interval = left_intervals
+                right_window_interval, right_data_interval = right_intervals
+                if right_window_interval is None:
+                    return left_window_interval is None
+                else:
+                    # Window id
+                    temporary_interval = window_intervals.get(right_window_interval, None)
+                    if temporary_interval is None:
+                        temporary_interval = Interval(0, 0, [None] * 1)
+                        window_intervals[right_window_interval] = temporary_interval
+                    # Interval type
+                    interval_type_info = temporary_interval.type
+                    old_type = interval_type_info[0]
+                    if right_data_interval is None or right_data_interval.type is IntervalType.NEGATIVE:
+                        if old_type is not IntervalType.POSITIVE:
+                            interval_type_info[0] = IntervalType.NEGATIVE
+                    elif right_data_interval.type is IntervalType.POSITIVE:
+                        interval_type_info[0] = IntervalType.POSITIVE
+                    elif right_data_interval.type is IntervalType.NOT_APPLICABLE:
+                        if old_type is None:
+                            interval_type_info[0] = IntervalType.NOT_APPLICABLE
+                    else:
+                        assert right_data_interval.type is IntervalType.NO_DATA
+                        if old_type is None:
+                            interval_type_info[0] = IntervalType.NO_DATA
+                    left_temporary_interval = window_intervals.get[left_window_interval]
+                    return interval_type_info[0] == left_temporary_interval.type[0]
+
             def temporary_window_interval(start: int, end: int, intervals: List[AnyInterval]):
                 window_interval, data_interval = intervals
                 if window_interval is None or window_interval.type is IntervalType.NOT_APPLICABLE:
-                    return IntervalWithCount(start, end, IntervalType.POSITIVE, -1)
+                    return Interval(start, end, None)
                 else:
-                    # Window id
-                    window_id = ids.get(window_interval, None)
-                    if window_id is None:
-                        window_id = len(ids)
-                        ids[window_interval] = window_id
-                        interval_types.append(None)
-                    # Interval type
-                    old_type = interval_types[window_id]
-                    if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
-                        if old_type is not IntervalType.POSITIVE:
-                            interval_types[window_id] = IntervalType.NEGATIVE
-                    elif data_interval.type is IntervalType.POSITIVE:
-                        interval_types[window_id] = IntervalType.POSITIVE
-                    elif data_interval.type is IntervalType.NOT_APPLICABLE:
-                        if old_type is None:
-                            interval_types[window_id] = IntervalType.NOT_APPLICABLE
-                    else:
-                        assert data_interval.type is IntervalType.NO_DATA
-                        if old_type is None:
-                            interval_types[window_id] = IntervalType.NO_DATA
-                    return IntervalWithCount(start, end, IntervalType.POSITIVE, window_id)
+                    return window_intervals[window_interval]
+                    # # Window id
+                    # temporary_interval = window_intervals.get(window_interval, None)
+                    # if temporary_interval is None:
+                    #     temporary_interval = Interval(start, end, [None]*1)
+                    #     window_intervals[window_interval] = temporary_interval
+                    # # Interval type
+                    # interval_type_info = temporary_interval.type
+                    # old_type = interval_type_info[0]
+                    # if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
+                    #     if old_type is not IntervalType.POSITIVE:
+                    #         interval_type_info[0] = IntervalType.NEGATIVE
+                    # elif data_interval.type is IntervalType.POSITIVE:
+                    #     interval_type_info[0] = IntervalType.POSITIVE
+                    # elif data_interval.type is IntervalType.NOT_APPLICABLE:
+                    #     if old_type is None:
+                    #         interval_type_info[0] = IntervalType.NOT_APPLICABLE
+                    # else:
+                    #     assert data_interval.type is IntervalType.NO_DATA
+                    #     if old_type is None:
+                    #         interval_type_info[0] = IntervalType.NO_DATA
+                    # return temporary_interval
             person_indicator_windows = { key: indicator_windows for key in data_p.keys() }
-            result = process.find_rectangles([ person_indicator_windows, data_p], temporary_window_interval)
+            result = process.find_rectangles([ person_indicator_windows, data_p],
+                                             temporary_window_interval,
+                                             is_same_result=is_same_interval)
             # Turn the temporary window intervals into the final
             # intervals by computing the interval types based on the
             # respective overlapping data intervals.
             def finalize_interval(interval):
-                window_id = interval.count
-                if window_id == -1:
+                interval_type_info = interval.type
+                if interval_type_info is None:
                     return Interval(interval.lower, interval.upper, IntervalType.NOT_APPLICABLE)
                 else:
-                    interval_type = interval_types[window_id]
+                    interval_type = interval_type_info[0]
                     return Interval(interval.lower, interval.upper, interval_type)
             result = { key: [ finalize_interval(i) for i in intervals ]
                        for key, intervals in result.items() }
