@@ -329,8 +329,20 @@ def union_interval_lists(
 
 IntervalConstructor = Callable[[int, int, typing.List[AnyInterval]], AnyInterval]
 
+def default_is_same_result(interval_constructor):
+    def is_same_result(active_intervals1, active_intervals2):
+        # When we have to decide whether to extend a result interval
+        # or start a new one, we compare the state for the existing
+        # result interval with the new state. The states are derived
+        # from the respective lists of active intervals by calling
+        # interval_constructor (with fake points in time) .
+        return (interval_constructor(0, 0, active_intervals1)
+                == interval_constructor(0, 0, active_intervals2))
+    return is_same_result
+
 def find_rectangles(all_intervals: list[list[AnyInterval]],
-                    interval_constructor: IntervalConstructor) \
+                    interval_constructor: IntervalConstructor,
+                    is_same_result = None) \
         -> list[AnyInterval]:
     """For multiple parallel "tracks" of intervals, identify temporal
     intervals in which no change occurs on any "track". For each such
@@ -356,6 +368,9 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
              that adjacent intervals (i.e. without gaps between them)
              have different "payloads".
     """
+    if is_same_result is None:
+        is_same_result = default_is_same_result(interval_constructor)
+
     # Convert all intervals into a single list of events sorted by
     # time. Multiple events at the same point in time can be problem
     # here: If an interval open event and an interval close event on
@@ -395,15 +410,6 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
         if interval is not None: # interval type negative is implicit
             result.append(interval)
             previous_end = end
-
-    def is_same_result(active_intervals1, active_intervals2):
-        # When we have to decide whether to extend a result interval
-        # or start a new one, we compare the state for the existing
-        # result interval with the new state. The states are derived
-        # from the respective lists of active intervals by calling
-        # interval_constructor (with fake points in time) .
-        return (interval_constructor(0,0,active_intervals1)
-                == interval_constructor(0,0,active_intervals2))
 
     active_intervals = [None] * track_count
     def process_events_for_point_in_time(index, point_time):
