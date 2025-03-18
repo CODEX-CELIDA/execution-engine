@@ -416,7 +416,7 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
                     high_time = time
                 any_open |= open_
             else:
-                return i, time, active_intervals.copy(), high_time if any_open else high_time + 1
+                return i, time, active_intervals, high_time if any_open else high_time + 1
             active_intervals[track] = interval if open_ else None
         return None, None, None, None
 
@@ -426,6 +426,7 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
         index, time = 0, events[0][0]
         interval_start_time = time
         index, time, interval_start_state, high_time = process_events_for_point_in_time(index, time)
+        interval_start_state = interval_start_state.copy() if interval_start_state is not None else None
         while index:
             new_index, new_time, maybe_end_state, high_time = process_events_for_point_in_time(index, time)
             # Diagram for this program point:
@@ -436,6 +437,7 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
             #                                  high_time
             if (maybe_end_state is None) or (not is_same_result(interval_start_state, maybe_end_state)):
                 add_segment(interval_start_time, time, interval_start_state)
-                interval_start_time, interval_start_state = high_time, maybe_end_state
+                interval_start_time = high_time
+                interval_start_state = maybe_end_state.copy() if maybe_end_state is not None else None
             index, time = new_index, new_time
     return result
