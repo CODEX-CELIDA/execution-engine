@@ -556,33 +556,26 @@ class Task:
             # all data intervals that overlap it. The association
             # works by assigning a unique id to each temporary window
             # interval.
-            window_intervals: dict[AnyInterval, Interval] = dict() # window interval -> temporary interval
+            window_types: dict[AnyInterval, Any] = dict() # window interval -> temporary interval
             def is_same_interval(left_intervals, right_intervals):
                 left_window_interval, left_data_interval = left_intervals
                 right_window_interval, right_data_interval = right_intervals
-
                 # Window id TODO: use lower bound for lookup?
                 def update_temporary_interval(window_interval, data_interval):
-                    temporary_interval = window_intervals.get(window_interval, None)
-                    if temporary_interval is None:
-                        temporary_interval = Interval(0, 0, [None] * 1)
-                        window_intervals[window_interval] = temporary_interval
-                    # Interval type
-                    interval_type_info = temporary_interval.type
-                    old_type = interval_type_info[0]
+                    window_type = window_types.get(window_interval, None)
                     if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
-                        if old_type is not IntervalType.POSITIVE:
-                            interval_type_info[0] = IntervalType.NEGATIVE
+                        if window_type is not IntervalType.POSITIVE:
+                            window_type = IntervalType.NEGATIVE
                     elif data_interval.type is IntervalType.POSITIVE:
-                        interval_type_info[0] = IntervalType.POSITIVE
+                        window_type = IntervalType.POSITIVE
                     elif data_interval.type is IntervalType.NOT_APPLICABLE:
-                        if old_type is None:
-                            interval_type_info[0] = IntervalType.NOT_APPLICABLE
+                        if window_type is None:
+                            window_type = IntervalType.NOT_APPLICABLE
                     else:
                         assert data_interval.type is IntervalType.NO_DATA
-                        if old_type is None:
-                            interval_type_info[0] = IntervalType.NO_DATA
-                    return temporary_interval
+                        if window_type is None:
+                            window_type = IntervalType.NO_DATA
+                    window_types[window_interval] = window_type
                 if right_window_interval is None:
                     if left_window_interval is None:
                         return True
@@ -590,42 +583,22 @@ class Task:
                         update_temporary_interval(left_window_interval, left_data_interval)
                         return False
                 else:
-                    right_temporary_interval = update_temporary_interval(right_window_interval, right_data_interval)
+                    update_temporary_interval(right_window_interval, right_data_interval)
                     if left_window_interval is None:
                         return False
                     else:
-                        if left_window_interval is not right_window_interval:
-                            left_temporary_interval = update_temporary_interval(left_window_interval, left_data_interval)
-                        #left_temporary_interval = window_intervals.get(left_window_interval, None)
-                        return left_window_interval is right_window_interval
+                        if left_window_interval is right_window_interval:
+                            return True
+                        else:
+                            update_temporary_interval(left_window_interval, left_data_interval)
+                            return False
 
             def temporary_window_interval(start: int, end: int, intervals: List[AnyInterval]):
                 window_interval, data_interval = intervals
                 if window_interval is None or window_interval.type is IntervalType.NOT_APPLICABLE:
-                    return Interval(start, end, None)
+                    return Interval(start, end, IntervalType.NOT_APPLICABLE)
                 else:
-                    return Interval(start, end, window_intervals[window_interval].type)
-                    # # Window id
-                    # temporary_interval = window_intervals.get(window_interval, None)
-                    # if temporary_interval is None:
-                    #     temporary_interval = Interval(start, end, [None]*1)
-                    #     window_intervals[window_interval] = temporary_interval
-                    # # Interval type
-                    # interval_type_info = temporary_interval.type
-                    # old_type = interval_type_info[0]
-                    # if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
-                    #     if old_type is not IntervalType.POSITIVE:
-                    #         interval_type_info[0] = IntervalType.NEGATIVE
-                    # elif data_interval.type is IntervalType.POSITIVE:
-                    #     interval_type_info[0] = IntervalType.POSITIVE
-                    # elif data_interval.type is IntervalType.NOT_APPLICABLE:
-                    #     if old_type is None:
-                    #         interval_type_info[0] = IntervalType.NOT_APPLICABLE
-                    # else:
-                    #     assert data_interval.type is IntervalType.NO_DATA
-                    #     if old_type is None:
-                    #         interval_type_info[0] = IntervalType.NO_DATA
-                    # return temporary_interval
+                    return Interval(start, end, window_types[window_interval])
             person_indicator_windows = { key: indicator_windows for key in data_p.keys() }
             result = process.find_rectangles([ person_indicator_windows, data_p],
                                              temporary_window_interval,
@@ -633,15 +606,15 @@ class Task:
             # Turn the temporary window intervals into the final
             # intervals by computing the interval types based on the
             # respective overlapping data intervals.
-            def finalize_interval(interval):
-                interval_type_info = interval.type
-                if interval_type_info is None:
-                    return Interval(interval.lower, interval.upper, IntervalType.NOT_APPLICABLE)
-                else:
-                    interval_type = interval_type_info[0]
-                    return Interval(interval.lower, interval.upper, interval_type)
-            result = { key: [ finalize_interval(i) for i in intervals ]
-                       for key, intervals in result.items() }
+            # def finalize_interval(interval):
+            #     interval_type_info = interval.type
+            #     if interval_type_info is None:
+            #         return Interval(interval.lower, interval.upper, IntervalType.NOT_APPLICABLE)
+            #     else:
+            #         interval_type = interval_type_info[0]
+            #         return Interval(interval.lower, interval.upper, interval_type)
+            # result = { key: [ finalize_interval(i) for i in intervals ]
+            #            for key, intervals in result.items() }
 
         return result
 
