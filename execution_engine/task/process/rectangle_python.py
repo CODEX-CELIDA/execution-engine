@@ -391,20 +391,6 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
             return 1
     events.sort(key = cmp_to_key(compare_events))
     event_count = len(events)
-
-    # The result will be a list of intervals produced by
-    # interval_constructor.
-    result = []
-    previous_end = None
-    def add_segment(start, end, original_intervals):
-        nonlocal previous_end
-        if previous_end == start and len(result) > 0:
-            result[-1] = result[-1]._replace(upper=previous_end - 1)
-        interval = interval_constructor(start, end, original_intervals)
-        if interval is not None: # interval type negative is implicit
-            result.append(interval)
-            previous_end = end
-
     active_intervals = [None] * track_count
     def process_events_for_point_in_time(index, point_time):
         high_time = point_time
@@ -425,7 +411,7 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
                 return i, time, active_intervals, high_time if any_open else high_time + 1
             active_intervals[track] = interval if open_ else None
         return None, None, None, None
-
+    result_intervals = []
     if not event_count == 0:
         # Step through event "clusters" with a common point in time and
         # emit result intervals with unchanged interval "payload".
@@ -442,8 +428,19 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
             # interval_start_state            maybe_end_state
             #                                  high_time
             if (maybe_end_state is None) or (not is_same_result(interval_start_state, maybe_end_state)):
-                add_segment(interval_start_time, time, interval_start_state)
+                # Add info for one result interval.
+                if len(result_intervals) > 0:
+                    previous_result = result_intervals[-1]
+                    if previous_result[1] == interval_start_time:
+                        result_intervals[-1] = (previous_result[0], previous_result[1] - 1, previous_result[2])
+                result_intervals.append((interval_start_time, time, interval_start_state))
+                # Update interval start info.
                 interval_start_time = high_time
                 interval_start_state = maybe_end_state.copy() if maybe_end_state is not None else None
             index, time = new_index, new_time
+    result = []
+    for (start, end, intervals) in result_intervals:
+        interval = interval_constructor(start, end, intervals)
+        if interval is not None:
+            result.append(interval)
     return result
