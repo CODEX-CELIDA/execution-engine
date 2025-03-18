@@ -562,7 +562,7 @@ class Task:
                 right_window_interval, right_data_interval = right_intervals
                 # Window id TODO: use lower bound for lookup?
                 def update_temporary_interval(window_interval, data_interval):
-                    window_type = window_types.get(window_interval, None)
+                    window_type = window_types.get(window_interval.lower, None)
                     if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
                         if window_type is not IntervalType.POSITIVE:
                             window_type = IntervalType.NEGATIVE
@@ -575,7 +575,7 @@ class Task:
                         assert data_interval.type is IntervalType.NO_DATA
                         if window_type is None:
                             window_type = IntervalType.NO_DATA
-                    window_types[window_interval] = window_type
+                    window_types[window_interval.lower] = window_type
                 if right_window_interval is None:
                     if left_window_interval is None:
                         return True
@@ -598,7 +598,7 @@ class Task:
                 if window_interval is None or window_interval.type is IntervalType.NOT_APPLICABLE:
                     return Interval(start, end, IntervalType.NOT_APPLICABLE)
                 else:
-                    return Interval(start, end, window_types[window_interval])
+                    return Interval(start, end, window_types[window_interval.lower])
             person_indicator_windows = { key: indicator_windows for key in data_p.keys() }
             result = process.find_rectangles([ person_indicator_windows, data_p],
                                              temporary_window_interval,
