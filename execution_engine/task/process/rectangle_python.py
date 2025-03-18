@@ -1,3 +1,4 @@
+import random
 import typing
 from functools import cmp_to_key
 from typing import Callable
@@ -7,8 +8,28 @@ from sortedcontainers import SortedDict, SortedList
 
 from execution_engine.task.process import Interval, IntervalWithCount, AnyInterval
 from execution_engine.util.interval import IntervalType
+from timeit import default_timer as timer
 
 MODULE_IMPLEMENTATION = "python"
+
+def test():
+    def random_intervals():
+        return [Interval(i + random.randint(0, 3), i + 3 + random.randint(0, 3), IntervalType.POSITIVE)
+                for i in range(500000) ]
+    i1 = random_intervals()
+    i2 = random_intervals()
+    def make_interval(start: int, end: int, intervals: typing.List[AnyInterval]):
+        return Interval(start, end, IntervalType.POSITIVE)
+
+    import cProfile
+    profile = cProfile.Profile()
+    profile.enable()
+    start = timer()
+    find_rectangles([i1, i2], make_interval)
+    end = timer()
+    print(f'{end - start} s')
+    profile.disable()
+    profile.print_stats(sort="cumtime")
 
 
 def intervals_to_events(
@@ -22,6 +43,25 @@ def intervals_to_events(
     :param intervals: The intervals.
     :return: The events.
     """
+    # This is actually slower
+    # events = [None]*(2*len(intervals))
+    # i = 0
+    # is_sorted = True
+    # previous_end = 0
+    # for interval in intervals:
+    #     lower = interval.lower
+    #     if lower < previous_end:
+    #         is_sorted = False
+    #     previous_end = lower
+    #     events[i + 0] = (lower,                           True,  interval)
+    #     events[i + 1] = (interval.upper + closing_offset, False, interval)
+    #     i += 2
+    # if is_sorted:
+    #     print('is sorted')
+    #     return intervals
+    # else:
+    #     print('is sorted')
+    #     return sorted(events, key=lambda i: i[0])
     events =   [ (i.lower,                  True,  i) for i in intervals ] \
              + [ (i.upper + closing_offset, False, i) for i in intervals ]
     return sorted(events,key=lambda i: i[0])
