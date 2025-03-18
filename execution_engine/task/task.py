@@ -560,38 +560,51 @@ class Task:
             def is_same_interval(left_intervals, right_intervals):
                 left_window_interval, left_data_interval = left_intervals
                 right_window_interval, right_data_interval = right_intervals
-                if right_window_interval is None:
-                    return left_window_interval is None
-                else:
-                    # Window id
-                    temporary_interval = window_intervals.get(right_window_interval, None)
+
+                # Window id TODO: use lower bound for lookup?
+                def update_temporary_interval(window_interval, data_interval):
+                    temporary_interval = window_intervals.get(window_interval, None)
                     if temporary_interval is None:
                         temporary_interval = Interval(0, 0, [None] * 1)
-                        window_intervals[right_window_interval] = temporary_interval
+                        window_intervals[window_interval] = temporary_interval
                     # Interval type
                     interval_type_info = temporary_interval.type
                     old_type = interval_type_info[0]
-                    if right_data_interval is None or right_data_interval.type is IntervalType.NEGATIVE:
+                    if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
                         if old_type is not IntervalType.POSITIVE:
                             interval_type_info[0] = IntervalType.NEGATIVE
-                    elif right_data_interval.type is IntervalType.POSITIVE:
+                    elif data_interval.type is IntervalType.POSITIVE:
                         interval_type_info[0] = IntervalType.POSITIVE
-                    elif right_data_interval.type is IntervalType.NOT_APPLICABLE:
+                    elif data_interval.type is IntervalType.NOT_APPLICABLE:
                         if old_type is None:
                             interval_type_info[0] = IntervalType.NOT_APPLICABLE
                     else:
-                        assert right_data_interval.type is IntervalType.NO_DATA
+                        assert data_interval.type is IntervalType.NO_DATA
                         if old_type is None:
                             interval_type_info[0] = IntervalType.NO_DATA
-                    left_temporary_interval = window_intervals.get[left_window_interval]
-                    return interval_type_info[0] == left_temporary_interval.type[0]
+                    return temporary_interval
+                if right_window_interval is None:
+                    if left_window_interval is None:
+                        return True
+                    else:
+                        update_temporary_interval(left_window_interval, left_data_interval)
+                        return False
+                else:
+                    right_temporary_interval = update_temporary_interval(right_window_interval, right_data_interval)
+                    if left_window_interval is None:
+                        return False
+                    else:
+                        if left_window_interval is not right_window_interval:
+                            left_temporary_interval = update_temporary_interval(left_window_interval, left_data_interval)
+                        #left_temporary_interval = window_intervals.get(left_window_interval, None)
+                        return left_window_interval is right_window_interval
 
             def temporary_window_interval(start: int, end: int, intervals: List[AnyInterval]):
                 window_interval, data_interval = intervals
                 if window_interval is None or window_interval.type is IntervalType.NOT_APPLICABLE:
                     return Interval(start, end, None)
                 else:
-                    return window_intervals[window_interval]
+                    return Interval(start, end, window_intervals[window_interval].type)
                     # # Window id
                     # temporary_interval = window_intervals.get(window_interval, None)
                     # if temporary_interval is None:
