@@ -367,7 +367,8 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
     events = [
         (time, event, interval, j)
         for j, intervals in enumerate(all_intervals)
-        for (time, event, interval) in intervals_to_events(intervals, closing_offset=0)
+        for interval in intervals # intervals_to_events(intervals, closing_offset=0)
+        for (time,event) in [(interval.lower, True), (interval.upper, False)]
     ]
     def compare_events(event1, event2):
         if event1[0] < event2[0]: # event1 is earlier
