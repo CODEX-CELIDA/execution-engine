@@ -2,6 +2,7 @@ import base64
 import datetime
 import json
 import logging
+import pprint
 from enum import Enum, auto
 from typing import List, Any
 
@@ -598,6 +599,12 @@ class Task:
                 if window_interval is None or window_interval.type is IntervalType.NOT_APPLICABLE:
                     return Interval(start, end, IntervalType.NOT_APPLICABLE)
                 else:
+                    if window_interval.lower not in window_types:
+                        print('BUG')
+                        print('person_indicator_windows ')
+                        pprint.pprint(person_indicator_windows)
+                        print('data_p')
+                        pprint.pprint(data_p)
                     return Interval(start, end, window_types[window_interval.lower])
             person_indicator_windows = { key: indicator_windows for key in data_p.keys() }
             result = process.find_rectangles([ person_indicator_windows, data_p],
