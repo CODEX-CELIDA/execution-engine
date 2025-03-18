@@ -375,6 +375,7 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
         else: # at the same time, but different tracks => any order is fine
             return 1
     events.sort(key = cmp_to_key(compare_events))
+    event_count = len(events)
 
     # The result will be a list of intervals produced by
     # interval_constructor.
@@ -389,15 +390,6 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
             result.append(interval)
             previous_end = end
 
-    def no_gap_between_points_in_time(end_time, start_time):
-        # Since points in time for intervals are quantized to whole
-        # seconds and intervals are closed (inclusive) for both start
-        # and end points, two adjacent intervals like
-        # [START_TIME1, 10:59:59] [11:00:00, END_TIME2]
-        # have no gap between them and can be considered a single
-        # continuous interval [START_TIME1, END_TIME2].
-        return (end_time == start_time) or (end_time == start_time - 1)
-
     def is_same_result(active_intervals1, active_intervals2):
         # When we have to decide whether to extend a result interval
         # or start a new one, we compare the state for the existing
@@ -408,28 +400,34 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
                 == interval_constructor(0,0,active_intervals2))
 
     active_intervals = [None] * track_count
-    def process_event_for_point_in_time(index, point_time):
-        nonlocal active_intervals
+    def process_events_for_point_in_time(index, point_time):
         high_time = point_time
         any_open = False
-        for i in range(index, len(events)):
+        for i in range(index, event_count):
             time, open_, interval, track = events[i]
-            if no_gap_between_points_in_time(point_time, time):
-                high_time = max(high_time, time)
+            # Since points in time for intervals are quantized to whole
+            # seconds and intervals are closed (inclusive) for both start
+            # and end points, two adjacent intervals like
+            # [START_TIME1, 10:59:59] [11:00:00, END_TIME2]
+            # have no gap between them and can be considered a single
+            # continuous interval [START_TIME1, END_TIME2].
+            if (point_time == time) or (point_time == time - 1):
+                if time > high_time:
+                    high_time = time
                 any_open |= open_
             else:
                 return i, time, active_intervals.copy(), high_time if any_open else high_time + 1
             active_intervals[track] = interval if open_ else None
         return None, None, None, None
 
-    if not len(events) == 0:
+    if not event_count == 0:
         # Step through event "clusters" with a common point in time and
         # emit result intervals with unchanged interval "payload".
         index, time = 0, events[0][0]
         interval_start_time = time
-        index, time, interval_start_state, high_time = process_event_for_point_in_time(index, time)
+        index, time, interval_start_state, high_time = process_events_for_point_in_time(index, time)
         while index:
-            new_index, new_time, maybe_end_state, high_time = process_event_for_point_in_time(index, time)
+            new_index, new_time, maybe_end_state, high_time = process_events_for_point_in_time(index, time)
             # Diagram for this program point:
             # |___potential_result_interval___||                 |
             #                                 index              new_index
