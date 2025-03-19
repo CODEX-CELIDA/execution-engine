@@ -558,25 +558,25 @@ class Task:
             # works by assigning a unique id to each temporary window
             # interval.
             window_types: dict[AnyInterval, Any] = dict() # window interval -> temporary interval
+            def update_temporary_interval(window_interval, data_interval):
+                window_type = window_types.get(window_interval.lower, None)
+                if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
+                    if window_type is not IntervalType.POSITIVE:
+                        window_type = IntervalType.NEGATIVE
+                elif data_interval.type is IntervalType.POSITIVE:
+                    window_type = IntervalType.POSITIVE
+                elif data_interval.type is IntervalType.NOT_APPLICABLE:
+                    if window_type is None:
+                        window_type = IntervalType.NOT_APPLICABLE
+                else:
+                    assert data_interval.type is IntervalType.NO_DATA
+                    if window_type is None:
+                        window_type = IntervalType.NO_DATA
+                window_types[window_interval.lower] = window_type
+                return window_type
             def is_same_interval(left_intervals, right_intervals):
                 left_window_interval, left_data_interval = left_intervals
                 right_window_interval, right_data_interval = right_intervals
-                # Window id TODO: use lower bound for lookup?
-                def update_temporary_interval(window_interval, data_interval):
-                    window_type = window_types.get(window_interval.lower, None)
-                    if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
-                        if window_type is not IntervalType.POSITIVE:
-                            window_type = IntervalType.NEGATIVE
-                    elif data_interval.type is IntervalType.POSITIVE:
-                        window_type = IntervalType.POSITIVE
-                    elif data_interval.type is IntervalType.NOT_APPLICABLE:
-                        if window_type is None:
-                            window_type = IntervalType.NOT_APPLICABLE
-                    else:
-                        assert data_interval.type is IntervalType.NO_DATA
-                        if window_type is None:
-                            window_type = IntervalType.NO_DATA
-                    window_types[window_interval.lower] = window_type
                 if right_window_interval is None:
                     if left_window_interval is None:
                         return True
@@ -599,13 +599,10 @@ class Task:
                 if window_interval is None or window_interval.type is IntervalType.NOT_APPLICABLE:
                     return Interval(start, end, IntervalType.NOT_APPLICABLE)
                 else:
-                    if window_interval.lower not in window_types:
-                        print('BUG')
-                        print('person_indicator_windows ')
-                        pprint.pprint(person_indicator_windows)
-                        print('data_p')
-                        pprint.pprint(data_p)
-                    return Interval(start, end, window_types[window_interval.lower])
+                    window_type = window_types.get(window_interval.lower, None)
+                    if window_type is None:
+                        window_type = update_temporary_interval(window_interval, data_interval)
+                    return Interval(start, end, window_type)
             person_indicator_windows = { key: indicator_windows for key in data_p.keys() }
             result = process.find_rectangles([ person_indicator_windows, data_p],
                                              temporary_window_interval,
