@@ -99,10 +99,14 @@ def parse_value(
             eps = float(value_numeric) / 1e5
             match value.comparator:
                 case "<=" | "<":
-                    value_max = value_numeric - (eps if value.comparator == "<" else 0)
+                    value_max = float(value_numeric) - (
+                        eps if value.comparator == "<" else 0
+                    )
                     value_numeric = None
                 case ">=" | ">":
-                    value_min = value_numeric + (eps if value.comparator == "<" else 0)
+                    value_min = float(value_numeric) + (
+                        eps if value.comparator == "<" else 0
+                    )
                     value_numeric = None
                 case _:
                     raise ValueError(f'Unknown quantity operator: "{value.comparator}"')
