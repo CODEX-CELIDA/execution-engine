@@ -10,6 +10,7 @@ from sqlalchemy import and_, insert, select, update
 from execution_engine import __version__
 from execution_engine.builder import ExecutionEngineBuilder
 from execution_engine.clients import fhir_client, omopdb
+from execution_engine.constants import OMOPConcepts
 from execution_engine.converter.recommendation_factory import (
     FhirToRecommendationFactory,
 )
@@ -267,6 +268,7 @@ class ExecutionEngine:
                     .values(
                         recommendation_name=recommendation.name,
                         recommendation_title=recommendation.title,
+                        recommendation_description=recommendation.description,
                         recommendation_url=recommendation.url,
                         recommendation_version=recommendation.version,
                         recommendation_package_version=recommendation.package_version,
@@ -392,6 +394,13 @@ class ExecutionEngine:
                     insert(result_db.Criterion)
                     .values(
                         criterion_hash=crit_hash,
+                        criterion_concept_id=(
+                            criterion.concept.concept_id
+                            if hasattr(criterion, "concept")
+                            and criterion.concept.concept_id >= 0
+                            else OMOPConcepts.UNKNOWN.value
+                        ),
+                        criterion_json=criterion.json(),
                         criterion_description=criterion.description(),
                     )
                     .returning(result_db.Criterion.criterion_id)
