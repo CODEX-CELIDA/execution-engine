@@ -3,16 +3,14 @@ from typing import Type, final
 
 from fhir.resources.timing import Timing as FHIRTiming
 
+from execution_engine import constants
 from execution_engine.converter.criterion import CriterionConverter, parse_code
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.fhir.recommendation import RecommendationPlan
-from execution_engine.fhir.util import get_coding
+from execution_engine.fhir.util import get_coding, get_extensions
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
 from execution_engine.omop.vocabulary import AbstractVocabulary
-from execution_engine.util import AbstractPrivateMethods
+from execution_engine.util import AbstractPrivateMethods, logic
 from execution_engine.util.types import Timing
 from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 
@@ -139,21 +137,29 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
         if rep.offset is not None:
             raise NotImplementedError("offset has not been implemented")
 
+        relative_time = get_extensions(timing, constants.EXT_RELATIVE_TIME)
+
+        if relative_time:
+            raise NotImplementedError(
+                "RelativeTime processing within AbstractAction not implemented - "
+                "should be performed in the parser"
+            )
+
         return Timing(
             count=count, duration=duration, frequency=frequency, interval=interval
         )
 
     @abstractmethod
-    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
+    def _to_expression(self) -> logic.BaseExpr | None:
         """Converts this action to a Criterion."""
         raise NotImplementedError()
 
     @final
-    def to_positive_criterion(self) -> Criterion | LogicalCriterionCombination:
+    def to_positive_expression(self) -> logic.BaseExpr:
         """
         Converts this action to a criterion.
         """
-        action = self._to_criterion()
+        action = self._to_expression()
 
         if action is None:
             assert (
@@ -161,10 +167,10 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
             ), "Action without explicit criterion must have at least one goal"
 
         if self.goals:
-            criteria = [goal.to_criterion() for goal in self.goals]
+            criteria = [goal.to_expression() for goal in self.goals]
             if action is not None:
                 criteria.append(action)
-            return LogicalCriterionCombination.And(*criteria)
+            return logic.And(*criteria)
         else:
             return action  # type: ignore
 

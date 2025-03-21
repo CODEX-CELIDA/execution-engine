@@ -8,6 +8,7 @@ from execution_engine.converter.criterion import CriterionConverter
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.vocabulary import standard_vocabulary
+from execution_engine.util import logic as logic
 from execution_engine.util.value import Value
 
 
@@ -30,7 +31,7 @@ class AbstractCharacteristic(CriterionConverter, ABC):
     Subclasses must define the following methods:
     - valid: returns True if the supplied characteristic falls within the scope of the subclass
     - from_fhir: creates a new instance of the subclass from a FHIR EvidenceVariable.characteristic element
-    - to_criterion(): converts the characteristic to a Criterion
+    - to_expression(): converts the characteristic to a Criterion
     """
 
     _criterion_class: Type[Criterion]
@@ -60,9 +61,9 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         return self._type
 
     @type.setter
-    def type(self, type: Concept) -> None:
+    def type(self, type_: Concept) -> None:
         """Sets the type of this characteristic."""
-        self._type = type
+        self._type = type_
 
     @property
     def value(self) -> Any:
@@ -82,6 +83,13 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         """Checks if the given FHIR EvidenceVariable is a valid characteristic."""
         raise NotImplementedError()
 
+    @abstractmethod
+    def to_positive_expression(self) -> logic.BaseExpr:
+        """
+        Converts this characteristic to a positive expression (i.e. neglecting the exlude flag).
+        """
+        raise NotImplementedError()
+
     @staticmethod
     def get_standard_concept(cc: Coding) -> Concept:
         """
@@ -95,13 +103,3 @@ class AbstractCharacteristic(CriterionConverter, ABC):
         Get the OMOP Standard Vocabulary standard concept for the given code in the given vocabulary.
         """
         return standard_vocabulary.get_concept(cc.system, cc.code, standard=standard)
-
-    @abstractmethod
-    def to_positive_criterion(self) -> Criterion:
-        """
-        Converts this characteristic to a "Positive" Criterion.
-
-        Positive criterion means that a possible excluded flag is disregarded. Instead, the exclusion
-        is later introduced (in the to_criterion() method) via a LogicalCriterionCombination.Not).
-        """
-        raise NotImplementedError()

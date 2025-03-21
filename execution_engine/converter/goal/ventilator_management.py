@@ -6,12 +6,12 @@ from execution_engine.constants import SCT_VENTILATOR_CARE_AND_ADJUSTMENT
 from execution_engine.converter.criterion import parse_code, parse_value
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.custom.tidal_volume import (
     TidalVolumePerIdealBodyWeight,
 )
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.vocabulary import CODEXCELIDA, SNOMEDCT
+from execution_engine.util import logic
 from execution_engine.util.value import Value
 
 CUSTOM_GOALS: dict[Concept, Type] = {
@@ -56,7 +56,7 @@ class VentilatorManagementGoal(Goal):
 
         return cls(exclude=False, code=code, value=value)
 
-    def to_positive_criterion(self) -> Criterion:
+    def to_positive_expression(self) -> logic.Symbol:
         """
         Converts the goal to a criterion.
         """

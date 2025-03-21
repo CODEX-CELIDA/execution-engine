@@ -16,10 +16,7 @@ from execution_engine.converter.criterion import (
     parse_value,
     select_value,
 )
-from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
+from execution_engine.util import logic
 from execution_engine.util.value import ValueConcept, ValueNumber
 
 
@@ -149,15 +146,16 @@ class TestCriterionConverter:
     # Continuing the test classes for CriterionConverter and CriterionConverterFactory
 
     class MockCriterionConverter(CriterionConverter):
-        @classmethod
-        def from_fhir(cls, fhir_definition: Element) -> "CriterionConverter":
-            return cls(exclude=False)
 
         @classmethod
         def valid(cls, fhir_definition: Element) -> bool:
             return fhir_definition.id == "valid"
 
-        def to_positive_criterion(self) -> Criterion | LogicalCriterionCombination:
+        @classmethod
+        def from_fhir(cls, fhir_definition: Element) -> "CriterionConverter":
+            return cls(exclude=False)
+
+        def to_positive_expression(self) -> logic.Symbol:
             raise NotImplementedError()
 
     def test_criterion_converter_factory_register(self):

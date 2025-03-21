@@ -16,6 +16,7 @@ def get_processing_module(
         - rectangle (faster, using rectangles intersection/union)
 
     :param name: name of the processing module
+    :param version: version of the processing module
     """
 
     if name == "rectangle":
@@ -44,6 +45,7 @@ AnyInterval = Interval | IntervalWithCount
 GeneralizedInterval = None | AnyInterval
 
 TInterval = TypeVar("TInterval", bound=AnyInterval)
+
 
 def interval_like(interval: TInterval, start: int, end: int) -> TInterval:
     """

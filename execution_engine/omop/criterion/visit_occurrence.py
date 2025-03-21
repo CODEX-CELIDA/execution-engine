@@ -1,5 +1,3 @@
-from typing import Any, Dict
-
 from sqlalchemy import select
 from sqlalchemy.sql import Select
 
@@ -82,19 +80,6 @@ class ActivePatients(VisitOccurrence):
         Get a human-readable description of the criterion.
         """
         return f"{self.__class__.__name__}[]"
-
-    def dict(self) -> dict[str, Any]:
-        """
-        Get a JSON representation of the criterion.
-        """
-        return {}
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ActivePatients":
-        """
-        Create a criterion from a JSON representation.
-        """
-        return cls()
 
 
 class PatientsActiveDuringPeriod(ActivePatients):

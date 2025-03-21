@@ -28,7 +28,8 @@ from execution_engine.converter.goal.laboratory_value import LaboratoryValueGoal
 from execution_engine.converter.goal.ventilator_management import (
     VentilatorManagementGoal,
 )
-from execution_engine.converter.time_from_event.abstract import TemporalIndicator
+from execution_engine.converter.relative_time.abstract import RelativeTime
+from execution_engine.converter.time_from_event.abstract import TimeFromEvent
 
 if TYPE_CHECKING:
     from execution_engine.execution_engine import ExecutionEngine
@@ -42,7 +43,8 @@ class CriterionConverterType(TypedDict):
     characteristic: list[type[CriterionConverter]]
     action: list[type[CriterionConverter]]
     goal: list[type[CriterionConverter]]
-    time_from_event: list[type[TemporalIndicator]]
+    time_from_event: list[type[TimeFromEvent]]
+    relative_time: list[type[RelativeTime]]
 
 
 _default_converters: CriterionConverterType = {
@@ -63,6 +65,7 @@ _default_converters: CriterionConverterType = {
     ],
     "goal": [LaboratoryValueGoal, VentilatorManagementGoal, AssessmentScaleGoal],
     "time_from_event": [],
+    "relative_time": [],
 }
 
 
@@ -76,6 +79,7 @@ def default_execution_engine_builder() -> "ExecutionEngineBuilder":
     builder.set_action_converters(_default_converters["action"])
     builder.set_goal_converters(_default_converters["goal"])
     builder.set_time_from_event_converters(_default_converters["time_from_event"])
+    builder.set_relative_time_converters(_default_converters["relative_time"])
 
     return builder
 
@@ -92,7 +96,8 @@ class ExecutionEngineBuilder:
         self.characteristic_converters: list[type[CriterionConverter]] = []
         self.action_converters: list[type[CriterionConverter]] = []
         self.goal_converters: list[type[CriterionConverter]] = []
-        self.time_from_event_converters: list[type[TemporalIndicator]] = []
+        self.time_from_event_converters: list[type[TimeFromEvent]] = []
+        self.relative_time_converters: list[type[RelativeTime]] = []
 
     def set_characteristic_converters(
         self, converters: list[type[CriterionConverter]]
@@ -128,7 +133,7 @@ class ExecutionEngineBuilder:
         return self
 
     def set_time_from_event_converters(
-        self, converters: list[type[TemporalIndicator]]
+        self, converters: list[type[TimeFromEvent]]
     ) -> "ExecutionEngineBuilder":
         """
         Sets (overwrites) the time from event converters for this builder.
@@ -137,6 +142,19 @@ class ExecutionEngineBuilder:
 
         for converter_type in converters:
             self.append_time_from_event_converter(converter_type)
+
+        return self
+
+    def set_relative_time_converters(
+        self, converters: list[type[RelativeTime]]
+    ) -> "ExecutionEngineBuilder":
+        """
+        Sets (overwrites) the time from event converters for this builder.
+        """
+        self.relative_time_converters.clear()
+
+        for converter_type in converters:
+            self.append_relative_time_converter(converter_type)
 
         return self
 
@@ -207,25 +225,47 @@ class ExecutionEngineBuilder:
         return self
 
     def append_time_from_event_converter(
-        self, converter_type: type[TemporalIndicator]
+        self, converter_type: type[TimeFromEvent]
     ) -> "ExecutionEngineBuilder":
         """
         Appends a single time_from_event converter at the end of the list.
         """
-        if not issubclass(converter_type, TemporalIndicator):
+        if not issubclass(converter_type, TimeFromEvent):
             raise ValueError(f"Invalid TimeFromEvent converter type: {converter_type}")
         self.time_from_event_converters.append(converter_type)
         return self
 
     def prepend_time_from_event_converter(
-        self, converter_type: type[TemporalIndicator]
+        self, converter_type: type[TimeFromEvent]
     ) -> "ExecutionEngineBuilder":
         """
         Inserts a single time_from_event converter at the front of the list.
         """
-        if not issubclass(converter_type, TemporalIndicator):
+        if not issubclass(converter_type, TimeFromEvent):
             raise ValueError(f"Invalid TimeFromEvent converter type: {converter_type}")
         self.time_from_event_converters.insert(0, converter_type)
+        return self
+
+    def append_relative_time_converter(
+        self, converter_type: type[RelativeTime]
+    ) -> "ExecutionEngineBuilder":
+        """
+        Appends a single relative_time converter at the end of the list.
+        """
+        if not issubclass(converter_type, RelativeTime):
+            raise ValueError(f"Invalid TimeFromEvent converter type: {converter_type}")
+        self.relative_time_converters.append(converter_type)
+        return self
+
+    def prepend_relative_time_converter(
+        self, converter_type: type[RelativeTime]
+    ) -> "ExecutionEngineBuilder":
+        """
+        Inserts a single relative_time converter at the front of the list.
+        """
+        if not issubclass(converter_type, RelativeTime):
+            raise ValueError(f"Invalid TimeFromEvent converter type: {converter_type}")
+        self.relative_time_converters.insert(0, converter_type)
         return self
 
     def build(self, verbose: bool = False) -> "ExecutionEngine":

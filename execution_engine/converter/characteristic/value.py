@@ -6,6 +6,7 @@ from fhir.resources.evidencevariable import EvidenceVariableCharacteristic
 from execution_engine.converter.characteristic.abstract import AbstractCharacteristic
 from execution_engine.converter.criterion import parse_code, parse_value
 from execution_engine.omop.criterion.concept import ConceptCriterion
+from execution_engine.util import logic
 
 
 class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
@@ -21,7 +22,12 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
         """Creates a new Characteristic instance from a FHIR EvidenceVariable.characteristic."""
         assert cls.valid(characteristic), "Invalid characteristic definition"
 
-        type_omop_concept = parse_code(characteristic.definitionByTypeAndValue.type)
+        try:
+            type_omop_concept = parse_code(characteristic.definitionByTypeAndValue.type)
+        except ValueError:
+            type_omop_concept = parse_code(
+                characteristic.definitionByTypeAndValue.type, standard=False
+            )
         value = parse_value(
             value_parent=characteristic.definitionByTypeAndValue, value_prefix="value"
         )
@@ -32,7 +38,7 @@ class AbstractValueCharacteristic(AbstractCharacteristic, ABC):
 
         return c
 
-    def to_positive_criterion(self) -> ConceptCriterion:
+    def to_positive_expression(self) -> logic.Symbol:
         """Converts this characteristic to a Criterion."""
         return self._criterion_class(
             concept=self.type,

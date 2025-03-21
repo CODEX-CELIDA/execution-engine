@@ -1,20 +1,10 @@
-from typing import Any, Callable, Type
+from typing import Any, cast
 
 import networkx as nx
 
-import execution_engine.util.cohort_logic as logic
+import execution_engine.util.logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.combination import CriterionCombination
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-    NonCommutativeLogicalCriterionCombination,
-)
-from execution_engine.omop.criterion.combination.temporal import (
-    FixedWindowTemporalIndicatorCombination,
-    PersonalWindowTemporalIndicatorCombination,
-    TemporalIndicatorCombination,
-)
 
 
 class ExecutionGraph(nx.DiGraph):
@@ -27,30 +17,6 @@ class ExecutionGraph(nx.DiGraph):
         Combine two graphs into one.
         """
         return nx.compose(self, other)
-
-    @classmethod
-    def from_criterion_combination(
-        cls,
-        population: CriterionCombination,
-        intervention: CriterionCombination,
-        base_criterion: Criterion,
-    ) -> "ExecutionGraph":
-        """
-        Create a graph from a population and intervention criterion combination.
-        """
-        from execution_engine.omop.cohort import PopulationInterventionPair
-
-        p = cls.combination_to_expression(population, CohortCategory.POPULATION)
-        i = cls.combination_to_expression(intervention, CohortCategory.INTERVENTION)
-        i_filtered = PopulationInterventionPair.filter_symbols(i, p)
-
-        pi = logic.LeftDependentToggle(
-            p,
-            i_filtered,
-            category=CohortCategory.POPULATION_INTERVENTION,
-        )
-
-        return cls.from_expression(pi, base_criterion)
 
     def is_sink_of_category(
         self, expr: logic.Expr, graph: "ExecutionGraph", category: CohortCategory
@@ -75,43 +41,71 @@ class ExecutionGraph(nx.DiGraph):
 
     @classmethod
     def from_expression(
-        cls, expr: logic.Expr, base_criterion: Criterion
+        cls, expr: logic.Expr, base_criterion: Criterion, category: CohortCategory
     ) -> "ExecutionGraph":
         """
         Create a graph from a cohort query expression.
         """
 
-        def expression_to_graph(
-            expr: logic.Expr,
-            graph: ExecutionGraph,
-            parent: logic.Expr | None = None,
-        ) -> ExecutionGraph:
-            graph.add_node(expr, category=expr.category, store_result=False)
+        from execution_engine.omop.cohort import PopulationInterventionPairExpr
 
-            if expr.is_Atom:
-                graph.nodes[expr]["store_result"] = True
-                graph.add_edge(base_node, expr)
-
-            if parent is not None:
-                graph.add_edge(expr, parent)
-
-            for child in expr.args:
-                expression_to_graph(child, graph, expr)
-
-            return graph
+        expr_hash = hash(expr)
 
         graph = cls()
-        base_node = logic.Symbol(
-            criterion=base_criterion,
-            category=CohortCategory.BASE,
-        )
+        base_node = base_criterion
+
         graph.add_node(
             base_node,
             category=CohortCategory.BASE,
             store_result=True,
         )
 
-        expression_to_graph(expr, graph=graph)
+        def traverse(
+            expr: logic.Expr,
+            parent: logic.Expr | None = None,
+            category: CohortCategory = category,
+        ) -> None:
+
+            graph.add_node(expr, category=category, store_result=False)
+
+            if parent is not None:
+                assert expr in graph.nodes
+                assert parent in graph.nodes
+                graph.add_edge(expr, parent)
+
+            if isinstance(expr, PopulationInterventionPairExpr):
+                # special case for PopulationInterventionPairExpr:
+                # we need explicitly set the category of the population and intervention nodes
+
+                p, i = expr.left, expr.right
+
+                traverse(i, parent=expr, category=CohortCategory.INTERVENTION)
+                traverse(p, parent=expr, category=CohortCategory.POPULATION)
+
+                # create a subgraph for the pair in order to determine the sink nodes (i.e. the nodes that have no
+                # outgoing edges) for POPULATION and POPULATION_INTERVENTION and mark them for storing their result
+                # in the database
+                subgraph = cast(
+                    ExecutionGraph, graph.subgraph(nx.ancestors(graph, expr) | {expr})
+                )
+                subgraph.set_sink_nodes_store(bind_params=dict(pi_pair_id=expr.id))
+
+            elif expr == base_node:
+                # don't need to do anything - only non-base criteria are connected to the base criterion,
+                # otherwise we get a cyclic graph
+                pass
+            elif expr.is_Atom:
+                assert expr in graph.nodes, "Node not found in graph"
+                graph.nodes[expr]["store_result"] = True
+                graph.add_edge(base_node, expr)
+            else:
+                for child in expr.args:
+                    traverse(child, parent=expr, category=category)
+
+        traverse(expr, category=category)
+
+        if hash(expr) != expr_hash:
+            raise ValueError("Expression has been modified during traversal")
 
         return graph
 
@@ -149,7 +143,7 @@ class ExecutionGraph(nx.DiGraph):
 
         return combined_graph
 
-    def sink_node(self, category: CohortCategory | None = None) -> logic.Expr:
+    def sink_nodes(self, category: CohortCategory | None = None) -> list[logic.Expr]:
         """
         Get the sink node of the graph.
 
@@ -165,12 +159,7 @@ class ExecutionGraph(nx.DiGraph):
                 if self.is_sink_of_category(node, self, category)
             ]
 
-        if len(sink_nodes) != 1:
-            raise ValueError(
-                f"There must be exactly one sink node, but there are {len(sink_nodes)}"
-            )
-
-        return sink_nodes[0]
+        return sink_nodes
 
     def to_cytoscape_dict(self) -> dict:
         """
@@ -187,7 +176,7 @@ class ExecutionGraph(nx.DiGraph):
                     "id": id(node),
                     "label": str(node),
                     "class": (
-                        node.criterion.__class__.__name__
+                        node.__class__.__name__
                         if isinstance(node, logic.Symbol)
                         else node.__class__.__name__
                     ),
@@ -204,29 +193,31 @@ class ExecutionGraph(nx.DiGraph):
                         self.nodes[node]["store_result"]
                     ),  # Convert to string if necessary
                     "is_sink": self.is_sink(node),
+                    "is_atom": node.is_Atom,
                     "bind_params": self.nodes[node]["bind_params"],
                 }
             }
 
             if isinstance(node, logic.Symbol):
 
-                node_data["data"]["criterion_id"] = node.criterion._id
+                assert isinstance(
+                    node, Criterion
+                ), f"Expected Criterion, got {type(node)}"
+
+                node_data["data"]["criterion_id"] = node.id
 
                 def criterion_attr(attr: str) -> str | None:
-                    if (
-                        hasattr(node.criterion, attr)
-                        and getattr(node.criterion, attr) is not None
-                    ):
-                        return str(getattr(node.criterion, attr))
+                    if hasattr(node, attr) and getattr(node, attr) is not None:
+                        return str(getattr(node, attr))
                     return None
 
                 try:
-                    if node.criterion.concept is not None:
+                    if node.concept is not None:
                         node_data["data"].update(
                             {
                                 "concept": (
-                                    node.criterion.concept.model_dump()
-                                    if node.criterion.concept is not None
+                                    node.concept.model_dump()
+                                    if node.concept is not None
                                     else None
                                 ),
                                 "value": criterion_attr("value"),
@@ -251,7 +242,7 @@ class ExecutionGraph(nx.DiGraph):
 
             if self.nodes[node]["category"] == CohortCategory.BASE:
                 node_data["data"]["base_criterion"] = str(
-                    node.criterion
+                    node
                 )  # Ensure this is serializable
 
             nodes.append(node_data)
@@ -295,7 +286,7 @@ class ExecutionGraph(nx.DiGraph):
             }[self.nodes[node]["category"]]
 
             if node.is_Atom:
-                label = node.criterion.description()
+                label = node.description()
             else:
                 label = node.__class__.__name__
                 symbols = {
@@ -305,8 +296,6 @@ class ExecutionGraph(nx.DiGraph):
                     "LeftDependentToggle": "=>",
                     "NonSimplifiableOr": "!|",
                     "NonSimplifiableAnd": "!&",
-                    "NoDataPreservingAnd": "NDP-&",
-                    "NoDataPreservingOr": "NPD-|",
                     "MinCount": "Min",
                     "MaxCount": "Max",
                     "ExactCount": "Exact",
@@ -357,7 +346,7 @@ class ExecutionGraph(nx.DiGraph):
             if hops_remaining <= 0:
                 return
             for predecessor in graph.predecessors(expr):
-                if predecessor.category == expr.category:
+                if self.nodes[predecessor]["category"] == self.nodes[expr]["category"]:
                     set_predecessors_store(predecessor, graph, hops_remaining - 1)
 
         if desired_category is not None:
@@ -381,153 +370,6 @@ class ExecutionGraph(nx.DiGraph):
 
             for sink_node in sink_nodes_of_desired_category:
                 set_predecessors_store(sink_node, self, hops)
-
-    @staticmethod
-    def combination_to_expression(
-        comb: CriterionCombination, category: CohortCategory
-    ) -> logic.Expr:
-        """
-        Convert the CriterionCombination into an expression of And, Not, Or objects (and possibly more operators).
-
-        :param comb: The criterion combination.
-        :param category: The CohortCategory of the expression.
-        :return: The expression.
-        """
-
-        def conjunction_from_combination(
-            comb: CriterionCombination,
-        ) -> Type[logic.BooleanFunction] | Callable:
-            """
-            Convert the criterion's operator into a logical conjunction (Not or And or Or)
-            """
-            if isinstance(comb, LogicalCriterionCombination):
-                if comb.is_root():
-                    # This is a hack to make the root node a non-simplifiable And node - otherwise, using the
-                    #   logic.And, the root node would be simplified to the criterion if there is only one criterion.
-                    #   The problem is that we need a non-criterion sink node of the intervention and population in order
-                    #   to store the results to the database without the criterion_id (as the result of the whole
-                    #   intervention or population of this population/intervention pair).
-
-                    if (
-                        comb.operator.operator
-                        != LogicalCriterionCombination.Operator.AND
-                    ):
-                        raise AssertionError(
-                            f"Invalid operator {comb.operator} for root node. Expected AND."
-                        )
-                    return logic.NonSimplifiableAnd
-
-                    # Handle non-commutative combinations.
-                if isinstance(comb, NonCommutativeLogicalCriterionCombination):
-                    return logic.ConditionalFilter
-
-                op = comb.operator.operator
-
-                # Mapping of simple logical operators.
-                simple_ops = {
-                    LogicalCriterionCombination.Operator.NOT: logic.Not,
-                    LogicalCriterionCombination.Operator.AND: logic.And,
-                    LogicalCriterionCombination.Operator.OR: logic.Or,
-                    LogicalCriterionCombination.Operator.ALL_OR_NONE: logic.AllOrNone,
-                }
-                if op in simple_ops:
-                    return simple_ops[op]
-
-                # Mapping of count-based operators.
-                count_ops = {
-                    LogicalCriterionCombination.Operator.AT_LEAST: logic.MinCount,
-                    LogicalCriterionCombination.Operator.AT_MOST: logic.MaxCount,
-                    LogicalCriterionCombination.Operator.EXACTLY: logic.ExactCount,
-                    LogicalCriterionCombination.Operator.CAPPED_AT_LEAST: logic.CappedMinCount,
-                }
-                if op in count_ops:
-                    if comb.operator.threshold is None:
-                        raise ValueError(
-                            f"Threshold must be set for operator {comb.operator.operator}"
-                        )
-                    return lambda *args, category: count_ops[op](
-                        *args, threshold=comb.operator.threshold, category=category
-                    )
-
-                raise NotImplementedError(f'Logical combination operator "{comb.operator}" not implemented')
-
-            ###################################################################################
-            elif isinstance(comb, TemporalIndicatorCombination):
-
-                interval_criterion: logic.BaseExpr | None = None
-                start_time = None
-                end_time = None
-                interval_type = None
-
-                if isinstance(comb, PersonalWindowTemporalIndicatorCombination):
-
-                    if isinstance(comb.interval_criterion, CriterionCombination):
-                        interval_criterion = _traverse(comb.interval_criterion)
-                    elif isinstance(comb.interval_criterion, Criterion):
-                        interval_criterion = logic.Symbol(
-                            comb.interval_criterion, category=category
-                        )
-                    else:
-                        raise ValueError(
-                            f"Invalid interval criterion type: {type(comb.interval_criterion)}"
-                        )
-
-                elif isinstance(comb, FixedWindowTemporalIndicatorCombination):
-                    start_time = comb.start_time
-                    end_time = comb.end_time
-                    interval_type = comb.interval_type
-
-                # Ensure a threshold is set.
-                if comb.operator.threshold is None:
-                    raise ValueError(
-                        f"Threshold must be set for operator {comb.operator.operator}"
-                    )
-
-                # Map the operator to the corresponding logic function.
-                op_map = {
-                    TemporalIndicatorCombination.Operator.AT_LEAST: logic.TemporalMinCount,
-                    TemporalIndicatorCombination.Operator.AT_MOST: logic.TemporalMaxCount,
-                    TemporalIndicatorCombination.Operator.EXACTLY: logic.TemporalExactCount,
-                }
-                op_func = op_map.get(comb.operator.operator, None)
-                if op_func is None:
-                    raise NotImplementedError(
-                        f'Temporal combination operator "{str(comb.operator)}" not implemented'
-                    )
-
-                return lambda *args, category: op_func(
-                    *args,
-                    threshold=comb.operator.threshold,
-                    category=category,
-                    start_time=start_time,
-                    end_time=end_time,
-                    interval_type=interval_type,
-                    interval_criterion=interval_criterion,
-                )
-
-            else:
-                raise ValueError(f"Invalid combination type: {type(comb)}")
-
-        def _traverse(comb: CriterionCombination) -> logic.Expr:
-            """
-            Traverse the criterion combination and creates a collection of logical conjunctions from it.
-            """
-            conjunction = conjunction_from_combination(comb)
-            components: list[logic.Expr | logic.Symbol] = []
-
-            for entry in comb:
-                if isinstance(entry, CriterionCombination):
-                    components.append(_traverse(entry))
-                elif isinstance(entry, Criterion):
-                    components.append(logic.Symbol(entry, category=category))
-                else:
-                    raise ValueError(f"Invalid entry type: {type(entry)}")
-
-            return conjunction(*components, category=category)
-
-        expression = _traverse(comb)
-
-        return expression
 
     def __eq__(self, other: Any) -> bool:
         """

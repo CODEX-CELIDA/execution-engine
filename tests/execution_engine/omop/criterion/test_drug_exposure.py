@@ -4,10 +4,8 @@ import pytest
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
+from execution_engine.util import logic
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.types import Dosage
 from execution_engine.util.value import ValueNumber
@@ -43,7 +41,7 @@ class TestDrugExposure(TestCriterion):
                 route=route,
             )
             if exclude:
-                criterion = LogicalCriterionCombination.Not(criterion)
+                criterion = logic.Not(criterion)
 
             self.insert_criterion(db_session, criterion, observation_window)
 

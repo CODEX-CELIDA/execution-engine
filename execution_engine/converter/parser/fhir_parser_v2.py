@@ -1,3 +1,5 @@
+from typing import Callable, Type
+
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.plandefinition import PlanDefinition, PlanDefinitionAction
 
@@ -5,9 +7,7 @@ from execution_engine import constants
 from execution_engine.converter.criterion import get_extension_by_url
 from execution_engine.converter.parser.fhir_parser_v1 import FhirRecommendationParserV1
 from execution_engine.fhir.util import get_coding
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
+from execution_engine.util import logic as logic
 
 
 class FhirRecommendationParserV2(FhirRecommendationParserV1):
@@ -20,7 +20,7 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
 
     def parse_action_combination_method(
         self, action_parent: PlanDefinition | PlanDefinitionAction
-    ) -> LogicalCriterionCombination:
+    ) -> Type[logic.BooleanFunction] | Callable:
         """
         Parses the action combination method from an extension to a PlanDefinition or PlanDefinitionAction.
         """
@@ -41,28 +41,22 @@ class FhirRecommendationParserV2(FhirRecommendationParserV1):
         except ValueError:
             threshold = None
 
+        expr: Type[logic.BooleanFunction] | Callable
+
         match method_code:
             case "all":
-                operator = LogicalCriterionCombination.Operator("AND")
+                expr = logic.And
             case "any":
-                operator = LogicalCriterionCombination.Operator("OR")
+                expr = logic.Or
             case "at-most":
-                operator = LogicalCriterionCombination.Operator(
-                    "AT_MOST", threshold=threshold
-                )
+                expr = lambda *args: logic.MaxCount(*args, threshold=threshold)
             case "exactly":
-                operator = LogicalCriterionCombination.Operator(
-                    "EXACTLY", threshold=threshold
-                )
+                expr = lambda *args: logic.ExactCount(*args, threshold=threshold)
             case "at-least":
-                operator = LogicalCriterionCombination.Operator(
-                    "AT_LEAST", threshold=threshold
-                )
+                expr = lambda *args: logic.MinCount(*args, threshold=threshold)
             case "one-or-more":
-                operator = LogicalCriterionCombination.Operator("AT_LEAST", threshold=1)
+                expr = lambda *args: logic.MinCount(*args, threshold=1)
             case _:
                 raise ValueError(f"Invalid action combination method: {method_code}")
 
-        return LogicalCriterionCombination(
-            operator=operator,
-        )
+        return expr

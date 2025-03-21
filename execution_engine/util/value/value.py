@@ -18,8 +18,13 @@ __all__ = [
     "ValueNumeric",
     "ValueNumber",
     "ValueConcept",
+    "ValueScalar",
     "check_int",
+    "check_unit_none",
+    "check_value_min_max_none",
 ]
+
+from execution_engine.util import serializable
 
 ValueT = TypeVar("ValueT")
 UnitT = TypeVar("UnitT")
@@ -90,6 +95,7 @@ def get_precision(value: float | int) -> int:
     )  # the number of digits after the decimal point is the precision
 
 
+@serializable.register_class
 class Value(BaseModel, ABC):
     """A value in a criterion."""
 
@@ -145,6 +151,7 @@ class Value(BaseModel, ABC):
         return hasattr(self, "unit")
 
 
+@serializable.register_class
 class ValueNumeric(Value, Generic[ValueT, UnitT]):
     """
     A value of type number.
@@ -294,6 +301,7 @@ class ValueNumeric(Value, Generic[ValueT, UnitT]):
         return and_(*clauses)
 
 
+@serializable.register_class
 class ValueNumber(ValueNumeric[float, Concept]):
     """
     A float value with a unit of type Concept.
@@ -307,6 +315,7 @@ class ValueNumber(ValueNumeric[float, Concept]):
         return c_unit == self.unit.concept_id
 
 
+@serializable.register_class
 class ValueScalar(ValueNumeric[float, None]):
     """
     A numeric value without a unit.
@@ -314,9 +323,6 @@ class ValueScalar(ValueNumeric[float, None]):
 
     unit: None = None
 
-    _validate_value = field_validator("value", mode="before")(check_int)
-    _validate_value_min = field_validator("value_min", mode="before")(check_int)
-    _validate_value_max = field_validator("value_max", mode="before")(check_int)
     _validate_no_unit = field_validator("unit", mode="before")(check_unit_none)
 
     def supports_units(self) -> bool:
@@ -326,6 +332,7 @@ class ValueScalar(ValueNumeric[float, None]):
         return False
 
 
+@serializable.register_class
 class ValueConcept(Value):
     """
     A value of type concept.

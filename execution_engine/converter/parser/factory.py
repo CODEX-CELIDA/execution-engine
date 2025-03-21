@@ -17,6 +17,7 @@ class FhirRecommendationParserFactory:
         self.action_converters = CriterionConverterFactory()
         self.goal_converters = CriterionConverterFactory()
         self.time_from_event_converters = TemporalIndicatorConverterFactory()
+        self.relative_time_converters = TemporalIndicatorConverterFactory()
 
         if builder is None:
             builder = default_execution_engine_builder()
@@ -32,6 +33,9 @@ class FhirRecommendationParserFactory:
 
         for temporal_converter in builder.time_from_event_converters:
             self.time_from_event_converters.register(temporal_converter)
+
+        for relative_time_converter in builder.relative_time_converters:
+            self.relative_time_converters.register(relative_time_converter)
 
     def get_parser(self, parser_version: int) -> FhirRecommendationParserInterface:
         """
@@ -52,4 +56,5 @@ class FhirRecommendationParserFactory:
             action_converters=self.action_converters,
             goal_converters=self.goal_converters,
             time_from_event_converters=self.time_from_event_converters,
+            relative_time_converters=self.relative_time_converters,
         )

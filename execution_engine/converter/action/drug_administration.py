@@ -15,12 +15,6 @@ from execution_engine.converter.criterion import (
 )
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.combination import CriterionCombination
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-    NonCommutativeLogicalCriterionCombination,
-)
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.point_in_time import PointInTimeCriterion
 from execution_engine.omop.vocabulary import (
@@ -28,6 +22,7 @@ from execution_engine.omop.vocabulary import (
     VocabularyFactory,
     standard_vocabulary,
 )
+from execution_engine.util import logic
 from execution_engine.util.types import Dosage
 from execution_engine.util.value import Value, ValueNumber
 
@@ -278,12 +273,12 @@ class DrugAdministrationAction(AbstractAction):
 
         return df_filtered
 
-    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
+    def _to_expression(self) -> logic.BaseExpr:
         """
         Returns a criterion that represents this action.
         """
 
-        drug_actions: list[Criterion | LogicalCriterionCombination] = []
+        drug_actions: list[logic.BaseExpr] = []
 
         if not self._dosages:
             # no dosages, just return the drug exposure
@@ -325,19 +320,18 @@ class DrugAdministrationAction(AbstractAction):
                 # rational: "conditional" extensions are some conditions for dosage, such as body weight ranges.
                 # Thus, the actual drug administration (drug_action, "right") must only be fulfilled if the
                 # condition (ext_criterion, "left") is fulfilled. Thus, we here add this conditional filter.
-                comb = NonCommutativeLogicalCriterionCombination.ConditionalFilter(
+                comb = logic.ConditionalFilter(
                     left=ext_criterion,
                     right=drug_action,
                 )
 
                 drug_actions.append(comb)
 
-        result: Criterion | CriterionCombination
+        result: logic.BaseExpr
+
         if len(drug_actions) == 1:
             result = drug_actions[0]
         else:
-            result = LogicalCriterionCombination(
-                operator=LogicalCriterionCombination.Operator("OR"),
-            )
-            result.add_all(drug_actions)
+            result = logic.Or(*drug_actions)
+
         return result

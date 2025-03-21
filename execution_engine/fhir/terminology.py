@@ -1,3 +1,6 @@
+import logging
+from json import JSONDecodeError
+
 import requests
 
 # fixme use caching?
@@ -121,7 +124,9 @@ class FHIRTerminologyClient:
         :param system: The coding system the code belongs to
         :return: True if the code is valid within the ValueSet, False otherwise
         """
-        # Prepare the request data
+
+        logging.debug(f"Validating code {code} from system {system} in ValueSet")
+
         data = {
             "resourceType": "Parameters",
             "parameter": [
@@ -145,15 +150,23 @@ class FHIRTerminologyClient:
             timeout=30,
         )
 
-        json_response = response.json()
-
         if response.status_code == 200:
-            # Look for a parameter named 'result' and check if its value is True
+
+            json_response = response.json()
+
             for param in json_response.get("parameter", []):
                 if param.get("name") == "result":
                     return param.get("valueBoolean", False)
             return False
         else:
+
+            try:
+                json_response = response.json()
+            except JSONDecodeError:
+                raise FHIRTerminologyServerException(
+                    f"Error validating code: HTTP Status {response.status_code}"
+                )
+
             issues = [
                 issue["severity"] + ": " + issue["details"]["text"]
                 for issue in json_response["issue"]

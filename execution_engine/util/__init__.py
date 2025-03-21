@@ -1,5 +1,18 @@
+import datetime
 from abc import ABCMeta
 from typing import Any
+
+
+def datetime_converter(obj: Any) -> Any:
+    """
+    Convert datetime objects to ISO format strings.
+
+    Used in json.dumps() to serialize datetime objects.
+    """
+    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        return obj.isoformat()
+
+    return obj
 
 
 class AbstractPrivateMethods(ABCMeta):

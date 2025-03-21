@@ -3,13 +3,13 @@ from execution_engine.converter.criterion import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
+from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
+from execution_engine.omop.criterion.device_exposure import DeviceExposure
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.observation import Observation
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.vocabulary import SNOMEDCT
+from execution_engine.util import logic
 from execution_engine.util.types import Timing
 
 
@@ -17,7 +17,7 @@ class ProcedureAction(AbstractAction):
     """
     An ProcedureAction is an action that describes a procedure to be performed
 
-    This action tests whether the procedure has been performed by determining whether it is
+    This action tests whether the procedure has been performed by determining whether it
     is present in the respective OMOP CDM table.
     """
 
@@ -57,7 +57,7 @@ class ProcedureAction(AbstractAction):
 
         return cls(exclude=exclude, code=code, timing=timing)
 
-    def _to_criterion(self) -> Criterion | LogicalCriterionCombination | None:
+    def _to_expression(self) -> logic.Symbol:
         """Converts this characteristic to a Criterion."""
 
         criterion: Criterion
@@ -73,7 +73,7 @@ class ProcedureAction(AbstractAction):
                 # as Observation and Measurement normally expect a value.
                 criterion = Measurement(
                     concept=self._code,
-                    override_value_required=False,
+                    value_required=False,
                     timing=self._timing,
                 )
             case "Observation":
@@ -81,7 +81,19 @@ class ProcedureAction(AbstractAction):
                 # as Observation and Measurement normally expect a value.
                 criterion = Observation(
                     concept=self._code,
-                    override_value_required=False,
+                    value_required=False,
+                    timing=self._timing,
+                )
+            case "Device":
+                criterion = DeviceExposure(
+                    concept=self._code,
+                    value_required=False,
+                    timing=self._timing,
+                )
+            case "Condition":
+                criterion = ConditionOccurrence(
+                    concept=self._code,
+                    value_required=False,
                     timing=self._timing,
                 )
             case _:
