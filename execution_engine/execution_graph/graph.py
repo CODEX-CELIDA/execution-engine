@@ -90,8 +90,12 @@ class ExecutionGraph(nx.DiGraph):
                 )
                 subgraph.set_sink_nodes_store(bind_params=dict(pi_pair_id=expr.id))
 
+            elif expr == base_node:
+                # don't need to do anything - only non-base criteria are connected to the base criterion,
+                # otherwise we get a cyclic graph
+                pass
             elif expr.is_Atom:
-                assert expr in graph.nodes
+                assert expr in graph.nodes, "Node not found in graph"
                 graph.nodes[expr]["store_result"] = True
                 graph.add_edge(base_node, expr)
             else:

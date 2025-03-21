@@ -36,6 +36,8 @@ class RecommendationGraphBuilder:
         :rtype: logic.Expr
         """
 
+        node = copy.copy(node)
+
         if isinstance(node, logic.Symbol):
             return logic.LeftDependentToggle(left=filter_, right=node)
         elif isinstance(node, logic.Expr):
@@ -140,7 +142,10 @@ class RecommendationGraphBuilder:
         )
         graph.add_edges_from((src, p_combination_node) for src in p_sink_nodes)
 
+        if graph.in_degree(base_criterion) != 0:
+            raise AssertionError("Base criterion must not have incoming edges")
+
         if not nx.is_directed_acyclic_graph(graph):
-            raise ValueError("Graph is not acyclic")
+            raise AssertionError("Graph is not acyclic")
 
         return graph

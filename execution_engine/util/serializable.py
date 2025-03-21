@@ -105,6 +105,24 @@ class RegisteredPostInitMeta(type):
         return new_class
 
 
+def immutable_setattr(self: Self, key: str, value: Any) -> None:
+    """
+    Prevent setting attributes on an immutable object.
+
+    This function is assigned to an instance's __setattr__ method in order to enforce
+    immutability after object creation. Any attempt to set an attribute on the instance
+    after initialization will raise an AttributeError.
+
+    :param self: The instance on which the attribute assignment was attempted.
+    :param key: The name of the attribute being set.
+    :param value: The value being assigned.
+    :raises AttributeError: Always, to enforce immutability.
+    """
+    raise AttributeError(
+        f"Cannot set attribute {key} on immutable object {self.__class__.__name__}"
+    )
+
+
 class Serializable(metaclass=RegisteredPostInitMeta):
     """
     Base class for making objects serializable.
@@ -136,11 +154,6 @@ class Serializable(metaclass=RegisteredPostInitMeta):
         Create a new instance of the object.
         """
         self.rehash()
-
-        def immutable_setattr(self: Self, key: str, value: Any) -> None:
-            raise AttributeError(
-                f"Cannot set attribute {key} on immutable object {self.__class__.__name__}"
-            )
 
         self.__setattr__ = immutable_setattr  # type: ignore[assignment]
 

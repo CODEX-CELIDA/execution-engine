@@ -58,7 +58,9 @@ class Expr(BaseExpr):
         self.set_id(_id)
         return self
 
-    def _reduce_helper(self, ivars_map: dict | None = None) -> tuple[Callable, tuple]:
+    def _reduce_helper(
+        self, ivars_map: dict | None = None, args: tuple | None = None
+    ) -> tuple[Callable, tuple]:
         """
         Return a picklable tuple that calls self._recreate and passes in
         (self.args, combined_ivars).
@@ -66,17 +68,21 @@ class Expr(BaseExpr):
         :param ivars_map: A dictionary for renaming keys in the instance variables.
                           For each old_key -> new_key in ivars_map, if old_key exists
                           in data, it will be removed and stored under new_key instead.
+        :param args: Optionally, the args parameter can be specified. If it is None, self.args is used.
         """
-        data = dict(self.get_instance_variables())
-        data["_id"] = self._id
+        data = self.get_instance_variables()
+        data["_id"] = self._id  # type: ignore[index]
 
         # Apply key renaming if ivars_map is provided
         if ivars_map:
             for old_key, new_key in ivars_map.items():
                 if old_key in data:
-                    data[new_key] = data.pop(old_key)
+                    data[new_key] = data.pop(old_key)  # type: ignore[index,union-attr]
 
-        return (self._recreate, (self.args, data))
+        if args is None:
+            args = self.args
+
+        return (self._recreate, (args, data))
 
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
@@ -404,15 +410,30 @@ class CountOperator(CommutativeOperator, SerializableABC):
 
         return self
 
+    def _replace_map(self) -> dict:
+        replace = {}
+
+        if self.count_min and self.count_max:
+            assert self.count_min == self.count_max
+            replace["count_min"] = "threshold"
+        elif self.count_min:
+            replace["count_min"] = "threshold"
+        elif self.count_max:
+            replace["count_max"] = "threshold"
+        else:
+            raise AttributeError("At least one of count_min or count_max must be set")
+
+        return replace
+
     def __reduce__(self) -> tuple[Callable, tuple]:
         """
         Reduce the expression to its arguments and category.
 
         Required for pickling (e.g. when using multiprocessing).
 
-        :return: Tuple of the class, arguments, and category.
+        :return: Tuple of the class, argument.
         """
-        return self._reduce_helper({"count_min": "threshold", "count_max": "threshold"})
+        return self._reduce_helper(self._replace_map())
 
 
 class Count(CountOperator):
@@ -683,6 +704,31 @@ class TemporalCount(CountOperator, SerializableABC):
                 f"Invalid criterion - expected Criterion or CriterionCombination, got {type(interval_criterion)}"
             )
 
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, argument.
+        """
+        if self.interval_criterion:
+
+            if len(self.args) <= 1:
+                raise ValueError(
+                    "More than one argument required if interval_criterion is set"
+                )
+
+            args, pop = self.args[:-1], self.args[-1]
+
+            if pop != self.interval_criterion:
+                raise ValueError(
+                    f"Expected last argument to be the interval_criterion, got {str(pop)}"
+                )
+            return self._reduce_helper(self._replace_map(), args=args)
+
+        return super().__reduce__()
+
     def dict(self, include_id: bool = False) -> dict:
         """
         Get a dictionary representation of the object.
@@ -746,11 +792,11 @@ class TemporalMinCount(TemporalCount):
     def __new__(
         cls,
         *args: Any,
-        threshold: int | None,
-        start_time: time | None,
-        end_time: time | None,
-        interval_type: TimeIntervalType | None,
-        interval_criterion: BaseExpr | None,
+        threshold: int,
+        start_time: time | None = None,
+        end_time: time | None = None,
+        interval_type: TimeIntervalType | None = None,
+        interval_criterion: BaseExpr | None = None,
         **kwargs: Any,
     ) -> "TemporalMinCount":
         """
@@ -776,7 +822,7 @@ class TemporalMinCount(TemporalCount):
         Get a dictionary representation of the object.
         """
         data = super().dict(include_id=include_id)
-        data.update({"threshold": self.count_min})
+        data["data"].update({"threshold": self.count_min})
         return data
 
 
@@ -788,11 +834,11 @@ class TemporalMaxCount(TemporalCount):
     def __new__(
         cls,
         *args: Any,
-        threshold: int | None,
-        start_time: time | None,
-        end_time: time | None,
-        interval_type: TimeIntervalType | None,
-        interval_criterion: BaseExpr | None,
+        threshold: int,
+        start_time: time | None = None,
+        end_time: time | None = None,
+        interval_type: TimeIntervalType | None = None,
+        interval_criterion: BaseExpr | None = None,
         **kwargs: Any,
     ) -> "TemporalMaxCount":
         """
@@ -818,7 +864,7 @@ class TemporalMaxCount(TemporalCount):
         Get a dictionary representation of the object.
         """
         data = super().dict(include_id=include_id)
-        data.update({"threshold": self.count_max})
+        data["data"].update({"threshold": self.count_max})
         return data
 
 
@@ -830,11 +876,11 @@ class TemporalExactCount(TemporalCount):
     def __new__(
         cls,
         *args: Any,
-        threshold: int | None,
-        start_time: time | None,
-        end_time: time | None,
-        interval_type: TimeIntervalType | None,
-        interval_criterion: BaseExpr | None,
+        threshold: int,
+        start_time: time | None = None,
+        end_time: time | None = None,
+        interval_type: TimeIntervalType | None = None,
+        interval_criterion: BaseExpr | None = None,
         **kwargs: Any,
     ) -> "TemporalExactCount":
         """
@@ -860,7 +906,7 @@ class TemporalExactCount(TemporalCount):
         Get a dictionary representation of the object.
         """
         data = super().dict(include_id=include_id)
-        data.update({"threshold": self.count_min})
+        data["data"].update({"threshold": self.count_min})
         return data
 
 

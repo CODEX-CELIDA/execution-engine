@@ -143,11 +143,11 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  MockCriterion(\n"
             "      name='c1'\n"
             "    ),\n"
-            "  threshold=1,\n"
             "  start_time=None,\n"
             "  end_time=None,\n"
             "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
-            "  interval_criterion=None\n"
+            "  interval_criterion=None,\n"
+            "  threshold=1\n"
             ")"
         )
 
@@ -163,11 +163,11 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  MockCriterion(\n"
             "      name='c1'\n"
             "    ),\n"
-            "  threshold=1,\n"
             "  start_time='08:00:00',\n"
             "  end_time='16:00:00',\n"
             "  interval_type=None,\n"
-            "  interval_criterion=None\n"
+            "  interval_criterion=None,\n"
+            "  threshold=1\n"
             ")"
         )
 
@@ -178,7 +178,7 @@ class TestFixedWindowTemporalIndicatorCombination:
         ):
             expr = temporal_logic_util.MinCount(*mock_criteria)
 
-        expr = logic.TemporalCount(*mock_criteria, threshold=1)
+        expr = logic.TemporalMinCount(*mock_criteria, threshold=1)
 
         assert len(expr.args) == len(mock_criteria)
 
