@@ -7,6 +7,7 @@ from execution_engine.omop.concepts import Concept, CustomConcept
 OMOP_INTENSIVE_CARE = 32037
 OMOP_INPATIENT_VISIT = 9201
 OMOP_OUTPATIENT_VISIT = 9202
+OMOP_SURGICAL_PROCEDURE = 4301351  # OMOP surgical procedure
 
 
 class VocabularyNotFoundError(Exception):

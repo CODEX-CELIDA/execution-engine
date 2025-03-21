@@ -37,7 +37,16 @@ class RecommendationGraphBuilder:
         if isinstance(node, logic.Symbol):
             return logic.LeftDependentToggle(left=filter_, right=node)
         elif isinstance(node, logic.Expr):
-            converted_args = [cls.filter_symbols(a, filter_) for a in node.args]
+            if hasattr(node, "interval_criterion") and node.interval_criterion:
+                # we must not wrap the interval_criterion
+                interval_criterion = node.interval_criterion
+                converted_args = [
+                    cls.filter_symbols(a, filter_)
+                    for a in node.args
+                    if not a == interval_criterion
+                ] + [interval_criterion]
+            else:
+                converted_args = [cls.filter_symbols(a, filter_) for a in node.args]
 
             if any(a is not b for a, b in zip(node.args, converted_args)):
                 node.update_args(*converted_args)
@@ -64,6 +73,9 @@ class RecommendationGraphBuilder:
         def traverse(
             expr: logic.Expr,
         ) -> None:
+            if expr is None:
+                pass
+
             if isinstance(expr, PopulationInterventionPairExpr):
                 p, i = expr.left, expr.right
 

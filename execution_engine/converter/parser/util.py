@@ -3,6 +3,7 @@ from typing import Callable, cast
 
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
+from execution_engine.omop.vocabulary import OMOP_SURGICAL_PROCEDURE
 from execution_engine.util import logic
 from execution_engine.util.temporal_logic_util import Presence
 
@@ -20,8 +21,6 @@ def _wrap_criteria_with_factory(
     :raises ValueError: If an unexpected element type is encountered.
     """
 
-    from digipod.concepts import OMOP_SURGICAL_PROCEDURE
-
     new_expr: logic.Expr
 
     if isinstance(expr, Criterion):
@@ -31,8 +30,16 @@ def _wrap_criteria_with_factory(
         # Create a new combination of the same type with the same operator
         args = []
 
+        interval_criterion = (
+            expr.interval_criterion if hasattr(expr, "interval_criterion") else None
+        )
+
         # Loop through all elements
         for element in expr.args:
+
+            if element == interval_criterion:
+                # interval_criterion must not be wrapped!
+                args.append(element)
             if isinstance(element, logic.Expr):
                 # Recursively wrap nested combinations
                 args.append(_wrap_criteria_with_factory(element, factory))

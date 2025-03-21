@@ -622,6 +622,12 @@ class TemporalCount(CommutativeOperator, SerializableABC):
         data = super().dict(include_id=include_id)
 
         if self.interval_criterion:
+
+            if len(self.args) <= 1:
+                raise ValueError(
+                    "More than one argument required if interval_criterion is set"
+                )
+
             args, pop = self.args[:-1], self.args[-1]
 
             if pop != self.interval_criterion:

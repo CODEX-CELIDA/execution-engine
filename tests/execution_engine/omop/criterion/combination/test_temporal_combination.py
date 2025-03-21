@@ -13,6 +13,7 @@ from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.noop import NoopCriterion
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.db.omop import tables
+from execution_engine.omop.vocabulary import OMOP_SURGICAL_PROCEDURE
 from execution_engine.task.process import get_processing_module
 from execution_engine.util import logic, temporal_logic_util
 from execution_engine.util.enum import TimeIntervalType
@@ -42,8 +43,6 @@ from tests.functions import intervals_to_df as intervals_to_df_orig
 from tests.mocks.criterion import MockCriterion
 
 process = get_processing_module()
-
-OMOP_SURGICAL_PROCEDURE = 4301351  # OMOP surgical procedure
 
 
 def intervals_to_df(result, by=None):
