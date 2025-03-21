@@ -191,7 +191,6 @@ class SequentialTaskRunner(TaskRunner):
         try:
             while len(self.completed_tasks) < len(self.tasks):
                 self.enqueue_ready_tasks()
-                logging.info(f"{len(self.completed_tasks)}/{len(self.tasks)} tasks")
 
                 if self.queue.empty() and not any(
                     task.status == TaskStatus.RUNNING for task in self.tasks
@@ -311,13 +310,14 @@ class ParallelTaskRunner(TaskRunner):
 
         self.start_workers(task_executor_worker)
 
+        task_names = {task.name() for task in self.tasks}
+
         try:
             while len(self.completed_tasks) < len(self.tasks):
                 if self.stop_event.is_set():
                     break
 
                 self.enqueue_ready_tasks()
-                logging.info(f"{len(self.completed_tasks)}/{len(self.tasks)} tasks")
 
                 if self.completed_tasks == self.enqueued_tasks and len(
                     self.completed_tasks
@@ -331,7 +331,17 @@ class ParallelTaskRunner(TaskRunner):
 
                 with self.lock:
                     # Update the set of completed tasks
+                    n_completed = len(self.completed_tasks)
                     self.completed_tasks = set(self.shared_results.keys())
+                    if len(self.completed_tasks) > n_completed:
+                        logging.info(
+                            f"Completed {len(self.completed_tasks)} of {len(self.tasks)} tasks"
+                        )
+                    if not all(task in task_names for task in self.completed_tasks):
+                        raise TaskError(
+                            "Completed tasks differ from actual tasks "
+                            "- problem with pickling/unpickling in multiprocessing?"
+                        )
 
         except Exception as e:
             logging.error(f"An error occurred: {e}")

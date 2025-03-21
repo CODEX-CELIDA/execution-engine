@@ -93,12 +93,12 @@ recommendation_package_version = "v1.5.2"
 
 urls = [
     "covid19-inpatient-therapy/recommendation/no-therapeutic-anticoagulation",
-    "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
     "covid19-inpatient-therapy/recommendation/ventilation-plan-ards-tidal-volume",
     "covid19-inpatient-therapy/recommendation/covid19-ventilation-plan-peep",
     "covid19-inpatient-therapy/recommendation/prophylactic-anticoagulation",
     "covid19-inpatient-therapy/recommendation/therapeutic-anticoagulation",
     "covid19-inpatient-therapy/recommendation/covid19-abdominal-positioning-ards",
+    "sepsis/recommendation/ventilation-plan-ards-tidal-volume",
 ]
 
 start_datetime = pendulum.parse("2020-01-01 00:00:00+01:00")

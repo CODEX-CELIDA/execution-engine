@@ -1,43 +1,19 @@
 from abc import abstractmethod
-from typing import Callable, cast
+from typing import cast
 
-from fhir.resources.evidencevariable import EvidenceVariableCharacteristicTimeFromEvent
+from fhir.resources.extension import Extension
 
 from execution_engine.converter.criterion import parse_value
 from execution_engine.converter.temporal_indicator import TemporalIndicator
-from execution_engine.fhir.util import get_coding
-from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.fhir.util import get_coding, get_extension
 from execution_engine.omop.vocabulary import AbstractVocabulary
 from execution_engine.util import logic
 from execution_engine.util.value import ValueNumeric
 
 
-def _wrap_criteria_with_factory(
-    combo: logic.BooleanFunction,
-    factory: Callable[[logic.BaseExpr], logic.TemporalCount],
-) -> logic.BooleanFunction:
+class RelativeTime(TemporalIndicator):
     """
-    Recursively wraps all Criterion instances within a combination using the factory.
-    """
-    children = []
-    # Loop through all elements
-    for element in combo.args:
-        if isinstance(element, logic.BooleanFunction):
-            # Recursively wrap nested combinations
-            children.append(_wrap_criteria_with_factory(element, factory))
-        elif isinstance(element, Criterion):
-            # Wrap individual criteria with the factory
-            children.append(factory(element))
-        else:
-            raise ValueError(f"Unexpected element type: {type(element)}")
-
-    # Create a new combination of the same type with the same operator
-    return combo.__class__(children)
-
-
-class TimeFromEvent(TemporalIndicator):
-    """
-    EvidenceVariable.characteristic.timeFromEvent in the context of CPG-on-EBM-on-FHIR.
+    extension[relativeTime] in the context of CPG-on-EBM-on-FHIR.
     """
 
     _event_vocabulary: type[AbstractVocabulary]
@@ -55,40 +31,37 @@ class TimeFromEvent(TemporalIndicator):
         self._value = value
 
     @classmethod
-    def valid(cls, fhir: EvidenceVariableCharacteristicTimeFromEvent) -> bool:
+    def valid(cls, fhir: Extension) -> bool:
         """Checks if the given FHIR definition is a valid TemporalIndicator in the context of CPG-on-EBM-on-FHIR."""
 
         assert isinstance(
-            fhir, EvidenceVariableCharacteristicTimeFromEvent
-        ), f"Expected timeFromEvent type, got {fhir.__class__.__name__}"
+            fhir, Extension
+        ), f"Expected Extension type, got {fhir.__class__.__name__}"
 
-        cc = get_coding(fhir.eventCodeableConcept)
+        context = get_extension(fhir, "contextCode")
+
+        if not context:
+            raise ValueError("Required relativeTime:contextCode not found")
+
+        cc = get_coding(context.valueCodeableConcept)
 
         return cls._event_vocabulary.is_system(cc.system) and cc.code == cls._event_code
 
     @classmethod
-    def from_fhir(
-        cls, fhir: EvidenceVariableCharacteristicTimeFromEvent
-    ) -> "TemporalIndicator":
+    def from_fhir(cls, fhir: Extension) -> "TemporalIndicator":
         """
         Creates a new TemporalIndicator from a FHIR PlanDefinition.
         """
         assert isinstance(
-            fhir, EvidenceVariableCharacteristicTimeFromEvent
-        ), f"Expected timeFromEvent type, got {fhir.__class__.__name__}"
+            fhir, Extension
+        ), f"Expected Extension type, got {fhir.__class__.__name__}"
 
         value = None
 
-        if fhir.range is not None and fhir.quantity is not None:
-            raise ValueError(
-                "Must specify either Range or Quantity in characteristic.timeFromEvent, not both."
-            )
+        offset = get_extension(fhir, "offset")
 
-        if fhir.range is not None:
-            value = cast(ValueNumeric, parse_value(fhir.range))
-
-        if fhir.quantity is not None:
-            value = cast(ValueNumeric, parse_value(fhir.quantity))
+        if offset:
+            value = cast(ValueNumeric, parse_value(offset.valueDuration))
 
         return cls(value)
 

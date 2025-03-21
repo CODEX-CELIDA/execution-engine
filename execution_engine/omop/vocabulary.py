@@ -7,6 +7,7 @@ from execution_engine.omop.concepts import Concept, CustomConcept
 OMOP_INTENSIVE_CARE = 32037
 OMOP_INPATIENT_VISIT = 9201
 OMOP_OUTPATIENT_VISIT = 9202
+OMOP_SURGICAL_PROCEDURE = 4301351  # OMOP surgical procedure
 
 
 class VocabularyNotFoundError(Exception):
@@ -110,6 +111,15 @@ class ICD10GM(AbstractStandardVocabulary):
     omop_vocab_name = "ICD10GM"
 
 
+class ICD10CM(AbstractStandardVocabulary):
+    """
+    ICD10 Clinical Modification
+    """
+
+    system_uri = "http://hl7.org/fhir/sid/icd-10-cm"
+    omop_vocab_name = "ICD10CM"
+
+
 class UCUM(AbstractStandardVocabulary):
     """
     UCUM vocabulary.
@@ -192,7 +202,7 @@ class CODEXCELIDA(AbstractVocabulary):
     vocab_id = "CODEX_CELIDA"
     map = {
         "tvpibw": CustomConcept(
-            name="Tidal volume / ideal body weight (ARDSnet)",
+            concept_name="Tidal volume / ideal body weight (ARDSnet)",
             concept_code="tvpibw",
             domain_id="Measurement",
             vocabulary_id=vocab_id,
@@ -232,6 +242,7 @@ class VocabularyFactory:
         self.register(UCUM)
         self.register(ATCDE)
         self.register(ICD10GM)
+        self.register(ICD10CM)
         self.register(CODEXCELIDA)
 
     def register(self, vocabulary: Type[AbstractVocabulary]) -> None:

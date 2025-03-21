@@ -1,14 +1,12 @@
-from typing import Any, Dict, cast
+from abc import ABC
 
 from sqlalchemy.sql import Select
 
 from execution_engine.constants import OMOPConcepts
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.meta import SignatureReprMeta
 from execution_engine.util.types import Timing
 from execution_engine.util.value import Value
-from execution_engine.util.value.factory import value_factory
 
 __all__ = ["ConceptCriterion"]
 
@@ -25,7 +23,7 @@ STATIC_CLINICAL_CONCEPTS = [
 # TODO: Only use weight etc from the current encounter/visit!
 
 
-class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
+class ConceptCriterion(Criterion, ABC):
     """
     Abstract class for a criterion based on an OMOP concept and optional value.
 
@@ -45,7 +43,7 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
         value: Value | None = None,
         static: bool | None = None,
         timing: Timing | None = None,
-        override_value_required: bool | None = None,
+        value_required: bool | None = None,
     ):
         super().__init__()
 
@@ -67,10 +65,8 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
             # if static is None, then the criterion is static if the concept is in the STATIC_CLINICAL_CONCEPTS list
             self._static = concept.concept_id in STATIC_CLINICAL_CONCEPTS
 
-        if override_value_required is not None and isinstance(
-            override_value_required, bool
-        ):
-            self._value_required = override_value_required
+        if value_required is not None and isinstance(value_required, bool):
+            self._value_required = value_required
 
     @property
     def concept(self) -> Concept:
@@ -132,39 +128,3 @@ class ConceptCriterion(Criterion, metaclass=SignatureReprMeta):
         desc += "]"
 
         return desc
-
-    def dict(self) -> dict[str, Any]:
-        """
-        Get a JSON representation of the criterion.
-        """
-        return {
-            "concept": self._concept.model_dump(),
-            "value": (
-                self._value.model_dump(include_meta=True)
-                if self._value is not None
-                else None
-            ),
-            "static": self._static,
-            "timing": (
-                self._timing.model_dump(include_meta=True)
-                if self._timing is not None
-                else None
-            ),
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConceptCriterion":
-        """
-        Create a criterion from a JSON representation.
-        """
-
-        return cls(
-            concept=Concept(**data["concept"]),
-            value=(
-                cast(Value, value_factory(**data["value"]))
-                if data["value"] is not None
-                else None
-            ),
-            static=data["static"],
-            timing=Timing(**data["timing"]) if data["timing"] is not None else None,
-        )

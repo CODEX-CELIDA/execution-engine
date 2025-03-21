@@ -67,9 +67,6 @@ class TestDosage:
         assert dosage.count.value == 5
         assert dosage.frequency.value == 10
 
-    @pytest.mark.skip(
-        reason="Timing in Dosage is another type that does not use the use use_enum_values flag"
-    )
     def test_enum_values(self):
         dosage = Dosage(
             dose=ValueNumber(value=10, unit=concept_unit_mg),
@@ -81,7 +78,7 @@ class TestDosage:
         assert (
             dosage.interval.unit == "h"
         )  # Check if the enum value is used instead of the enum name
-        assert not isinstance(
+        assert isinstance(
             dosage.interval.unit, TimeUnit
         )  # Ensure it's not returning the enum member
 

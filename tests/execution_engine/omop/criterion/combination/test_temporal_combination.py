@@ -1,5 +1,4 @@
 import datetime
-from typing import Any, Dict, Self
 
 import pandas as pd
 import pendulum
@@ -8,20 +7,16 @@ import sqlalchemy as sa
 
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion, column_interval_type
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
-from execution_engine.omop.criterion.combination.temporal import (
-    FixedWindowTemporalIndicatorCombination,
-    PersonalWindowTemporalIndicatorCombination,
-    TimeIntervalType,
-)
 from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
 from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.measurement import Measurement
+from execution_engine.omop.criterion.noop import NoopCriterion
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.omop.db.omop import tables
+from execution_engine.omop.vocabulary import OMOP_SURGICAL_PROCEDURE
 from execution_engine.task.process import get_processing_module
+from execution_engine.util import logic, temporal_logic_util
+from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
@@ -36,7 +31,6 @@ from tests._fixtures.concept import (
     concept_unit_mg,
 )
 from tests._testdata import concepts
-from tests.execution_engine.omop.criterion.combination import NoopCriterion
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
 from tests.functions import (
     create_condition,
@@ -49,8 +43,6 @@ from tests.functions import intervals_to_df as intervals_to_df_orig
 from tests.mocks.criterion import MockCriterion
 
 process = get_processing_module()
-
-OMOP_SURGICAL_PROCEDURE = 4301351  # OMOP surgical procedure
 
 
 def intervals_to_df(result, by=None):
@@ -70,206 +62,128 @@ class TestFixedWindowTemporalIndicatorCombination:
     def mock_criteria(self):
         return [MockCriterion(f"c{i}") for i in range(1, 6)]
 
-    def test_criterion_combination_init(self, mock_criteria):
-        operator = FixedWindowTemporalIndicatorCombination.Operator(
-            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
-        )
-        combination = FixedWindowTemporalIndicatorCombination(
-            operator=operator,
-            start_time=datetime.time(8, 0),
-            end_time=datetime.time(16, 0),
-        )
-
-        assert combination.operator == operator
-        assert len(combination) == 0
-
-    def test_criterion_combination_add(self, mock_criteria):
-        operator = FixedWindowTemporalIndicatorCombination.Operator(
-            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
-        )
-        combination = FixedWindowTemporalIndicatorCombination(
-            operator=operator,
-            start_time=datetime.time(8, 0),
-            end_time=datetime.time(16, 0),
-        )
-
-        for criterion in mock_criteria:
-            combination.add(criterion)
-
-        assert len(combination) == len(mock_criteria)
-
-        for idx, criterion in enumerate(combination):
-            assert criterion == mock_criteria[idx]
-
     def test_criterion_combination_dict(self, mock_criteria):
-        operator = FixedWindowTemporalIndicatorCombination.Operator(
-            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
-        )
-        combination = FixedWindowTemporalIndicatorCombination(
-            operator=operator,
+
+        expr = logic.TemporalMinCount(
+            *mock_criteria,
+            threshold=1,
             start_time=datetime.time(8, 0),
             end_time=datetime.time(16, 0),
         )
 
-        for criterion in mock_criteria:
-            combination.add(criterion)
-
-        combination_dict = combination.dict()
-        assert combination_dict == {
-            "operator": "AT_LEAST",
-            "threshold": 1,
-            "start_time": "08:00:00",
-            "end_time": "16:00:00",
-            "interval_type": None,
-            "criteria": [
-                {"class_name": "MockCriterion", "data": criterion.dict()}
-                for criterion in mock_criteria
-            ],
-            "root": False,
+        expr_dict = expr.dict()
+        assert expr_dict == {
+            "type": "TemporalMinCount",
+            "data": {
+                "threshold": 1,
+                "start_time": "08:00:00",
+                "end_time": "16:00:00",
+                "interval_type": None,
+                "interval_criterion": None,
+                "args": [criterion.dict() for criterion in mock_criteria],
+            },
         }
 
     def test_criterion_combination_from_dict(self, mock_criteria):
-        # Register the mock criterion class
-        from execution_engine.omop.criterion import factory
 
-        factory.register_criterion_class("MockCriterion", MockCriterion)
-
-        operator = FixedWindowTemporalIndicatorCombination.Operator(
-            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
-        )
-
-        combination_data = {
-            "id": None,
-            "operator": "AT_LEAST",
-            "threshold": 1,
-            "start_time": "08:00:00",
-            "end_time": "16:00:00",
-            "interval_type": None,
-            "criteria": [
-                {"class_name": "MockCriterion", "data": criterion.dict()}
-                for criterion in mock_criteria
-            ],
+        expr_dict = {
+            "type": "TemporalMinCount",
+            "data": {
+                "threshold": 1,
+                "start_time": "08:00:00",
+                "end_time": "16:00:00",
+                "interval_type": None,
+                "interval_criterion": None,
+                "args": [criterion.dict() for criterion in mock_criteria],
+            },
         }
 
-        combination = FixedWindowTemporalIndicatorCombination.from_dict(
-            combination_data
-        )
+        expr = logic.Expr.from_dict(expr_dict)
 
-        assert combination.operator == operator
-        assert len(combination) == len(mock_criteria)
-        assert combination.start_time == datetime.time(8, 0)
-        assert combination.end_time == datetime.time(16, 0)
-        assert combination.interval_type is None
+        assert len(expr.args) == len(mock_criteria)
+        assert expr.start_time == datetime.time(8, 0)
+        assert expr.end_time == datetime.time(16, 0)
+        assert expr.interval_type is None
+        assert expr.interval_criterion is None
 
-        for idx, criterion in enumerate(combination):
+        for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
 
-        combination_data = {
-            "operator": "AT_LEAST",
-            "threshold": 1,
-            "start_time": None,
-            "end_time": None,
-            "interval_type": TimeIntervalType.MORNING_SHIFT,
-            "criteria": [
-                {"class_name": "MockCriterion", "data": criterion.dict()}
-                for criterion in mock_criteria
-            ],
+        expr_dict = {
+            "type": "TemporalMinCount",
+            "data": {
+                "threshold": 1,
+                "start_time": None,
+                "end_time": None,
+                "interval_type": TimeIntervalType.MORNING_SHIFT,
+                "interval_criterion": None,
+                "args": [criterion.dict() for criterion in mock_criteria],
+            },
         }
 
-        combination = FixedWindowTemporalIndicatorCombination.from_dict(
-            combination_data
-        )
+        expr = logic.Expr.from_dict(expr_dict)
 
-        assert combination.operator == operator
-        assert len(combination) == len(mock_criteria)
-        assert combination.start_time is None
-        assert combination.end_time is None
-        assert combination.interval_type == TimeIntervalType.MORNING_SHIFT
+        assert len(expr.args) == len(mock_criteria)
+        assert expr.start_time is None
+        assert expr.end_time is None
+        assert expr.interval_type == TimeIntervalType.MORNING_SHIFT
+        assert expr.interval_criterion is None
 
-        for idx, criterion in enumerate(combination):
+        for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
 
-    @pytest.mark.parametrize("operator", ["AT_LEAST", "AT_MOST", "EXACTLY"])
-    def test_operator_with_threshold(self, operator):
-        with pytest.raises(
-            AssertionError, match=f"Threshold must be set for operator {operator}"
-        ):
-            FixedWindowTemporalIndicatorCombination.Operator(operator)
-
-    def test_operator(self):
-        with pytest.raises(AssertionError, match=""):
-            FixedWindowTemporalIndicatorCombination.Operator("invalid")
-
-    @pytest.mark.parametrize(
-        "operator, threshold",
-        [("AT_LEAST", 1), ("AT_MOST", 1), ("EXACTLY", 1)],
-    )
-    def test_operator_str(self, operator, threshold):
-        op = FixedWindowTemporalIndicatorCombination.Operator(operator, threshold)
-
-        if operator in ["AT_LEAST", "AT_MOST", "EXACTLY"]:
-            assert (
-                repr(op)
-                == f'TemporalIndicatorCombination.Operator(operator="{operator}", threshold={threshold})'
-            )
-            assert str(op) == f"{operator}(threshold={threshold})"
-        else:
-            assert (
-                repr(op)
-                == f'TemporalIndicatorCombination.Operator(operator="{operator}")'
-            )
-            assert str(op) == f"{operator}"
-
-    def test_repr(self):
-        operator = FixedWindowTemporalIndicatorCombination.Operator(
-            FixedWindowTemporalIndicatorCombination.Operator.AT_LEAST, threshold=1
-        )
-        combination = FixedWindowTemporalIndicatorCombination(
-            operator=operator,
-            interval_type=TimeIntervalType.MORNING_SHIFT,
-        )
+    # @pytest.mark.skip(
+    #     reason="the repr does not return arguments in a consistent manner"
+    # )
+    def test_repr(self, mock_criteria):
+        expr = temporal_logic_util.MorningShift(mock_criteria[0])
 
         assert (
-            repr(combination) == "FixedWindowTemporalIndicatorCombination(\n"
-            "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
+            repr(expr) == "TemporalMinCount(\n"
+            "  MockCriterion(\n"
+            "      name='c1'\n"
+            "    ),\n"
             "  start_time=None,\n"
             "  end_time=None,\n"
-            '  operator=TemporalIndicatorCombination.Operator(operator="AT_LEAST", threshold=1),\n'
+            "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
+            "  interval_criterion=None,\n"
+            "  threshold=1\n"
             ")"
         )
 
-        combination = FixedWindowTemporalIndicatorCombination(
-            operator=operator,
+        expr = logic.TemporalMinCount(
+            mock_criteria[0],
             start_time=datetime.time(8, 0),
             end_time=datetime.time(16, 0),
+            threshold=1,
         )
 
         assert (
-            repr(combination) == "FixedWindowTemporalIndicatorCombination(\n"
+            repr(expr) == "TemporalMinCount(\n"
+            "  MockCriterion(\n"
+            "      name='c1'\n"
+            "    ),\n"
+            "  start_time='08:00:00',\n"
+            "  end_time='16:00:00',\n"
             "  interval_type=None,\n"
-            "  start_time=datetime.time(8, 0),\n"
-            "  end_time=datetime.time(16, 0),\n"
-            '  operator=TemporalIndicatorCombination.Operator(operator="AT_LEAST", threshold=1),\n'
+            "  interval_criterion=None,\n"
+            "  threshold=1\n"
             ")"
         )
 
-    def test_add_all(self):
-        operator = FixedWindowTemporalIndicatorCombination.Operator(
-            FixedWindowTemporalIndicatorCombination.Operator.AT_MOST, threshold=1
-        )
-        combination = FixedWindowTemporalIndicatorCombination(
-            operator=operator,
-            interval_type=TimeIntervalType.MORNING_SHIFT,
-        )
+    def test_expr_contains_criteria(self, mock_criteria):
+        with pytest.raises(
+            TypeError,
+            match=r"MinCount\(\) takes 1 positional argument but 5 were given",
+        ):
+            expr = temporal_logic_util.MinCount(*mock_criteria)
 
-        assert len(combination) == 0
+        expr = logic.TemporalMinCount(*mock_criteria, threshold=1)
 
-        combination.add_all([MockCriterion("c1"), MockCriterion("c2")])
+        assert len(expr.args) == len(mock_criteria)
 
-        assert len(combination) == 2
-
-        assert str(combination[0]) == str(MockCriterion("c1"))
-        assert str(combination[1]) == str(MockCriterion("c2"))
+        for i in range(len(mock_criteria)):
+            assert expr.args[i] == mock_criteria[i]
 
 
 c1 = DrugExposure(
@@ -334,8 +248,7 @@ class TestCriterionCombinationDatabase(TestCriterion):
             delir_screening,
         ]
         for i, c in enumerate(criteria):
-            if not c.is_persisted():
-                c.set_id(i + 1)
+            c.set_id(i + 1, overwrite=True)
             self.register_criterion(c, db_session)
         return criteria
 
@@ -351,11 +264,11 @@ class TestCriterionCombinationDatabase(TestCriterion):
     ):
 
         noop_criterion = NoopCriterion()
-        noop_criterion.set_id(1005)
-        noop_intervention = LogicalCriterionCombination.And(noop_criterion)
+        noop_criterion.set_id(1005, overwrite=True)
+        noop_intervention = logic.And(noop_criterion)
         self.register_criterion(noop_criterion, db_session)
 
-        self.insert_criterion_combination(
+        self.insert_expression(
             db_session,
             population=combination,
             intervention=noop_intervention,
@@ -440,7 +353,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Full Day
             ####################
             (
-                FixedWindowTemporalIndicatorCombination.Day(
+                temporal_logic_util.Day(
                     c1,
                 ),
                 {
@@ -455,7 +368,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Day(
+                temporal_logic_util.Day(
                     c2,
                 ),
                 {
@@ -470,7 +383,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Day(
+                temporal_logic_util.Day(
                     c3,
                 ),
                 {
@@ -488,7 +401,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Explicit Times
             ####################
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c1,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -509,7 +422,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c1,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(18, 59),
@@ -530,7 +443,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c2,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -547,7 +460,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c3,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -555,7 +468,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 {1: set(), 2: set(), 3: set()},
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c3,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
@@ -575,7 +488,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Morning Shifts
             ####################
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     c1,
                 ),
                 {
@@ -594,7 +507,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     c2,
                 ),
                 {
@@ -609,7 +522,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     c3,
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -618,7 +531,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Afternoon Shifts
             ####################
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     c1,
                 ),
                 {
@@ -637,7 +550,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     c2,
                 ),
                 {
@@ -656,7 +569,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     c3,
                 ),
                 {
@@ -674,7 +587,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Night Shifts
             ####################
             (
-                FixedWindowTemporalIndicatorCombination.NightShift(
+                temporal_logic_util.NightShift(
                     c1,
                 ),
                 {
@@ -693,7 +606,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShift(
+                temporal_logic_util.NightShift(
                     c2,
                 ),
                 {
@@ -708,7 +621,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShift(
+                temporal_logic_util.NightShift(
                     c3,
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -717,7 +630,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Partial Night Shifts (before midnight)
             #######################
             (
-                FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight(
+                temporal_logic_util.NightShiftBeforeMidnight(
                     c1,
                 ),
                 {
@@ -736,7 +649,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight(
+                temporal_logic_util.NightShiftBeforeMidnight(
                     c2,
                 ),
                 {
@@ -751,7 +664,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight(
+                temporal_logic_util.NightShiftBeforeMidnight(
                     c3,
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -760,7 +673,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             # Partial Night Shifts (after midnight)
             #######################
             (
-                FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight(
+                temporal_logic_util.NightShiftAfterMidnight(
                     c1,
                 ),
                 {
@@ -775,7 +688,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight(
+                temporal_logic_util.NightShiftAfterMidnight(
                     c2,
                 ),
                 {
@@ -790,7 +703,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight(
+                temporal_logic_util.NightShiftAfterMidnight(
                     c3,
                 ),
                 {1: set(), 2: set(), 3: set()},
@@ -873,7 +786,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # Full Day
             ####################
             (
-                FixedWindowTemporalIndicatorCombination.Day(
+                temporal_logic_util.Day(
                     c1,
                 ),
                 {
@@ -888,7 +801,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Day(
+                temporal_logic_util.Day(
                     c2,
                 ),
                 {
@@ -903,7 +816,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Day(
+                temporal_logic_util.Day(
                     c3,
                 ),
                 {
@@ -921,7 +834,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # Explicit Times
             ####################
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c1,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -970,7 +883,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c2,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
@@ -995,7 +908,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     c3,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
@@ -1027,7 +940,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # # Morning Shifts
             # ####################
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     c1,
                 ),
                 {
@@ -1074,7 +987,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     c2,
                 ),
                 {
@@ -1097,7 +1010,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     c3,
                 ),
                 {
@@ -1127,7 +1040,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # # Afternoon Shifts
             # ####################
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     c1,
                 ),
                 {
@@ -1174,7 +1087,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     c2,
                 ),
                 {
@@ -1201,7 +1114,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     c3,
                 ),
                 {
@@ -1231,7 +1144,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             # # Night Shifts
             # ####################
             (
-                FixedWindowTemporalIndicatorCombination.NightShift(
+                temporal_logic_util.NightShift(
                     c1,
                 ),
                 {
@@ -1282,7 +1195,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShift(
+                temporal_logic_util.NightShift(
                     c2,
                 ),
                 {
@@ -1305,7 +1218,7 @@ class TestCriterionCombinationResultLongObservationWindow(
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.NightShift(
+                temporal_logic_util.NightShift(
                     c3,
                 ),
                 {
@@ -1407,7 +1320,7 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
         "combination,expected",
         [
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     bodyweight_measurement_without_forward_fill,
                 ),
                 {
@@ -1420,13 +1333,13 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     bodyweight_measurement_without_forward_fill,
                 ),
                 {1: set()},
             ),
             (
-                FixedWindowTemporalIndicatorCombination.MorningShift(
+                temporal_logic_util.MorningShift(
                     bodyweight_measurement_with_forward_fill,
                 ),
                 {
@@ -1447,7 +1360,7 @@ class TestCriterionPointInTime(TestCriterionCombinationDatabase):
                 },
             ),
             (
-                FixedWindowTemporalIndicatorCombination.AfternoonShift(
+                temporal_logic_util.AfternoonShift(
                     bodyweight_measurement_with_forward_fill,
                 ),
                 {
@@ -1518,24 +1431,11 @@ class PreOperativePatientsBeforeDayOfSurgery(Criterion):
         super().__init__()
         self._table = tables.ProcedureOccurrence.__table__.alias("po")
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> Self:
-        """
-        Create an object from a dictionary.
-        """
-        return cls()
-
     def description(self) -> str:
         """
         Get a description of the criterion.
         """
         return self.__class__.__name__
-
-    def dict(self) -> dict:
-        """
-        Get a dictionary representation of the object.
-        """
-        return {}
 
     def _create_query(self) -> sa.Select:
         """
@@ -1567,17 +1467,13 @@ c_preop = PreOperativePatientsBeforeDayOfSurgery()
 class TestPersonalWindowTemporalIndicatorCombination(TestCriterionCombinationDatabase):
     """
     Test class for testing criterion combinations on the database with individual windows,
-    i.e. windows whose length is dependend on some patient-specific event (here: surgery)
+    i.e. windows whose length is dependent on some patient-specific event (here: surgery)
     """
 
     @pytest.fixture
     def criteria(self, db_session):
-        # c4.set_id(4)  # surgical procedure
-
-        if not c_preop.is_persisted():
-            c_preop.set_id(4)
-        if not bodyweight_measurement_without_forward_fill.is_persisted():
-            bodyweight_measurement_without_forward_fill.set_id(5)
+        c_preop.set_id(4, overwrite=True)
+        bodyweight_measurement_without_forward_fill.set_id(5, overwrite=True)
 
         self.register_criterion(c_preop, db_session)
         self.register_criterion(bodyweight_measurement_without_forward_fill, db_session)
@@ -1622,7 +1518,7 @@ class TestPersonalWindowTemporalIndicatorCombination(TestCriterionCombinationDat
             # Explicit Times
             ####################
             (
-                PersonalWindowTemporalIndicatorCombination.Presence(
+                temporal_logic_util.Presence(
                     bodyweight_measurement_without_forward_fill,
                     interval_criterion=c_preop,
                 ),
@@ -1740,17 +1636,17 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
         "population,intervention,expected",
         [
             (
-                LogicalCriterionCombination.And(c2),
-                LogicalCriterionCombination.CappedAtLeast(
+                logic.And(c2),
+                logic.CappedMinCount(
                     *[
-                        FixedWindowTemporalIndicatorCombination.Day(
+                        temporal_logic_util.Day(
                             criterion=shift_class(criterion=delir_screening),
                         )
                         for shift_class in [
-                            FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight,
-                            FixedWindowTemporalIndicatorCombination.MorningShift,
-                            FixedWindowTemporalIndicatorCombination.AfternoonShift,
-                            FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight,
+                            temporal_logic_util.NightShiftAfterMidnight,
+                            temporal_logic_util.MorningShift,
+                            temporal_logic_util.AfternoonShift,
+                            temporal_logic_util.NightShiftBeforeMidnight,
                         ]
                     ],
                     threshold=2,
@@ -1803,7 +1699,7 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
         db_session.add_all(vos)
         db_session.commit()
 
-        self.insert_criterion_combination(
+        self.insert_expression(
             db_session, population, intervention, base_criterion, observation_window
         )
 
@@ -1828,17 +1724,17 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
         "population,intervention,expected",
         [
             (
-                LogicalCriterionCombination.And(c2),
-                LogicalCriterionCombination.CappedAtLeast(
+                logic.And(c2),
+                logic.CappedMinCount(
                     *[
-                        FixedWindowTemporalIndicatorCombination.Day(
+                        temporal_logic_util.Day(
                             criterion=shift_class(criterion=delir_screening),
                         )
                         for shift_class in [
-                            FixedWindowTemporalIndicatorCombination.NightShiftAfterMidnight,
-                            FixedWindowTemporalIndicatorCombination.MorningShift,
-                            FixedWindowTemporalIndicatorCombination.AfternoonShift,
-                            FixedWindowTemporalIndicatorCombination.NightShiftBeforeMidnight,
+                            temporal_logic_util.NightShiftAfterMidnight,
+                            temporal_logic_util.MorningShift,
+                            temporal_logic_util.AfternoonShift,
+                            temporal_logic_util.NightShiftBeforeMidnight,
                         ]
                     ],
                     threshold=2,
@@ -1882,7 +1778,7 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
         db_session.add_all([c1])
         db_session.commit()
 
-        self.insert_criterion_combination(
+        self.insert_expression(
             db_session, population, intervention, base_criterion, observation_window
         )
 

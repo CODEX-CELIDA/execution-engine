@@ -15,6 +15,7 @@ def get_processing_module(
         - rectangle (faster, using rectangles intersection/union)
 
     :param name: name of the processing module
+    :param version: version of the processing module
     """
 
     if name == "rectangle":
@@ -38,4 +39,6 @@ def get_processing_module(
 
 Interval = namedtuple("Interval", ["lower", "upper", "type"])
 IntervalWithCount = namedtuple("IntervalWithCount", ["lower", "upper", "type", "count"])
-IntervalWithTypeCounts = namedtuple("IntervalWithTypeCounts", ["lower", "upper", "counts"])
+IntervalWithTypeCounts = namedtuple(
+    "IntervalWithTypeCounts", ["lower", "upper", "counts"]
+)

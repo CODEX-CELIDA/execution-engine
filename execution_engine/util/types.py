@@ -5,6 +5,7 @@ import pendulum
 import pytz
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from execution_engine.util import serializable
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import (
     DateTimeInterval,
@@ -17,6 +18,7 @@ from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePer
 PersonIntervals = dict[int, Any]
 
 
+@serializable.register_class
 class TimeRange(BaseModel):
     """
     A time range.
@@ -91,6 +93,7 @@ class TimeRange(BaseModel):
         }
 
 
+@serializable.register_class
 class Timing(BaseModel):
     """
     The timing of a criterion.
@@ -212,6 +215,7 @@ class Timing(BaseModel):
         return data
 
 
+@serializable.register_class
 class Dosage(Timing):
     """
     A dosage consisting of a dose in addition to the Timing fields.

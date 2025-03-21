@@ -54,7 +54,7 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
         value: Value | None = None,
         static: bool | None = None,
         timing: Timing | None = None,
-        override_value_required: bool | None = None,
+        value_required: bool | None = None,
         forward_fill: bool = True,
     ):
         super().__init__(
@@ -62,7 +62,7 @@ class TidalVolumePerIdealBodyWeight(PointInTimeCriterion):
             value=value,
             static=static,
             timing=timing,
-            override_value_required=override_value_required,
+            value_required=value_required,
         )
         self._table = self._cte()
 

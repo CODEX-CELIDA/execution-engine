@@ -14,11 +14,11 @@ from execution_engine.converter.recommendation_factory import (
     FhirToRecommendationFactory,
 )
 from execution_engine.omop import cohort
-from execution_engine.omop.cohort import PopulationInterventionPair
+from execution_engine.omop.cohort import PopulationInterventionPairExpr
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida import tables as result_db
-from execution_engine.omop.serializable import Serializable
 from execution_engine.task import runner
+from execution_engine.util.serializable import Serializable
 
 
 class ExecutionEngine:
@@ -198,29 +198,7 @@ class ExecutionEngine:
             # we'll run registration again to set all ids
             recommendation.set_id(rec_db.recommendation_id)
 
-            assert (
-                recommendation.base_criterion is not None
-            ), "Base Criterion must be set"
-            self.register_criterion(recommendation.base_criterion)
-
-            for pi_pair in recommendation.population_intervention_pairs():
-                self.register_population_intervention_pair(
-                    pi_pair, rec_db.recommendation_id
-                )
-
-                for criterion in pi_pair.flatten():
-                    self.register_criterion(criterion)
-
-            # All objects in the deserialized object graph must have an id.
-            assert recommendation.id is not None
-            assert recommendation.base_criterion is not None
-            assert recommendation.base_criterion.id is not None
-
-            for pi_pair in recommendation.population_intervention_pairs():
-                assert pi_pair.id is not None
-
-                for criterion in pi_pair.flatten():
-                    assert criterion.id is not None
+            self.register_children(recommendation)
 
             return recommendation
 
@@ -280,31 +258,7 @@ class ExecutionEngine:
                 result = con.execute(query)
                 recommendation.set_id(result.fetchone().recommendation_id)
 
-        # Register all child objects. After that, the recommendation
-        # and all child objects have valid ids (either restored or
-        # fresh).
-
-        if recommendation.base_criterion is None:
-            raise ValueError("Base Criterion must be set when storing recommendation")
-
-        self.register_criterion(recommendation.base_criterion)
-
-        for pi_pair in recommendation.population_intervention_pairs():
-            self.register_population_intervention_pair(
-                pi_pair, recommendation_id=recommendation.id
-            )
-            for criterion in pi_pair.flatten():
-                self.register_criterion(criterion)
-
-        assert recommendation.id is not None
-        assert recommendation.base_criterion is not None
-        assert recommendation.base_criterion.id is not None
-
-        for pi_pair in recommendation.population_intervention_pairs():
-            assert pi_pair.id is not None
-
-            for criterion in pi_pair.flatten():
-                assert criterion.id is not None
+        self.register_children(recommendation)
 
         # Update the recommendation in the database with the final
         # JSON representation and execution graph (now that
@@ -328,8 +282,40 @@ class ExecutionEngine:
 
             con.execute(update_query)
 
+    def register_children(self, recommendation: cohort.Recommendation) -> None:
+        """
+        Registers all child objects of the recommendation in the result database.
+
+        :param recommendation: The Recommendation object.
+        :type recommendation: cohort.Recommendation
+        :raises ValueError: If the base criterion is not set.
+        :raises AssertionError: If the recommendation or any of its child objects do not have a valid ID.
+        """
+        if recommendation.base_criterion is None:
+            raise ValueError("Base Criterion must be set when storing recommendation")
+
+        self.register_criterion(recommendation.base_criterion)
+
+        for pi_pair in recommendation.population_intervention_pairs():
+            self.register_population_intervention_pair(
+                pi_pair, recommendation_id=recommendation.id
+            )
+
+        for criterion in recommendation.atoms():
+            self.register_criterion(criterion)
+
+        assert recommendation.id is not None
+        assert recommendation.base_criterion is not None
+        assert recommendation.base_criterion.id is not None
+
+        for pi_pair in recommendation.population_intervention_pairs():
+            assert pi_pair.id is not None
+
+        for criterion in recommendation.atoms():
+            assert criterion.id is not None
+
     def register_population_intervention_pair(
-        self, pi_pair: PopulationInterventionPair, recommendation_id: int
+        self, pi_pair: PopulationInterventionPairExpr, recommendation_id: int
     ) -> None:
         """
         Registers the Population/Intervention Pair in the result database.

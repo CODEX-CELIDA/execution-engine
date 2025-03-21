@@ -3,7 +3,7 @@ from typing import Type
 
 from fhir.resources.element import Element
 
-from execution_engine.converter.time_from_event.abstract import TemporalIndicator
+from execution_engine.converter.temporal_indicator import TemporalIndicator
 
 
 class TemporalIndicatorConverterFactory:

@@ -1,2 +1,2 @@
-from .population_intervention_pair import PopulationInterventionPair
+from .population_intervention_pair import PopulationInterventionPairExpr
 from .recommendation import Recommendation

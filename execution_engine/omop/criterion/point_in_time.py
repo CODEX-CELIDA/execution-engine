@@ -1,5 +1,3 @@
-from typing import Any, Dict, cast
-
 from sqlalchemy import CTE, ColumnElement, Select, select
 
 from execution_engine.omop.concepts import Concept
@@ -27,7 +25,7 @@ class PointInTimeCriterion(ConceptCriterion):
         value: Value | None = None,
         static: bool | None = None,
         timing: Timing | None = None,
-        override_value_required: bool | None = None,
+        value_required: bool | None = None,
         forward_fill: bool = True,
     ):
         super().__init__(
@@ -35,7 +33,7 @@ class PointInTimeCriterion(ConceptCriterion):
             value=value,
             static=static,
             timing=timing,
-            override_value_required=override_value_required,
+            value_required=value_required,
         )
         self._forward_fill = forward_fill
 
@@ -102,22 +100,6 @@ class PointInTimeCriterion(ConceptCriterion):
         )
 
         return query
-
-    def dict(self) -> dict[str, Any]:
-        """
-        Get a JSON representation of the criterion.
-        """
-        from_super = super().dict()
-        return from_super | {"forward_fill": self._forward_fill}
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PointInTimeCriterion":
-        """
-        Create a criterion from a JSON representation.
-        """
-        object = cast("PointInTimeCriterion", super().from_dict(data))
-        object._forward_fill = data.get("forward_fill", True)  # Backward compat
-        return object
 
     def process_data(
         self,

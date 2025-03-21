@@ -5,6 +5,7 @@ from sqlalchemy import Interval as SQLInterval
 from sqlalchemy import TableClause
 from sqlalchemy.sql.functions import concat, func
 
+from execution_engine.util import serializable
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.value import ucum_to_postgres
 from execution_engine.util.value.value import (
@@ -16,6 +17,7 @@ from execution_engine.util.value.value import (
 )
 
 
+@serializable.register_class
 class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
     """
     A non-negative integer value with a unit of type TimeUnit, where value_min and value_max are not allowed.
@@ -52,6 +54,7 @@ class ValuePeriod(ValueNumeric[NonNegativeInt, TimeUnit]):
         )
 
 
+@serializable.register_class
 class ValueCount(ValueNumeric[NonNegativeInt, None]):
     """
     A non-negative integer value without a unit.
@@ -71,6 +74,7 @@ class ValueCount(ValueNumeric[NonNegativeInt, None]):
         return False
 
 
+@serializable.register_class
 class ValueDuration(ValueNumeric[float, TimeUnit]):
     """
     A float value with a unit of type TimeUnit.
@@ -104,6 +108,7 @@ class ValueDuration(ValueNumeric[float, TimeUnit]):
         return super().to_sql(table, c / c_duration_seconds, with_unit)
 
 
+@serializable.register_class
 class ValueFrequency(Value):
     """
     A non-negative integer value with no unit, with a Period.

@@ -3,7 +3,7 @@ default_language_version:
 exclude: '^docs/'
 repos:
 - repo: https://github.com/pycqa/isort
-  rev: 5.13.2
+  rev: 6.0.1
   hooks:
     - id: isort
       name: isort (python)
@@ -17,13 +17,13 @@ repos:
     -   id: check-json
     -   id: pretty-format-json
         args: ['--autofix', '--no-sort-keys']
--   repo: https://github.com/ambv/black
-    rev: 24.10.0
+-   repo: https://github.com/psf/black
+    rev: 25.1.0
     hooks:
     - id: black
       language_version: python3.11
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.13.0'
+    rev: 'v1.15.0'
     hooks:
     -   id: mypy
         name: mypy
@@ -36,12 +36,12 @@ repos:
         exclude: tests/
         args: [--select, "D101,D102,D103,D105,D106"]
 -   repo: https://github.com/PyCQA/bandit
-    rev: '1.8.0'
+    rev: '1.8.3'
     hooks:
     - id: bandit
       args: [--skip, "B101,B303,B110,B311"]
 -   repo: https://github.com/PyCQA/flake8
-    rev: '7.1.1'
+    rev: '7.1.2'
     hooks:
     -   id: flake8
 -   repo: https://github.com/myint/autoflake

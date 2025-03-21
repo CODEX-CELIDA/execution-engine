@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Tuple, Type
+from typing import Tuple, Type, final
 
 from fhir.resources.codeableconcept import CodeableConcept
 from fhir.resources.element import Element
@@ -11,11 +11,8 @@ from fhir.resources.range import Range
 
 from execution_engine.fhir.util import get_coding
 from execution_engine.omop.concepts import Concept
-from execution_engine.omop.criterion.abstract import Criterion
-from execution_engine.omop.criterion.combination.logical import (
-    LogicalCriterionCombination,
-)
 from execution_engine.omop.vocabulary import standard_vocabulary
+from execution_engine.util import logic as logic
 from execution_engine.util.value import Value, ValueConcept, ValueNumber
 from execution_engine.util.value.value import ValueScalar
 
@@ -99,10 +96,14 @@ def parse_value(
             eps = float(value_numeric) / 1e5
             match value.comparator:
                 case "<=" | "<":
-                    value_max = value_numeric - (eps if value.comparator == "<" else 0)
+                    value_max = float(value_numeric) - (
+                        eps if value.comparator == "<" else 0
+                    )
                     value_numeric = None
                 case ">=" | ">":
-                    value_min = value_numeric + (eps if value.comparator == "<" else 0)
+                    value_min = float(value_numeric) + (
+                        eps if value.comparator == "<" else 0
+                    )
                     value_numeric = None
                 case _:
                     raise ValueError(f'Unknown quantity operator: "{value.comparator}"')
@@ -182,22 +183,23 @@ class CriterionConverter(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def to_positive_criterion(self) -> Criterion | LogicalCriterionCombination:
+    def to_positive_expression(self) -> logic.BaseExpr:
         """Converts this characteristic to a Criterion or a combination of criteria but no negation."""
         raise NotImplementedError()
 
-    def to_criterion(self) -> Criterion | LogicalCriterionCombination:
+    @final
+    def to_expression(self) -> logic.BaseExpr:
         """
-        Converts this characteristic to a Criterion or a
-        combination of criteria. The result may be a "negative"
-        criterion, that is the result of to_positive_criterion wrapped
-        in a LogicalCriterionCombination with operator NOT.
+        Converts this characteristic to an expression. The result may be a "negative"
+        criterion, that is the result of to_positive_expression wrapped
+        in a logic.Not.
         """
-        positive_criterion = self.to_positive_criterion()
+        positive_expression = self.to_positive_expression()
+
         if self._exclude:
-            return LogicalCriterionCombination.Not(positive_criterion)
+            return logic.Not(positive_expression)
         else:
-            return positive_criterion
+            return positive_expression
 
 
 class CriterionConverterFactory:

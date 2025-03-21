@@ -1418,6 +1418,7 @@ def interval_datetime(
 
     :param lower: The lower bound.
     :param upper: The upper bound.
+    :param type_: The type of the interval.
     :return: The new datetime interval.
     """
     return DateTimeInterval.from_atomic(Bound.CLOSED, lower, upper, Bound.CLOSED, type_)  # type: ignore # mypy expects "IntervalT", not sure why

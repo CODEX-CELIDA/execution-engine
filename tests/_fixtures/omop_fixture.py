@@ -177,7 +177,7 @@ def celida_recommendation(
             recommendation_id=recommendation_id,
             pi_pair_url="https://example.com",
             pi_pair_name="my_pair",
-            pi_pair_hash=hash("my_pair"),
+            pi_pair_hash=str(hash("my_pair")),
         )
         db_session.add(pi_pair)
         db_session.commit()
@@ -185,7 +185,7 @@ def celida_recommendation(
         criterion = Criterion(
             criterion_id=criterion_id,
             criterion_description="my_description",
-            criterion_hash=hash("my_criterion"),
+            criterion_hash=str(hash("my_criterion")),
         )
         db_session.add(criterion)
         db_session.commit()

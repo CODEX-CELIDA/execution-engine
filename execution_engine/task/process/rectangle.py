@@ -479,6 +479,7 @@ def filter_count_intervals(
     min_count: int | None,
     max_count: int | None,
     keep_no_data: bool = True,
+    keep_not_applicable: bool = True,
 ) -> PersonIntervals:
     """
     Filters the intervals per dict key in the list by count.
@@ -487,14 +488,18 @@ def filter_count_intervals(
     :param min_count: The minimum count of the intervals.
     :param max_count: The maximum count of the intervals.
     :param keep_no_data: Whether to keep NO_DATA intervals (irrespective of the count).
+    :param keep_not_applicable: Whether to keep NOT_APPLICABLE intervals (irrespective of the count).
     :return: A dict with the unioned intervals.
     """
 
     result: PersonIntervals = {}
 
     interval_filter = []
+
     if keep_no_data:
         interval_filter.append(IntervalType.NO_DATA)
+    if keep_not_applicable:
+        interval_filter.append(IntervalType.NOT_APPLICABLE)
 
     if min_count is None and max_count is None:
         raise ValueError("min_count and max_count cannot both be None")
@@ -668,6 +673,7 @@ def create_time_intervals(
     # Prepare to collect intervals
     intervals = []
     previous_end = None
+
     def add_interval(interval_start, interval_end, interval_type):
         nonlocal previous_end
         effective_start = max(interval_start, start_datetime)
@@ -681,11 +687,13 @@ def create_time_intervals(
             # touching intervals.
             if previous_end is not None:
                 assert previous_end < effective_start
-            intervals.append(Interval(
-                lower=effective_start.timestamp(),
-                upper=effective_end.timestamp(),
-                type=interval_type,
-            ))
+            intervals.append(
+                Interval(
+                    lower=effective_start.timestamp(),
+                    upper=effective_end.timestamp(),
+                    type=interval_type,
+                )
+            )
             previous_end = effective_end
 
     # Current date to process
@@ -714,25 +722,22 @@ def create_time_intervals(
         # overlaps the main datetime range, otherwise fill the day
         # with an interval of type "not applicable".
         # TODO: what about intervals "before" the main datetime range?
-        if end_interval < start_datetime: # completely before datetime range
+        if end_interval < start_datetime:  # completely before datetime range
             day_start = timezone.localize(
-                datetime.datetime.combine(
-                    current_date, datetime.time(0, 0, 0)
-                ))
+                datetime.datetime.combine(current_date, datetime.time(0, 0, 0))
+            )
             day_end = timezone.localize(
-                datetime.datetime.combine(
-                    current_date, datetime.time(23, 59, 59)
-                ))
+                datetime.datetime.combine(current_date, datetime.time(23, 59, 59))
+            )
             if (previous_end is not None) and day_start <= previous_end:
                 start = previous_end + datetime.timedelta(seconds=1)
             else:
                 start = day_start
             add_interval(start, day_end, IntervalType.NOT_APPLICABLE)
-        elif end_datetime < start_interval: # completely after datetime range
+        elif end_datetime < start_interval:  # completely after datetime range
             day_start = timezone.localize(
-                datetime.datetime.combine(
-                    current_date, datetime.time(0, 0, 0)
-                ))
+                datetime.datetime.combine(current_date, datetime.time(0, 0, 0))
+            )
             if (previous_end is not None) and day_start <= previous_end:
                 start = previous_end + datetime.timedelta(seconds=1)
             else:
@@ -799,10 +804,15 @@ def find_overlapping_personal_windows(
 
     return result
 
+
 def find_rectangles_with_count(data: list[PersonIntervals]) -> PersonIntervals:
     if len(data) == 0:
         return {}
     else:
         keys = data[0].keys()
-        return {key: _impl.find_rectangles_with_count([ intervals[key] for intervals in data ])
-                for key in keys}
+        return {
+            key: _impl.find_rectangles_with_count(
+                [intervals[key] for intervals in data]
+            )
+            for key in keys
+        }
