@@ -146,13 +146,14 @@ class TestCriterionConverter:
     # Continuing the test classes for CriterionConverter and CriterionConverterFactory
 
     class MockCriterionConverter(CriterionConverter):
-        @classmethod
-        def from_fhir(cls, fhir_definition: Element) -> "CriterionConverter":
-            return cls(exclude=False)
 
         @classmethod
         def valid(cls, fhir_definition: Element) -> bool:
             return fhir_definition.id == "valid"
+
+        @classmethod
+        def from_fhir(cls, fhir_definition: Element) -> "CriterionConverter":
+            return cls(exclude=False)
 
         def to_positive_expression(self) -> logic.Symbol:
             raise NotImplementedError()

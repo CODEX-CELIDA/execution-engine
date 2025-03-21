@@ -3,10 +3,11 @@ from typing import Type, final
 
 from fhir.resources.timing import Timing as FHIRTiming
 
+from execution_engine import constants
 from execution_engine.converter.criterion import CriterionConverter, parse_code
 from execution_engine.converter.goal.abstract import Goal
 from execution_engine.fhir.recommendation import RecommendationPlan
-from execution_engine.fhir.util import get_coding
+from execution_engine.fhir.util import get_coding, get_extensions
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.vocabulary import AbstractVocabulary
 from execution_engine.util import AbstractPrivateMethods, logic
@@ -135,6 +136,14 @@ class AbstractAction(CriterionConverter, metaclass=AbstractPrivateMethods):
 
         if rep.offset is not None:
             raise NotImplementedError("offset has not been implemented")
+
+        relative_time = get_extensions(timing, constants.EXT_RELATIVE_TIME)
+
+        if relative_time:
+            raise NotImplementedError(
+                "RelativeTime processing within AbstractAction not implemented - "
+                "should be performed in the parser"
+            )
 
         return Timing(
             count=count, duration=duration, frequency=frequency, interval=interval

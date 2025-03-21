@@ -3,6 +3,8 @@ from execution_engine.converter.criterion import parse_code
 from execution_engine.fhir.recommendation import RecommendationPlan
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.abstract import Criterion
+from execution_engine.omop.criterion.condition_occurrence import ConditionOccurrence
+from execution_engine.omop.criterion.device_exposure import DeviceExposure
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.observation import Observation
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
@@ -15,7 +17,7 @@ class ProcedureAction(AbstractAction):
     """
     An ProcedureAction is an action that describes a procedure to be performed
 
-    This action tests whether the procedure has been performed by determining whether it is
+    This action tests whether the procedure has been performed by determining whether it
     is present in the respective OMOP CDM table.
     """
 
@@ -78,6 +80,18 @@ class ProcedureAction(AbstractAction):
                 # we need to explicitly set the VALUE_REQUIRED flag to false, otherwise creating the query will raise an error
                 # as Observation and Measurement normally expect a value.
                 criterion = Observation(
+                    concept=self._code,
+                    value_required=False,
+                    timing=self._timing,
+                )
+            case "Device":
+                criterion = DeviceExposure(
+                    concept=self._code,
+                    value_required=False,
+                    timing=self._timing,
+                )
+            case "Condition":
+                criterion = ConditionOccurrence(
                     concept=self._code,
                     value_required=False,
                     timing=self._timing,
