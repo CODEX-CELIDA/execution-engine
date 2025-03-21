@@ -1,5 +1,7 @@
 import copy
 
+import networkx as nx
+
 import execution_engine.util.logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.execution_graph import ExecutionGraph
@@ -73,9 +75,6 @@ class RecommendationGraphBuilder:
         def traverse(
             expr: logic.Expr,
         ) -> None:
-            if expr is None:
-                pass
-
             if isinstance(expr, PopulationInterventionPairExpr):
                 p, i = expr.left, expr.right
 
@@ -95,6 +94,9 @@ class RecommendationGraphBuilder:
                     traverse(child)
 
         traverse(expr)
+
+        # we need to rehash as the structure has been changed due to insertion of additional nodes
+        expr.rehash(recursive=True)
 
         return expr
 
@@ -137,5 +139,8 @@ class RecommendationGraphBuilder:
             p_combination_node, store_result=True, category=CohortCategory.POPULATION
         )
         graph.add_edges_from((src, p_combination_node) for src in p_sink_nodes)
+
+        if not nx.is_directed_acyclic_graph(graph):
+            raise ValueError("Graph is not acyclic")
 
         return graph

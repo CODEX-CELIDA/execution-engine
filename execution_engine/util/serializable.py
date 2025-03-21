@@ -1,7 +1,7 @@
 import abc
 import inspect
 import json
-from typing import Any, Callable, Dict, Self, Tuple, final
+from typing import Any, Dict, Self, final
 
 from pydantic import BaseModel
 
@@ -296,11 +296,11 @@ class Serializable(metaclass=RegisteredPostInitMeta):
         """
         return self._hash
 
-    def __reduce__(self) -> Tuple[Callable, tuple]:
-        """
-        Support pickling of the object.
-        """
-        return self.__class__.from_dict, (self.dict(include_id=True),)
+    # def __reduce__(self) -> Tuple[Callable, tuple]:
+    #     """
+    #     Support pickling of the object.
+    #     """
+    #     return self.__class__.from_dict, (self.dict(include_id=True),)
 
     @final
     def __repr__(self) -> str:

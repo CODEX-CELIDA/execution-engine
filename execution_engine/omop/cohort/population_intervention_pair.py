@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Callable, cast
 
 import execution_engine.util.logic as logic
 from execution_engine.omop.criterion.abstract import Criterion
@@ -69,6 +69,27 @@ class PopulationInterventionPairExpr(logic.LeftDependentToggle):
         The base criterion of the population/intervention pair.
         """
         return self._base_criterion
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return (
+            self._recreate,
+            (
+                self.args,
+                {
+                    "name": self.name,
+                    "url": self.url,
+                    "base_criterion": self.base_criterion,
+                }
+                | {"_id": self._id},
+            ),
+        )
 
     def dict(self, include_id: bool = False) -> dict:
         """

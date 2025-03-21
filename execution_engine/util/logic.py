@@ -1,6 +1,5 @@
-from abc import abstractmethod
 from datetime import time
-from typing import Any, Dict, Iterator, Self, cast
+from typing import Any, Callable, Dict, Iterator, Self, cast
 
 from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.serializable import Serializable, SerializableABC
@@ -48,7 +47,47 @@ class Expr(BaseExpr):
     Class for expressions that are not Symbols
     """
 
-    # todo: isn't this now a bit redundant with the BaseExpr class? (because we've removed category)
+    @classmethod
+    def _recreate(cls, args: Any, kwargs: dict) -> "Expr":
+        """
+        Recreate an expression from its arguments and category.
+        """
+        _id = kwargs.pop("_id")
+
+        self = cast(Expr, cls(*args, **kwargs))
+        self.set_id(_id)
+        return self
+
+    def _reduce_helper(self, ivars_map: dict | None = None) -> tuple[Callable, tuple]:
+        """
+        Return a picklable tuple that calls self._recreate and passes in
+        (self.args, combined_ivars).
+
+        :param ivars_map: A dictionary for renaming keys in the instance variables.
+                          For each old_key -> new_key in ivars_map, if old_key exists
+                          in data, it will be removed and stored under new_key instead.
+        """
+        data = dict(self.get_instance_variables())
+        data["_id"] = self._id
+
+        # Apply key renaming if ivars_map is provided
+        if ivars_map:
+            for old_key, new_key in ivars_map.items():
+                if old_key in data:
+                    data[new_key] = data.pop(old_key)
+
+        return (self._recreate, (self.args, data))
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        # return self._recreate, (self.args, self.get_instance_variables() | {"_id": self._id})
+        return self._reduce_helper()
 
     def get_instance_variables(self, immutable: bool = False) -> dict | tuple:
         """
@@ -75,20 +114,20 @@ class Expr(BaseExpr):
 
         This is overridden to prevent setting attributes on the object.
         """
-        if name in self.__dict__ and name not in ["args", "_init_args"]:
+        if name in self.__dict__ and name not in ["args", "_hash"]:
             raise AttributeError(
                 f"Cannot update attributes on {self.__class__.__name__}"
             )
         super().__setattr__(name, value)
 
-    @abstractmethod
     def update_args(self, *args: Any) -> None:
         """
         Update the arguments of the expression.
 
         :param args: The new arguments.
         """
-        raise NotImplementedError("update_args must be implemented by subclasses")
+        self.args = args
+        self.rehash()
 
     def __new__(cls, *args: Any, **kwargs: Any) -> "Expr":
         """
@@ -115,13 +154,19 @@ class Expr(BaseExpr):
         """
         return f"{self.__class__.__name__}({', '.join(map(str, self.args))})"
 
-    def __hash__(self) -> int:
+    def rehash(self, recursive: bool = False) -> None:
         """
-        Get the hash of this expression.
+        Recalculate the hash of the object.
+        """
 
-        :return: Hash of the expression.
-        """
-        return hash(
+        if recursive:
+            for arg in self.args:
+                if isinstance(arg, Expr):
+                    arg.rehash(recursive=True)
+                else:
+                    arg.rehash()
+
+        self._hash = hash(
             (self.__class__, self.args, self.get_instance_variables(immutable=True))
         )
 
@@ -267,27 +312,11 @@ class UnaryOperator(BooleanFunction):
 
         return cast(UnaryOperator, super().__new__(cls, *args, **kwargs))
 
-    def update_args(self, *args: Any) -> None:
-        """
-        Update the arguments of the expression.
-
-        :param args: The new arguments.
-        """
-        self.args = args
-
 
 class CommutativeOperator(BooleanFunction, SerializableABC):
     """
     Base class for commutative operators.
     """
-
-    def update_args(self, *args: Any) -> None:
-        """
-        Update the arguments of the expression.
-
-        :param args: The new arguments.
-        """
-        self.args = args
 
     def __new__(cls, *args: Any, **kwargs: Any) -> "CommutativeOperator":
         """
@@ -351,17 +380,45 @@ class Not(UnaryOperator):
         return cast(Not, super().__new__(cls, *args, **kwargs))
 
 
-class Count(CommutativeOperator, SerializableABC):
+class CountOperator(CommutativeOperator, SerializableABC):
+    """
+    Base class for count operators
+
+    This is the BaseClass for Count, TemporalCount and CappedCount - while these three classes
+    may not define any additional code, we need them to be able to use isinstance on the different subclasses and
+    distinguish between subclasses from Count, TemporalCount or CappedCount
+    """
+
+    count_min: int | None
+    count_max: int | None
+
+    def __new__(
+        cls, *args: Any, min_count: int | None, max_count: int | None, **kwargs: Any
+    ) -> "CountOperator":
+        """
+        Create a new MinCount object.
+        """
+        self = cast(MinCount, super().__new__(cls, *args, **kwargs))
+        self.count_min = min_count
+        self.count_max = max_count
+
+        return self
+
+    def __reduce__(self) -> tuple[Callable, tuple]:
+        """
+        Reduce the expression to its arguments and category.
+
+        Required for pickling (e.g. when using multiprocessing).
+
+        :return: Tuple of the class, arguments, and category.
+        """
+        return self._reduce_helper({"count_min": "threshold", "count_max": "threshold"})
+
+
+class Count(CountOperator):
     """
     Class representing a logical COUNT operation.
-
-    Adds a "threshold" parameter of type int.
-
-    This class should not be instantiated directly, but rather through one of its subclasses.
     """
-
-    count_min: int | None = None
-    count_max: int | None = None
 
 
 class MinCount(Count):
@@ -373,8 +430,10 @@ class MinCount(Count):
         """
         Create a new MinCount object.
         """
-        self = cast(MinCount, super().__new__(cls, *args, **kwargs))
-        self.count_min = threshold
+        self = cast(
+            MinCount,
+            super().__new__(cls, *args, min_count=threshold, max_count=None, **kwargs),
+        )
         return self
 
     def dict(self, include_id: bool = False) -> dict:
@@ -391,7 +450,7 @@ class MinCount(Count):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))})"
+        return f"{self.__class__.__name__}(threshold={self.count_min})"
 
 
 class MaxCount(Count):
@@ -403,8 +462,10 @@ class MaxCount(Count):
         """
         Create a new MaxCount object.
         """
-        self = cast(MaxCount, super().__new__(cls, *args, **kwargs))
-        self.count_max = threshold
+        self = cast(
+            MaxCount,
+            super().__new__(cls, *args, min_count=None, max_count=threshold, **kwargs),
+        )
         return self
 
     def dict(self, include_id: bool = False) -> dict:
@@ -419,7 +480,7 @@ class MaxCount(Count):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_max}; {', '.join(map(repr, self.args))})"
+        return f"{self.__class__.__name__}(threshold={self.count_max})"
 
 
 class ExactCount(Count):
@@ -431,9 +492,12 @@ class ExactCount(Count):
         """
         Create a new ExactCount object.
         """
-        self = cast(ExactCount, super().__new__(cls, *args, **kwargs))
-        self.count_min = threshold
-        self.count_max = threshold
+        self = cast(
+            ExactCount,
+            super().__new__(
+                cls, *args, min_count=threshold, max_count=threshold, **kwargs
+            ),
+        )
         return self
 
     def dict(self, include_id: bool = False) -> dict:
@@ -448,10 +512,10 @@ class ExactCount(Count):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))})"
+        return f"{self.__class__.__name__}(threshold={self.count_min})"
 
 
-class CappedCount(CommutativeOperator, SerializableABC):
+class CappedCount(CountOperator, SerializableABC):
     """
     Base class representing a COUNT operation with an upper cap.
 
@@ -466,9 +530,6 @@ class CappedCount(CommutativeOperator, SerializableABC):
     This class should not be instantiated directly but used as a base for specific
     capped count operations like CappedMinCount.
     """
-
-    count_min: int | None = None
-    count_max: int | None = None
 
 
 class CappedMinCount(CappedCount):
@@ -493,9 +554,10 @@ class CappedMinCount(CappedCount):
         """
         Create a new CappedMinCount object.
         """
-        self = cast(CappedMinCount, super().__new__(cls, *args, **kwargs))
-        self.count_min = threshold
-        return self
+        return cast(
+            CappedMinCount,
+            super().__new__(cls, *args, min_count=threshold, max_count=None, **kwargs),
+        )
 
     def dict(self, include_id: bool = False) -> dict:
         """
@@ -509,7 +571,7 @@ class CappedMinCount(CappedCount):
         """
         Represent the expression in a readable format.
         """
-        return f"{self.__class__.__name__}(threshold={self.count_min}; {', '.join(map(repr, self.args))})"
+        return f"{self.__class__.__name__}(threshold={self.count_min})"
 
 
 class AllOrNone(CommutativeOperator):
@@ -518,7 +580,7 @@ class AllOrNone(CommutativeOperator):
     """
 
 
-class TemporalCount(CommutativeOperator, SerializableABC):
+class TemporalCount(CountOperator, SerializableABC):
     """
     Class representing a logical COUNT operation.
 
@@ -537,7 +599,8 @@ class TemporalCount(CommutativeOperator, SerializableABC):
     def __new__(
         cls,
         *args: Any,
-        threshold: int | None,
+        min_count: int | None,
+        max_count: int | None,
         start_time: time | None = None,
         end_time: time | None = None,
         interval_type: TimeIntervalType | None = None,
@@ -547,6 +610,7 @@ class TemporalCount(CommutativeOperator, SerializableABC):
         """
         Create a new TemporalCount object.
         """
+
         TemporalCount._validate_time_inputs(
             start_time, end_time, interval_type, interval_criterion
         )
@@ -556,9 +620,13 @@ class TemporalCount(CommutativeOperator, SerializableABC):
             # it properly processed
             args += (interval_criterion,)
 
-        self = cast(Self, super().__new__(cls, *args, **kwargs))
+        self = cast(
+            Self,
+            super().__new__(
+                cls, *args, min_count=min_count, max_count=max_count, **kwargs
+            ),
+        )
 
-        self.count_min = threshold
         self.start_time = (
             time.fromisoformat(start_time)  # type: ignore[arg-type]
             if isinstance(start_time, str)
@@ -641,7 +709,6 @@ class TemporalCount(CommutativeOperator, SerializableABC):
 
         data["data"].update(
             {
-                "threshold": self.count_min,
                 "start_time": self.start_time.isoformat() if self.start_time else None,
                 "end_time": self.end_time.isoformat() if self.end_time else None,
                 "interval_type": self.interval_type,
@@ -668,7 +735,7 @@ class TemporalCount(CommutativeOperator, SerializableABC):
         else:
             interval = "None"
 
-        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min}; {', '.join(map(repr, self.args))})"
+        return f"{self.__class__.__name__}(interval={interval}; threshold={self.count_min})"
 
 
 class TemporalMinCount(TemporalCount):
@@ -676,17 +743,125 @@ class TemporalMinCount(TemporalCount):
     Class representing a logical temporal MIN_COUNT operation.
     """
 
+    def __new__(
+        cls,
+        *args: Any,
+        threshold: int | None,
+        start_time: time | None,
+        end_time: time | None,
+        interval_type: TimeIntervalType | None,
+        interval_criterion: BaseExpr | None,
+        **kwargs: Any,
+    ) -> "TemporalMinCount":
+        """
+        Create a new MinCount object.
+        """
+        self = cast(
+            TemporalMinCount,
+            super().__new__(
+                cls,
+                *args,
+                min_count=threshold,
+                max_count=None,
+                start_time=start_time,
+                end_time=end_time,
+                interval_type=interval_type,
+                interval_criterion=interval_criterion,
+            ),
+        )
+        return self
+
+    def dict(self, include_id: bool = False) -> dict:
+        """
+        Get a dictionary representation of the object.
+        """
+        data = super().dict(include_id=include_id)
+        data.update({"threshold": self.count_min})
+        return data
+
 
 class TemporalMaxCount(TemporalCount):
     """
     Class representing a logical MAX_COUNT operation.
     """
 
+    def __new__(
+        cls,
+        *args: Any,
+        threshold: int | None,
+        start_time: time | None,
+        end_time: time | None,
+        interval_type: TimeIntervalType | None,
+        interval_criterion: BaseExpr | None,
+        **kwargs: Any,
+    ) -> "TemporalMaxCount":
+        """
+        Create a new MaxCount object.
+        """
+        self = cast(
+            TemporalMaxCount,
+            super().__new__(
+                cls,
+                *args,
+                min_count=None,
+                max_count=threshold,
+                start_time=start_time,
+                end_time=end_time,
+                interval_type=interval_type,
+                interval_criterion=interval_criterion,
+            ),
+        )
+        return self
+
+    def dict(self, include_id: bool = False) -> dict:
+        """
+        Get a dictionary representation of the object.
+        """
+        data = super().dict(include_id=include_id)
+        data.update({"threshold": self.count_max})
+        return data
+
 
 class TemporalExactCount(TemporalCount):
     """
     Class representing a logical EXACT_COUNT operation.
     """
+
+    def __new__(
+        cls,
+        *args: Any,
+        threshold: int | None,
+        start_time: time | None,
+        end_time: time | None,
+        interval_type: TimeIntervalType | None,
+        interval_criterion: BaseExpr | None,
+        **kwargs: Any,
+    ) -> "TemporalExactCount":
+        """
+        Create a new ExactCount object.
+        """
+        self = cast(
+            TemporalExactCount,
+            super().__new__(
+                cls,
+                *args,
+                min_count=threshold,
+                max_count=threshold,
+                start_time=start_time,
+                end_time=end_time,
+                interval_type=interval_type,
+                interval_criterion=interval_criterion,
+            ),
+        )
+        return self
+
+    def dict(self, include_id: bool = False) -> dict:
+        """
+        Get a dictionary representation of the object.
+        """
+        data = super().dict(include_id=include_id)
+        data.update({"threshold": self.count_min})
+        return data
 
 
 class NonSimplifiableAnd(CommutativeOperator):
@@ -749,7 +924,7 @@ class BinaryNonCommutativeOperator(BooleanFunction, SerializableABC):
             raise ValueError(
                 f"{self.__class__.__name__} requires exactly two arguments"
             )
-        self.args = args
+        super().update_args(*args)
 
     def __new__(
         cls, left: BaseExpr, right: BaseExpr, **kwargs: Any
