@@ -2008,7 +2008,7 @@ class TestIntervalRatio(TestCriterionCombinationDatabase):
         db_session.add_all(vos)
         db_session.commit()
 
-        self.insert_criterion_combination(
+        self.insert_expression(
             db_session, population, intervention, base_criterion, observation_window
         )
 
