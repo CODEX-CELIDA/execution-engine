@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 from enum import Enum, auto
+from typing import List
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
@@ -12,7 +13,14 @@ from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import ResultInterval
 from execution_engine.omop.sqlclient import OMOPSQLClient
 from execution_engine.settings import get_config
-from execution_engine.task.process import Interval, get_processing_module
+from execution_engine.task.process import (
+    AnyInterval,
+    GeneralizedInterval,
+    Interval,
+    IntervalWithCount,
+    get_processing_module,
+    interval_like,
+)
 from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
@@ -305,31 +313,30 @@ class Task:
                 max_count=self.expr.count_max,
             )
         elif isinstance(self.expr, logic.CappedCount):
-            intervals_with_count = process.find_rectangles_with_count(data)
-            result = dict()
-            for key, intervals in intervals_with_count.items():
 
-                key_result = []
-
+            def interval_counts(
+                start: int, end: int, intervals: List[AnyInterval]
+            ) -> GeneralizedInterval:
+                positive_count = 0
+                not_applicable_count = 0
                 for interval in intervals:
-                    counts = interval.counts
-                    not_applicable_count = counts.get(IntervalType.NOT_APPLICABLE, 0)
+                    if interval is None or interval.type == IntervalType.NEGATIVE:
+                        pass
+                    elif interval.type == IntervalType.POSITIVE:
+                        positive_count += 1
+                    elif interval.type == IntervalType.NOT_APPLICABLE:
+                        not_applicable_count += 1
+                # we require at least one positive interval to be present in any case (hence the max(1, ...))
+                effective_count_min = max(1, self.expr.count_min - not_applicable_count)  # type: ignore[attr-defined]
+                if positive_count >= effective_count_min:
+                    effective_type = IntervalType.POSITIVE
+                else:
+                    effective_type = IntervalType.NEGATIVE
+                ratio = positive_count / effective_count_min
+                return IntervalWithCount(start, end, effective_type, ratio)
 
-                    # we require at least one positive interval to be present in any case (hence the max(1, ...))
-                    effective_count_min = max(
-                        1, self.expr.count_min - not_applicable_count
-                    )
-                    positive_count = counts.get(IntervalType.POSITIVE, 0)
-                    effective_type = (
-                        IntervalType.POSITIVE
-                        if positive_count >= effective_count_min
-                        else IntervalType.NEGATIVE
-                    )
-                    key_result.append(
-                        Interval(interval.lower, interval.upper, effective_type)
-                    )
-                result[key] = key_result
-            return result
+            return process.find_rectangles(data, interval_counts)
+
         elif isinstance(self.expr, logic.AllOrNone):
             raise NotImplementedError("AllOrNone is not implemented yet.")
         else:
@@ -401,36 +408,41 @@ class Task:
 
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
-
-        data_p = process.select_type(left, IntervalType.POSITIVE)
-
+        # observation_window_intervals extends the result to the
+        # correct temporal range; Its type is not important.
+        observation_window_intervals = {
+            key: [
+                Interval(
+                    observation_window.start.timestamp(),
+                    observation_window.end.timestamp(),
+                    IntervalType.POSITIVE,
+                )
+            ]
+            for key in left.keys()
+        }
         if isinstance(self.expr, logic.LeftDependentToggle):
-            interval_type = IntervalType.NOT_APPLICABLE
-        elif isinstance(self.expr, logic.ConditionalFilter):
-            interval_type = IntervalType.NEGATIVE
+            fill_type = IntervalType.NOT_APPLICABLE
+        else:
+            assert isinstance(self.expr, logic.ConditionalFilter)
+            fill_type = IntervalType.NEGATIVE
 
-        result_not_p = process.complementary_intervals(
-            data_p,
-            reference=base_data,
-            observation_window=observation_window,
-            interval_type=interval_type,
+        def new_interval(
+            start: int, end: int, intervals: List[GeneralizedInterval]
+        ) -> GeneralizedInterval:
+            left_interval, right_interval, observation_window_ = intervals
+            if (
+                left_interval is None
+            ) or not left_interval.type == IntervalType.POSITIVE:
+                # no left_interval or not positive -> use fill type
+                return Interval(start, end, fill_type)
+            elif right_interval is not None:
+                return interval_like(right_interval, start, end)
+            else:  # left_interval but not right_interval -> implicit negative
+                return None
+
+        return process.find_rectangles(
+            [left, right, observation_window_intervals], new_interval
         )
-
-        result_p_and_i = process.intersect_intervals([data_p, right])
-
-        result = process.concat_intervals([result_not_p, result_p_and_i])
-
-        # fill remaining time with NEGATIVE
-        result_no_data = process.complementary_intervals(
-            result,
-            reference=base_data,
-            observation_window=observation_window,
-            interval_type=IntervalType.NEGATIVE,
-        )
-
-        result = process.concat_intervals([result, result_no_data])
-
-        return result
 
     def handle_temporal_operator(
         self, data: list[PersonIntervals], observation_window: TimeRange
@@ -463,6 +475,8 @@ class Task:
             return cnf.start, cnf.end
 
         assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
+        assert self.expr.count_min == 1
+        assert self.expr.count_max is None
 
         if self.expr.interval_criterion is not None:
 
@@ -506,7 +520,82 @@ class Task:
                     timezone=get_config().timezone,
                 )
 
-            result = process.find_overlapping_windows(indicator_windows, data_p)
+            # Incrementally compute the interval type for each window
+            # interval.
+            window_types: dict[AnyInterval, IntervalType] = (
+                dict()
+            )  # window interval -> interval type
+
+            def update_window_type(
+                window_interval: AnyInterval, data_interval: AnyInterval
+            ) -> IntervalType:
+                window_type = window_types.get(window_interval.lower, None)
+
+                if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
+                    if window_type is not IntervalType.POSITIVE:
+                        window_type = IntervalType.NEGATIVE
+                elif data_interval.type is IntervalType.POSITIVE:
+                    window_type = IntervalType.POSITIVE
+                elif data_interval.type is IntervalType.NOT_APPLICABLE:
+                    if window_type is None:
+                        window_type = IntervalType.NOT_APPLICABLE
+                else:
+                    assert data_interval.type is IntervalType.NO_DATA
+                    if window_type is None:
+                        window_type = IntervalType.NO_DATA
+                window_types[window_interval.lower] = window_type
+
+                return window_type
+
+            # The boundaries of the result intervals are identical to
+            # those of the window intervals. In addition, update the
+            # result interval window types based on the data
+            # intervals.
+            def is_same_interval(
+                left_intervals: tuple[AnyInterval], right_intervals: tuple[AnyInterval]
+            ) -> bool:
+                left_window_interval, left_data_interval = left_intervals
+                right_window_interval, right_data_interval = right_intervals
+                if right_window_interval is None:
+                    if left_window_interval is None:
+                        return True
+                    else:
+                        update_window_type(left_window_interval, left_data_interval)
+                        return False
+                else:
+                    update_window_type(right_window_interval, right_data_interval)
+                    if left_window_interval is None:
+                        return False
+                    else:
+                        if left_window_interval is right_window_interval:
+                            return True
+                        else:
+                            update_window_type(left_window_interval, left_data_interval)
+                            return False
+
+            # Create result intervals based on the computed interval
+            # types.
+            def result_interval(
+                start: int, end: int, intervals: List[AnyInterval]
+            ) -> AnyInterval:
+                window_interval, data_interval = intervals
+                if (
+                    window_interval is None
+                    or window_interval.type is IntervalType.NOT_APPLICABLE
+                ):
+                    return Interval(start, end, IntervalType.NOT_APPLICABLE)
+                else:
+                    window_type = window_types.get(window_interval.lower, None)
+                    if window_type is None:
+                        window_type = update_window_type(window_interval, data_interval)
+                    return Interval(start, end, window_type)
+
+            person_indicator_windows = {key: indicator_windows for key in data_p.keys()}
+            result = process.find_rectangles(
+                [person_indicator_windows, data_p],
+                result_interval,
+                is_same_result=is_same_interval,
+            )
 
         return result
 
@@ -535,7 +624,23 @@ class Task:
             interval_type=IntervalType.NEGATIVE,
         )
 
-        result = process.concat_intervals([data, data_negative])
+        def union_interval(
+            start: int, end: int, intervals: List[GeneralizedInterval]
+        ) -> GeneralizedInterval:
+            with IntervalType.union_order():
+                max_interval = max(
+                    intervals,
+                    key=lambda i: IntervalType.NEGATIVE if i is None else i.type,
+                )
+            if max_interval is not None:
+                return interval_like(max_interval, start, end)
+            else:
+                # Explicit representation of negative intervals is
+                # required here because the database views do not
+                # understand the implicit representation.
+                return Interval(start, end, IntervalType.NEGATIVE)
+
+        result = process.find_rectangles([data, data_negative], union_interval)
 
         return result
 
@@ -579,6 +684,19 @@ class Task:
             cohort_category=self.category,
         )
 
+        def interval_data(interval: AnyInterval) -> dict:
+            data = dict(
+                interval_start=interval.lower,
+                interval_end=interval.upper,
+                interval_type=interval.type,
+            )
+            if isinstance(interval, Interval):
+                data["interval_ratio"] = None
+            else:
+                assert isinstance(interval, IntervalWithCount)
+                data["interval_ratio"] = interval.count
+            return data
+
         try:
             with get_engine().begin() as conn:
                 conn.execute(
@@ -586,9 +704,7 @@ class Task:
                     [
                         {
                             "person_id": person_id,
-                            "interval_start": normalized_interval.lower,
-                            "interval_end": normalized_interval.upper,
-                            "interval_type": normalized_interval.type,
+                            **interval_data(normalized_interval),
                             **params,
                         }
                         for person_id, intervals in result.items()

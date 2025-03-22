@@ -2,7 +2,7 @@ import datetime
 import importlib
 import logging
 import os
-from typing import Callable, cast
+from typing import Callable, List, Set, cast
 
 import numpy as np
 import pendulum
@@ -12,7 +12,12 @@ from sqlalchemy import CursorResult
 from execution_engine.util.interval import IntervalType, interval_datetime
 from execution_engine.util.types import TimeRange
 
-from . import Interval, IntervalWithCount
+from . import (
+    GeneralizedInterval,
+    Interval,
+    IntervalWithCount,
+    interval_like,
+)
 
 PROCESS_RECTANGLE_VERSION = os.getenv("PROCESS_RECTANGLE_VERSION", "auto")
 
@@ -569,19 +574,21 @@ def mask_intervals(
             for interval in intervals
         ]
         for person_id, intervals in mask.items()
+        if person_id in data
     }
 
-    result = {}
-    for person_id in data:
-        # intersect every interval in data with every interval in mask
-        person_result = _impl.intersect_interval_lists(
-            data[person_id], person_mask[person_id]
-        )
-        if not person_result:
-            continue
+    def intersection_interval(
+        start: int, end: int, intervals: List[GeneralizedInterval]
+    ) -> GeneralizedInterval | None:
 
-        result[person_id] = person_result
+        left_interval, right_interval = intervals
 
+        if left_interval is not None and right_interval is not None:
+            return interval_like(right_interval, start, end)
+
+        return None
+
+    result = find_rectangles([person_mask, data], intersection_interval)
     return result
 
 
@@ -674,7 +681,11 @@ def create_time_intervals(
     intervals = []
     previous_end = None
 
-    def add_interval(interval_start, interval_end, interval_type):
+    def add_interval(
+        interval_start: datetime.datetime,
+        interval_end: datetime.datetime,
+        interval_type: IntervalType,
+    ) -> None:
         nonlocal previous_end
         effective_start = max(interval_start, start_datetime)
         effective_end = min(interval_end, end_datetime)
@@ -686,7 +697,7 @@ def create_time_intervals(
             # method) which can result in an incorrect event order for
             # touching intervals.
             if previous_end is not None:
-                assert previous_end < effective_start
+                assert previous_end < effective_start  # type: ignore[unreachable]
             intervals.append(
                 Interval(
                     lower=effective_start.timestamp(),
@@ -721,7 +732,6 @@ def create_time_intervals(
         # Create the interval with the specified interval_type if it
         # overlaps the main datetime range, otherwise fill the day
         # with an interval of type "not applicable".
-        # TODO: what about intervals "before" the main datetime range?
         if end_interval < start_datetime:  # completely before datetime range
             day_start = timezone.localize(
                 datetime.datetime.combine(current_date, datetime.time(0, 0, 0))
@@ -751,23 +761,6 @@ def create_time_intervals(
         current_date += datetime.timedelta(days=1)
 
     return intervals
-
-
-def find_overlapping_windows(
-    windows: list[Interval], data: PersonIntervals
-) -> PersonIntervals:
-    """
-    Returns a list of windows that overlap with any interval in the intervals list. A window is included in the
-    result if it overlaps in any part with any of the given intervals, not just where they intersect. The entire
-    window is returned, not just the overlapping segment.
-
-    Note that a single, common list of windows is used for all persons.
-
-    :param windows: A list of windows, where each window is defined as an interval.
-    :param data: The dict with intervals that are checked for overlap with the windows.
-    :return: A list of windows that have any overlap with the intervals.
-    """
-    return {key: _impl.find_overlapping_windows(windows, data[key]) for key in data}
 
 
 def find_overlapping_personal_windows(
@@ -805,14 +798,34 @@ def find_overlapping_personal_windows(
     return result
 
 
-def find_rectangles_with_count(data: list[PersonIntervals]) -> PersonIntervals:
+def find_rectangles(
+    data: list[PersonIntervals],
+    interval_constructor: Callable,
+    is_same_result: Callable | None = None,
+) -> PersonIntervals:
+    """
+    Iterates over intervals for each person across all items in `data` and constructs new intervals
+    ("rectangles") by applying `interval_constructor` to the overlapping intervals in each time range.
+
+    :param data: A list of dictionaries, each mapping a person ID to a list of intervals.
+    :param interval_constructor: A callable that takes the time boundaries and the corresponding intervals
+        from each source and returns a new interval or None.
+    :param is_same_result: Optional helper for merging adjacent intervals of the same type to avoid
+        unnecessary fragmentation.
+    :return: A dictionary mapping each person ID to the newly constructed intervals.
+    """
+    # TODO(jmoringe): can this use _process_interval?
     if len(data) == 0:
         return {}
     else:
-        keys = data[0].keys()
+        keys: Set[int] = set()
+        for track in data:
+            keys |= track.keys()
         return {
-            key: _impl.find_rectangles_with_count(
-                [intervals[key] for intervals in data]
+            key: _impl.find_rectangles(
+                [intervals.get(key, []) for intervals in data],
+                interval_constructor,
+                is_same_result=is_same_result,
             )
             for key in keys
         }

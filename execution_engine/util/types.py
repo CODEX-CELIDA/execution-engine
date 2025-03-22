@@ -5,6 +5,7 @@ import pendulum
 import pytz
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from execution_engine.task.process import AnyInterval
 from execution_engine.util import serializable
 from execution_engine.util.enum import TimeUnit
 from execution_engine.util.interval import (
@@ -15,7 +16,7 @@ from execution_engine.util.interval import (
 from execution_engine.util.value import ValueNumber, ValueNumeric
 from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 
-PersonIntervals = dict[int, Any]
+PersonIntervals = dict[int, AnyInterval]
 
 
 @serializable.register_class
