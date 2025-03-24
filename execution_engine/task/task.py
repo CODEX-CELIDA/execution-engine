@@ -4,7 +4,7 @@ import json
 import logging
 from collections import Counter
 from enum import Enum, auto
-from typing import List
+from typing import Callable, List, Type
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
@@ -27,6 +27,12 @@ from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import PersonIntervals, TimeRange
 
 process = get_processing_module()
+
+COUNT_TYPES = (
+    logic.MinCount,
+    logic.ExactCount,
+    logic.CappedMinCount,
+)
 
 
 def get_engine() -> OMOPSQLClient:
@@ -140,6 +146,29 @@ class Task:
         :return: The result of the predecessor task.
         """
         return data[self.get_predecessor_data_index(expr)]
+
+    def receives_only_count_inputs(self) -> bool:
+        """
+        Indicates whether this tasks only receives inputs from expression that perform counting and thus return
+        IntervalWithCount.
+        """
+        # all arguments are count types
+        if all(isinstance(parent, COUNT_TYPES) for parent in self.expr.args):
+            return True
+
+        # all arguments are logic.BinaryNonCommutativeOperator, and all of their "right" children are count types
+        if all(
+            isinstance(parent, logic.BinaryNonCommutativeOperator)
+            and isinstance(parent.right, logic.Expr)
+            for parent in self.expr.args
+        ) and all(
+            isinstance(grandparent, COUNT_TYPES)
+            for parent in self.expr.args
+            for grandparent in parent.right.args
+        ):
+            return True
+
+        return False
 
     def run(
         self,
@@ -319,7 +348,35 @@ class Task:
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
             result = process.intersect_intervals(data)
         elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
-            result = process.union_intervals(data)
+            # result = process.union_intervals(data)
+            if self.receives_only_count_inputs():
+                with IntervalType.custom_union_priority_order(
+                    IntervalType.union_priority()
+                ):
+                    with IntervalType.union_order():
+
+                        def interval_union_with_count(
+                            start: int, end: int, intervals: List[IntervalWithCount]
+                        ) -> IntervalWithCount:
+                            # todo: @moringenj can we improve the "interval is not None" checks here?
+                            interval_type = max(
+                                interval.type
+                                for interval in intervals
+                                if interval is not None
+                            )
+                            count = sum(
+                                interval.count
+                                for interval in intervals
+                                if interval is not None
+                                and interval.type == interval_type
+                                and interval.count is not None
+                            )
+                            return IntervalWithCount(start, end, interval_type, count)
+
+                        return process.find_rectangles(data, interval_union_with_count)
+            else:
+                result = process.union_intervals(data)
+
         elif isinstance(self.expr, logic.Count):
             # result = process.count_intervals(data)
             # result = process.filter_count_intervals(
@@ -365,11 +422,11 @@ class Task:
                         ratio = positive_count / count_min
                         return IntervalWithCount(start, end, interval_type, ratio)
                 if no_data_count > 0:
-                    return Interval(start, end, IntervalType.NO_DATA)
+                    return IntervalWithCount(start, end, IntervalType.NO_DATA, 0)
                 if not_applicable_count > 0:
-                    return Interval(start, end, IntervalType.NOT_APPLICABLE)
+                    return IntervalWithCount(start, end, IntervalType.NOT_APPLICABLE, 0)
                 if negative_count > 0:
-                    return Interval(start, end, IntervalType.NEGATIVE)
+                    return IntervalWithCount(start, end, IntervalType.NEGATIVE, 0)
 
                 raise ValueError("No intervals of any kind found")
 
@@ -487,15 +544,28 @@ class Task:
             assert isinstance(self.expr, logic.ConditionalFilter)
             fill_type = IntervalType.NEGATIVE
 
+        interval_type: (
+            Callable[[int, int, IntervalType], IntervalWithCount] | Type[Interval]
+        )
+
+        # if all incoming data of "right" are count types, we will create a count type as well, to
+        # allow summing in the next layer
+        if isinstance(self.expr.right, logic.Expr) and all(
+            isinstance(parent, COUNT_TYPES) for parent in self.expr.right.args
+        ):
+            interval_type = lambda start, end, fill_type: IntervalWithCount(
+                start, end, fill_type, None
+            )
+        else:
+            interval_type = Interval
+
         def new_interval(
             start: int, end: int, intervals: List[GeneralizedInterval]
         ) -> GeneralizedInterval:
             left_interval, right_interval, observation_window_ = intervals
-            if (
-                left_interval is None
-            ) or not left_interval.type == IntervalType.POSITIVE:
+            if (left_interval is None) or left_interval.type != IntervalType.POSITIVE:
                 # no left_interval or not positive -> use fill type
-                return Interval(start, end, fill_type)
+                return interval_type(start, end, fill_type)
             elif right_interval is not None:
                 return interval_like(right_interval, start, end)
             else:  # left_interval but not right_interval -> implicit negative
@@ -588,6 +658,7 @@ class Task:
                 dict()
             )  # window interval -> interval type
 
+            # todo: @moringenj - is this additional function really a good solution?
             def reset_window_types() -> None:
                 window_types.clear()
 
