@@ -306,12 +306,50 @@ class Task:
         elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
             result = process.union_intervals(data)
         elif isinstance(self.expr, logic.Count):
-            result = process.count_intervals(data)
-            result = process.filter_count_intervals(
-                result,
-                min_count=self.expr.count_min,
-                max_count=self.expr.count_max,
-            )
+            # result = process.count_intervals(data)
+            # result = process.filter_count_intervals(
+            #     result,
+            #     min_count=self.expr.count_min,
+            #     max_count=self.expr.count_max,
+            # )
+            count_min = self.expr.count_min
+            count_max = self.expr.count_max
+            if count_min is None and count_max is None:
+                raise ValueError("count_min and count_max cannot both be None")
+            def interval_counts(
+                    start: int, end: int, intervals: List[AnyInterval]
+            ) -> GeneralizedInterval:
+                positive_count, negative_count, not_applicable_count, no_data_count = 0, 0, 0, 0
+                for interval in intervals:
+                    if interval is None or interval.type is IntervalType.NEGATIVE:
+                        negative_count += 1
+                    elif interval.type is IntervalType.POSITIVE:
+                        positive_count += 1
+                    elif interval.type is IntervalType.NOT_APPLICABLE:
+                        not_applicable_count += 1
+                    elif interval.type is IntervalType.NO_DATA:
+                        no_data_count += 1
+                #
+                if positive_count > 0:
+                    if count_min is None:
+                        interval_type = IntervalType.POSITIVE if (
+                                    positive_count <= count_max) else IntervalType.NEGATIVE
+                        return Interval(start, end, interval_type)
+                    else:
+                        min_good = count_min <= positive_count
+                        max_good = (count_max is None) or (positive_count <= count_max)
+                        interval_type = IntervalType.POSITIVE if (min_good and max_good) else IntervalType.NEGATIVE
+                        ratio = positive_count / count_min
+                        return IntervalWithCount(start, end, interval_type, ratio)
+                if no_data_count > 0:
+                    return Interval(start, end, IntervalType.NO_DATA)
+                if not_applicable_count > 0:
+                    return Interval(start, end, IntervalType.NOT_APPLICABLE)
+                if negative_count > 0:
+                    return Interval(start, end, IntervalType.NEGATIVE)
+
+            result = process.find_rectangles(data, interval_counts)
+
         elif isinstance(self.expr, logic.CappedCount):
 
             def interval_counts(
