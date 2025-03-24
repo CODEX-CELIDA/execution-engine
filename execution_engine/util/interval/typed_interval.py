@@ -82,9 +82,14 @@ class IntervalType(StrEnum):
     criterion/combination of criteria is/are not satisfied.
     """
 
-    __union_priority_order: list[str] = [POSITIVE, NO_DATA, NOT_APPLICABLE, NEGATIVE]
+    # UNION PRIORITY ORDER
+    # from Mar 24, 2025: changed order of NEGATIVE and NOT_APPLICABLE, because when OR combining two population/inter-
+    # vention expressions, and one has NOT_APPLICABLE whereas the other has NEGATIVE, the overall result should be
+    # NEGATIVE, not NOT_APPLICABLE.
+    __union_priority_order: list[str] = [POSITIVE, NO_DATA, NEGATIVE, NOT_APPLICABLE]
     """Union priority order starting with the highest priority."""
 
+    # INTERSECTION PRIORITY ORDER
     # until Jan 13, 2024:
     # POSITIVE has higher priority than NO_DATA, as in measurements we return NO_DATA intervals for all intervals
     # inbetween measurements (and outside), and these are &-ed with the POSITIVE intervals for e.g. conditions.

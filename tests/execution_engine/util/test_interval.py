@@ -198,14 +198,17 @@ class TestInterval:
         [
             (T.POSITIVE, T.NEGATIVE, T.POSITIVE),
             (T.NO_DATA, T.NEGATIVE, T.NO_DATA),
-            (T.NOT_APPLICABLE, T.NEGATIVE, T.NOT_APPLICABLE),
+            (T.NEGATIVE, T.NOT_APPLICABLE, T.NEGATIVE),
             (T.POSITIVE, T.NO_DATA, T.POSITIVE),
             (T.POSITIVE, T.NOT_APPLICABLE, T.POSITIVE),
             (T.NO_DATA, T.NOT_APPLICABLE, T.NO_DATA),
         ],
     )
     def test_union_interval_different_type(self, type1, type2, overlapping_type):
-        # type1 is the higher priority type
+
+        with IntervalType.union_order():
+            # type1 is the higher priority type
+            assert type1 > type2
 
         assert interval_int(1, 2, type1) | interval_int(2, 3, type2) == IntInterval(
             interval_int(1, 2, type1),
@@ -472,8 +475,8 @@ class TestIntervalType:
         assert IntervalType.union_priority() == [
             IntervalType.POSITIVE,
             IntervalType.NO_DATA,
-            IntervalType.NOT_APPLICABLE,
             IntervalType.NEGATIVE,
+            IntervalType.NOT_APPLICABLE,
         ]
 
     def test_intersection_priority(self):
@@ -505,8 +508,8 @@ class TestIntervalType:
         assert IntervalType.union_priority() == [
             IntervalType.POSITIVE,
             IntervalType.NO_DATA,
-            IntervalType.NOT_APPLICABLE,
             IntervalType.NEGATIVE,
+            IntervalType.NOT_APPLICABLE,
         ]
 
     def test_custom_intersection_priority_order(self):
@@ -596,12 +599,10 @@ class TestIntervalType:
 
         # NOT_APPLICABLE | others
         assert (
-            IntervalType.NOT_APPLICABLE | IntervalType.NEGATIVE
-            == IntervalType.NOT_APPLICABLE
+            IntervalType.NOT_APPLICABLE | IntervalType.NEGATIVE == IntervalType.NEGATIVE
         )
         assert (
-            IntervalType.NEGATIVE | IntervalType.NOT_APPLICABLE
-            == IntervalType.NOT_APPLICABLE
+            IntervalType.NEGATIVE | IntervalType.NOT_APPLICABLE == IntervalType.NEGATIVE
         )
 
         # same types
