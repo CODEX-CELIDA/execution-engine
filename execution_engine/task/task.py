@@ -379,39 +379,31 @@ class Task:
                 result = process.union_intervals(data)
 
         elif isinstance(self.expr, logic.Count):
-            # result = process.count_intervals(data)
-            # result = process.filter_count_intervals(
-            #     result,
-            #     min_count=self.expr.count_min,
-            #     max_count=self.expr.count_max,
-            # )
             count_min = self.expr.count_min
             count_max = self.expr.count_max
             if count_min is None and count_max is None:
                 raise ValueError("count_min and count_max cannot both be None")
 
             def interval_counts(
-                start: int, end: int, intervals: List[AnyInterval]
+                start: int, end: int, intervals: List[GeneralizedInterval]
             ) -> GeneralizedInterval:
 
+                # Count the different interval types. None represents
+                # implicit negative intervals and is counted as such.
                 counts = Counter(
                     (interval.type if interval else IntervalType.NEGATIVE)
                     for interval in intervals
                 )
 
+                # The interval type with the highest "union priority"
+                # determines the result.
                 positive_count = counts[IntervalType.POSITIVE]
-                negative_count = counts[IntervalType.NEGATIVE]
-                not_applicable_count = counts[IntervalType.NOT_APPLICABLE]
-                no_data_count = counts[IntervalType.NO_DATA]
-
                 if positive_count > 0:
                     if count_min is None:
-                        interval_type = (
-                            IntervalType.POSITIVE
-                            if (positive_count <= count_max)  # type:ignore [operator]
-                            else IntervalType.NEGATIVE
-                        )
-                        return Interval(start, end, interval_type)
+                        if positive_count <= count_max:
+                            return Interval(start, end, IntervalType.POSITIVE)
+                        else:
+                            return None # Implicit negative interval
                     else:
                         min_good = count_min <= positive_count
                         max_good = (count_max is None) or (positive_count <= count_max)
@@ -422,11 +414,11 @@ class Task:
                         )
                         ratio = positive_count / count_min
                         return IntervalWithCount(start, end, interval_type, ratio)
-                if no_data_count > 0:
+                if counts[IntervalType.NO_DATA] > 0:
                     return IntervalWithCount(start, end, IntervalType.NO_DATA, 0)
-                if not_applicable_count > 0:
+                if counts[IntervalType.NOT_APPLICABLE] > 0:
                     return IntervalWithCount(start, end, IntervalType.NOT_APPLICABLE, 0)
-                if negative_count > 0:
+                if counts[IntervalType.NEGATIVE] > 0:
                     return IntervalWithCount(start, end, IntervalType.NEGATIVE, 0)
 
                 raise ValueError("No intervals of any kind found")

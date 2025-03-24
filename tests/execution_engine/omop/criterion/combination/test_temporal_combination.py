@@ -29,6 +29,9 @@ from tests._fixtures.concept import (
     concept_surgical_procedure,
     concept_unit_kg,
     concept_unit_mg,
+    concept_body_height,
+    concept_unit_cm,
+    concept_tidal_volume,
 )
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
@@ -200,12 +203,16 @@ c2 = ConditionOccurrence(
     concept=concept_covid19,
 )
 
-c3 = ProcedureOccurrence(
+artificial_respiration = ProcedureOccurrence(
     concept=concept_artificial_respiration,
 )
 
 c4 = ProcedureOccurrence(
     concept=concept_surgical_procedure,
+)
+
+delir_screening = ProcedureOccurrence(
+    concept=concept_delir_screening,
 )
 
 bodyweight_measurement_without_forward_fill = Measurement(
@@ -221,8 +228,30 @@ bodyweight_measurement_with_forward_fill = Measurement(
     static=False,
 )
 
-delir_screening = ProcedureOccurrence(
-    concept=concept_delir_screening,
+body_height_measurement_without_forward_fill = Measurement(
+    concept=concept_body_height,
+    value=ValueNumber.parse("<=110", unit=concept_unit_cm),
+    static=False,
+    forward_fill=False,
+)
+
+body_height_measurement_with_forward_fill = Measurement(
+    concept=concept_body_height,
+    value=ValueNumber.parse("<=110", unit=concept_unit_cm),
+    static=False,
+)
+
+tidal_volume_measurement_without_forward_fill = Measurement(
+    concept=concept_tidal_volume,
+    value=ValueNumber.parse("<=110", unit=concept_unit_cm), # TODO(jmoringe): copied; does not make sense
+    static=False,
+    forward_fill=False
+)
+
+tidal_volume_measurement_with_forward_fill = Measurement(
+    concept=concept_tidal_volume,
+    value=ValueNumber.parse("<=110", unit=concept_unit_cm), # TODO(jmoringe): copied; does not make sense
+    static=False,
 )
 
 
@@ -242,9 +271,14 @@ class TestCriterionCombinationDatabase(TestCriterion):
         criteria = [
             c1,
             c2,
-            c3,
+            artificial_respiration,
+            c4,
             bodyweight_measurement_without_forward_fill,
             bodyweight_measurement_with_forward_fill,
+            body_height_measurement_without_forward_fill,
+            body_height_measurement_with_forward_fill,
+            tidal_volume_measurement_without_forward_fill,
+            tidal_volume_measurement_with_forward_fill,
             delir_screening,
         ]
         for i, c in enumerate(criteria):
@@ -384,7 +418,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.Day(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -461,7 +495,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.Presence(
-                    c3,
+                    artificial_respiration,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
                 ),
@@ -469,7 +503,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.Presence(
-                    c3,
+                    artificial_respiration,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
                 ),
@@ -523,7 +557,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.MorningShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -570,7 +604,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.AfternoonShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -622,7 +656,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.NightShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -665,7 +699,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.NightShiftBeforeMidnight(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -704,7 +738,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.NightShiftAfterMidnight(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -817,7 +851,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.Day(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -909,7 +943,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.Presence(
-                    c3,
+                    artificial_respiration,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
                 ),
@@ -1011,7 +1045,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.MorningShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -1115,7 +1149,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.AfternoonShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -1219,7 +1253,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.NightShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -2173,6 +2207,231 @@ class TestIndicatorWindowsMulitplePatients(TestCriterionCombinationDatabase):
             result = df.query(f"person_id=={person.person_id}")
             result_tuples = list(
                 result[ [ "interval_type", "interval_start", "interval_end" ] ]
+                .fillna("nan")
+                .itertuples(index=False, name=None)
+            )
+
+            for result_tuple, expected_tuple in zip(
+                result_tuples, expected[person.person_id]
+            ):
+                assert result_tuple == expected_tuple
+
+
+class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
+    """
+    This test checks the behavior of the logical Count operator for
+    different thresholds and different kinds of inputs. Of particular
+    interest is the computed count attribute of the result intervals
+    and the behavior for edge cases regarding the count thresholds.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            name="observation", start="2025-02-18 14:55:00+01:00", end="2025-02-22 12:00:00+01:00"
+        )
+
+    def patient_events(self, db_session, visit_occurrence):
+        person_id = visit_occurrence.person_id
+        events = [create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2025-02-21 02:00:00+01:00"),
+        )]
+        if person_id == 1:
+            events.append(create_measurement(
+                vo=visit_occurrence,
+                measurement_concept_id=concept_body_weight.concept_id,
+                measurement_datetime=pendulum.parse("2025-02-19 18:00:00+01:00"),
+                value_as_number=90,
+                unit_concept_id=concept_unit_kg.concept_id,
+            ))
+            events.append(create_measurement(
+                vo=visit_occurrence,
+                measurement_concept_id=concept_body_height.concept_id,
+                measurement_datetime=pendulum.parse("2025-02-20 07:00:00+01:00"),
+                value_as_number=90,
+                unit_concept_id=concept_unit_cm.concept_id,
+            ))
+            events.append(create_measurement(
+                vo=visit_occurrence,
+                measurement_concept_id=concept_tidal_volume.concept_id,
+                measurement_datetime=pendulum.parse("2025-02-20 18:00:00+01:00"),
+                value_as_number=90,
+                unit_concept_id=concept_unit_cm.concept_id,
+            ))
+        db_session.add_all(events)
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "population,intervention,expected",
+        [
+            (
+                logic.And(c2),  # population
+                logic.MinCount(
+                temporal_logic_util.AnyTime(bodyweight_measurement_without_forward_fill),
+                    temporal_logic_util.AnyTime(body_height_measurement_without_forward_fill),
+                    temporal_logic_util.AnyTime(tidal_volume_measurement_without_forward_fill),
+                    threshold=1,
+                ),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            'nan',
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            3,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            'nan',
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                                IntervalType.NOT_APPLICABLE,
+                                'nan',
+                                pendulum.parse("2025-02-18 17:55:00+01:00"),
+                                pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                                IntervalType.NO_DATA,
+                                0,
+                                pendulum.parse("2025-02-19 08:00:00+01:00"),
+                                pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                                IntervalType.NOT_APPLICABLE,
+                                'nan',
+                                pendulum.parse("2025-02-21 02:00:01+01:00"),
+                                pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
+            ),
+            (
+                    logic.And(c2), # population
+                    logic.MinCount(
+                        bodyweight_measurement_with_forward_fill,
+                        body_height_measurement_with_forward_fill,
+                        tidal_volume_measurement_with_forward_fill,
+                        threshold=2,
+                    ),
+                    {
+                        1: [
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
+                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.NO_DATA,
+                                    0.0,
+                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
+                                    pendulum.parse("2025-02-19 17:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.NEGATIVE,
+                                    0.5,
+                                    pendulum.parse("2025-02-19 18:00:00+01:00"),
+                                    pendulum.parse("2025-02-20 06:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.POSITIVE,
+                                    1,
+                                    pendulum.parse("2025-02-20 07:00:00+01:00"),
+                                    pendulum.parse("2025-02-20 17:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.POSITIVE,
+                                    1.5,
+                                    pendulum.parse("2025-02-20 18:00:00+01:00"),
+                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
+                            ),
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
+                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
+                            ),
+                        ],
+                        2: [
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
+                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.NO_DATA,
+                                    0,
+                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
+                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
+                            ),
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
+                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
+                            ),
+                        ],
+                    },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person,
+        db_session,
+        population,
+        intervention,
+        base_criterion,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = person[:2]
+        vos = []
+        for person in persons:
+            visit = create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end
+                - datetime.timedelta(hours=6.5),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            vos.append(visit)
+            self.patient_events(db_session, visit)
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_expression(
+            db_session, population, intervention, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = list(
+                result[ [ "interval_type", "interval_ratio", "interval_start", "interval_end" ] ]
                 .fillna("nan")
                 .itertuples(index=False, name=None)
             )
