@@ -611,33 +611,28 @@ class Task:
         :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
         """
+        # window_intervals extends the result to the correct temporal
+        # range and forces results to be computed for patients that
+        # are not represented in data; The interval types in
+        # window_intervals are not important.
+        windows = [ Interval(observation_window.start.timestamp(),
+                             observation_window.end.timestamp(),
+                             IntervalType.POSITIVE) ]
+        all_keys = data.keys() | base_data.keys()
+        window_intervals = { key: windows for key in all_keys }
 
-        data_negative = process.complementary_intervals(
-            data,
-            reference=base_data,
-            observation_window=observation_window,
-            interval_type=IntervalType.NEGATIVE,
-        )
-
-        def union_interval(
-            start: int, end: int, intervals: List[GeneralizedInterval]
+        def create_interval(
+                start: int, end: int, intervals: List[GeneralizedInterval]
         ) -> GeneralizedInterval:
-            with IntervalType.union_order():
-                max_interval = max(
-                    intervals,
-                    key=lambda i: IntervalType.NEGATIVE if i is None else i.type,
-                )
-            if max_interval is not None:
-                return interval_like(max_interval, start, end)
+            interval, window_interval = intervals
+            if interval is not None:
+                return interval_like(interval, start, end)
             else:
                 # Explicit representation of negative intervals is
                 # required here because the database views do not
                 # understand the implicit representation.
                 return Interval(start, end, IntervalType.NEGATIVE)
-
-        result = process.find_rectangles([data, data_negative], union_interval)
-
-        return result
+        return process.find_rectangles([data, window_intervals], create_interval)
 
     def store_result_in_db(
         self,
