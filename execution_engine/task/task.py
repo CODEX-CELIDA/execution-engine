@@ -335,7 +335,7 @@ class Task:
                 ratio = positive_count / effective_count_min
                 return IntervalWithCount(start, end, effective_type, ratio)
 
-            return process.find_rectangles(data, interval_counts)
+            result = process.find_rectangles(data, interval_counts)
 
         elif isinstance(self.expr, logic.AllOrNone):
             raise NotImplementedError("AllOrNone is not implemented yet.")
@@ -408,18 +408,13 @@ class Task:
 
         # data[0] is the left dependency (i.e. P)
         # data[1] is the right dependency (i.e. I)
-        # observation_window_intervals extends the result to the
-        # correct temporal range; Its type is not important.
-        observation_window_intervals = {
-            key: [
-                Interval(
-                    observation_window.start.timestamp(),
-                    observation_window.end.timestamp(),
-                    IntervalType.POSITIVE,
-                )
-            ]
-            for key in left.keys()
-        }
+        # window_intervals extends the result to the correct temporal
+        # range; Its type is not important.
+        windows = [ Interval(observation_window.start.timestamp(),
+                             observation_window.end.timestamp(),
+                             IntervalType.POSITIVE) ]
+        window_intervals = { key: windows for key in left.keys() }
+
         if isinstance(self.expr, logic.LeftDependentToggle):
             fill_type = IntervalType.NOT_APPLICABLE
         else:
@@ -441,7 +436,7 @@ class Task:
                 return None
 
         return process.find_rectangles(
-            [left, right, observation_window_intervals], new_interval
+            [left, right, window_intervals], new_interval
         )
 
     def handle_temporal_operator(
