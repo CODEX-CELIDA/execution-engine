@@ -428,8 +428,6 @@ def union_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     return _process_intervals(data, _impl.union_interval_lists)
 
 
-
-
 def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     """
     Intersects the intervals per dict key in the list.
@@ -519,7 +517,7 @@ def create_time_intervals(
     end_time: datetime.time,
     interval_type: IntervalType,
     timezone: pytz.tzinfo.DstTzInfo | str,
-) -> list[Interval]:
+) -> tuple[Interval, ...]:
     """
     Constructs a list of time intervals within a specified date range, each defined by daily start and end times.
 
@@ -574,7 +572,7 @@ def create_time_intervals(
         end_datetime = end_datetime.in_timezone(timezone)
 
     # Prepare to collect intervals
-    intervals = []
+    intervals: list[Interval] = []
     previous_end = None
 
     def add_interval(
@@ -656,7 +654,8 @@ def create_time_intervals(
         # Move to the next day
         current_date += datetime.timedelta(days=1)
 
-    return intervals
+    # use a tuple for windows to make sure it is immutable (and can be shared by all persons)
+    return tuple(intervals)
 
 
 def find_overlapping_personal_windows(
@@ -698,6 +697,7 @@ def find_rectangles(
     data: list[PersonIntervals],
     interval_constructor: Callable,
     is_same_result: Callable | None = None,
+    reset: Callable | None = None,
 ) -> PersonIntervals:
     """
     Iterates over intervals for each person across all items in `data` and constructs new intervals
@@ -717,11 +717,21 @@ def find_rectangles(
         keys: Set[int] = set()
         for track in data:
             keys |= track.keys()
-        return {
-            key: _impl.find_rectangles(
-                [intervals.get(key, []) for intervals in data],
+        result = {}
+
+        for key in keys:
+
+            if reset:
+                reset()
+
+            intervals_for_person: list[list[Interval]] = [
+                intervals.get(key, []) for intervals in data
+            ]
+            intervals = _impl.find_rectangles(
+                intervals_for_person,
                 interval_constructor,
                 is_same_result=is_same_result,
             )
-            for key in keys
-        }
+            result[key] = intervals
+
+        return result

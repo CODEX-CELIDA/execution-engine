@@ -2,6 +2,7 @@ import base64
 import datetime
 import json
 import logging
+from collections import Counter
 from enum import Enum, auto
 from typing import List
 
@@ -101,6 +102,29 @@ class Task:
 
         return find_base_task(self)
 
+    def get_predecessor_data_index(self, expr: logic.BaseExpr) -> int:
+        """
+        Get the index of the predecessor data from the given expression.
+
+        This is required in expressions where order is important, e.g. in BinaryNonCommutativeOperator.
+        As the nx.DiGraph (and by inheritance, ExecutionGraph) does not store the order of the predecessors,
+        we need to find the predecessor task by its expression and select the result from the data.
+
+        :param expr: The expression of the predecessor task.
+        :return: The index in of expr in the data of predecessor results
+        """
+        if len(self.dependencies) == 0:
+            raise ValueError("Task has no dependencies.")
+
+        idx = next((i for i, t in enumerate(self.dependencies) if t.expr == expr), None)
+
+        if idx is None:
+            raise ValueError(
+                f"Task with expression '{str(expr)}' not found in dependencies."
+            )
+
+        return idx
+
     def select_predecessor_result(
         self, expr: logic.BaseExpr, data: list[PersonIntervals]
     ) -> PersonIntervals:
@@ -115,17 +139,7 @@ class Task:
         :param data: The input data.
         :return: The result of the predecessor task.
         """
-        if len(self.dependencies) == 0:
-            raise ValueError("Task has no dependencies.")
-
-        idx = next((i for i, t in enumerate(self.dependencies) if t.expr == expr), None)
-
-        if idx is None:
-            raise ValueError(
-                f"Task with expression '{str(expr)}' not found in dependencies."
-            )
-
-        return data[idx]
+        return data[self.get_predecessor_data_index(expr)]
 
     def run(
         self,
@@ -275,6 +289,7 @@ class Task:
         :return: A DataFrame with the inverted intervals.
         """
         assert self.expr.is_Not, "Dependency is not a Not expression."
+        assert len(data) == 1, "Unary operators require only one input"
 
         result = process.invert_intervals(
             data[0],
@@ -316,29 +331,37 @@ class Task:
             count_max = self.expr.count_max
             if count_min is None and count_max is None:
                 raise ValueError("count_min and count_max cannot both be None")
+
             def interval_counts(
-                    start: int, end: int, intervals: List[AnyInterval]
+                start: int, end: int, intervals: List[AnyInterval]
             ) -> GeneralizedInterval:
-                positive_count, negative_count, not_applicable_count, no_data_count = 0, 0, 0, 0
-                for interval in intervals:
-                    if interval is None or interval.type is IntervalType.NEGATIVE:
-                        negative_count += 1
-                    elif interval.type is IntervalType.POSITIVE:
-                        positive_count += 1
-                    elif interval.type is IntervalType.NOT_APPLICABLE:
-                        not_applicable_count += 1
-                    elif interval.type is IntervalType.NO_DATA:
-                        no_data_count += 1
-                #
+
+                counts = Counter(
+                    (interval.type if interval else IntervalType.NEGATIVE)
+                    for interval in intervals
+                )
+
+                positive_count = counts[IntervalType.POSITIVE]
+                negative_count = counts[IntervalType.NEGATIVE]
+                not_applicable_count = counts[IntervalType.NOT_APPLICABLE]
+                no_data_count = counts[IntervalType.NO_DATA]
+
                 if positive_count > 0:
                     if count_min is None:
-                        interval_type = IntervalType.POSITIVE if (
-                                    positive_count <= count_max) else IntervalType.NEGATIVE
+                        interval_type = (
+                            IntervalType.POSITIVE
+                            if (positive_count <= count_max)  # type:ignore [operator]
+                            else IntervalType.NEGATIVE
+                        )
                         return Interval(start, end, interval_type)
                     else:
                         min_good = count_min <= positive_count
                         max_good = (count_max is None) or (positive_count <= count_max)
-                        interval_type = IntervalType.POSITIVE if (min_good and max_good) else IntervalType.NEGATIVE
+                        interval_type = (
+                            IntervalType.POSITIVE
+                            if (min_good and max_good)
+                            else IntervalType.NEGATIVE
+                        )
                         ratio = positive_count / count_min
                         return IntervalWithCount(start, end, interval_type, ratio)
                 if no_data_count > 0:
@@ -347,6 +370,8 @@ class Task:
                     return Interval(start, end, IntervalType.NOT_APPLICABLE)
                 if negative_count > 0:
                     return Interval(start, end, IntervalType.NEGATIVE)
+
+                raise ValueError("No intervals of any kind found")
 
             result = process.find_rectangles(data, interval_counts)
 
@@ -444,14 +469,17 @@ class Task:
             self.expr, (logic.LeftDependentToggle, logic.ConditionalFilter)
         ), "Dependency is not a LeftDependentToggle or ConditionalFilter expression."
 
-        # data[0] is the left dependency (i.e. P)
-        # data[1] is the right dependency (i.e. I)
         # window_intervals extends the result to the correct temporal
         # range; Its type is not important.
-        windows = [ Interval(observation_window.start.timestamp(),
-                             observation_window.end.timestamp(),
-                             IntervalType.POSITIVE) ]
-        window_intervals = { key: windows for key in left.keys() }
+        # use a tuple for windows to make sure it is immutable (and can be shared by all persons)
+        windows = (
+            Interval(
+                observation_window.start.timestamp(),
+                observation_window.end.timestamp(),
+                IntervalType.POSITIVE,
+            ),
+        )
+        window_intervals = {key: windows for key in left.keys()}
 
         if isinstance(self.expr, logic.LeftDependentToggle):
             fill_type = IntervalType.NOT_APPLICABLE
@@ -473,9 +501,7 @@ class Task:
             else:  # left_interval but not right_interval -> implicit negative
                 return None
 
-        return process.find_rectangles(
-            [left, right, window_intervals], new_interval
-        )
+        return process.find_rectangles([left, right, window_intervals], new_interval)
 
     def handle_temporal_operator(
         self, data: list[PersonIntervals], observation_window: TimeRange
@@ -491,7 +517,7 @@ class Task:
         :return: A DataFrame with the merged intervals.
         """
 
-        data_p = data[0]
+        data_p = self.select_predecessor_result(self.expr.args[0], data)
         # data_p = process.select_type(data[0], IntervalType.POSITIVE)
         # data_p = {key: val for key, val in data_p.items() if val}
 
@@ -517,7 +543,10 @@ class Task:
             assert (
                 len(data) >= 2
             ), "TemporalCount with indicator criterion requires at least two inputs"
-            data, indicator_personal_windows = data[:-1], data[-1]
+
+            indicator_personal_windows = data.pop(
+                self.get_predecessor_data_index(self.expr.interval_criterion)
+            )
 
             result = process.find_overlapping_personal_windows(
                 indicator_personal_windows, data_p
@@ -558,6 +587,9 @@ class Task:
             window_types: dict[AnyInterval, IntervalType] = (
                 dict()
             )  # window interval -> interval type
+
+            def reset_window_types() -> None:
+                window_types.clear()
 
             def update_window_type(
                 window_interval: AnyInterval, data_interval: AnyInterval
@@ -628,6 +660,7 @@ class Task:
                 [person_indicator_windows, data_p],
                 result_interval,
                 is_same_result=is_same_interval,
+                reset=reset_window_types,
             )
 
         return result
@@ -653,14 +686,19 @@ class Task:
         # range and forces results to be computed for patients that
         # are not represented in data; The interval types in
         # window_intervals are not important.
-        windows = [ Interval(observation_window.start.timestamp(),
-                             observation_window.end.timestamp(),
-                             IntervalType.POSITIVE) ]
+        # use a tuple for windows to make sure it is immutable (and can be shared by all persons)
+        windows = (
+            Interval(
+                observation_window.start.timestamp(),
+                observation_window.end.timestamp(),
+                IntervalType.POSITIVE,
+            ),
+        )
         all_keys = data.keys() | base_data.keys()
-        window_intervals = { key: windows for key in all_keys }
+        window_intervals = {key: windows for key in all_keys}
 
         def create_interval(
-                start: int, end: int, intervals: List[GeneralizedInterval]
+            start: int, end: int, intervals: List[GeneralizedInterval]
         ) -> GeneralizedInterval:
             interval, window_interval = intervals
             if interval is not None:
@@ -670,6 +708,7 @@ class Task:
                 # required here because the database views do not
                 # understand the implicit representation.
                 return Interval(start, end, IntervalType.NEGATIVE)
+
         return process.find_rectangles([data, window_intervals], create_interval)
 
     def store_result_in_db(
