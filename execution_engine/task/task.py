@@ -349,32 +349,32 @@ class Task:
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
             result = process.intersect_intervals(data)
         elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
-            # result = process.union_intervals(data)
             if self.receives_only_count_inputs():
-                with IntervalType.custom_union_priority_order(
-                    IntervalType.union_priority()
-                ):
-                    with IntervalType.union_order():
-
-                        def interval_union_with_count(
-                            start: int, end: int, intervals: List[IntervalWithCount]
-                        ) -> IntervalWithCount:
-                            # todo: @moringenj can we improve the "interval is not None" checks here?
-                            interval_type = max(
-                                interval.type
-                                for interval in intervals
-                                if interval is not None
-                            )
-                            count = sum(
-                                interval.count
-                                for interval in intervals
-                                if interval is not None
-                                and interval.type == interval_type
-                                and interval.count is not None
-                            )
-                            return IntervalWithCount(start, end, interval_type, count)
-
-                        return process.find_rectangles(data, interval_union_with_count)
+                def interval_union_with_count(
+                    start: int, end: int, intervals: List[GeneralizedInterval]
+                ) -> IntervalWithCount:
+                    result_type  = None
+                    result_count = 0
+                    for interval in intervals:
+                        if interval is None:
+                            interval_type, interval_count = IntervalType.NEGATIVE, 0
+                        else:
+                            interval_type, interval_count = interval.type, interval.count
+                        if ((interval_type is IntervalType.POSITIVE
+                             and not result_type is IntervalType.POSITIVE)
+                            or (interval_type is IntervalType.NO_DATA
+                                and not result_type is IntervalType.POSITIVE
+                                and not result_type is IntervalType.NO_DATA)
+                            or (interval_type is IntervalType.NEGATIVE
+                                and (result_type is IntervalType.NOT_APPLICABLE
+                                     or result_type is None))
+                            or (interval_type is IntervalType.NOT_APPLICABLE
+                                and result_type is None)):
+                            result_type  = interval_type
+                            result_count = 0
+                        result_count += interval_count
+                    return IntervalWithCount(start, end, result_type, result_count)
+                result = process.find_rectangles(data, interval_union_with_count)
             else:
                 result = process.union_intervals(data)
 
