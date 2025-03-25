@@ -447,7 +447,9 @@ class Task:
                     elif interval.type == IntervalType.NOT_APPLICABLE:
                         not_applicable_count += 1
                 # we require at least one positive interval to be present in any case (hence the max(1, ...))
-                effective_count_min = max(1, self.expr.count_min - not_applicable_count)  # type: ignore[attr-defined]
+                effective_count_min = min(
+                    self.expr.count_min, max(1, len(intervals) - not_applicable_count)  # type: ignore[attr-defined]
+                )
                 if positive_count >= effective_count_min:
                     effective_type = IntervalType.POSITIVE
                 else:

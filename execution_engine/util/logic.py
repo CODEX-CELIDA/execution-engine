@@ -1011,6 +1011,14 @@ class LeftDependentToggle(BinaryNonCommutativeOperator):
     """
     A LeftDependentToggle object represents a logical AND operation if the left operand is positive,
     otherwise it returns NOT_APPLICABLE.
+
+    | left     | right    | Result   |
+    |----------|----------|----------|
+    | NEGATIVE |    *     | NOT_APPLICABLE |
+    | NO_DATA  |    *     | NOT_APPLICABLE |
+    | POSITIVE | POSITIVE | POSITIVE |
+    | POSITIVE | NEGATIVE | NEGATIVE |
+    | POSITIVE | NO_DATA  | NO_DATA  |
     """
 
 
@@ -1018,7 +1026,6 @@ class ConditionalFilter(BinaryNonCommutativeOperator):
     """
     A ConditionalFilter object returns the right operand if the left operand is POSITIVE,
     and NEGATIVE otherwise
-
 
     A conditional filter returns `right` iff `left` is POSITIVE, otherwise NEGATIVE.
 
