@@ -1,4 +1,5 @@
 import base64
+import copy
 import datetime
 import json
 import logging
@@ -655,19 +656,13 @@ class Task:
                 )
 
             # Incrementally compute the interval type for each window
-            # interval.
-            window_types: dict[AnyInterval, IntervalType] = (
-                dict()
-            )  # window interval -> interval type
-
-            # todo: @moringenj - is this additional function really a good solution?
-            def reset_window_types() -> None:
-                window_types.clear()
+            # interval. Maps id of window interval -> interval type
+            window_types: dict[int, IntervalType] = dict()
 
             def update_window_type(
                 window_interval: AnyInterval, data_interval: AnyInterval
             ) -> IntervalType:
-                window_type = window_types.get(window_interval.lower, None)
+                window_type = window_types.get(id(window_interval), None)
 
                 if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
                     if window_type is not IntervalType.POSITIVE:
@@ -681,7 +676,7 @@ class Task:
                     assert data_interval.type is IntervalType.NO_DATA
                     if window_type is None:
                         window_type = IntervalType.NO_DATA
-                window_types[window_interval.lower] = window_type
+                window_types[id(window_interval)] = window_type
 
                 return window_type
 
@@ -690,7 +685,7 @@ class Task:
             # result interval window types based on the data
             # intervals.
             def is_same_interval(
-                left_intervals: tuple[AnyInterval], right_intervals: tuple[AnyInterval]
+                left_intervals: List[AnyInterval], right_intervals: List[AnyInterval]
             ) -> bool:
                 left_window_interval, left_data_interval = left_intervals
                 right_window_interval, right_data_interval = right_intervals
@@ -723,17 +718,22 @@ class Task:
                 ):
                     return Interval(start, end, IntervalType.NOT_APPLICABLE)
                 else:
-                    window_type = window_types.get(window_interval.lower, None)
+                    window_type = window_types.get(id(window_interval), None)
                     if window_type is None:
                         window_type = update_window_type(window_interval, data_interval)
                     return Interval(start, end, window_type)
 
-            person_indicator_windows = {key: indicator_windows for key in data_p.keys()}
+            # Make separate copies of the intervals for each person so
+            # that the object identity of each interval is unique and
+            # can be used as a dictionary key.
+            person_indicator_windows = {
+                key: [ copy.copy(window) for window in indicator_windows ]
+                for key in data_p.keys()
+            }
             result = process.find_rectangles(
                 [person_indicator_windows, data_p],
                 result_interval,
                 is_same_result=is_same_interval,
-                reset=reset_window_types,
             )
 
         return result

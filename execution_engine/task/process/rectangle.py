@@ -517,7 +517,7 @@ def create_time_intervals(
     end_time: datetime.time,
     interval_type: IntervalType,
     timezone: pytz.tzinfo.DstTzInfo | str,
-) -> tuple[Interval, ...]:
+) -> list[Interval]:
     """
     Constructs a list of time intervals within a specified date range, each defined by daily start and end times.
 
@@ -654,8 +654,7 @@ def create_time_intervals(
         # Move to the next day
         current_date += datetime.timedelta(days=1)
 
-    # use a tuple for windows to make sure it is immutable (and can be shared by all persons)
-    return tuple(intervals)
+    return intervals
 
 
 def find_overlapping_personal_windows(
@@ -697,7 +696,6 @@ def find_rectangles(
     data: list[PersonIntervals],
     interval_constructor: Callable,
     is_same_result: Callable | None = None,
-    reset: Callable | None = None,
 ) -> PersonIntervals:
     """
     Iterates over intervals for each person across all items in `data` and constructs new intervals
@@ -717,21 +715,11 @@ def find_rectangles(
         keys: Set[int] = set()
         for track in data:
             keys |= track.keys()
-        result = {}
-
-        for key in keys:
-
-            if reset:
-                reset()
-
-            intervals_for_person: list[list[Interval]] = [
-                intervals.get(key, []) for intervals in data
-            ]
-            intervals = _impl.find_rectangles(
-                intervals_for_person,
+        return {
+            key: _impl.find_rectangles(
+                [intervals.get(key, []) for intervals in data],
                 interval_constructor,
                 is_same_result=is_same_result,
             )
-            result[key] = intervals
-
-        return result
+            for key in keys
+        }

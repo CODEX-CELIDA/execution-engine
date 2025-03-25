@@ -2038,3 +2038,146 @@ class TestIntervalRatio(TestCriterionCombinationDatabase):
                 result_tuples, expected[person.person_id]
             ):
                 assert result_tuple == expected_tuple
+
+class TestIndicatorWindowsMulitplePatients(TestCriterionCombinationDatabase):
+    """
+    This test ensures that the data TemporalCount operator works
+    independently between persons within a PersonIntervals data set.
+
+    This is mostly a regression test since at one point the exact
+    problem of cross-talk between the data structures for different
+    persons caused the operator to return incorrect results.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            name="observation", start="2025-02-18 14:55:00+01:00", end="2025-02-22 12:00:00+01:00"
+        )
+
+    def patient_events(self, db_session, visit_occurrence):
+        person_id = visit_occurrence.person_id
+        events = []
+        c1 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2025-02-21 02:00:00+01:00"),
+        )
+        events.append(c1)
+        if person_id == 1:
+            e1 = create_procedure(
+                vo=visit_occurrence,
+                procedure_concept_id=concept_delir_screening.concept_id,
+                start_datetime=pendulum.parse("2025-02-19 18:00:00+01:00"),
+                end_datetime=pendulum.parse("2025-02-19 18:01:00+01:00"),
+            )
+            events.append(e1)
+        db_session.add_all(events)
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "population,intervention,expected",
+        [
+            (
+                logic.And(c2),  # population
+                temporal_logic_util.Day(criterion=delir_screening),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-19 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            pendulum.parse("2025-02-20 00:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        # If cross-talk between the data structures
+                        # for different persons occurs, parts of the
+                        # following interval may turn positive because
+                        # of the results for the first person.
+                        (
+                            IntervalType.NEGATIVE,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
+            ),
+        ],
+    )
+    def test_multiple_patients_on_database(
+        self,
+        person,
+        db_session,
+        population,
+        intervention,
+        base_criterion,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = person[:2]
+        vos = []
+        for person in persons:
+            visit = create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end
+                - datetime.timedelta(hours=6.5),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            vos.append(visit)
+            self.patient_events(db_session, visit)
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_expression(
+            db_session, population, intervention, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = list(
+                result[ [ "interval_type", "interval_start", "interval_end" ] ]
+                .fillna("nan")
+                .itertuples(index=False, name=None)
+            )
+
+            for result_tuple, expected_tuple in zip(
+                result_tuples, expected[person.person_id]
+            ):
+                assert result_tuple == expected_tuple
