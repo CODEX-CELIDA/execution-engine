@@ -5,7 +5,7 @@ import json
 import logging
 from collections import Counter
 from enum import Enum, auto
-from typing import Callable, List, Type
+from typing import Callable, List, Type, cast
 
 from sqlalchemy.exc import DBAPIError, IntegrityError, ProgrammingError, SQLAlchemyError
 
@@ -34,6 +34,41 @@ COUNT_TYPES = (
     logic.ExactCount,
     logic.CappedMinCount,
 )
+
+
+def default_interval_union_with_count(
+    start: int, end: int, intervals: List[GeneralizedInterval]
+) -> IntervalWithCount:
+    """
+    Default interval counting function to be used in logic.Or
+    """
+    result_type = None
+    result_count = 0
+    for interval in intervals:
+        if interval is None:
+            interval_type, interval_count = IntervalType.NEGATIVE, 0
+        else:
+            interval_type, interval_count = interval.type, cast(int, interval.count)
+        if (
+            (
+                interval_type is IntervalType.POSITIVE
+                and result_type is not IntervalType.POSITIVE
+            )
+            or (
+                interval_type is IntervalType.NO_DATA
+                and result_type is not IntervalType.POSITIVE
+                and result_type is not IntervalType.NO_DATA
+            )
+            or (
+                interval_type is IntervalType.NEGATIVE
+                and (result_type is IntervalType.NOT_APPLICABLE or result_type is None)
+            )
+            or (interval_type is IntervalType.NOT_APPLICABLE and result_type is None)
+        ):
+            result_type = interval_type
+            result_count = 0
+        result_count += interval_count
+    return IntervalWithCount(start, end, result_type, result_count)
 
 
 def get_engine() -> OMOPSQLClient:
@@ -160,12 +195,8 @@ class Task:
         # all arguments are logic.BinaryNonCommutativeOperator, and all of their "right" children are count types
         if all(
             isinstance(parent, logic.BinaryNonCommutativeOperator)
-            and isinstance(parent.right, logic.Expr)
+            and isinstance(parent.right, COUNT_TYPES)
             for parent in self.expr.args
-        ) and all(
-            isinstance(grandparent, COUNT_TYPES)
-            for parent in self.expr.args
-            for grandparent in parent.right.args
         ):
             return True
 
@@ -350,31 +381,14 @@ class Task:
             result = process.intersect_intervals(data)
         elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
             if self.receives_only_count_inputs():
-                def interval_union_with_count(
-                    start: int, end: int, intervals: List[GeneralizedInterval]
-                ) -> IntervalWithCount:
-                    result_type  = None
-                    result_count = 0
-                    for interval in intervals:
-                        if interval is None:
-                            interval_type, interval_count = IntervalType.NEGATIVE, 0
-                        else:
-                            interval_type, interval_count = interval.type, interval.count
-                        if ((interval_type is IntervalType.POSITIVE
-                             and not result_type is IntervalType.POSITIVE)
-                            or (interval_type is IntervalType.NO_DATA
-                                and not result_type is IntervalType.POSITIVE
-                                and not result_type is IntervalType.NO_DATA)
-                            or (interval_type is IntervalType.NEGATIVE
-                                and (result_type is IntervalType.NOT_APPLICABLE
-                                     or result_type is None))
-                            or (interval_type is IntervalType.NOT_APPLICABLE
-                                and result_type is None)):
-                            result_type  = interval_type
-                            result_count = 0
-                        result_count += interval_count
-                    return IntervalWithCount(start, end, result_type, result_count)
-                result = process.find_rectangles(data, interval_union_with_count)
+                # we check if there are custom data preparatory and interval counting functions and use these
+                prepare_func = getattr(self.expr, "prepare_data", None)
+                if prepare_func:
+                    data = prepare_func(self, data)
+                func = getattr(
+                    self.expr, "count_intervals", default_interval_union_with_count
+                )
+                result = process.find_rectangles(data, func)
             else:
                 result = process.union_intervals(data)
 
@@ -403,10 +417,10 @@ class Task:
                 positive_count = counts[IntervalType.POSITIVE]
                 if positive_count > 0 or count_min == 0:
                     if count_min == 0:
-                        if positive_count <= count_max:
+                        if positive_count <= count_max:  # type: ignore[operator]
                             return Interval(start, end, IntervalType.POSITIVE)
                         else:
-                            return None # Implicit negative interval
+                            return None  # Implicit negative interval
                     else:
                         min_good = count_min <= positive_count
                         max_good = (count_max is None) or (positive_count <= count_max)
@@ -655,7 +669,7 @@ class Task:
             window_types: dict[int, IntervalType] = dict()
 
             def update_window_type(
-                window_interval: AnyInterval, data_interval: AnyInterval
+                window_interval: AnyInterval | None, data_interval: AnyInterval | None
             ) -> IntervalType:
                 window_type = window_types.get(id(window_interval), None)
 
@@ -680,7 +694,8 @@ class Task:
             # result interval window types based on the data
             # intervals.
             def is_same_interval(
-                left_intervals: List[AnyInterval], right_intervals: List[AnyInterval]
+                left_intervals: List[AnyInterval | None],
+                right_intervals: List[AnyInterval | None],
             ) -> bool:
                 left_window_interval, left_data_interval = left_intervals
                 right_window_interval, right_data_interval = right_intervals
@@ -722,7 +737,7 @@ class Task:
             # that the object identity of each interval is unique and
             # can be used as a dictionary key.
             person_indicator_windows = {
-                key: [ copy.copy(window) for window in indicator_windows ]
+                key: [copy.copy(window) for window in indicator_windows]
                 for key in data_p.keys()
             }
             result = process.find_rectangles(
