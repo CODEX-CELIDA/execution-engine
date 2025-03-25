@@ -2387,6 +2387,63 @@ class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
                         ],
                     },
             ),
+            (
+                    logic.And(c2),  # population
+                    logic.MaxCount(
+                        bodyweight_measurement_with_forward_fill,
+                        body_height_measurement_with_forward_fill,
+                        tidal_volume_measurement_with_forward_fill,
+                        threshold=2,
+                    ),
+                    {
+                        1: [
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
+                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.POSITIVE,
+                                    'nan',
+                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
+                                    pendulum.parse("2025-02-20 17:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.NEGATIVE,
+                                    'nan',
+                                    pendulum.parse("2025-02-20 18:00:00+01:00"),
+                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
+                            ),
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
+                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
+                            ),
+                        ],
+                        2: [
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
+                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
+                            ),
+                            (
+                                    IntervalType.POSITIVE,
+                                    'nan',
+                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
+                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
+                            ),
+                            (
+                                    IntervalType.NOT_APPLICABLE,
+                                    'nan',
+                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
+                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
+                            ),
+                        ],
+                    },
+            ),
         ],
     )
     def test_combination_on_database(

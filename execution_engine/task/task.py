@@ -383,6 +383,8 @@ class Task:
             count_max = self.expr.count_max
             if count_min is None and count_max is None:
                 raise ValueError("count_min and count_max cannot both be None")
+            if count_min is None:
+                count_min = 0
 
             def interval_counts(
                 start: int, end: int, intervals: List[GeneralizedInterval]
@@ -395,11 +397,12 @@ class Task:
                     for interval in intervals
                 )
 
-                # The interval type with the highest "union priority"
-                # determines the result.
+                # Either the count constraints or the interval type
+                # with the highest "union priority" determines the
+                # result.
                 positive_count = counts[IntervalType.POSITIVE]
-                if positive_count > 0:
-                    if count_min is None:
+                if positive_count > 0 or count_min == 0:
+                    if count_min == 0:
                         if positive_count <= count_max:
                             return Interval(start, end, IntervalType.POSITIVE)
                         else:
