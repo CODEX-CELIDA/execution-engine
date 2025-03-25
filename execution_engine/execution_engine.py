@@ -18,6 +18,7 @@ from execution_engine.omop.cohort import PopulationInterventionPairExpr
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida import tables as result_db
 from execution_engine.task import runner
+from execution_engine.task.runner import SharedMemoryTaskRunner
 from execution_engine.util.serializable import Serializable
 
 
@@ -453,12 +454,16 @@ class ExecutionEngine:
         execution_graph = recommendation.execution_graph()
         task_runner: runner.TaskRunner
 
-        if use_multiprocessing:
-            task_runner = runner.ParallelTaskRunner(
-                execution_graph, num_workers=multiprocessing_pool_size
-            )
-        else:
-            task_runner = runner.SequentialTaskRunner(execution_graph)
+        # if use_multiprocessing:
+        #     task_runner = runner.ParallelTaskRunner(
+        #         execution_graph, num_workers=multiprocessing_pool_size
+        #     )
+        # else:
+        #     task_runner = runner.SequentialTaskRunner(execution_graph)
+
+        task_runner = SharedMemoryTaskRunner(
+            execution_graph, num_workers=multiprocessing_pool_size
+        )
 
         task_runner.run(bind_params)
 
