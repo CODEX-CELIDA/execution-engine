@@ -473,7 +473,7 @@ def mask_intervals(
 
     def intersection_interval(
         start: int, end: int, intervals: List[GeneralizedInterval]
-    ) -> GeneralizedInterval | None:
+    ) -> GeneralizedInterval:
 
         left_interval, right_interval = intervals
 

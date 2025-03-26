@@ -669,7 +669,7 @@ class Task:
             window_types: dict[int, IntervalType] = dict()
 
             def update_window_type(
-                window_interval: AnyInterval | None, data_interval: AnyInterval | None
+                window_interval: GeneralizedInterval, data_interval: GeneralizedInterval
             ) -> IntervalType:
                 window_type = window_types.get(id(window_interval), None)
 
@@ -694,8 +694,8 @@ class Task:
             # result interval window types based on the data
             # intervals.
             def is_same_interval(
-                left_intervals: List[AnyInterval | None],
-                right_intervals: List[AnyInterval | None],
+                left_intervals: List[GeneralizedInterval],
+                right_intervals: List[GeneralizedInterval],
             ) -> bool:
                 left_window_interval, left_data_interval = left_intervals
                 right_window_interval, right_data_interval = right_intervals
