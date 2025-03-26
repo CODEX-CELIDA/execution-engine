@@ -713,13 +713,15 @@ def find_rectangles(
         return {}
     else:
         keys: Set[int] = set()
+        result: Dict[int, List[GeneralizedInterval]] = dict()
         for track in data:
             keys |= track.keys()
-        return {
-            key: _impl.find_rectangles(
+        for key in keys:
+            key_result = _impl.find_rectangles(
                 [intervals.get(key, []) for intervals in data],
                 interval_constructor,
                 is_same_result=is_same_result,
             )
-            for key in keys
-        }
+            if len(key_result) > 0:
+                result[key] = key_result
+        return result
