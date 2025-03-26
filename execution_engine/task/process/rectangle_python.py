@@ -300,9 +300,11 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
             return -1
         elif event2[0] < event1[0]: # event2 is earlier
             return 1
-        elif (event1[3] == event2[3]  # at the same time and on same track,
-             and event1[1] == False): # sort close events before open events
-            return -1
+        elif event1[3] == event2[3]: # at the same time and on same track,
+            if event1[2] is event2[2]: # same interval
+                return -1 if (event1[1] is True) else 1 # sort open events before open events
+            else: # different intervals
+                return -1 if (event1[1] is False) else 1 # sort close events before open events
         else: # at the same time, but different tracks => any order is fine
             return 1
     events.sort(key = cmp_to_key(compare_events))
@@ -319,7 +321,7 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
             # [START_TIME1, 10:59:59] [11:00:00, END_TIME2]
             # have no gap between them and can be considered a single
             # continuous interval [START_TIME1, END_TIME2].
-            if (point_time == time) or (point_time == time - 1):
+            if (point_time == time) or (open_ and (point_time == time - 1)):
                 if time > high_time:
                     high_time = time
                 any_open |= open_
