@@ -2,6 +2,7 @@ from datetime import time
 
 from execution_engine.util import logic
 from execution_engine.util.enum import TimeIntervalType
+from execution_engine.util.interval import IntervalType
 
 
 def Presence(
@@ -22,6 +23,7 @@ def Presence(
         start_time=start_time,
         end_time=end_time,
         interval_criterion=interval_criterion,
+        result_for_not_applicable=IntervalType.NEGATIVE,
     )
 
 

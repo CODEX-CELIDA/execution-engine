@@ -22,16 +22,16 @@ from execution_engine.util.types import Dosage, TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
+    concept_body_height,
     concept_body_weight,
     concept_covid19,
     concept_delir_screening,
     concept_heparin_ingredient,
     concept_surgical_procedure,
+    concept_tidal_volume,
+    concept_unit_cm,
     concept_unit_kg,
     concept_unit_mg,
-    concept_body_height,
-    concept_unit_cm,
-    concept_tidal_volume,
 )
 from tests._testdata import concepts
 from tests.execution_engine.omop.criterion.test_criterion import TestCriterion
@@ -140,9 +140,6 @@ class TestFixedWindowTemporalIndicatorCombination:
         for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
 
-    # @pytest.mark.skip(
-    #     reason="the repr does not return arguments in a consistent manner"
-    # )
     def test_repr(self, mock_criteria):
         expr = temporal_logic_util.MorningShift(mock_criteria[0])
 
@@ -155,7 +152,7 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  end_time=None,\n"
             "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
             "  interval_criterion=None,\n"
-            "  result_for_not_applicable=NOT_APPLICABLE,\n"
+            "  result_for_not_applicable=NEGATIVE,\n"
             "  threshold=1\n"
             ")"
         )
@@ -250,14 +247,18 @@ body_height_measurement_with_forward_fill = Measurement(
 
 tidal_volume_measurement_without_forward_fill = Measurement(
     concept=concept_tidal_volume,
-    value=ValueNumber.parse("<=110", unit=concept_unit_cm), # TODO(jmoringe): copied; does not make sense
+    value=ValueNumber.parse(
+        "<=110", unit=concept_unit_cm
+    ),  # TODO(jmoringe): copied; does not make sense
     static=False,
-    forward_fill=False
+    forward_fill=False,
 )
 
 tidal_volume_measurement_with_forward_fill = Measurement(
     concept=concept_tidal_volume,
-    value=ValueNumber.parse("<=110", unit=concept_unit_cm), # TODO(jmoringe): copied; does not make sense
+    value=ValueNumber.parse(
+        "<=110", unit=concept_unit_cm
+    ),  # TODO(jmoringe): copied; does not make sense
     static=False,
 )
 
@@ -2080,6 +2081,7 @@ class TestIntervalRatio(TestCriterionCombinationDatabase):
             ):
                 assert result_tuple == expected_tuple
 
+
 class TestIndicatorWindowsMulitplePatients(TestCriterionCombinationDatabase):
     """
     This test ensures that the data TemporalCount operator works
@@ -2093,7 +2095,9 @@ class TestIndicatorWindowsMulitplePatients(TestCriterionCombinationDatabase):
     @pytest.fixture
     def observation_window(self) -> TimeRange:
         return TimeRange(
-            name="observation", start="2025-02-18 14:55:00+01:00", end="2025-02-22 12:00:00+01:00"
+            name="observation",
+            start="2025-02-18 14:55:00+01:00",
+            end="2025-02-22 12:00:00+01:00",
         )
 
     def patient_events(self, db_session, visit_occurrence):
@@ -2213,7 +2217,7 @@ class TestIndicatorWindowsMulitplePatients(TestCriterionCombinationDatabase):
         for person in persons:
             result = df.query(f"person_id=={person.person_id}")
             result_tuples = list(
-                result[ [ "interval_type", "interval_start", "interval_end" ] ]
+                result[["interval_type", "interval_start", "interval_end"]]
                 .fillna("nan")
                 .itertuples(index=False, name=None)
             )
@@ -2235,39 +2239,49 @@ class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
     @pytest.fixture
     def observation_window(self) -> TimeRange:
         return TimeRange(
-            name="observation", start="2025-02-18 14:55:00+01:00", end="2025-02-22 12:00:00+01:00"
+            name="observation",
+            start="2025-02-18 14:55:00+01:00",
+            end="2025-02-22 12:00:00+01:00",
         )
 
     def patient_events(self, db_session, visit_occurrence):
         person_id = visit_occurrence.person_id
-        events = [create_condition(
-            vo=visit_occurrence,
-            condition_concept_id=concept_covid19.concept_id,
-            condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
-            condition_end_datetime=pendulum.parse("2025-02-21 02:00:00+01:00"),
-        )]
+        events = [
+            create_condition(
+                vo=visit_occurrence,
+                condition_concept_id=concept_covid19.concept_id,
+                condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
+                condition_end_datetime=pendulum.parse("2025-02-21 02:00:00+01:00"),
+            )
+        ]
         if person_id == 1:
-            events.append(create_measurement(
-                vo=visit_occurrence,
-                measurement_concept_id=concept_body_weight.concept_id,
-                measurement_datetime=pendulum.parse("2025-02-19 18:00:00+01:00"),
-                value_as_number=90,
-                unit_concept_id=concept_unit_kg.concept_id,
-            ))
-            events.append(create_measurement(
-                vo=visit_occurrence,
-                measurement_concept_id=concept_body_height.concept_id,
-                measurement_datetime=pendulum.parse("2025-02-20 07:00:00+01:00"),
-                value_as_number=90,
-                unit_concept_id=concept_unit_cm.concept_id,
-            ))
-            events.append(create_measurement(
-                vo=visit_occurrence,
-                measurement_concept_id=concept_tidal_volume.concept_id,
-                measurement_datetime=pendulum.parse("2025-02-20 18:00:00+01:00"),
-                value_as_number=90,
-                unit_concept_id=concept_unit_cm.concept_id,
-            ))
+            events.append(
+                create_measurement(
+                    vo=visit_occurrence,
+                    measurement_concept_id=concept_body_weight.concept_id,
+                    measurement_datetime=pendulum.parse("2025-02-19 18:00:00+01:00"),
+                    value_as_number=90,
+                    unit_concept_id=concept_unit_kg.concept_id,
+                )
+            )
+            events.append(
+                create_measurement(
+                    vo=visit_occurrence,
+                    measurement_concept_id=concept_body_height.concept_id,
+                    measurement_datetime=pendulum.parse("2025-02-20 07:00:00+01:00"),
+                    value_as_number=90,
+                    unit_concept_id=concept_unit_cm.concept_id,
+                )
+            )
+            events.append(
+                create_measurement(
+                    vo=visit_occurrence,
+                    measurement_concept_id=concept_tidal_volume.concept_id,
+                    measurement_datetime=pendulum.parse("2025-02-20 18:00:00+01:00"),
+                    value_as_number=90,
+                    unit_concept_id=concept_unit_cm.concept_id,
+                )
+            )
         db_session.add_all(events)
         db_session.commit()
 
@@ -2277,16 +2291,22 @@ class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
             (
                 logic.And(c2),  # population
                 logic.MinCount(
-                temporal_logic_util.AnyTime(bodyweight_measurement_without_forward_fill),
-                    temporal_logic_util.AnyTime(body_height_measurement_without_forward_fill),
-                    temporal_logic_util.AnyTime(tidal_volume_measurement_without_forward_fill),
+                    temporal_logic_util.AnyTime(
+                        bodyweight_measurement_without_forward_fill
+                    ),
+                    temporal_logic_util.AnyTime(
+                        body_height_measurement_without_forward_fill
+                    ),
+                    temporal_logic_util.AnyTime(
+                        tidal_volume_measurement_without_forward_fill
+                    ),
                     threshold=1,
                 ),
                 {
                     1: [
                         (
                             IntervalType.NOT_APPLICABLE,
-                            'nan',
+                            "nan",
                             pendulum.parse("2025-02-18 17:55:00+01:00"),
                             pendulum.parse("2025-02-19 07:59:59+01:00"),
                         ),
@@ -2298,158 +2318,158 @@ class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
                         ),
                         (
                             IntervalType.NOT_APPLICABLE,
-                            'nan',
+                            "nan",
                             pendulum.parse("2025-02-21 02:00:01+01:00"),
                             pendulum.parse("2025-02-22 05:30:00+01:00"),
                         ),
                     ],
                     2: [
                         (
-                                IntervalType.NOT_APPLICABLE,
-                                'nan',
-                                pendulum.parse("2025-02-18 17:55:00+01:00"),
-                                pendulum.parse("2025-02-19 07:59:59+01:00"),
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
                         ),
                         (
-                                IntervalType.NOT_APPLICABLE,
-                                0,
-                                pendulum.parse("2025-02-19 08:00:00+01:00"),
-                                pendulum.parse("2025-02-21 02:00:00+01:00"),
+                            IntervalType.NEGATIVE,
+                            0,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
                         ),
                         (
-                                IntervalType.NOT_APPLICABLE,
-                                'nan',
-                                pendulum.parse("2025-02-21 02:00:01+01:00"),
-                                pendulum.parse("2025-02-22 05:30:00+01:00"),
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
                         ),
                     ],
                 },
             ),
             (
-                    logic.And(c2), # population
-                    logic.MinCount(
-                        bodyweight_measurement_with_forward_fill,
-                        body_height_measurement_with_forward_fill,
-                        tidal_volume_measurement_with_forward_fill,
-                        threshold=2,
-                    ),
-                    {
-                        1: [
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
-                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.NO_DATA,
-                                    0.0,
-                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
-                                    pendulum.parse("2025-02-19 17:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.NEGATIVE,
-                                    0.5,
-                                    pendulum.parse("2025-02-19 18:00:00+01:00"),
-                                    pendulum.parse("2025-02-20 06:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.POSITIVE,
-                                    1,
-                                    pendulum.parse("2025-02-20 07:00:00+01:00"),
-                                    pendulum.parse("2025-02-20 17:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.POSITIVE,
-                                    1.5,
-                                    pendulum.parse("2025-02-20 18:00:00+01:00"),
-                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
-                            ),
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
-                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
-                            ),
-                        ],
-                        2: [
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
-                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.NO_DATA,
-                                    0,
-                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
-                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
-                            ),
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
-                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
-                            ),
-                        ],
-                    },
+                logic.And(c2),  # population
+                logic.MinCount(
+                    bodyweight_measurement_with_forward_fill,
+                    body_height_measurement_with_forward_fill,
+                    tidal_volume_measurement_with_forward_fill,
+                    threshold=2,
+                ),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NO_DATA,
+                            0.0,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-19 17:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0.5,
+                            pendulum.parse("2025-02-19 18:00:00+01:00"),
+                            pendulum.parse("2025-02-20 06:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            1,
+                            pendulum.parse("2025-02-20 07:00:00+01:00"),
+                            pendulum.parse("2025-02-20 17:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            1.5,
+                            pendulum.parse("2025-02-20 18:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NO_DATA,
+                            0,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
             ),
             (
-                    logic.And(c2),  # population
-                    logic.MaxCount(
-                        bodyweight_measurement_with_forward_fill,
-                        body_height_measurement_with_forward_fill,
-                        tidal_volume_measurement_with_forward_fill,
-                        threshold=2,
-                    ),
-                    {
-                        1: [
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
-                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.POSITIVE,
-                                    'nan',
-                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
-                                    pendulum.parse("2025-02-20 17:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.NEGATIVE,
-                                    'nan',
-                                    pendulum.parse("2025-02-20 18:00:00+01:00"),
-                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
-                            ),
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
-                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
-                            ),
-                        ],
-                        2: [
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-18 17:55:00+01:00"),
-                                    pendulum.parse("2025-02-19 07:59:59+01:00"),
-                            ),
-                            (
-                                    IntervalType.POSITIVE,
-                                    'nan',
-                                    pendulum.parse("2025-02-19 08:00:00+01:00"),
-                                    pendulum.parse("2025-02-21 02:00:00+01:00"),
-                            ),
-                            (
-                                    IntervalType.NOT_APPLICABLE,
-                                    'nan',
-                                    pendulum.parse("2025-02-21 02:00:01+01:00"),
-                                    pendulum.parse("2025-02-22 05:30:00+01:00"),
-                            ),
-                        ],
-                    },
+                logic.And(c2),  # population
+                logic.MaxCount(
+                    bodyweight_measurement_with_forward_fill,
+                    body_height_measurement_with_forward_fill,
+                    tidal_volume_measurement_with_forward_fill,
+                    threshold=2,
+                ),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            "nan",
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-20 17:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            "nan",
+                            pendulum.parse("2025-02-20 18:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            "nan",
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
             ),
         ],
     )
@@ -2495,7 +2515,14 @@ class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
         for person in persons:
             result = df.query(f"person_id=={person.person_id}")
             result_tuples = list(
-                result[ [ "interval_type", "interval_ratio", "interval_start", "interval_end" ] ]
+                result[
+                    [
+                        "interval_type",
+                        "interval_ratio",
+                        "interval_start",
+                        "interval_end",
+                    ]
+                ]
                 .fillna("nan")
                 .itertuples(index=False, name=None)
             )

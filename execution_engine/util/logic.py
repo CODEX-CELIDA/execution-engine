@@ -802,6 +802,7 @@ class TemporalMinCount(TemporalCount):
         end_time: time | None = None,
         interval_type: TimeIntervalType | None = None,
         interval_criterion: BaseExpr | None = None,
+        result_for_not_applicable: IntervalType = IntervalType.NOT_APPLICABLE,
         **kwargs: Any,
     ) -> "TemporalMinCount":
         """
@@ -818,6 +819,7 @@ class TemporalMinCount(TemporalCount):
                 end_time=end_time,
                 interval_type=interval_type,
                 interval_criterion=interval_criterion,
+                result_for_not_applicable=result_for_not_applicable,
             ),
         )
         return self
@@ -844,6 +846,7 @@ class TemporalMaxCount(TemporalCount):
         end_time: time | None = None,
         interval_type: TimeIntervalType | None = None,
         interval_criterion: BaseExpr | None = None,
+        result_for_not_applicable: IntervalType = IntervalType.NOT_APPLICABLE,
         **kwargs: Any,
     ) -> "TemporalMaxCount":
         """
@@ -860,6 +863,7 @@ class TemporalMaxCount(TemporalCount):
                 end_time=end_time,
                 interval_type=interval_type,
                 interval_criterion=interval_criterion,
+                result_for_not_applicable=result_for_not_applicable,
             ),
         )
         return self
@@ -886,6 +890,7 @@ class TemporalExactCount(TemporalCount):
         end_time: time | None = None,
         interval_type: TimeIntervalType | None = None,
         interval_criterion: BaseExpr | None = None,
+        result_for_not_applicable: IntervalType = IntervalType.NOT_APPLICABLE,
         **kwargs: Any,
     ) -> "TemporalExactCount":
         """
@@ -902,6 +907,7 @@ class TemporalExactCount(TemporalCount):
                 end_time=end_time,
                 interval_type=interval_type,
                 interval_criterion=interval_criterion,
+                result_for_not_applicable=result_for_not_applicable,
             ),
         )
         return self
