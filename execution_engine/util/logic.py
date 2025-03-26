@@ -2,6 +2,7 @@ from datetime import time
 from typing import Any, Callable, Dict, Iterator, Self, cast
 
 from execution_engine.util.enum import TimeIntervalType
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.serializable import Serializable, SerializableABC
 
 
@@ -616,6 +617,7 @@ class TemporalCount(CountOperator, SerializableABC):
     end_time: time | None = None
     interval_type: TimeIntervalType | None = None
     interval_criterion: BaseExpr | None = None
+    result_for_not_applicable: IntervalType = IntervalType.NOT_APPLICABLE
 
     def __new__(
         cls,
@@ -626,6 +628,7 @@ class TemporalCount(CountOperator, SerializableABC):
         end_time: time | None = None,
         interval_type: TimeIntervalType | None = None,
         interval_criterion: BaseExpr | None = None,
+        result_for_not_applicable: IntervalType = IntervalType.NOT_APPLICABLE,
         **kwargs: Any,
     ) -> Self:
         """
@@ -660,6 +663,7 @@ class TemporalCount(CountOperator, SerializableABC):
         )
         self.interval_type = interval_type
         self.interval_criterion = interval_criterion
+        self.result_for_not_applicable = result_for_not_applicable
 
         return self
 
@@ -763,6 +767,7 @@ class TemporalCount(CountOperator, SerializableABC):
                     if self.interval_criterion
                     else None
                 ),
+                "result_for_not_applicable": self.result_for_not_applicable,
             }
         )
         return data

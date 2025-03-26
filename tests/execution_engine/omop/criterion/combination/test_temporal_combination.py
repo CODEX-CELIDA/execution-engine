@@ -83,6 +83,7 @@ class TestFixedWindowTemporalIndicatorCombination:
                 "end_time": "16:00:00",
                 "interval_type": None,
                 "interval_criterion": None,
+                "result_for_not_applicable": IntervalType.NOT_APPLICABLE,
                 "args": [criterion.dict() for criterion in mock_criteria],
             },
         }
@@ -103,11 +104,13 @@ class TestFixedWindowTemporalIndicatorCombination:
 
         expr = logic.Expr.from_dict(expr_dict)
 
+        assert isinstance(expr, logic.TemporalMinCount)
         assert len(expr.args) == len(mock_criteria)
         assert expr.start_time == datetime.time(8, 0)
         assert expr.end_time == datetime.time(16, 0)
         assert expr.interval_type is None
         assert expr.interval_criterion is None
+        assert expr.result_for_not_applicable is IntervalType.NOT_APPLICABLE
 
         for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
@@ -126,11 +129,13 @@ class TestFixedWindowTemporalIndicatorCombination:
 
         expr = logic.Expr.from_dict(expr_dict)
 
+        assert isinstance(expr, logic.TemporalMinCount)
         assert len(expr.args) == len(mock_criteria)
         assert expr.start_time is None
         assert expr.end_time is None
         assert expr.interval_type == TimeIntervalType.MORNING_SHIFT
         assert expr.interval_criterion is None
+        assert expr.result_for_not_applicable is IntervalType.NOT_APPLICABLE
 
         for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
@@ -150,6 +155,7 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  end_time=None,\n"
             "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
             "  interval_criterion=None,\n"
+            "  result_for_not_applicable=NOT_APPLICABLE,\n"
             "  threshold=1\n"
             ")"
         )
@@ -170,6 +176,7 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  end_time='16:00:00',\n"
             "  interval_type=None,\n"
             "  interval_criterion=None,\n"
+            "  result_for_not_applicable=NOT_APPLICABLE,\n"
             "  threshold=1\n"
             ")"
         )
@@ -2304,7 +2311,7 @@ class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
                                 pendulum.parse("2025-02-19 07:59:59+01:00"),
                         ),
                         (
-                                IntervalType.NO_DATA,
+                                IntervalType.NOT_APPLICABLE,
                                 0,
                                 pendulum.parse("2025-02-19 08:00:00+01:00"),
                                 pendulum.parse("2025-02-21 02:00:00+01:00"),
