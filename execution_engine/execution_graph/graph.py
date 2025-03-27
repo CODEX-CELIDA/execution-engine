@@ -104,6 +104,10 @@ class ExecutionGraph(nx.DiGraph):
 
         traverse(expr, category=category)
 
+        # make sure base node has still the correct category - it might have changed duing  traversal if the base node
+        # is used in an interval_criterion of a TemporalCount operator
+        graph.nodes[base_node].update({"category": CohortCategory.BASE})
+
         if hash(expr) != expr_hash:
             raise ValueError("Expression has been modified during traversal")
 
