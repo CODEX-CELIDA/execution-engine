@@ -598,10 +598,21 @@ class Task:
         :param observation_window: The observation window.
         :return: A DataFrame with the merged intervals.
         """
+        assert isinstance(self.expr, logic.TemporalCount)
 
-        data_p = self.select_predecessor_result(self.expr.args[0], data)
-        # data_p = process.select_type(data[0], IntervalType.POSITIVE)
-        # data_p = {key: val for key, val in data_p.items() if val}
+        if self.expr.interval_criterion is not None:
+            assert (
+                len(data) == 2
+            ), f"TemporalCount with indicator criterion requires exactly two input streams, got {len(data)}"
+            indicator_personal_windows = data.pop(
+                self.get_predecessor_data_index(self.expr.interval_criterion)
+            )
+
+        assert (
+            len(data) == 1
+        ), f"TemporalCount requires exactly one input streams, got {len(data)}"
+
+        data_arg = data[0]
 
         def get_start_end_from_interval_type(
             type_: TimeIntervalType,
@@ -620,18 +631,10 @@ class Task:
         assert self.expr.count_max is None
 
         if self.expr.interval_criterion is not None:
-
-            # last element is the indicator windows
-            assert (
-                len(data) >= 2
-            ), "TemporalCount with indicator criterion requires at least two inputs"
-
-            indicator_personal_windows = data.pop(
-                self.get_predecessor_data_index(self.expr.interval_criterion)
-            )
+            data_positive = process.select_type(data_arg, IntervalType.POSITIVE)
 
             result = process.find_overlapping_personal_windows(
-                indicator_personal_windows, data_p
+                indicator_personal_windows, data_positive
             )
         else:
 
@@ -668,11 +671,16 @@ class Task:
             # interval. Maps id of window interval -> interval type
             window_types: dict[int, IntervalType] = dict()
 
-            result_for_not_applicable = cast(logic.TemporalCount, self.expr).result_for_not_applicable
+            result_for_not_applicable = cast(
+                logic.TemporalCount, self.expr
+            ).result_for_not_applicable
+
             def update_window_type(
                 window_interval: GeneralizedInterval, data_interval: GeneralizedInterval
             ) -> IntervalType:
-                window_type = window_types.get(id(window_interval), result_for_not_applicable)
+                window_type = window_types.get(
+                    id(window_interval), result_for_not_applicable
+                )
                 if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
                     if window_type is IntervalType.NOT_APPLICABLE:
                         window_type = IntervalType.NEGATIVE
@@ -730,10 +738,10 @@ class Task:
             # can be used as a dictionary key.
             person_indicator_windows = {
                 key: [copy.copy(window) for window in indicator_windows]
-                for key in data_p.keys()
+                for key in data_arg.keys()
             }
             result = process.find_rectangles(
-                [person_indicator_windows, data_p],
+                [person_indicator_windows, data_arg],
                 result_interval,
                 is_same_result=is_same_interval,
             )

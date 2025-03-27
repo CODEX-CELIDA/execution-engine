@@ -362,4 +362,4 @@ class ValueConcept(Value):
         """
         Get the string representation of the value.
         """
-        return f"Value == {repr(self.value)}"
+        return f"Value == {str(self.value)}"
