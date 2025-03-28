@@ -83,7 +83,6 @@ class TestFixedWindowTemporalIndicatorCombination:
                 "end_time": "16:00:00",
                 "interval_type": None,
                 "interval_criterion": None,
-                "result_for_not_applicable": IntervalType.NOT_APPLICABLE,
                 "args": [criterion.dict() for criterion in mock_criteria],
             },
         }
@@ -110,7 +109,6 @@ class TestFixedWindowTemporalIndicatorCombination:
         assert expr.end_time == datetime.time(16, 0)
         assert expr.interval_type is None
         assert expr.interval_criterion is None
-        assert expr.result_for_not_applicable is IntervalType.NOT_APPLICABLE
 
         for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
@@ -135,7 +133,6 @@ class TestFixedWindowTemporalIndicatorCombination:
         assert expr.end_time is None
         assert expr.interval_type == TimeIntervalType.MORNING_SHIFT
         assert expr.interval_criterion is None
-        assert expr.result_for_not_applicable is IntervalType.NOT_APPLICABLE
 
         for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
@@ -152,7 +149,6 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  end_time=None,\n"
             "  interval_type=TimeIntervalType.MORNING_SHIFT,\n"
             "  interval_criterion=None,\n"
-            "  result_for_not_applicable=NEGATIVE,\n"
             "  threshold=1\n"
             ")"
         )
@@ -173,7 +169,6 @@ class TestFixedWindowTemporalIndicatorCombination:
             "  end_time='16:00:00',\n"
             "  interval_type=None,\n"
             "  interval_criterion=None,\n"
-            "  result_for_not_applicable=NOT_APPLICABLE,\n"
             "  threshold=1\n"
             ")"
         )

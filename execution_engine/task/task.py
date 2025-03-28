@@ -671,22 +671,26 @@ class Task:
             # interval. Maps id of window interval -> interval type
             window_types: dict[int, IntervalType] = dict()
 
-            result_for_not_applicable = cast(
-                logic.TemporalCount, self.expr
-            ).result_for_not_applicable
-
             def update_window_type(
                 window_interval: GeneralizedInterval, data_interval: GeneralizedInterval
             ) -> IntervalType:
+
                 window_type = window_types.get(
-                    id(window_interval), result_for_not_applicable
+                    id(window_interval), IntervalType.NOT_APPLICABLE
                 )
-                if data_interval is None or data_interval.type is IntervalType.NEGATIVE:
+
+                if (
+                    data_interval is None
+                    or data_interval.type is IntervalType.NO_DATA
+                    or data_interval.type is IntervalType.NEGATIVE
+                ):
                     if window_type is IntervalType.NOT_APPLICABLE:
                         window_type = IntervalType.NEGATIVE
                 elif data_interval.type is IntervalType.POSITIVE:
                     window_type = IntervalType.POSITIVE
+
                 window_types[id(window_interval)] = window_type
+
                 return window_type
 
             # The boundaries of the result intervals are identical to

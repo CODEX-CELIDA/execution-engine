@@ -2,7 +2,7 @@ import datetime
 import importlib
 import logging
 import os
-from typing import Callable, List, Set, cast
+from typing import Callable, Dict, List, Set, cast
 
 import numpy as np
 import pendulum
@@ -446,7 +446,7 @@ def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
 def mask_intervals(
     data: PersonIntervals,
     mask: PersonIntervals,
-) -> PersonIntervals:
+) -> Dict[int, List[GeneralizedInterval]]:
     """
     Masks the intervals in the dict per key.
 
@@ -483,6 +483,7 @@ def mask_intervals(
         return None
 
     result = find_rectangles([person_mask, data], intersection_interval)
+
     return result
 
 
@@ -696,7 +697,7 @@ def find_rectangles(
     data: list[PersonIntervals],
     interval_constructor: Callable,
     is_same_result: Callable | None = None,
-) -> PersonIntervals:
+) -> Dict[int, List[GeneralizedInterval]]:
     """
     Iterates over intervals for each person across all items in `data` and constructs new intervals
     ("rectangles") by applying `interval_constructor` to the overlapping intervals in each time range.
@@ -714,8 +715,10 @@ def find_rectangles(
     else:
         keys: Set[int] = set()
         result: Dict[int, List[GeneralizedInterval]] = dict()
+
         for track in data:
             keys |= track.keys()
+
         for key in keys:
             key_result = _impl.find_rectangles(
                 [intervals.get(key, []) for intervals in data],
@@ -724,4 +727,5 @@ def find_rectangles(
             )
             if len(key_result) > 0:
                 result[key] = key_result
+
         return result
