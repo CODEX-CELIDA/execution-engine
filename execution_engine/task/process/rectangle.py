@@ -2,6 +2,7 @@ import datetime
 import importlib
 import logging
 import os
+from collections import defaultdict
 from typing import Callable, Dict, List, Set, cast
 
 import numpy as np
@@ -10,14 +11,20 @@ import pytz
 from sqlalchemy import CursorResult
 
 from execution_engine.util.interval import IntervalType, interval_datetime
-from execution_engine.util.types import TimeRange
 
+from ...util.types.timerange import TimeRange
 from . import (
     GeneralizedInterval,
     Interval,
     IntervalWithCount,
     interval_like,
+    timerange_to_interval,
 )
+
+IntervalConstructor = Callable[
+    [int, int, List[GeneralizedInterval]], GeneralizedInterval
+]
+SameResult = Callable[[List[GeneralizedInterval], List[GeneralizedInterval]], bool]
 
 PROCESS_RECTANGLE_VERSION = os.getenv("PROCESS_RECTANGLE_VERSION", "auto")
 
@@ -69,7 +76,7 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
     """
     Converts the result of the interval operations to a list of intervals.
     """
-    person_interval = {}
+    person_interval = defaultdict(list)
 
     for row in result:
         if row.interval_end < row.interval_start:
@@ -81,15 +88,12 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
             raise ValueError("Interval end is None")
 
         interval = Interval(
-            row.interval_start.timestamp(),
-            row.interval_end.timestamp(),
+            row.interval_start,
+            row.interval_end,
             row.interval_type,
         )
 
-        if row.person_id not in person_interval:
-            person_interval[row.person_id] = [interval]
-        else:
-            person_interval[row.person_id].append(interval)
+        person_interval[row.person_id].append(interval)
 
     for person_id in person_interval:
         person_interval[person_id] = _impl.union_rects(person_interval[person_id])
@@ -219,10 +223,10 @@ def forward_fill(
 
         if observation_window is not None:
             last_interval = result[person_id][-1]
-            if last_interval.upper < observation_window.end.timestamp():
+            if last_interval.upper < int(observation_window.end.timestamp()):
                 result[person_id][-1] = Interval(
                     last_interval.lower,
-                    observation_window.end.timestamp(),
+                    int(observation_window.end.timestamp()),
                     last_interval.type,
                 )
 
@@ -307,15 +311,11 @@ def complementary_intervals(
     """
 
     interval_type_missing_persons = interval_type
-    baseline_interval = Interval(
-        observation_window.start.timestamp(),
-        observation_window.end.timestamp(),
-        interval_type_missing_persons,
+    baseline_interval = timerange_to_interval(
+        observation_window, type_=interval_type_missing_persons
     )
-    observation_window_mask = Interval(
-        observation_window.start.timestamp(),
-        observation_window.end.timestamp(),
-        IntervalType.least_intersection_priority(),
+    observation_window_mask = timerange_to_interval(
+        observation_window, type_=IntervalType.least_intersection_priority()
     )
 
     result = {}
@@ -595,8 +595,8 @@ def create_time_intervals(
                 assert previous_end < effective_start  # type: ignore[unreachable]
             intervals.append(
                 Interval(
-                    lower=effective_start.timestamp(),
-                    upper=effective_end.timestamp(),
+                    lower=int(effective_start.timestamp()),
+                    upper=int(effective_end.timestamp()),
                     type=interval_type,
                 )
             )
@@ -695,12 +695,20 @@ def find_overlapping_personal_windows(
 
 def find_rectangles(
     data: list[PersonIntervals],
-    interval_constructor: Callable,
-    is_same_result: Callable | None = None,
+    interval_constructor: IntervalConstructor,
+    is_same_result: SameResult | None = None,
 ) -> Dict[int, List[GeneralizedInterval]]:
     """
-    Iterates over intervals for each person across all items in `data` and constructs new intervals
-    ("rectangles") by applying `interval_constructor` to the overlapping intervals in each time range.
+    Constructs new intervals ("time slices") by combining multiple parallel tracks of intervals.
+
+    This iterates over all intervals for each person across the given `data` list. Whenever an
+    interval starts or ends on any track, that boundary can produce a new interval. For each
+    interval, we invoke `interval_constructor(start, end, active_intervals)` to decide how
+    to label it (e.g., POSITIVE, NEGATIVE).
+
+    If `is_same_result` is provided, it’s used to decide whether two adjacent slices have the
+    same "type" (so we can merge them). If not provided, a default routine is used that merges
+    slices if they have the same object identity and the same result.
 
     :param data: A list of dictionaries, each mapping a person ID to a list of intervals.
     :param interval_constructor: A callable that takes the time boundaries and the corresponding intervals
@@ -712,20 +720,21 @@ def find_rectangles(
     # TODO(jmoringe): can this use _process_interval?
     if len(data) == 0:
         return {}
-    else:
-        keys: Set[int] = set()
-        result: Dict[int, List[GeneralizedInterval]] = dict()
 
-        for track in data:
-            keys |= track.keys()
+    # Collect all person IDs across all tracks
+    keys: Set[int] = set()
+    result: Dict[int, List[GeneralizedInterval]] = dict()
 
-        for key in keys:
-            key_result = _impl.find_rectangles(
-                [intervals.get(key, []) for intervals in data],
-                interval_constructor,
-                is_same_result=is_same_result,
-            )
-            if len(key_result) > 0:
-                result[key] = key_result
+    for track in data:
+        keys |= track.keys()
 
-        return result
+    for key in keys:
+        key_result = _impl.find_rectangles(
+            [intervals.get(key, []) for intervals in data],
+            interval_constructor,
+            is_same_result=is_same_result,
+        )
+        if len(key_result) > 0:
+            result[key] = key_result
+
+    return result

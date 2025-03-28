@@ -1,6 +1,5 @@
 import datetime
 
-import pandas as pd
 import pendulum
 import pytest
 import sqlalchemy as sa
@@ -18,7 +17,8 @@ from execution_engine.task.process import get_processing_module
 from execution_engine.util import logic, temporal_logic_util
 from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import Dosage, TimeRange
+from execution_engine.util.types import Dosage
+from execution_engine.util.types.timerange import TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
@@ -42,18 +42,20 @@ from tests.functions import (
     create_procedure,
     create_visit,
 )
-from tests.functions import intervals_to_df as intervals_to_df_orig
 from tests.mocks.criterion import MockCriterion
 
-process = get_processing_module()
+
+@pytest.fixture(params=["cython", "python"], scope="session")
+def process_module(request):
+    module = get_processing_module("rectangle", version=request.param)
+    assert module._impl.MODULE_IMPLEMENTATION == request.param
+    return module
 
 
-def intervals_to_df(result, by=None):
-    df = intervals_to_df_orig(result, by, process.normalize_interval)
-    for col in df.columns:
-        if isinstance(df[col].dtype, pd.DatetimeTZDtype):
-            df[col] = df[col].dt.tz_convert("Europe/Berlin")
-    return df
+class ProcessTest:
+    @pytest.fixture(autouse=True)
+    def setup_method(self, process_module):
+        self.process = process_module
 
 
 class TestFixedWindowTemporalIndicatorCombination:
@@ -258,7 +260,7 @@ tidal_volume_measurement_with_forward_fill = Measurement(
 )
 
 
-class TestCriterionCombinationDatabase(TestCriterion):
+class TestCriterionCombinationDatabase(TestCriterion, ProcessTest):
     """
     Test class for testing criterion combinations on the database.
     """

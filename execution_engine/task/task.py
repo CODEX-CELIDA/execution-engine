@@ -13,7 +13,7 @@ import execution_engine.util.logic as logic
 from execution_engine.constants import CohortCategory
 from execution_engine.omop.criterion.abstract import Criterion
 from execution_engine.omop.db.celida.tables import ResultInterval
-from execution_engine.omop.sqlclient import OMOPSQLClient
+from execution_engine.omop.sqlclient import OMOPSQLClient, datetime_cols_to_epoch
 from execution_engine.settings import get_config
 from execution_engine.task.process import (
     AnyInterval,
@@ -22,10 +22,12 @@ from execution_engine.task.process import (
     IntervalWithCount,
     get_processing_module,
     interval_like,
+    timerange_to_interval,
 )
 from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import PersonIntervals, TimeRange
+from execution_engine.util.types import PersonIntervals
+from execution_engine.util.types.timerange import TimeRange
 
 process = get_processing_module()
 
@@ -309,8 +311,10 @@ class Task:
         :param observation_window: The observation window.
         :return: A DataFrame with the result of the query.
         """
+
         engine = get_engine()
         query = criterion.create_query()
+        query = datetime_cols_to_epoch(query)
         engine.log_query(query, params=bind_params)
 
         logging.debug(f"Running query - '{criterion.description()}'")
@@ -542,11 +546,7 @@ class Task:
         # range; Its type is not important.
         # use a tuple for windows to make sure it is immutable (and can be shared by all persons)
         windows = (
-            Interval(
-                observation_window.start.timestamp(),
-                observation_window.end.timestamp(),
-                IntervalType.POSITIVE,
-            ),
+            timerange_to_interval(observation_window, type_=IntervalType.POSITIVE),
         )
         window_intervals = {key: windows for key in left.keys()}
 
@@ -589,21 +589,39 @@ class Task:
         self, data: list[PersonIntervals], observation_window: TimeRange
     ) -> PersonIntervals:
         """
-        Handles a TemporalCount operator.
+        Handles a TemporalCount operator, which checks whether a certain condition
+        (e.g., an event or observation) occurs a specific number of times in each defined test interval.
 
-        May be used to aggregate multiple criteria in a temporal manner, e.g. to count the number of times a certain
-        condition is met within a certain time frame (e.g. morning shift).
+        Note: Currently, only  TemporalMinCount(*, threshold=1) is supported.
 
-        :param data: The input data.
-        :param observation_window: The observation window.
-        :return: A DataFrame with the merged intervals.
+        This method can do one of two main things:
+          1) If `self.expr.interval_criterion` is set, it will intersect ("find overlapping")
+             a set of personal indicator windows with your data, returning intervals that
+             represent when the criterion is met within those windows.
+          2) If `interval_criterion` is not set, it will create time slices (intervals) for
+             the specified `TimeIntervalType` (e.g., morning shift) within `observation_window`
+             and determine whether the data meets the condition inside each slice.
+
+        For instance, if your expression says 'TemporalCount(ANY_TIME, count_min=1)', then
+        the entire observation_window is treated as one big interval, and we only need to
+        check if we see at least one positive data interval in that timeframe.
+
+        :param data: A list of dictionaries mapping person ID -> list of intervals.
+            Typically, the intervals from your workflow or dataset.
+        :param observation_window: The overall time range we’re interested in.
+        :return: A dictionary mapping each person to a list of resulting intervals
+            (e.g., each labeled with POSITIVE, NEGATIVE, NOT_APPLICABLE, etc.).
         """
         assert isinstance(self.expr, logic.TemporalCount)
 
         if self.expr.interval_criterion is not None:
+            # If we have an interval_criterion, we expect exactly two data streams:
+            # (1) The "main" data
+            # (2) The "indicator" data (e.g., personal windows or ICU periods)
             assert (
                 len(data) == 2
             ), f"TemporalCount with indicator criterion requires exactly two input streams, got {len(data)}"
+
             indicator_personal_windows = data.pop(
                 self.get_predecessor_data_index(self.expr.interval_criterion)
             )
@@ -618,7 +636,9 @@ class Task:
             type_: TimeIntervalType,
         ) -> tuple[datetime.time, datetime.time]:
             """
-            Returns the start and end time for a given TimeIntervalType, read from the configuration.
+            Reads the config for the given TimeIntervalType, returning its start and end times.
+
+            For example, 'MORNING_SHIFT' might map to 06:00 - 14:00, if configured that way.
             """
             try:
                 cnf = getattr(get_config().time_intervals, type_.value)
@@ -627,26 +647,33 @@ class Task:
             return cnf.start, cnf.end
 
         assert isinstance(self.expr, logic.TemporalCount), "Invalid expression type"
-        assert self.expr.count_min == 1
-        assert self.expr.count_max is None
+
+        if self.expr.count_min != 1 or self.expr.count_max is not None:
+            raise NotImplementedError(
+                "Currently, only  TemporalMinCount(*, threshold=1) is supported."
+            )
 
         if self.expr.interval_criterion is not None:
+            # Filter out only the POSITIVE intervals from the data
             data_positive = process.select_type(data_arg, IntervalType.POSITIVE)
 
+            # Overlap the personal windows with the data intervals to see if the condition
+            # is met for each relevant chunk in the personal window.
             result = process.find_overlapping_personal_windows(
                 indicator_personal_windows, data_positive
             )
         else:
-
+            # If we have no `interval_criterion`, we must create the intervals ourselves
+            # from the observation_window (e.g. ANY_TIME vs MORNING_SHIFT).
             if self.expr.interval_type == TimeIntervalType.ANY_TIME:
-                indicator_windows = [
-                    Interval(
-                        lower=observation_window.start.timestamp(),
-                        upper=observation_window.end.timestamp(),
-                        type=IntervalType.POSITIVE,
-                    )
-                ]
+                # Just one interval covering the entire observation window
+                indicator_windows = (
+                    timerange_to_interval(
+                        observation_window, type_=IntervalType.POSITIVE
+                    ),
+                )
             else:
+                # If we do have a known interval type, or explicit start/end times, build them:
                 if self.expr.interval_type is not None:
                     start_time, end_time = get_start_end_from_interval_type(
                         self.expr.interval_type
@@ -658,6 +685,8 @@ class Task:
                 else:
                     raise ValueError("Invalid time interval settings")
 
+                # Create repeated intervals for each day from observation_window.start
+                # up to observation_window.end, using e.g. "06:00 - 14:00" if it's morning, etc.
                 indicator_windows = process.create_time_intervals(
                     start_datetime=observation_window.start,
                     end_datetime=observation_window.end,
@@ -667,42 +696,65 @@ class Task:
                     timezone=get_config().timezone,
                 )
 
-            # Incrementally compute the interval type for each window
-            # interval. Maps id of window interval -> interval type
+            # We'll track each "window interval" by its object ID, storing the best
+            # result type found so far (NEGATIVE, POSITIVE, or NOT_APPLICABLE).
             window_types: dict[int, IntervalType] = dict()
 
             def update_window_type(
                 window_interval: GeneralizedInterval, data_interval: GeneralizedInterval
             ) -> IntervalType:
+                """
+                Called whenever we cross a boundary in time.
 
-                window_type = window_types.get(
+                window_interval: The current "indicator" interval (e.g., a morning slice).
+                data_interval:   The data interval from data_arg that overlaps with this moment,
+                                 could be POSITIVE, NEGATIVE, NO_DATA, NOT_APPLICABLE (or None,
+                                 which is interpreted as NEGATIVE).
+
+                This function decides how to update the 'window interval type' based on new info.
+                """
+                current_type = window_types.get(
                     id(window_interval), IntervalType.NOT_APPLICABLE
                 )
 
+                # If the data interval is NEGATIVE (or equivalently, None) or NO_DATA, we treat it as NEGATIVE
                 if (
                     data_interval is None
                     or data_interval.type is IntervalType.NO_DATA
                     or data_interval.type is IntervalType.NEGATIVE
                 ):
-                    if window_type is IntervalType.NOT_APPLICABLE:
-                        window_type = IntervalType.NEGATIVE
+                    # Set current_type to NEGATIVE if it is not already POSITIVE (because a POSITIVE data interval
+                    # was passed earlier)
+                    if current_type is IntervalType.NOT_APPLICABLE:
+                        current_type = IntervalType.NEGATIVE
+
                 elif data_interval.type is IntervalType.POSITIVE:
-                    window_type = IntervalType.POSITIVE
+                    # If the data is POSITIVE, set the window to POSITIVE, overriding any negative state.
+                    current_type = IntervalType.POSITIVE
 
-                window_types[id(window_interval)] = window_type
+                window_types[id(window_interval)] = current_type
 
-                return window_type
+                return current_type
 
-            # The boundaries of the result intervals are identical to
-            # those of the window intervals. In addition, update the
-            # result interval window types based on the data
-            # intervals.
             def is_same_interval(
                 left_intervals: List[GeneralizedInterval],
                 right_intervals: List[GeneralizedInterval],
             ) -> bool:
+                """
+                Helper used by ` process.find_rectangles()`.
+
+                The framework calls this to decide if two adjacent intervals share
+                the same "payload" and can be merged into a single interval.
+
+                'left_intervals' and 'right_intervals' are each a pair [window_interval, data_interval],
+                for the previous block vs. the new block. We update the 'window_types' dict with
+                whatever is found in the new block, and return True if we can keep merging them.
+                """
                 left_window_interval, left_data_interval = left_intervals
                 right_window_interval, right_data_interval = right_intervals
+
+                # If the next block's window interval is None, it means we're off-limits
+                # or there's no overlap. We update the left block's type and return False.
                 if right_window_interval is None:
                     if left_window_interval is None:
                         return True
@@ -710,21 +762,34 @@ class Task:
                         update_window_type(left_window_interval, left_data_interval)
                         return False
                 else:
+                    # We do have a right_window_interval, so update it with the right_data_interval
                     update_window_type(right_window_interval, right_data_interval)
+
+                    # If the left window is None, can't be the same interval
                     if left_window_interval is None:
                         return False
                     else:
+                        # If left_window_interval and right_window_interval are literally
+                        # the same object, we can treat them as the same interval
                         if left_window_interval is right_window_interval:
                             return True
                         else:
+                            # They’re different intervals => finalize left and move on
                             update_window_type(left_window_interval, left_data_interval)
                             return False
 
-            # Create result intervals based on the computed interval
-            # types.
             def result_interval(
                 start: int, end: int, intervals: List[AnyInterval]
             ) -> AnyInterval:
+                """
+                Called at the end of building each interval, to produce the final interval
+                object that will go into the result.
+
+                'intervals' is [window_interval, data_interval], where either can be None.
+
+                We look up window_interval in window_types to see whether we've determined
+                it is POSITIVE, NEGATIVE, or NOT_APPLICABLE.
+                """
                 window_interval, data_interval = intervals
                 if (
                     window_interval is None
@@ -744,6 +809,7 @@ class Task:
                 key: [copy.copy(window) for window in indicator_windows]
                 for key in data_arg.keys()
             }
+
             result = process.find_rectangles(
                 [person_indicator_windows, data_arg],
                 result_interval,
@@ -775,11 +841,7 @@ class Task:
         # window_intervals are not important.
         # use a tuple for windows to make sure it is immutable (and can be shared by all persons)
         windows = (
-            Interval(
-                observation_window.start.timestamp(),
-                observation_window.end.timestamp(),
-                IntervalType.POSITIVE,
-            ),
+            timerange_to_interval(observation_window, type_=IntervalType.POSITIVE),
         )
         all_keys = data.keys() | base_data.keys()
         window_intervals = {key: windows for key in all_keys}

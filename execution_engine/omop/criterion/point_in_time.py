@@ -10,7 +10,8 @@ from execution_engine.omop.criterion.abstract import (
 from execution_engine.omop.criterion.concept import ConceptCriterion
 from execution_engine.task.process import get_processing_module
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import PersonIntervals, TimeRange, Timing
+from execution_engine.util.types import PersonIntervals, Timing
+from execution_engine.util.types.timerange import TimeRange
 from execution_engine.util.value import Value
 
 process = get_processing_module()

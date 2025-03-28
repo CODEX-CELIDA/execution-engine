@@ -1,19 +1,27 @@
-import typing
 from functools import cmp_to_key
-from typing import Callable
+from typing import List, Tuple, cast
 
 import numpy as np
-from sortedcontainers import SortedDict, SortedList
+from sortedcontainers import SortedList
 
-from execution_engine.task.process import Interval, IntervalWithCount, AnyInterval
+from execution_engine.task.process import (
+    AnyInterval,
+    GeneralizedInterval,
+    Interval,
+    IntervalWithCount,
+)
+from execution_engine.task.process.rectangle import IntervalConstructor, SameResult
 from execution_engine.util.interval import IntervalType
 
 MODULE_IMPLEMENTATION = "python"
 
+IntervalEvent = Tuple[int, bool, AnyInterval]
+IntervalEventWithCount = Tuple[int, bool, AnyInterval, int]
+
 
 def intervals_to_events(
-    intervals: list[AnyInterval], closing_offset: int = 1
-) -> list[tuple[int, bool, AnyInterval]]:
+    intervals: list[Interval], closing_offset: int = 1
+) -> list[IntervalEvent]:
     """
     Converts the intervals to a list of events.
 
@@ -22,9 +30,10 @@ def intervals_to_events(
     :param intervals: The intervals.
     :return: The events.
     """
-    events =   [ (i.lower,                  True,  i) for i in intervals ] \
-             + [ (i.upper + closing_offset, False, i) for i in intervals ]
-    return sorted(events,key=lambda i: i[0])
+    events = [(i.lower, True, i) for i in intervals] + [
+        (i.upper + closing_offset, False, i) for i in intervals
+    ]
+    return sorted(events, key=lambda i: i[0])
 
 
 def union_rects(intervals: list[Interval]) -> list[Interval]:
@@ -220,9 +229,7 @@ def intersect_interval_lists(
     :return: The list of intersections.
     """
     return union_rects(
-        [item for x in left
-              for y in right
-              for item in intersect_rects([x, y])]
+        [item for x in left for y in right for item in intersect_rects([x, y])]
     )
 
 
@@ -237,27 +244,62 @@ def union_interval_lists(left: list[Interval], right: list[Interval]) -> list[In
     return union_rects(left + right)
 
 
-IntervalConstructor = Callable[[int, int, typing.List[AnyInterval]], AnyInterval]
+def default_is_same_result(interval_constructor: IntervalConstructor) -> SameResult:
+    """
+    Creates an 'is_same_result' function that determines whether two sets of active intervals
+    produce the same resulting interval when passed to 'interval_constructor'.
 
-def default_is_same_result(interval_constructor):
-    def is_same_result(active_intervals1, active_intervals2):
+    The returned function calls:
+        interval_constructor(0, 0, active_intervals1)
+    and
+        interval_constructor(0, 0, active_intervals2)
+    and checks if the results are equal. If they match, we say they represent the “same” result.
+
+    :param interval_constructor: An interval constructor function.
+    :return:
+        A function 'is_same_result' that compares the results of two different sets of active
+        intervals by invoking 'interval_constructor' on each and checking for equality.
+    """
+
+    def is_same_result(
+        active_intervals1: List[GeneralizedInterval],
+        active_intervals2: List[GeneralizedInterval],
+    ) -> bool:
+        """
+        Compares the resulting intervals for two sets of active intervals.
+
+        :param active_intervals1:
+            A list of intervals (or None) describing the first track’s active intervals.
+        :param active_intervals2:
+            A list of intervals (or None) describing the second track’s active intervals.
+        :return:
+            True if 'interval_constructor(0, 0, ...)' produces the same interval for
+            both sets, otherwise False.
+        """
         # When we have to decide whether to extend a result interval
         # or start a new one, we compare the state for the existing
         # result interval with the new state. The states are derived
         # from the respective lists of active intervals by calling
-        # interval_constructor (with fake points in time) .
-        return (interval_constructor(0, 0, active_intervals1)
-                == interval_constructor(0, 0, active_intervals2))
+        # interval_constructor (with fake points in time).
+        return interval_constructor(0, 0, active_intervals1) == interval_constructor(
+            0, 0, active_intervals2
+        )
+
     return is_same_result
 
-def find_rectangles(all_intervals: list[list[AnyInterval]],
-                    interval_constructor: IntervalConstructor,
-                    is_same_result = None) \
-        -> list[AnyInterval]:
-    """For multiple parallel "tracks" of intervals, identify temporal
-    intervals in which no change occurs on any "track". For each such
-    interval, call interval_constructor to determine how the interval
-    should be represented in the overall result. To this end,
+
+def find_rectangles(
+    all_intervals: list[list[AnyInterval]],
+    interval_constructor: IntervalConstructor,
+    is_same_result: SameResult | None = None,
+) -> list[AnyInterval]:
+    """
+    Low-level engine for interval construction.
+
+    For multiple parallel "tracks" of intervals, identify segments of time
+    in which no change occurs on any "track". For each such segment,
+    call `interval_constructor(start, end, active_intervals)` to determine
+    how to represent the interval in the overall result. To this end,
     interval_constructor receives a list "active" intervals the
     elements of which are either None or an interval from
     all_intervals and returns either None or an interval. The returned
@@ -289,32 +331,69 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
     # before the open event, otherwise our tracking of active
     # intervals would get confused.
     track_count = len(all_intervals)
-    events = [
+
+    events: list[IntervalEventWithCount] = [
         (time, event, interval, j)
         for j, intervals in enumerate(all_intervals)
-        for interval in intervals # intervals_to_events(intervals, closing_offset=0)
-        for (time,event) in [(interval.lower, True), (interval.upper, False)]
+        for interval in intervals
+        for (time, event) in [(interval.lower, True), (interval.upper, False)]
     ]
     event_count = len(events)
+
     if event_count == 0:
         return []
-    def compare_events(event1, event2):
-        if event1[0] < event2[0]: # event1 is earlier
+
+    def compare_events(
+        event1: IntervalEventWithCount, event2: IntervalEventWithCount
+    ) -> int:
+        """
+        Sorting comparator to ensure we process events in the correct order:
+          - earlier time first
+          - if same time and same track, close events before open events
+            (so we don't incorrectly treat a consecutive interval on the same track
+             as overlapping).
+        """
+        if event1[0] < event2[0]:  # event1 is earlier
             return -1
-        elif event2[0] < event1[0]: # event2 is earlier
+        elif event2[0] < event1[0]:  # event2 is earlier
             return 1
-        elif event1[3] == event2[3]: # at the same time and on same track,
-            if event1[2] is event2[2]: # same interval
-                return -1 if (event1[1] is True) else 1 # sort open events before open events
-            else: # different intervals
-                return -1 if (event1[1] is False) else 1 # sort close events before open events
-        else: # at the same time, but different tracks => any order is fine
+        elif event1[3] == event2[3]:  # at the same time and on same track,
+            if event1[2] is event2[2]:  # same interval
+                return (
+                    -1 if (event1[1] is True) else 1
+                )  # sort open events before open events
+            else:  # different intervals
+                return (
+                    -1 if (event1[1] is False) else 1
+                )  # sort close events before open events
+        else:  # at the same time, but different tracks => any order is fine
             return 1
-    events.sort(key = cmp_to_key(compare_events))
-    active_intervals = [None] * track_count
-    def process_events_for_point_in_time(index, point_time):
+
+    # Sort events chronologically according to compare_events
+    events.sort(key=cmp_to_key(compare_events))
+
+    active_intervals: list[GeneralizedInterval] = [None] * track_count
+
+    def process_events_for_point_in_time(
+        index: int, point_time: int
+    ) -> Tuple[int, int, int] | None:
+        """
+        Consumes events that occur at `point_time` (or effectively that boundary),
+        updating 'active_intervals' for whichever track is opening or closing
+        intervals at that time.
+
+        Returns: (new_index, new_time, copy_of_active_intervals, high_time)
+          - new_index: the index of the first event not processed (because it's after point_time)
+          - new_time: the time of that next event
+          - copy_of_active_intervals: a snapshot of 'active_intervals' after processing
+          - high_time: the highest time covered by these events (may be the same as point_time
+                       or point_time + 1 if we consider inclusive boundaries).
+
+        If we run out of events entirely, returns (None, None, None, None).
+        """
         high_time = point_time
         any_open = False
+
         for i in range(index, event_count):
             time, open_, interval, track = events[i]
             # Since points in time for intervals are quantized to whole
@@ -328,38 +407,103 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
                     high_time = time
                 any_open |= open_
             else:
-                return i, time, active_intervals, high_time if any_open else high_time + 1
+                # As soon as we find an event that’s clearly beyond the cluster at point_time,
+                # we break and return
+                return (
+                    i,
+                    time,
+                    high_time if any_open else high_time + 1,
+                )
+
+            # Opening => set this track’s active interval to the new interval
+            # Closing => set it to None
             active_intervals[track] = interval if open_ else None
-        return None, None, None, None
-    result_intervals = []
+
+        # If we exit the loop fully, we used all events
+        return None
+
     # Step through event "clusters" with a common point in time and
     # emit result intervals with unchanged interval "payload".
-    index, time = 0, events[0][0]
-    interval_start_time = time
-    index, time, interval_start_state, high_time = process_events_for_point_in_time(index, time)
-    interval_start_state = interval_start_state.copy() if interval_start_state is not None else None
-    while index:
-        new_index, new_time, maybe_end_state, high_time = process_events_for_point_in_time(index, time)
+    index: int | None = 0
+    time: int | None = events[0][0]
+    interval_start_time: int = cast(int, time)
+    result_intervals: list[tuple[int, int, List[GeneralizedInterval]]] = []
+
+    if time is None:
+        # No events at all
+        return []
+
+    res = process_events_for_point_in_time(cast(int, index), cast(int, time))
+
+    if res is None:
+        return []
+
+    index, time, high_time = res
+
+    interval_start_state = active_intervals.copy()
+
+    def finalize_interval(
+        interval_start_time: int,
+        current_time: int,
+        interval_start_state: List[GeneralizedInterval],
+    ) -> None:
+        """
+        Appends a new time slice (interval_start_time -> current_time) to 'result_intervals',
+        ensuring we don't create duplicate adjacency boundaries if the previous slice ends
+        exactly where the new one starts.
+        """
+        if len(result_intervals) > 0:
+            previous_result = result_intervals[-1]
+            if previous_result[1] == interval_start_time:
+                # Adjust the previous slice so it doesn't overlap or duplicate
+                result_intervals[-1] = (
+                    previous_result[0],
+                    previous_result[1] - 1,
+                    previous_result[2],
+                )
+
+        # Now finalize the current slice
+        result_intervals.append(
+            (interval_start_time, current_time, interval_start_state)
+        )
+
+    # The main loop: step through event clusters
+    while True:
+        res = process_events_for_point_in_time(index, time)
+        if res is None:
+            # No more events => finalize the last slice and break
+            finalize_interval(interval_start_time, time, interval_start_state)
+            break
+
+        new_index, new_time, high_time = res
+
         # Diagram for this program point:
         # |___potential_result_interval___||                 |
         #                                 index              new_index
         # interval_start_time             time               new_time
         # interval_start_state            maybe_end_state
         #                                  high_time
-        if (maybe_end_state is None) or (not is_same_result(interval_start_state, maybe_end_state)):
-            # Add info for one result interval.
-            if len(result_intervals) > 0:
-                previous_result = result_intervals[-1]
-                if previous_result[1] == interval_start_time:
-                    result_intervals[-1] = (previous_result[0], previous_result[1] - 1, previous_result[2])
-            result_intervals.append((interval_start_time, time, interval_start_state))
+
+        # We have a region from [interval_start_time, time) or [interval_start_time, time]
+        # with 'interval_start_state' as the active intervals.
+        # Decide if we finalize that region or if we can merge with the next region.
+        if not is_same_result(interval_start_state, active_intervals):
+            # If the active intervals changed, finalize the old slice
+            finalize_interval(interval_start_time, time, interval_start_state)
+
             # Update interval start info.
             interval_start_time = high_time
-            interval_start_state = maybe_end_state.copy() if maybe_end_state is not None else None
+            interval_start_state = active_intervals.copy()
+
         index, time = new_index, new_time
+
     result = []
-    for (start, end, intervals) in result_intervals:
+
+    # Finally, convert the (start, end, intervals) slices into actual Interval objects
+    for start, end, intervals in result_intervals:
         interval = interval_constructor(start, end, intervals)
+
         if interval is not None:
             result.append(interval)
+
     return result

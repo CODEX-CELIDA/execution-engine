@@ -1,6 +1,3 @@
-import random
-from datetime import time
-
 import pandas as pd
 import pendulum
 import pytest
@@ -12,7 +9,8 @@ from execution_engine.task.process import (
     get_processing_module,
 )
 from execution_engine.util.interval import IntervalType as T
-from execution_engine.util.types import PersonIntervals, TimeRange
+from execution_engine.util.types import PersonIntervals
+from execution_engine.util.types.timerange import TimeRange
 from tests.functions import df_from_str
 from tests.functions import intervals_to_df as intervals_to_df_original
 from tests.functions import parse_dt

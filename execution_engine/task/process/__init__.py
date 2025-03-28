@@ -5,6 +5,9 @@ import types
 from collections import namedtuple
 from typing import TypeVar
 
+from execution_engine.util.interval import IntervalType
+from execution_engine.util.types.timerange import TimeRange
+
 
 def get_processing_module(
     name: str = "rectangle", version: str = "auto"
@@ -61,3 +64,14 @@ def interval_like(interval: TInterval, start: int, end: int) -> TInterval:
     """
 
     return interval._replace(lower=start, upper=end)  # type: ignore[return-value]
+
+
+def timerange_to_interval(tr: TimeRange, type_: IntervalType) -> Interval:
+    """
+    Converts a timerange to an interval with the supplied type.
+    """
+    return Interval(
+        lower=int(tr.start.timestamp()),
+        upper=int(tr.end.timestamp()),
+        type=type_,
+    )

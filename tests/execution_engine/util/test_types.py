@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from execution_engine.util.enum import TimeUnit
-from execution_engine.util.types import Dosage, TimeRange, Timing
+from execution_engine.util.types import Dosage, Timing
+from execution_engine.util.types.timerange import TimeRange
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.time import ValueCount, ValueDuration, ValuePeriod
 from tests._fixtures.concept import concept_unit_mg

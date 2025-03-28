@@ -10,7 +10,7 @@ import sqlalchemy
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm.session import sessionmaker
 
-from execution_engine.util.types import TimeRange
+from execution_engine.util.types.timerange import TimeRange
 
 logging.basicConfig()
 logger = logging.getLogger()
