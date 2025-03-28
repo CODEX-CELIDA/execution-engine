@@ -73,6 +73,15 @@ def default_interval_union_with_count(
     return IntervalWithCount(start, end, result_type, result_count)
 
 
+def default_interval_intersect_with_count(
+    start: int, end: int, intervals: List[GeneralizedInterval]
+) -> IntervalWithCount:
+    """
+    Default interval counting function to be used in logic.Or
+    """
+    raise NotImplementedError()
+
+
 def get_engine() -> OMOPSQLClient:
     """
     Returns a OMOPSQLClient object.
@@ -382,9 +391,26 @@ class Task:
             return data[0]
 
         if isinstance(self.expr, (logic.And, logic.NonSimplifiableAnd)):
-            result = process.intersect_intervals(data)
+
+            if self.receives_only_count_inputs() and hasattr(
+                self.expr, "count_intervals"
+            ):
+                # we check if there are custom data preparatory and interval counting functions and use these
+                prepare_func = getattr(self.expr, "prepare_data", None)
+                if prepare_func:
+                    data = prepare_func(self, data)
+                func = getattr(
+                    self.expr, "count_intervals", default_interval_intersect_with_count
+                )
+                result = process.find_rectangles(data, func)
+
+            else:
+                result = process.intersect_intervals(data)
+
         elif isinstance(self.expr, (logic.Or, logic.NonSimplifiableOr)):
-            if self.receives_only_count_inputs():
+            if self.receives_only_count_inputs() and hasattr(
+                self.expr, "count_intervals"
+            ):
                 # we check if there are custom data preparatory and interval counting functions and use these
                 prepare_func = getattr(self.expr, "prepare_data", None)
                 if prepare_func:
