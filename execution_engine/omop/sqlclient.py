@@ -58,6 +58,35 @@ def _enable_database_triggers(
     cursor.close()
 
 
+def datetime_cols_to_epoch(stmt: sqlalchemy.Select) -> sqlalchemy.Select:
+    """
+    Given a SQLAlchemy 2.0 Select that has columns labeled 'interval_start'
+    or 'interval_end', replace those column expressions with
+    EXTRACT(EPOCH FROM <expr>)::BIGINT so they become integer timestamps.
+
+    Returns a new Select object with the replaced columns.
+    """
+    new_columns = []
+
+    for col in stmt.selected_columns:
+        label = getattr(col, "name")
+
+        if label in ("interval_start", "interval_end"):
+            # We'll wrap col in EXTRACT(EPOCH FROM col)::BIGINT,
+            new_col = (
+                sqlalchemy.func.extract("epoch", col)
+                .cast(sqlalchemy.BigInteger)
+                .label(label)
+            )
+            new_columns.append(new_col)
+        else:
+            new_columns.append(col)
+
+    new_stmt = stmt.with_only_columns(*new_columns, maintain_column_froms=True)
+
+    return new_stmt
+
+
 class OMOPSQLClient:
     """A client for the OMOP SQL database.
 

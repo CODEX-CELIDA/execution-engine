@@ -2,7 +2,8 @@ import datetime
 import importlib
 import logging
 import os
-from typing import Callable, cast
+from collections import defaultdict
+from typing import Callable, Dict, List, Set, cast
 
 import numpy as np
 import pendulum
@@ -10,9 +11,20 @@ import pytz
 from sqlalchemy import CursorResult
 
 from execution_engine.util.interval import IntervalType, interval_datetime
-from execution_engine.util.types import TimeRange
 
-from . import Interval, IntervalWithCount
+from ...util.types.timerange import TimeRange
+from . import (
+    GeneralizedInterval,
+    Interval,
+    IntervalWithCount,
+    interval_like,
+    timerange_to_interval,
+)
+
+IntervalConstructor = Callable[
+    [int, int, List[GeneralizedInterval]], GeneralizedInterval
+]
+SameResult = Callable[[List[GeneralizedInterval], List[GeneralizedInterval]], bool]
 
 PROCESS_RECTANGLE_VERSION = os.getenv("PROCESS_RECTANGLE_VERSION", "auto")
 
@@ -64,7 +76,7 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
     """
     Converts the result of the interval operations to a list of intervals.
     """
-    person_interval = {}
+    person_interval = defaultdict(list)
 
     for row in result:
         if row.interval_end < row.interval_start:
@@ -76,15 +88,12 @@ def result_to_intervals(result: CursorResult) -> PersonIntervals:
             raise ValueError("Interval end is None")
 
         interval = Interval(
-            row.interval_start.timestamp(),
-            row.interval_end.timestamp(),
+            row.interval_start,
+            row.interval_end,
             row.interval_type,
         )
 
-        if row.person_id not in person_interval:
-            person_interval[row.person_id] = [interval]
-        else:
-            person_interval[row.person_id].append(interval)
+        person_interval[row.person_id].append(interval)
 
     for person_id in person_interval:
         person_interval[person_id] = _impl.union_rects(person_interval[person_id])
@@ -214,10 +223,10 @@ def forward_fill(
 
         if observation_window is not None:
             last_interval = result[person_id][-1]
-            if last_interval.upper < observation_window.end.timestamp():
+            if last_interval.upper < int(observation_window.end.timestamp()):
                 result[person_id][-1] = Interval(
                     last_interval.lower,
-                    observation_window.end.timestamp(),
+                    int(observation_window.end.timestamp()),
                     last_interval.type,
                 )
 
@@ -302,15 +311,11 @@ def complementary_intervals(
     """
 
     interval_type_missing_persons = interval_type
-    baseline_interval = Interval(
-        observation_window.start.timestamp(),
-        observation_window.end.timestamp(),
-        interval_type_missing_persons,
+    baseline_interval = timerange_to_interval(
+        observation_window, type_=interval_type_missing_persons
     )
-    observation_window_mask = Interval(
-        observation_window.start.timestamp(),
-        observation_window.end.timestamp(),
-        IntervalType.least_intersection_priority(),
+    observation_window_mask = timerange_to_interval(
+        observation_window, type_=IntervalType.least_intersection_priority()
     )
 
     result = {}
@@ -423,112 +428,6 @@ def union_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     return _process_intervals(data, _impl.union_interval_lists)
 
 
-def interval_to_interval_with_count(interval: Interval) -> IntervalWithCount:
-    """
-    Converts an Interval to an IntervalWithCount.
-    """
-    return IntervalWithCount(interval.lower, interval.upper, interval.type, 1)
-
-
-def intervals_to_intervals_with_count(
-    intervals: list[Interval],
-) -> list[IntervalWithCount]:
-    """
-    Converts a list of Intervals to a list of IntervalWithCount.
-    """
-    return [interval_to_interval_with_count(interval) for interval in intervals]
-
-
-def count_intervals(data: list[PersonIntervals]) -> PersonIntervalsWithCount:
-    """
-    Counts the intervals per dict key in the list.
-
-    :param data: A list of dict of intervals.
-    :return: A dict with the unioned intervals.
-    """
-    if not len(data):
-        return dict()
-
-    # assert dfs is a list of dataframes
-    assert isinstance(data, list) and all(
-        isinstance(arr, dict) for arr in data
-    ), "data must be a list of dicts"
-
-    result = {}
-
-    for arr in data:
-        if not len(arr):
-            # if the operation is union, an empty dataframe can be ignored
-            continue
-
-        for group_keys, intervals in arr.items():
-            intervals_with_count = intervals_to_intervals_with_count(intervals)
-            intervals_with_count = _impl.union_rects_with_count(intervals_with_count)
-            if group_keys not in result:
-                result[group_keys] = intervals_with_count
-            else:
-                result[group_keys] = _impl.union_rects_with_count(
-                    result[group_keys] + intervals_with_count
-                )
-
-    return result
-
-
-def filter_count_intervals(
-    data: PersonIntervalsWithCount,
-    min_count: int | None,
-    max_count: int | None,
-    keep_no_data: bool = True,
-    keep_not_applicable: bool = True,
-) -> PersonIntervals:
-    """
-    Filters the intervals per dict key in the list by count.
-
-    :param data: A list of dict of intervals.
-    :param min_count: The minimum count of the intervals.
-    :param max_count: The maximum count of the intervals.
-    :param keep_no_data: Whether to keep NO_DATA intervals (irrespective of the count).
-    :param keep_not_applicable: Whether to keep NOT_APPLICABLE intervals (irrespective of the count).
-    :return: A dict with the unioned intervals.
-    """
-
-    result: PersonIntervals = {}
-
-    interval_filter = []
-
-    if keep_no_data:
-        interval_filter.append(IntervalType.NO_DATA)
-    if keep_not_applicable:
-        interval_filter.append(IntervalType.NOT_APPLICABLE)
-
-    if min_count is None and max_count is None:
-        raise ValueError("min_count and max_count cannot both be None")
-    elif min_count is not None and max_count is not None:
-        for person_id in data:
-            result[person_id] = [
-                Interval(interval.lower, interval.upper, interval.type)
-                for interval in data[person_id]
-                if min_count <= interval.count <= max_count
-                or interval.type in interval_filter
-            ]
-    elif min_count is not None:
-        for person_id in data:
-            result[person_id] = [
-                Interval(interval.lower, interval.upper, interval.type)
-                for interval in data[person_id]
-                if min_count <= interval.count or interval.type in interval_filter
-            ]
-    elif max_count is not None:
-        for person_id in data:
-            result[person_id] = [
-                Interval(interval.lower, interval.upper, interval.type)
-                for interval in data[person_id]
-                if interval.count <= max_count or interval.type in interval_filter
-            ]
-
-    return result
-
-
 def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
     """
     Intersects the intervals per dict key in the list.
@@ -547,7 +446,7 @@ def intersect_intervals(data: list[PersonIntervals]) -> PersonIntervals:
 def mask_intervals(
     data: PersonIntervals,
     mask: PersonIntervals,
-) -> PersonIntervals:
+) -> Dict[int, List[GeneralizedInterval]]:
     """
     Masks the intervals in the dict per key.
 
@@ -569,18 +468,21 @@ def mask_intervals(
             for interval in intervals
         ]
         for person_id, intervals in mask.items()
+        if person_id in data
     }
 
-    result = {}
-    for person_id in data:
-        # intersect every interval in data with every interval in mask
-        person_result = _impl.intersect_interval_lists(
-            data[person_id], person_mask[person_id]
-        )
-        if not person_result:
-            continue
+    def intersection_interval(
+        start: int, end: int, intervals: List[GeneralizedInterval]
+    ) -> GeneralizedInterval:
 
-        result[person_id] = person_result
+        left_interval, right_interval = intervals
+
+        if left_interval is not None and right_interval is not None:
+            return interval_like(right_interval, start, end)
+
+        return None
+
+    result = find_rectangles([person_mask, data], intersection_interval)
 
     return result
 
@@ -671,10 +573,14 @@ def create_time_intervals(
         end_datetime = end_datetime.in_timezone(timezone)
 
     # Prepare to collect intervals
-    intervals = []
+    intervals: list[Interval] = []
     previous_end = None
 
-    def add_interval(interval_start, interval_end, interval_type):
+    def add_interval(
+        interval_start: datetime.datetime,
+        interval_end: datetime.datetime,
+        interval_type: IntervalType,
+    ) -> None:
         nonlocal previous_end
         effective_start = max(interval_start, start_datetime)
         effective_end = min(interval_end, end_datetime)
@@ -686,11 +592,11 @@ def create_time_intervals(
             # method) which can result in an incorrect event order for
             # touching intervals.
             if previous_end is not None:
-                assert previous_end < effective_start
+                assert previous_end < effective_start  # type: ignore[unreachable]
             intervals.append(
                 Interval(
-                    lower=effective_start.timestamp(),
-                    upper=effective_end.timestamp(),
+                    lower=int(effective_start.timestamp()),
+                    upper=int(effective_end.timestamp()),
                     type=interval_type,
                 )
             )
@@ -721,7 +627,6 @@ def create_time_intervals(
         # Create the interval with the specified interval_type if it
         # overlaps the main datetime range, otherwise fill the day
         # with an interval of type "not applicable".
-        # TODO: what about intervals "before" the main datetime range?
         if end_interval < start_datetime:  # completely before datetime range
             day_start = timezone.localize(
                 datetime.datetime.combine(current_date, datetime.time(0, 0, 0))
@@ -751,23 +656,6 @@ def create_time_intervals(
         current_date += datetime.timedelta(days=1)
 
     return intervals
-
-
-def find_overlapping_windows(
-    windows: list[Interval], data: PersonIntervals
-) -> PersonIntervals:
-    """
-    Returns a list of windows that overlap with any interval in the intervals list. A window is included in the
-    result if it overlaps in any part with any of the given intervals, not just where they intersect. The entire
-    window is returned, not just the overlapping segment.
-
-    Note that a single, common list of windows is used for all persons.
-
-    :param windows: A list of windows, where each window is defined as an interval.
-    :param data: The dict with intervals that are checked for overlap with the windows.
-    :return: A list of windows that have any overlap with the intervals.
-    """
-    return {key: _impl.find_overlapping_windows(windows, data[key]) for key in data}
 
 
 def find_overlapping_personal_windows(
@@ -805,14 +693,48 @@ def find_overlapping_personal_windows(
     return result
 
 
-def find_rectangles_with_count(data: list[PersonIntervals]) -> PersonIntervals:
+def find_rectangles(
+    data: list[PersonIntervals],
+    interval_constructor: IntervalConstructor,
+    is_same_result: SameResult | None = None,
+) -> Dict[int, List[GeneralizedInterval]]:
+    """
+    Constructs new intervals ("time slices") by combining multiple parallel tracks of intervals.
+
+    This iterates over all intervals for each person across the given `data` list. Whenever an
+    interval starts or ends on any track, that boundary can produce a new interval. For each
+    interval, we invoke `interval_constructor(start, end, active_intervals)` to decide how
+    to label it (e.g., POSITIVE, NEGATIVE).
+
+    If `is_same_result` is provided, it’s used to decide whether two adjacent slices have the
+    same "type" (so we can merge them). If not provided, a default routine is used that merges
+    slices if they have the same object identity and the same result.
+
+    :param data: A list of dictionaries, each mapping a person ID to a list of intervals.
+    :param interval_constructor: A callable that takes the time boundaries and the corresponding intervals
+        from each source and returns a new interval or None.
+    :param is_same_result: Optional helper for merging adjacent intervals of the same type to avoid
+        unnecessary fragmentation.
+    :return: A dictionary mapping each person ID to the newly constructed intervals.
+    """
+    # TODO(jmoringe): can this use _process_interval?
     if len(data) == 0:
         return {}
-    else:
-        keys = data[0].keys()
-        return {
-            key: _impl.find_rectangles_with_count(
-                [intervals[key] for intervals in data]
-            )
-            for key in keys
-        }
+
+    # Collect all person IDs across all tracks
+    keys: Set[int] = set()
+    result: Dict[int, List[GeneralizedInterval]] = dict()
+
+    for track in data:
+        keys |= track.keys()
+
+    for key in keys:
+        key_result = _impl.find_rectangles(
+            [intervals.get(key, []) for intervals in data],
+            interval_constructor,
+            is_same_result=is_same_result,
+        )
+        if len(key_result) > 0:
+            result[key] = key_result
+
+    return result

@@ -199,6 +199,7 @@ def interval_result_view() -> Select:
             rri.c.interval_type,
             rri.c.interval_start,
             rri.c.interval_end,
+            rri.c.interval_ratio,
         )
         .select_from(rri)
         .outerjoin(pip, (rri.c.pi_pair_id == pip.c.pi_pair_id))

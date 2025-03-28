@@ -1,14 +1,39 @@
-import copy
-import datetime
-from functools import reduce
+from functools import cmp_to_key
+from typing import List, Tuple, cast
 
 import numpy as np
-from sortedcontainers import SortedDict, SortedList
+from sortedcontainers import SortedList
 
-from execution_engine.task.process import Interval, IntervalWithCount, IntervalWithTypeCounts
+from execution_engine.task.process import (
+    AnyInterval,
+    GeneralizedInterval,
+    Interval,
+    IntervalWithCount,
+)
+from execution_engine.task.process.rectangle import IntervalConstructor, SameResult
 from execution_engine.util.interval import IntervalType
 
 MODULE_IMPLEMENTATION = "python"
+
+IntervalEvent = Tuple[int, bool, AnyInterval]
+IntervalEventOnTrack = Tuple[int, bool, AnyInterval, int]
+
+
+def intervals_to_events(
+    intervals: list[Interval], closing_offset: int = 1
+) -> list[IntervalEvent]:
+    """
+    Converts the intervals to a list of events.
+
+    The events are a sorted list of the opening/closing points of all rectangles.
+
+    :param intervals: The intervals.
+    :return: The events.
+    """
+    events = [(i.lower, True, i) for i in intervals] + [
+        (i.upper + closing_offset, False, i) for i in intervals
+    ]
+    return sorted(events, key=lambda i: i[0])
 
 
 def union_rects(intervals: list[Interval]) -> list[Interval]:
@@ -30,7 +55,8 @@ def union_rects(intervals: list[Interval]) -> list[Interval]:
         cur_x = -np.inf
         open_y = SortedList()
 
-        for x_min, start_point, y_max in events:
+        for x_min, start_point, interval in events:
+            y_max = interval.type
             if x_min > cur_x:
                 # previously unvisited x
                 cur_x = x_min
@@ -86,89 +112,6 @@ def union_rects(intervals: list[Interval]) -> list[Interval]:
                         last_x_closed = cur_x
                         last_x = cur_x  # start new output rectangle
         return union
-
-
-def union_rects_with_count(
-    intervals: list[IntervalWithCount],
-) -> list[IntervalWithCount]:
-    """
-    Unions the intervals while keeping track of the count of overlapping intervals of the same type.
-    """
-
-    if not len(intervals):
-        return []
-
-    with IntervalType.union_order():
-        events = intervals_with_count_to_events(intervals)
-
-        union = []
-
-        last_x_start = -np.inf  # holds the x_min of the currently open output rectangle
-        last_x_end = events[0][
-            0
-        ]  # x variable of the last closed interval (we start with the first x, so we
-        # don't close the first rectangle at the first x)
-        previous_x_visited = -np.inf
-        open_y = SortedDict()
-
-        def get_y_max() -> IntervalType | None:
-            max_key = None
-            for key in reversed(open_y):
-                if open_y[key] > 0:
-                    max_key = key
-                    break
-            return max_key
-
-        for x, start_point, y, count_event in events:
-            if start_point:
-                y_max = get_y_max()
-
-                if x > previous_x_visited and y_max is None:
-                    # no currently open rectangles
-                    last_x_start = x  # start new output rectangle
-                elif y >= y_max:
-                    if x == last_x_end or x == last_x_start:
-                        # we already closed a rectangle at this x, so we don't need to start a new one
-                        open_y[y] = open_y.get(y, 0) + count_event
-                        continue
-
-                    union.append(
-                        IntervalWithCount(
-                            lower=last_x_start,
-                            upper=x - 1,
-                            type=y_max,
-                            count=open_y[y_max],
-                        )
-                    )
-                    last_x_end = x
-                    last_x_start = x
-
-                open_y[y] = open_y.get(y, 0) + count_event
-
-            else:
-                open_y[y] = max(open_y.get(y, 0) - count_event, 0)
-
-                y_max = get_y_max()
-
-                if (y_max is None or (open_y and y_max <= y)) and x > last_x_end:
-                    if y_max is None or y_max < y:
-                        # the closing rectangle has a higher y_max than the currently open ones
-                        count = count_event
-                    else:
-                        # the closing rectangle has the same y_max as the currently open ones
-                        count = open_y[y] + count_event
-
-                    union.append(
-                        IntervalWithCount(
-                            lower=last_x_start, upper=x - 1, type=y, count=count
-                        )
-                    )  # close the previous rectangle at y_max
-                    last_x_end = x
-                    last_x_start = x  # start new output rectangle
-
-            previous_x_visited = x
-
-        return merge_adjacent_intervals(union)
 
 
 def merge_adjacent_intervals(
@@ -249,7 +192,8 @@ def intersect_rects(intervals: list[Interval]) -> list[Interval]:
         y_min = np.inf
         end_point = np.inf
 
-        for cur_x, start_point, y_max in events:
+        for cur_x, start_point, interval in events:
+            y_max = interval.type
             if start_point:
                 if end_point < cur_x:
                     # we already hit an endpoint and here starts a new one, so the intersection is empty
@@ -272,46 +216,6 @@ def intersect_rects(intervals: list[Interval]) -> list[Interval]:
                 end_point = cur_x
 
         return [Interval(lower=x_min, upper=end_point - 1, type=y_min)]
-
-
-def intervals_to_events(
-    intervals: list[Interval], closing_offset: int = 1
-) -> list[tuple[int, bool, IntervalType]]:
-    """
-    Converts the intervals to a list of events.
-
-    The events are a sorted list of the opening/closing points of all rectangles.
-
-    :param intervals: The intervals.
-    :return: The events.
-    """
-    events = [(i.lower, True, i.type) for i in intervals] + [
-        (i.upper + closing_offset, False, i.type) for i in intervals
-    ]
-    return sorted(
-        events,
-        key=lambda i: (i[0]),
-    )
-
-
-def intervals_with_count_to_events(
-    intervals: list[IntervalWithCount],
-) -> list[tuple[int, bool, IntervalType, int]]:
-    """
-    Converts the intervals to a list of events.
-
-    The events are a sorted list of the opening/closing points of all rectangles.
-
-    :param intervals: The intervals.
-    :return: The events.
-    """
-    events = [(i.lower, True, i.type, i.count) for i in intervals] + [
-        (i.upper + 1, False, i.type, i.count) for i in intervals
-    ]
-    return sorted(
-        events,
-        key=lambda i: (i[0]),
-    )
 
 
 def intersect_interval_lists(
@@ -340,159 +244,284 @@ def union_interval_lists(left: list[Interval], right: list[Interval]) -> list[In
     return union_rects(left + right)
 
 
-def find_overlapping_windows(
-    windows: list[Interval], intervals: list[Interval]
-) -> list[Interval]:
+def default_is_same_result(interval_constructor: IntervalConstructor) -> SameResult:
     """
-    Returns a list of windows that overlap with any interval in the intervals list. A window is included in the
-    result if it overlaps in any part with any of the given intervals, not just where they intersect. The entire
-    window is returned, not just the overlapping segment.
+    Creates an 'is_same_result' function that determines whether two sets of active intervals
+    produce the same resulting interval when passed to 'interval_constructor'.
 
-    :param windows: A list of windows, where each window is defined as an interval.
-    :param intervals: A list of intervals that are checked for overlap with the windows.
-    :return: A list of windows that have any overlap with the intervals.
+    The returned function calls:
+        interval_constructor(0, 0, active_intervals1)
+    and
+        interval_constructor(0, 0, active_intervals2)
+    and checks if the results are equal. If they match, we say they represent the “same” result.
+
+    :param interval_constructor: An interval constructor function.
+    :return:
+        A function 'is_same_result' that compares the results of two different sets of active
+        intervals by invoking 'interval_constructor' on each and checking for equality.
     """
-    # Convert all intervals and windows into events
-    window_events = intervals_to_events(windows, closing_offset=0)
-    interval_events = intervals_to_events(intervals, closing_offset=0)
 
-    # Here we collect interval for the intersecting windows
-    intersecting_windows = []
-    def add_segment(start, end, interval_type):
-        intersecting_windows.append(Interval(start, end, interval_type))
+    def is_same_result(
+        active_intervals1: List[GeneralizedInterval],
+        active_intervals2: List[GeneralizedInterval],
+    ) -> bool:
+        """
+        Compares the resulting intervals for two sets of active intervals.
 
-    # State and "event handler" functions for state transitions:
-    # inside/not inside window, inside/not inside at least one
-    # interval.
-    previous_event = None
-    window_state = False
-    any_satisfied_in_window = False
-    satisfied_interval_type = None
-    def window_open(event_time, interval_type):
-        nonlocal previous_event, window_state, any_satisfied_in_window
-        assert not window_state
-        window_state = interval_type
-        if satisfied_interval_type is not None:
-            any_satisfied_in_window = satisfied_interval_type
-        previous_event = event_time
-    def window_close(event_time):
-        nonlocal previous_event, window_state, any_satisfied_in_window
-        assert window_state
-        if window_state == IntervalType.NOT_APPLICABLE:
-            interval_type = IntervalType.NOT_APPLICABLE
-            add_segment(previous_event, event_time, interval_type)
-        elif any_satisfied_in_window == False:
-            pass
-        else:
-            interval_type = any_satisfied_in_window
-            add_segment(previous_event, event_time, interval_type)
-        window_state = False
-        any_satisfied_in_window = False
-        previous_event = event_time
-    def interval_satisfied(event_time, interval_type):
-        nonlocal satisfied_interval_type, any_satisfied_in_window
-        # If we are inside a window, remember that we saw an interval
-        # of type interval_type. Do not overwrite previously seen
-        # higher priority types with lower priority types
-        if not (satisfied_interval_type in [IntervalType.POSITIVE, IntervalType.NEGATIVE]):
-            satisfied_interval_type = interval_type
-        if window_state:
-            # Priorities: POSITIVE > NEGATIVE > NO_DATA or NOT_APPLICABLE > no value
-            if any_satisfied_in_window == IntervalType.POSITIVE:
-                pass
-            elif any_satisfied_in_window == IntervalType.NEGATIVE:
-                if interval_type == IntervalType.POSITIVE:
-                    any_satisfied_in_window = interval_type
-            else:
-                any_satisfied_in_window = interval_type
-    def interval_unsatisfied(event_time):
-        nonlocal satisfied_interval_type
-        satisfied_interval_type = None
+        :param active_intervals1:
+            A list of intervals (or None) describing the first track’s active intervals.
+        :param active_intervals2:
+            A list of intervals (or None) describing the second track’s active intervals.
+        :return:
+            True if 'interval_constructor(0, 0, ...)' produces the same interval for
+            both sets, otherwise False.
+        """
+        # When we have to decide whether to extend a result interval
+        # or start a new one, we compare the state for the existing
+        # result interval with the new state. The states are derived
+        # from the respective lists of active intervals by calling
+        # interval_constructor (with fake points in time).
+        return interval_constructor(0, 0, active_intervals1) == interval_constructor(
+            0, 0, active_intervals2
+        )
 
-    # Use two indices to traverse the two sorted lists of events in
-    # parallel. Call event handler functions for state transitions.
-    def interleaved_events():
-        w_idx, i_idx = 0, 0
-        while True:
-            window_event = window_events[w_idx] if w_idx < len(window_events) else None
-            interval_event = interval_events[i_idx] if i_idx < len(interval_events) else None
-            # When tied in terms of event time, use the following
-            # priority for reporting events:
-            # window open > interval open > interval close > window close
-            if window_event and (not interval_event or window_event[0] < interval_event[0] or (
-                    window_event[0] == interval_event[0] and window_event[1])):
-                w_idx += 1
-                yield window_event, None
-            elif interval_event:
-                i_idx += 1
-                yield None, interval_event
-            else:
-                break
-    active_intervals = 0
-    for window_event, interval_event in interleaved_events():
-        if window_event:
-            time, open_, interval_type = window_event
-            window_open(time, interval_type) if open_ else window_close(time)
-        else:
-            time, open_, type_ = interval_event
-            active_intervals += (1 if open_ else -1)
-            if active_intervals == 0: # 1 -> 0 transition
-                interval_unsatisfied(time)
-            elif active_intervals == 1: # 0 -> 1 transition
-                interval_satisfied(time, type_)
+    return is_same_result
 
-    # Return the list of unique intersecting windows
-    return intersecting_windows
 
-def find_rectangles_with_count(all_intervals: list[list[Interval]]) -> list[IntervalWithTypeCounts]:
+def find_rectangles(
+    all_intervals: list[list[AnyInterval]],
+    interval_constructor: IntervalConstructor,
+    is_same_result: SameResult | None = None,
+) -> list[AnyInterval]:
     """
-    For multiple parallel "tracks" of intervals, identify temporal
-    intervals in which no change occurs on any "track". For each such
-    interval, report the number of active intervals grouped by
-    interval type across all "tracks". When there is no interval on a
-    track for a given temporal interval, act as if a negative interval
-    was present there.
+    Low-level engine for interval construction.
+
+    For multiple parallel "tracks" of intervals, identify segments of time
+    in which no change occurs on any "track". For each such segment,
+    call `interval_constructor(start, end, active_intervals)` to determine
+    how to represent the interval in the overall result. To this end,
+    interval_constructor receives a list "active" intervals the
+    elements of which are either None or an interval from
+    all_intervals and returns either None or an interval. The returned
+    None values and intervals are further processed into the overall
+    return value by merging adjacent intervals without "payload"
+    change.
 
     :param all_intervals: A list of intervals that are checked for overlap with the windows.
-    :return: A list of windows that have any overlap with the intervals.
+    :param interval_constructor: A callable that accepts a start time,
+                                 an end time and a list of "active"
+                                 intervals and returns None or an
+                                 interval. The list of active
+                                 intervals has the same length as
+                                 all_intervals and each element is
+                                 either None or an element from the
+                                 corresponding list in all_intervals.
+    :return: A list of intervals computed by interval_constructor such
+             that adjacent intervals (i.e. without gaps between them)
+             have different "payloads".
     """
-    # Convert all intervals into a list of events sorted by
-    # time. Multiple events at the same point in time are not a
-    # problem here: since we simply count the number of "active"
-    # intervals the result does not depend on the order in which we
-    # process the events.
+    if is_same_result is None:
+        is_same_result = default_is_same_result(interval_constructor)
+
+    # Convert all intervals into a single list of events sorted by
+    # time. Multiple events at the same point in time can be problem
+    # here: If an interval open event and an interval close event on
+    # the same track happen at the same time (which happens for
+    # adjacent intervals on that track), we must order the close event
+    # before the open event, otherwise our tracking of active
+    # intervals would get confused.
     track_count = len(all_intervals)
-    events = reduce(lambda acc, intervals: acc + intervals_to_events(intervals, closing_offset=0),
-                    all_intervals,
-                    [])
-    events.sort(key=lambda i: i[0])
 
-    # The result will be a list of intervals
+    events: list[IntervalEventOnTrack] = [
+        (time, event, interval, j)
+        for j, intervals in enumerate(all_intervals)
+        for interval in intervals
+        for (time, event) in [(interval.lower, True), (interval.upper, False)]
+    ]
+    event_count = len(events)
+
+    if event_count == 0:
+        return []
+
+    def compare_events(
+        event1: IntervalEventOnTrack, event2: IntervalEventOnTrack
+    ) -> int:
+        """
+        Sorting comparator to ensure we process events in the correct order:
+          - earlier time first
+          - if same time and same track, close events before open events
+            (so we don't incorrectly treat a consecutive interval on the same track
+             as overlapping).
+
+        Index of event1 and event2:
+        - [0]: time of event
+        - [1]: opening (True) or closing (False)
+        - [2]: the interval to which the event belongs
+        - [3]: track index
+        """
+        if event1[0] < event2[0]:  # event1 is earlier
+            return -1
+        elif event2[0] < event1[0]:  # event2 is earlier
+            return 1
+        elif event1[3] == event2[3]:  # at the same time and on same track,
+            if (
+                event1[2] == event2[2]
+            ):  # same interval (we don't check for "is" because they might be different objects, but still represent the same interval)
+                return (
+                    -1 if (event1[1] is True) else 1
+                )  # sort open events before open events
+            else:  # different intervals
+                return (
+                    -1 if (event1[1] is False) else 1
+                )  # sort close events before open events
+        else:  # at the same time, but different tracks => any order is fine
+            return 1
+
+    # Sort events chronologically according to compare_events
+    events.sort(key=cmp_to_key(compare_events))
+
+    active_intervals: list[GeneralizedInterval] = [None] * track_count
+
+    def finalize_interval(
+        interval_start_time: int,
+        current_time: int,
+        interval_start_state: List[GeneralizedInterval],
+    ) -> None:
+        """
+        Appends a new time slice (interval_start_time -> current_time) to 'result_intervals',
+        ensuring we don't create duplicate adjacency boundaries if the previous slice ends
+        exactly where the new one starts.
+        """
+        if len(result_intervals) > 0:
+            previous_result = result_intervals[-1]
+            if previous_result[1] == interval_start_time:
+                # Adjust the previous slice so it doesn't overlap or duplicate
+                result_intervals[-1] = (
+                    previous_result[0],
+                    previous_result[1] - 1,
+                    previous_result[2],
+                )
+
+        # Now finalize the current slice
+        result_intervals.append(
+            (interval_start_time, current_time, interval_start_state)
+        )
+
+    def process_events_for_point_in_time(
+        index: int, point_time: int
+    ) -> Tuple[int, int, int] | None:
+        """
+        Consumes events that occur at `point_time` (or effectively that boundary),
+        updating 'active_intervals' for whichever track is opening or closing
+        intervals at that time.
+
+        Returns: (new_index, new_time, copy_of_active_intervals, high_time)
+          - new_index: the index of the first event not processed (because it's after point_time)
+          - new_time: the time of that next event
+          - copy_of_active_intervals: a snapshot of 'active_intervals' after processing
+          - high_time: the highest time covered by these events (may be the same as point_time
+                       or point_time + 1 if we consider inclusive boundaries).
+
+        If we run out of events entirely, returns (None, None, None, None).
+        """
+        high_time = point_time
+        any_open = False
+
+        for i in range(index, event_count):
+            time, open_, interval, track = events[i]
+            # Since points in time for intervals are quantized to whole
+            # seconds and intervals are closed (inclusive) for both start
+            # and end points, two adjacent intervals like
+            # [START_TIME1, 10:59:59] [11:00:00, END_TIME2]
+            # have no gap between them and can be considered a single
+            # continuous interval [START_TIME1, END_TIME2].
+
+            point_interval_closing = (
+                any_open
+                and not open_
+                and interval.lower == interval.upper == point_time
+            )
+
+            if ((point_time == time) and not point_interval_closing) or (
+                open_ and (point_time == time - 1)
+            ):
+                if time > high_time:
+                    high_time = time
+                any_open |= open_
+            else:
+                # As soon as we find an event that’s clearly beyond the cluster at point_time,
+                # we break and return
+                return (
+                    i,
+                    time,
+                    high_time if any_open else high_time + 1,
+                )
+
+            # Opening => set this track’s active interval to the new interval
+            # Closing => set it to None
+            active_intervals[track] = interval if open_ else None
+
+        # If we exit the loop fully, we used all events
+        return None
+
+    # Step through event "clusters" with a common point in time and
+    # emit result intervals with unchanged interval "payload".
+    index: int | None = 0
+    time: int | None = events[index][0]  # type: ignore[index]
+    interval_start_time: int = cast(int, time)
+    result_intervals: list[tuple[int, int, List[GeneralizedInterval]]] = []
+
+    if time is None:
+        # No events at all
+        return []
+
+    # process the event at index 0 at the first timepoint
+    res = process_events_for_point_in_time(cast(int, index), cast(int, time))
+
+    if res is None:
+        return []
+
+    index, time, high_time = res
+
+    interval_start_state = active_intervals.copy()
+
+    # The main loop: step through event clusters
+    while True:
+        res = process_events_for_point_in_time(index, time)
+        if res is None:
+            # No more events => finalize the last slice and break
+            finalize_interval(interval_start_time, time, interval_start_state)
+            break
+
+        new_index, new_time, high_time = res
+
+        # Diagram for this program point:
+        # |___potential_result_interval___||                 |
+        #                                 index              new_index
+        # interval_start_time             time               new_time
+        # interval_start_state            maybe_end_state
+        #                                  high_time
+
+        # We have a region from [interval_start_time, time) or [interval_start_time, time]
+        # with 'interval_start_state' as the active intervals.
+        # Decide if we finalize that region or if we can merge with the next region.
+        if not is_same_result(interval_start_state, active_intervals):
+            # If the active intervals changed, finalize the old slice
+            finalize_interval(interval_start_time, time, interval_start_state)
+
+            # Update interval start info.
+            interval_start_time = high_time
+            interval_start_state = active_intervals.copy()
+
+        index, time = new_index, new_time
+
     result = []
-    def add_segment(start, end, type_counts):
-        # We consider the period between 23:59:59 of a day and
-        # 00:00:00 of the following day to be empty.
-        if not (start == end - 1 and datetime.datetime.fromtimestamp(end).time() == datetime.time(0, 0, 0)):
-            # Assume implicit negative intervals: increase the count
-            # for the negative type as needed so that the overall
-            # count is equal to track_count.
-            missing = track_count - sum(type_counts.values())
-            if missing > 0:
-                type_counts[IntervalType.NEGATIVE] = type_counts.get(IntervalType.NEGATIVE, 0) + missing
-            result.append(IntervalWithTypeCounts(start, end, type_counts))
 
-    # Step through events and emit result intervals whenever the
-    # counts change.
-    counts = dict()
-    previous_time = events[0][0]
-    for (time, open_, interval_type) in events:
-        if previous_time is None:
-            previous_time = time
-        elif not previous_time == time:
-            add_segment(previous_time, time, copy.copy(counts))
-            previous_time = time
+    # Finally, convert the (start, end, intervals) slices into actual Interval objects
+    for start, end, intervals in result_intervals:
+        interval = interval_constructor(start, end, intervals)
 
-        old_count = counts.get(interval_type, 0)
-        counts[interval_type] = old_count + (1 if open_ else -1)
+        if interval is not None:
+            result.append(interval)
 
     return result

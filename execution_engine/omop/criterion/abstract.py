@@ -27,7 +27,8 @@ from execution_engine.util import logic
 from execution_engine.util.interval import IntervalType
 from execution_engine.util.serializable import SerializableDataClassABC
 from execution_engine.util.sql import SelectInto, select_into
-from execution_engine.util.types import PersonIntervals, TimeRange
+from execution_engine.util.types import PersonIntervals
+from execution_engine.util.types.timerange import TimeRange
 
 __all__ = [
     "Criterion",

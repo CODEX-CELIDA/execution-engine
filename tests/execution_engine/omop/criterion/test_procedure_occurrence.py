@@ -4,7 +4,8 @@ from execution_engine.constants import CohortCategory
 from execution_engine.omop.concepts import Concept
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
 from execution_engine.util.enum import TimeUnit
-from execution_engine.util.types import TimeRange, Timing
+from execution_engine.util.types import Timing
+from execution_engine.util.types.timerange import TimeRange
 from execution_engine.util.value import ValueNumber
 from execution_engine.util.value.time import ValueDuration
 from tests.execution_engine.omop.criterion.test_occurrence_criterion import Occurrence

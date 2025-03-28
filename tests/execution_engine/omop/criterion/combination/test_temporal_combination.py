@@ -1,6 +1,5 @@
 import datetime
 
-import pandas as pd
 import pendulum
 import pytest
 import sqlalchemy as sa
@@ -18,15 +17,19 @@ from execution_engine.task.process import get_processing_module
 from execution_engine.util import logic, temporal_logic_util
 from execution_engine.util.enum import TimeIntervalType
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import Dosage, TimeRange
+from execution_engine.util.types import Dosage
+from execution_engine.util.types.timerange import TimeRange
 from execution_engine.util.value import ValueNumber
 from tests._fixtures.concept import (
     concept_artificial_respiration,
+    concept_body_height,
     concept_body_weight,
     concept_covid19,
     concept_delir_screening,
     concept_heparin_ingredient,
     concept_surgical_procedure,
+    concept_tidal_volume,
+    concept_unit_cm,
     concept_unit_kg,
     concept_unit_mg,
 )
@@ -39,18 +42,20 @@ from tests.functions import (
     create_procedure,
     create_visit,
 )
-from tests.functions import intervals_to_df as intervals_to_df_orig
 from tests.mocks.criterion import MockCriterion
 
-process = get_processing_module()
+
+@pytest.fixture(params=["cython", "python"], scope="session")
+def process_module(request):
+    module = get_processing_module("rectangle", version=request.param)
+    assert module._impl.MODULE_IMPLEMENTATION == request.param
+    return module
 
 
-def intervals_to_df(result, by=None):
-    df = intervals_to_df_orig(result, by, process.normalize_interval)
-    for col in df.columns:
-        if isinstance(df[col].dtype, pd.DatetimeTZDtype):
-            df[col] = df[col].dt.tz_convert("Europe/Berlin")
-    return df
+class ProcessTest:
+    @pytest.fixture(autouse=True)
+    def setup_method(self, process_module):
+        self.process = process_module
 
 
 class TestFixedWindowTemporalIndicatorCombination:
@@ -100,6 +105,7 @@ class TestFixedWindowTemporalIndicatorCombination:
 
         expr = logic.Expr.from_dict(expr_dict)
 
+        assert isinstance(expr, logic.TemporalMinCount)
         assert len(expr.args) == len(mock_criteria)
         assert expr.start_time == datetime.time(8, 0)
         assert expr.end_time == datetime.time(16, 0)
@@ -123,6 +129,7 @@ class TestFixedWindowTemporalIndicatorCombination:
 
         expr = logic.Expr.from_dict(expr_dict)
 
+        assert isinstance(expr, logic.TemporalMinCount)
         assert len(expr.args) == len(mock_criteria)
         assert expr.start_time is None
         assert expr.end_time is None
@@ -132,9 +139,6 @@ class TestFixedWindowTemporalIndicatorCombination:
         for idx, criterion in enumerate(expr.args):
             assert str(criterion) == str(mock_criteria[idx])
 
-    # @pytest.mark.skip(
-    #     reason="the repr does not return arguments in a consistent manner"
-    # )
     def test_repr(self, mock_criteria):
         expr = temporal_logic_util.MorningShift(mock_criteria[0])
 
@@ -200,12 +204,16 @@ c2 = ConditionOccurrence(
     concept=concept_covid19,
 )
 
-c3 = ProcedureOccurrence(
+artificial_respiration = ProcedureOccurrence(
     concept=concept_artificial_respiration,
 )
 
 c4 = ProcedureOccurrence(
     concept=concept_surgical_procedure,
+)
+
+delir_screening = ProcedureOccurrence(
+    concept=concept_delir_screening,
 )
 
 bodyweight_measurement_without_forward_fill = Measurement(
@@ -221,12 +229,38 @@ bodyweight_measurement_with_forward_fill = Measurement(
     static=False,
 )
 
-delir_screening = ProcedureOccurrence(
-    concept=concept_delir_screening,
+body_height_measurement_without_forward_fill = Measurement(
+    concept=concept_body_height,
+    value=ValueNumber.parse("<=110", unit=concept_unit_cm),
+    static=False,
+    forward_fill=False,
+)
+
+body_height_measurement_with_forward_fill = Measurement(
+    concept=concept_body_height,
+    value=ValueNumber.parse("<=110", unit=concept_unit_cm),
+    static=False,
+)
+
+tidal_volume_measurement_without_forward_fill = Measurement(
+    concept=concept_tidal_volume,
+    value=ValueNumber.parse(
+        "<=110", unit=concept_unit_cm
+    ),  # TODO(jmoringe): copied; does not make sense
+    static=False,
+    forward_fill=False,
+)
+
+tidal_volume_measurement_with_forward_fill = Measurement(
+    concept=concept_tidal_volume,
+    value=ValueNumber.parse(
+        "<=110", unit=concept_unit_cm
+    ),  # TODO(jmoringe): copied; does not make sense
+    static=False,
 )
 
 
-class TestCriterionCombinationDatabase(TestCriterion):
+class TestCriterionCombinationDatabase(TestCriterion, ProcessTest):
     """
     Test class for testing criterion combinations on the database.
     """
@@ -242,9 +276,14 @@ class TestCriterionCombinationDatabase(TestCriterion):
         criteria = [
             c1,
             c2,
-            c3,
+            artificial_respiration,
+            c4,
             bodyweight_measurement_without_forward_fill,
             bodyweight_measurement_with_forward_fill,
+            body_height_measurement_without_forward_fill,
+            body_height_measurement_with_forward_fill,
+            tidal_volume_measurement_without_forward_fill,
+            tidal_volume_measurement_with_forward_fill,
             delir_screening,
         ]
         for i, c in enumerate(criteria):
@@ -384,7 +423,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.Day(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -461,7 +500,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.Presence(
-                    c3,
+                    artificial_respiration,
                     start_time=datetime.time(8, 30),
                     end_time=datetime.time(16, 59),
                 ),
@@ -469,7 +508,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.Presence(
-                    c3,
+                    artificial_respiration,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
                 ),
@@ -523,7 +562,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.MorningShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -570,7 +609,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.AfternoonShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -622,7 +661,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.NightShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -665,7 +704,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.NightShiftBeforeMidnight(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -704,7 +743,7 @@ class TestTemporalIndicatorCombinationResultShortObservationWindow(
             ),
             (
                 temporal_logic_util.NightShiftAfterMidnight(
-                    c3,
+                    artificial_respiration,
                 ),
                 {1: set(), 2: set(), 3: set()},
             ),
@@ -817,7 +856,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.Day(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -909,7 +948,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.Presence(
-                    c3,
+                    artificial_respiration,
                     start_time=datetime.time(17, 30),
                     end_time=datetime.time(22, 00),
                 ),
@@ -1011,7 +1050,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.MorningShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -1115,7 +1154,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.AfternoonShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -1219,7 +1258,7 @@ class TestCriterionCombinationResultLongObservationWindow(
             ),
             (
                 temporal_logic_util.NightShift(
-                    c3,
+                    artificial_respiration,
                 ),
                 {
                     1: {
@@ -1798,3 +1837,694 @@ class TestTemporalCountNearObservationWindowEnd(TestCriterionCombinationDatabase
                 )
             )
             assert result_tuples == expected[person.person_id]
+
+
+class TestIntervalRatio(TestCriterionCombinationDatabase):
+    """This test ensures that counting criteria with minimum count
+    thresholds adapt to the temporal interval of the population
+    criterion.
+
+    As a concrete test case, this class applies an intervention
+    criterion that requires a procedure to be performed in at least
+    two of three shifts for each day. However, if the hospital stay
+    ends during a given day, shifts on that day but outside the
+    hospital stay should not count towards the threshold of the
+    criterion.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            name="observation", start="2025-02-18 13:55:00Z", end="2025-02-23 11:00:00Z"
+        )
+
+    def patient_events(self, db_session, visit_occurrence):
+        c1 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2025-02-23 02:00:00+01:00"),
+        )
+        # One screen on the 19th
+        e1_night = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-19 23:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-19 23:01:00+01:00"),
+        )
+        # Two screen on the 20th
+        e2_morn = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-20 08:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-20 08:01:00+01:00"),
+        )
+        e2_late = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-20 15:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-20 15:01:00+01:00"),
+        )
+        # Three screenings on the 21st
+        e3_morn = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 08:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 08:01:00+01:00"),
+        )
+        e3_late = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 15:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 15:01:00+01:00"),
+        )
+        e3_night = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-21 23:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-21 23:01:00+01:00"),
+        )
+        # Four screenings on the 22st
+        e4_night_pre = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 01:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 01:01:00+01:00"),
+        )
+        e4_morn = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 08:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 08:01:00+01:00"),
+        )
+        e4_late = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 15:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 15:01:00+01:00"),
+        )
+        e4_night = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_delir_screening.concept_id,
+            start_datetime=pendulum.parse("2025-02-22 23:00:00+01:00"),
+            end_datetime=pendulum.parse("2025-02-22 23:01:00+01:00"),
+        )
+        db_session.add_all(
+            [
+                c1,
+                e1_night,
+                e2_morn,
+                e2_late,
+                e3_morn,
+                e3_late,
+                e3_night,
+                e4_night_pre,
+                e4_morn,
+                e4_late,
+                e4_night,
+            ]
+        )
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "population,intervention,expected",
+        [
+            (
+                logic.And(c2),  # population
+                logic.CappedMinCount(
+                    *[
+                        temporal_logic_util.Day(
+                            criterion=shift_class(criterion=delir_screening),
+                        )
+                        for shift_class in [
+                            temporal_logic_util.NightShiftAfterMidnight,
+                            temporal_logic_util.MorningShift,
+                            temporal_logic_util.AfternoonShift,
+                            temporal_logic_util.NightShiftBeforeMidnight,
+                        ]
+                    ],
+                    threshold=4,
+                ),
+                {
+                    1: [
+                        # The criterion should be fulfilled on the day
+                        # before the discharge and on the day of the
+                        # discharge even though the actual number of
+                        # screenings on the latter day is just 1.
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",  # workaround, is actually really a nan value
+                            pendulum.parse("2025-02-18 16:55:00Z"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            1 / 3,  # one this day, only 3 shifts are possible,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-19 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0.5,
+                            pendulum.parse("2025-02-20 00:00:00+01:00"),
+                            pendulum.parse("2025-02-20 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0.75,
+                            pendulum.parse("2025-02-21 00:00:00+01:00"),
+                            pendulum.parse("2025-02-21 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            1.0,
+                            pendulum.parse("2025-02-22 00:00:00+01:00"),
+                            pendulum.parse("2025-02-22 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0,
+                            pendulum.parse("2025-02-23 00:00:00+01:00"),
+                            pendulum.parse("2025-02-23 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",  # workaround, is actually really a nan value
+                            pendulum.parse("2025-02-23 02:00:01+01:00"),
+                            pendulum.parse("2025-02-23 04:30:00Z"),
+                        ),
+                    ]
+                },
+            ),
+        ],
+    )
+    def test_interval_ratio_on_database(
+        self,
+        person,
+        db_session,
+        population,
+        intervention,
+        base_criterion,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = [person[0]]  # only one person
+        vos = [
+            create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end
+                - datetime.timedelta(hours=6.5),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            for person in persons
+        ]
+
+        self.patient_events(db_session, vos[0])
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_expression(
+            db_session, population, intervention, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = list(
+                result[
+                    [
+                        "interval_type",
+                        "interval_ratio",
+                        "interval_start",
+                        "interval_end",
+                    ]
+                ]
+                .fillna("nan")
+                .itertuples(index=False, name=None)
+            )
+
+            for result_tuple, expected_tuple in zip(
+                result_tuples, expected[person.person_id]
+            ):
+                assert result_tuple == expected_tuple
+
+
+class TestIndicatorWindowsMulitplePatients(TestCriterionCombinationDatabase):
+    """
+    This test ensures that the data TemporalCount operator works
+    independently between persons within a PersonIntervals data set.
+
+    This is mostly a regression test since at one point the exact
+    problem of cross-talk between the data structures for different
+    persons caused the operator to return incorrect results.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            name="observation",
+            start="2025-02-18 14:55:00+01:00",
+            end="2025-02-22 12:00:00+01:00",
+        )
+
+    def patient_events(self, db_session, visit_occurrence):
+        person_id = visit_occurrence.person_id
+        events = []
+        c1 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2025-02-21 02:00:00+01:00"),
+        )
+        events.append(c1)
+        if person_id == 1:
+            e1 = create_procedure(
+                vo=visit_occurrence,
+                procedure_concept_id=concept_delir_screening.concept_id,
+                start_datetime=pendulum.parse("2025-02-19 18:00:00+01:00"),
+                end_datetime=pendulum.parse("2025-02-19 18:01:00+01:00"),
+            )
+            events.append(e1)
+        db_session.add_all(events)
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "population,intervention,expected",
+        [
+            (
+                logic.And(c2),  # population
+                temporal_logic_util.Day(criterion=delir_screening),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-19 23:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            pendulum.parse("2025-02-20 00:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        # If cross-talk between the data structures
+                        # for different persons occurs, parts of the
+                        # following interval may turn positive because
+                        # of the results for the first person.
+                        (
+                            IntervalType.NEGATIVE,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
+            ),
+        ],
+    )
+    def test_multiple_patients_on_database(
+        self,
+        person,
+        db_session,
+        population,
+        intervention,
+        base_criterion,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = person[:2]
+        vos = []
+        for person in persons:
+            visit = create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end
+                - datetime.timedelta(hours=6.5),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            vos.append(visit)
+            self.patient_events(db_session, visit)
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_expression(
+            db_session, population, intervention, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = list(
+                result[["interval_type", "interval_start", "interval_end"]]
+                .fillna("nan")
+                .itertuples(index=False, name=None)
+            )
+
+            for result_tuple, expected_tuple in zip(
+                result_tuples, expected[person.person_id]
+            ):
+                assert result_tuple == expected_tuple
+
+
+class TestCountOnIndicatorWindows(TestCriterionCombinationDatabase):
+    """
+    This test checks the behavior of the logical Count operator for
+    different thresholds and different kinds of inputs. Of particular
+    interest is the computed count attribute of the result intervals
+    and the behavior for edge cases regarding the count thresholds.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            name="observation",
+            start="2025-02-18 14:55:00+01:00",
+            end="2025-02-22 12:00:00+01:00",
+        )
+
+    def patient_events(self, db_session, visit_occurrence):
+        person_id = visit_occurrence.person_id
+        events = [
+            create_condition(
+                vo=visit_occurrence,
+                condition_concept_id=concept_covid19.concept_id,
+                condition_start_datetime=pendulum.parse("2025-02-19 08:00:00+01:00"),
+                condition_end_datetime=pendulum.parse("2025-02-21 02:00:00+01:00"),
+            )
+        ]
+        if person_id == 1:
+            events.append(
+                create_measurement(
+                    vo=visit_occurrence,
+                    measurement_concept_id=concept_body_weight.concept_id,
+                    measurement_datetime=pendulum.parse("2025-02-19 18:00:00+01:00"),
+                    value_as_number=90,
+                    unit_concept_id=concept_unit_kg.concept_id,
+                )
+            )
+            events.append(
+                create_measurement(
+                    vo=visit_occurrence,
+                    measurement_concept_id=concept_body_height.concept_id,
+                    measurement_datetime=pendulum.parse("2025-02-20 07:00:00+01:00"),
+                    value_as_number=90,
+                    unit_concept_id=concept_unit_cm.concept_id,
+                )
+            )
+            events.append(
+                create_measurement(
+                    vo=visit_occurrence,
+                    measurement_concept_id=concept_tidal_volume.concept_id,
+                    measurement_datetime=pendulum.parse("2025-02-20 18:00:00+01:00"),
+                    value_as_number=90,
+                    unit_concept_id=concept_unit_cm.concept_id,
+                )
+            )
+        db_session.add_all(events)
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "population,intervention,expected",
+        [
+            (
+                logic.And(c2),  # population
+                logic.MinCount(
+                    temporal_logic_util.AnyTime(
+                        bodyweight_measurement_without_forward_fill
+                    ),
+                    temporal_logic_util.AnyTime(
+                        body_height_measurement_without_forward_fill
+                    ),
+                    temporal_logic_util.AnyTime(
+                        tidal_volume_measurement_without_forward_fill
+                    ),
+                    threshold=1,
+                ),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            3,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
+            ),
+            (
+                logic.And(c2),  # population
+                logic.MinCount(
+                    bodyweight_measurement_with_forward_fill,
+                    body_height_measurement_with_forward_fill,
+                    tidal_volume_measurement_with_forward_fill,
+                    threshold=2,
+                ),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NO_DATA,
+                            0.0,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-19 17:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            0.5,
+                            pendulum.parse("2025-02-19 18:00:00+01:00"),
+                            pendulum.parse("2025-02-20 06:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            1,
+                            pendulum.parse("2025-02-20 07:00:00+01:00"),
+                            pendulum.parse("2025-02-20 17:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            1.5,
+                            pendulum.parse("2025-02-20 18:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NO_DATA,
+                            0,
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
+            ),
+            (
+                logic.And(c2),  # population
+                logic.MaxCount(
+                    bodyweight_measurement_with_forward_fill,
+                    body_height_measurement_with_forward_fill,
+                    tidal_volume_measurement_with_forward_fill,
+                    threshold=2,
+                ),
+                {
+                    1: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            "nan",
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-20 17:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.NEGATIVE,
+                            "nan",
+                            pendulum.parse("2025-02-20 18:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                    2: [
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-18 17:55:00+01:00"),
+                            pendulum.parse("2025-02-19 07:59:59+01:00"),
+                        ),
+                        (
+                            IntervalType.POSITIVE,
+                            "nan",
+                            pendulum.parse("2025-02-19 08:00:00+01:00"),
+                            pendulum.parse("2025-02-21 02:00:00+01:00"),
+                        ),
+                        (
+                            IntervalType.NOT_APPLICABLE,
+                            "nan",
+                            pendulum.parse("2025-02-21 02:00:01+01:00"),
+                            pendulum.parse("2025-02-22 05:30:00+01:00"),
+                        ),
+                    ],
+                },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person,
+        db_session,
+        population,
+        intervention,
+        base_criterion,
+        expected,
+        observation_window,
+        criteria,
+    ):
+        persons = person[:2]
+        vos = []
+        for person in persons:
+            visit = create_visit(
+                person_id=person.person_id,
+                visit_start_datetime=observation_window.start
+                + datetime.timedelta(hours=3),
+                visit_end_datetime=observation_window.end
+                - datetime.timedelta(hours=6.5),
+                visit_concept_id=concepts.INTENSIVE_CARE,
+            )
+            vos.append(visit)
+            self.patient_events(db_session, visit)
+
+        db_session.add_all(vos)
+        db_session.commit()
+
+        self.insert_expression(
+            db_session, population, intervention, base_criterion, observation_window
+        )
+
+        df = self.fetch_interval_result(
+            db_session,
+            pi_pair_id=self.pi_pair_id,
+            criterion_id=None,
+            category=CohortCategory.POPULATION_INTERVENTION,
+        )
+
+        for person in persons:
+            result = df.query(f"person_id=={person.person_id}")
+            result_tuples = list(
+                result[
+                    [
+                        "interval_type",
+                        "interval_ratio",
+                        "interval_start",
+                        "interval_end",
+                    ]
+                ]
+                .fillna("nan")
+                .itertuples(index=False, name=None)
+            )
+
+            for result_tuple, expected_tuple in zip(
+                result_tuples, expected[person.person_id]
+            ):
+                assert result_tuple == expected_tuple

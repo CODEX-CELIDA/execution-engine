@@ -8,7 +8,7 @@ import pytest
 
 from execution_engine.omop.db.omop.tables import Person
 from execution_engine.util.interval import IntervalType
-from execution_engine.util.types import TimeRange
+from execution_engine.util.types.timerange import TimeRange
 from tests._testdata import concepts
 from tests._testdata.generator.composite import (
     AndGenerator,

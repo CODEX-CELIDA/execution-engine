@@ -51,14 +51,14 @@ concept_surgical_procedure = Concept(
     invalid_reason=None,
 )
 
-concept_delir_screening = Concept( # TODO(jmoringe): copied from above (concept_artificial_respiration)
-    concept_id=4230167,
+concept_delir_screening = Concept(
+    concept_id=4196006, # TODO(jmoringe): made-up id and code
     concept_name="Delir Screening",
-    domain_id="Procedure",
+    domain_id="Measurement",
     vocabulary_id="SNOMED",
     concept_class_id="Procedure",
     standard_concept="S",
-    concept_code="40617009",
+    concept_code="431182000",
     invalid_reason=None,
 )
 
@@ -282,6 +282,18 @@ concept_body_weight = Concept(
     concept_code="29463-7",
     invalid_reason=None,
 )
+
+concept_body_height: Concept = Concept(
+    concept_id=3036277,
+    concept_name="Body height",
+    domain_id="Measurement",
+    vocabulary_id="LOINC",
+    concept_class_id="Clinical Observation",
+    standard_concept="S",
+    concept_code="8302-2",
+    invalid_reason=None,
+)
+
 
 """
 The following list of concepts are heparin drugs and all of them directly map to heparin as ingredient (via ancestor,

@@ -307,10 +307,7 @@ class TestValueConcept:
 
     def test_str(self, test_concept):
         value_concept = ValueConcept(value=test_concept)
-        assert (
-            str(value_concept)
-            == "Value == Concept(concept_id=1, concept_name='Test Concept', concept_code='unit', domain_id='units', vocabulary_id='test', concept_class_id='test', standard_concept=None, invalid_reason=None)"
-        )
+        assert str(value_concept) == "Value == Test Concept"
 
     def test_repr(self, test_concept):
         value_concept = ValueConcept(value=test_concept)

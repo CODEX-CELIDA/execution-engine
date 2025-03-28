@@ -3,6 +3,10 @@ import os
 import sys
 import types
 from collections import namedtuple
+from typing import TypeVar
+
+from execution_engine.util.interval import IntervalType
+from execution_engine.util.types.timerange import TimeRange
 
 
 def get_processing_module(
@@ -39,6 +43,35 @@ def get_processing_module(
 
 Interval = namedtuple("Interval", ["lower", "upper", "type"])
 IntervalWithCount = namedtuple("IntervalWithCount", ["lower", "upper", "type", "count"])
-IntervalWithTypeCounts = namedtuple(
-    "IntervalWithTypeCounts", ["lower", "upper", "counts"]
-)
+
+AnyInterval = Interval | IntervalWithCount
+GeneralizedInterval = None | AnyInterval
+
+TInterval = TypeVar("TInterval", bound=AnyInterval)
+
+
+def interval_like(interval: TInterval, start: int, end: int) -> TInterval:
+    """
+    Return a copy of the given interval with its lower and upper bounds replaced.
+
+    Args:
+        interval (I): The interval to copy. Must be one of Interval or IntervalWithCount.
+        start (datetime): The new lower bound.
+        end (datetime): The new upper bound.
+
+    Returns:
+        I: A copy of the interval with updated lower and upper bounds.
+    """
+
+    return interval._replace(lower=start, upper=end)  # type: ignore[return-value]
+
+
+def timerange_to_interval(tr: TimeRange, type_: IntervalType) -> Interval:
+    """
+    Converts a timerange to an interval with the supplied type.
+    """
+    return Interval(
+        lower=int(tr.start.timestamp()),
+        upper=int(tr.end.timestamp()),
+        type=type_,
+    )

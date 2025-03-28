@@ -434,6 +434,23 @@ class ExecutionEngine:
         assert start_datetime.tzinfo, "start_datetime must be timezone-aware"
         assert end_datetime.tzinfo, "end_datetime must be timezone-aware"
 
+        # We cut off microseconds to ensure second-level precision.
+        # In Python, timestamps are usually floored when cast to int,
+        # but in PostgreSQL they might be rounded. To avoid subtle bugs
+        # where a 1-second difference appears due to different rounding
+        # strategies, we explicitly strip microseconds and assert that
+        # the timestamp is exactly an integer.
+        start_datetime = start_datetime.replace(microsecond=0)
+        end_datetime = end_datetime.replace(microsecond=0)
+
+        assert start_datetime.timestamp() == int(
+            start_datetime.timestamp()
+        ), f"start_datetime still contains sub-second precision: {start_datetime}"
+
+        assert end_datetime.timestamp() == int(
+            end_datetime.timestamp()
+        ), f"end_datetime still contains sub-second precision: {end_datetime}"
+
         date_format = "%Y-%m-%d %H:%M:%S %z"
 
         logging.info(
