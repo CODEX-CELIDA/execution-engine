@@ -11,8 +11,9 @@ from execution_engine.omop.criterion.drug_exposure import DrugExposure
 from execution_engine.omop.criterion.measurement import Measurement
 from execution_engine.omop.criterion.noop import NoopCriterion
 from execution_engine.omop.criterion.procedure_occurrence import ProcedureOccurrence
-from execution_engine.task.process import get_processing_module
+from execution_engine.task.process import Interval, get_processing_module
 from execution_engine.util import logic
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.types import Dosage
 from execution_engine.util.types.timerange import TimeRange
 from execution_engine.util.value import ValueNumber
@@ -191,6 +192,7 @@ class TestCriterionCombinationDatabase(TestCriterion, ProcessTest):
         base_criterion,
         observation_window,
         persons,
+        result_mode: str = "full_day",
     ):
         c = sympy.parse_expr(combination)
 
@@ -222,6 +224,8 @@ class TestCriterionCombinationDatabase(TestCriterion, ProcessTest):
                 cls = lambda *args: logic.AllOrNone(*args)
             elif c.func.name == "ConditionalFilter":
                 cls = lambda *args: logic.ConditionalFilter(*args)
+            elif c.func.name == "LeftDependentToggle":
+                cls = lambda *args: logic.LeftDependentToggle(*args)
             else:
                 raise ValueError(f"Unknown operator {c.func}")
         else:
@@ -254,6 +258,11 @@ class TestCriterionCombinationDatabase(TestCriterion, ProcessTest):
                 right=symbols[str(c.args[1])],
             )
 
+        elif hasattr(c.func, "name") and c.func.name == "LeftDependentToggle":
+            comb = logic.LeftDependentToggle(
+                left=symbols[str(c.args[0])],
+                right=symbols[str(c.args[1])],
+            )
         else:
             comb = cls(
                 *[symbols[str(symbol)] for symbol in c.atoms() if not symbol.is_number]
@@ -275,18 +284,47 @@ class TestCriterionCombinationDatabase(TestCriterion, ProcessTest):
             observation_window=observation_window,
         )
 
-        df = self.fetch_full_day_result(
-            db_session,
-            pi_pair_id=self.pi_pair_id,
-            criterion_id=None,
-            category=CohortCategory.POPULATION,
-        )
+        match result_mode:
+            case "full_day":
+                df = self.fetch_full_day_result(
+                    db_session,
+                    pi_pair_id=self.pi_pair_id,
+                    criterion_id=None,
+                    category=CohortCategory.POPULATION,
+                )
+            case "partial_day":
+                df = self.fetch_partial_day_result(
+                    db_session,
+                    pi_pair_id=self.pi_pair_id,
+                    criterion_id=None,
+                    category=CohortCategory.POPULATION,
+                )
+            case "exact":
+                df = self.fetch_interval_result(
+                    db_session,
+                    pi_pair_id=self.pi_pair_id,
+                    criterion_id=None,
+                    category=CohortCategory.POPULATION,
+                )
 
-        for person in persons:
-            result = df.query(f"person_id=={person.person_id}")
-            expected_result = date_set(expected[person.person_id])
+        if result_mode in ["full_day", "partial_day"]:
+            for person in persons:
+                result = df.query(f"person_id=={person.person_id}")
+                expected_result = date_set(expected[person.person_id])
 
-            assert set(pd.to_datetime(result["valid_date"]).dt.date) == expected_result
+                assert (
+                    set(pd.to_datetime(result["valid_date"]).dt.date) == expected_result
+                )
+        else:
+            for person in persons:
+                result = df.query(f"person_id=={person.person_id}")
+                result_intervals = [
+                    Interval(row.interval_start, row.interval_end, row.interval_type)
+                    for _, row in result.iterrows()
+                ]
+                expected_result = expected[person.person_id]
+
+                assert result_intervals == expected_result
 
 
 class TestCriterionCombinationResultShortObservationWindow(
@@ -935,4 +973,429 @@ class TestCriterionCombinationConditionalFilter(TestCriterionCombinationDatabase
             base_criterion,
             observation_window,
             persons,
+        )
+
+
+class TestCriterionCombinationLeftDependentToggle(TestCriterionCombinationDatabase):
+    """
+    Test class for testing criterion combinations on the database.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            start="2023-03-01 04:00:00Z", end="2023-03-04 18:00:00Z", name="observation"
+        )
+
+    @pytest.fixture
+    def criteria(self, db_session):
+        c1 = ConditionOccurrence(
+            concept=concept_covid19,
+        )
+
+        c2 = ProcedureOccurrence(concept=concept_artificial_respiration)
+
+        c3 = Measurement(
+            concept=concept_body_weight,
+            value=ValueNumber(value_min=70, unit=concept_unit_kg),
+        )
+
+        c1.set_id(1)
+        c2.set_id(2)
+        c3.set_id(3)
+
+        self.register_criterion(c1, db_session)
+        self.register_criterion(c2, db_session)
+        self.register_criterion(c3, db_session)
+
+        return [c1, c2, c3]
+
+    @pytest.fixture
+    def patient_events(self, db_session, person_visit):
+        _, visit_occurrence = person_visit[0]
+
+        e1 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+        )
+
+        e2 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2023-03-02 06:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2023-03-03 18:00:00+01:00"),
+        )
+
+        db_session.add_all([e1, e2])
+
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            (
+                "LeftDependentToggle(c1, c2)",
+                {
+                    1: [
+                        Interval(
+                            pendulum.parse("2023-03-01 10:36:24+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 05:59:59+0100", tz="CET"),
+                            type=IntervalType.NOT_APPLICABLE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 06:00:00+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 11:59:59+0100", tz="CET"),
+                            type=IntervalType.NEGATIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 12:00:00+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 12:00:00+0100", tz="CET"),
+                            type=IntervalType.POSITIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 12:00:01+0100", tz="CET"),
+                            pendulum.parse("2023-03-03 18:00:00+0100", tz="CET"),
+                            type=IntervalType.NEGATIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-03 18:00:01+0100", tz="CET"),
+                            pendulum.parse("2023-03-04 19:00:00+0100", tz="CET"),
+                            type=IntervalType.NOT_APPLICABLE,
+                        ),
+                    ],
+                    2: [
+                        Interval(
+                            lower=pendulum.parse("2023-03-02 09:36:24+0000", tz="UTC"),
+                            upper=pendulum.parse("2023-03-04 18:00:00+0000", tz="UTC"),
+                            type=IntervalType.NEGATIVE,
+                        )
+                    ],
+                    3: [
+                        Interval(
+                            lower=pendulum.parse("2023-03-03 09:36:24+0000", tz="UTC"),
+                            upper=pendulum.parse("2023-03-04 18:00:00+0000", tz="UTC"),
+                            type=IntervalType.NEGATIVE,
+                        )
+                    ],
+                },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person_visit,
+        db_session,
+        base_criterion,
+        patient_events,
+        criteria,
+        combination,
+        expected,
+        observation_window,
+    ):
+        persons = [pv[0] for pv in person_visit]
+        self.run_criteria_test(
+            combination,
+            expected,
+            db_session,
+            criteria,
+            base_criterion,
+            observation_window,
+            persons,
+            result_mode="exact",
+        )
+
+
+class TestCriterionCombinationLeftDependentToggleMultipleSameTime(
+    TestCriterionCombinationDatabase
+):
+    """
+    Test class for testing criterion combinations on the database.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            start="2023-03-01 04:00:00Z", end="2023-03-04 18:00:00Z", name="observation"
+        )
+
+    @pytest.fixture
+    def criteria(self, db_session):
+        c1 = ConditionOccurrence(
+            concept=concept_covid19,
+        )
+
+        c2 = ProcedureOccurrence(concept=concept_artificial_respiration)
+
+        c3 = Measurement(
+            concept=concept_body_weight,
+            value=ValueNumber(value_min=70, unit=concept_unit_kg),
+        )
+
+        c1.set_id(1)
+        c2.set_id(2)
+        c3.set_id(3)
+
+        self.register_criterion(c1, db_session)
+        self.register_criterion(c2, db_session)
+        self.register_criterion(c3, db_session)
+
+        return [c1, c2, c3]
+
+    @pytest.fixture
+    def patient_events(self, db_session, person_visit):
+        _, visit_occurrence = person_visit[0]
+
+        e1 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+        )
+
+        e2 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+        )
+
+        e3 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+        )
+
+        e4 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2023-03-02 06:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2023-03-03 18:00:00+01:00"),
+        )
+
+        db_session.add_all([e1, e2, e3, e4])
+
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            (
+                "LeftDependentToggle(c1, c2)",
+                {
+                    1: [
+                        Interval(
+                            pendulum.parse("2023-03-01 10:36:24+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 05:59:59+0100", tz="CET"),
+                            type=IntervalType.NOT_APPLICABLE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 06:00:00+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 11:59:59+0100", tz="CET"),
+                            type=IntervalType.NEGATIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 12:00:00+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 12:00:00+0100", tz="CET"),
+                            type=IntervalType.POSITIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 12:00:01+0100", tz="CET"),
+                            pendulum.parse("2023-03-03 18:00:00+0100", tz="CET"),
+                            type=IntervalType.NEGATIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-03 18:00:01+0100", tz="CET"),
+                            pendulum.parse("2023-03-04 19:00:00+0100", tz="CET"),
+                            type=IntervalType.NOT_APPLICABLE,
+                        ),
+                    ],
+                    2: [
+                        Interval(
+                            lower=pendulum.parse("2023-03-02 09:36:24+0000", tz="UTC"),
+                            upper=pendulum.parse("2023-03-04 18:00:00+0000", tz="UTC"),
+                            type=IntervalType.NEGATIVE,
+                        )
+                    ],
+                    3: [
+                        Interval(
+                            lower=pendulum.parse("2023-03-03 09:36:24+0000", tz="UTC"),
+                            upper=pendulum.parse("2023-03-04 18:00:00+0000", tz="UTC"),
+                            type=IntervalType.NEGATIVE,
+                        )
+                    ],
+                },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person_visit,
+        db_session,
+        base_criterion,
+        patient_events,
+        criteria,
+        combination,
+        expected,
+        observation_window,
+    ):
+        persons = [pv[0] for pv in person_visit]
+        self.run_criteria_test(
+            combination,
+            expected,
+            db_session,
+            criteria,
+            base_criterion,
+            observation_window,
+            persons,
+            result_mode="exact",
+        )
+
+
+class TestCriterionCombinationLeftDependentToggleMultipleOverlapping(
+    TestCriterionCombinationDatabase
+):
+    """
+    Test class for testing criterion combinations on the database.
+    """
+
+    @pytest.fixture
+    def observation_window(self) -> TimeRange:
+        return TimeRange(
+            start="2023-03-01 04:00:00Z", end="2023-03-04 18:00:00Z", name="observation"
+        )
+
+    @pytest.fixture
+    def criteria(self, db_session):
+        c1 = ConditionOccurrence(
+            concept=concept_covid19,
+        )
+
+        c2 = ProcedureOccurrence(concept=concept_artificial_respiration)
+
+        c3 = Measurement(
+            concept=concept_body_weight,
+            value=ValueNumber(value_min=70, unit=concept_unit_kg),
+        )
+
+        c1.set_id(1)
+        c2.set_id(2)
+        c3.set_id(3)
+
+        self.register_criterion(c1, db_session)
+        self.register_criterion(c2, db_session)
+        self.register_criterion(c3, db_session)
+
+        return [c1, c2, c3]
+
+    @pytest.fixture
+    def patient_events(self, db_session, person_visit):
+        _, visit_occurrence = person_visit[0]
+
+        e1 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+        )
+
+        e2 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 12:00:01+01:00"),
+        )
+
+        e3 = create_procedure(
+            vo=visit_occurrence,
+            procedure_concept_id=concept_artificial_respiration.concept_id,
+            start_datetime=pendulum.parse("2023-03-02 12:00:00+01:00"),
+            end_datetime=pendulum.parse("2023-03-02 12:00:02+01:00"),
+        )
+
+        e4 = create_condition(
+            vo=visit_occurrence,
+            condition_concept_id=concept_covid19.concept_id,
+            condition_start_datetime=pendulum.parse("2023-03-02 06:00:00+01:00"),
+            condition_end_datetime=pendulum.parse("2023-03-03 18:00:00+01:00"),
+        )
+
+        db_session.add_all([e1, e2, e3, e4])
+
+        db_session.commit()
+
+    @pytest.mark.parametrize(
+        "combination,expected",
+        [
+            (
+                "LeftDependentToggle(c1, c2)",
+                {
+                    1: [
+                        Interval(
+                            pendulum.parse("2023-03-01 10:36:24+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 05:59:59+0100", tz="CET"),
+                            type=IntervalType.NOT_APPLICABLE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 06:00:00+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 11:59:59+0100", tz="CET"),
+                            type=IntervalType.NEGATIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 12:00:00+0100", tz="CET"),
+                            pendulum.parse("2023-03-02 12:00:02+0100", tz="CET"),
+                            type=IntervalType.POSITIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-02 12:00:03+0100", tz="CET"),
+                            pendulum.parse("2023-03-03 18:00:00+0100", tz="CET"),
+                            type=IntervalType.NEGATIVE,
+                        ),
+                        Interval(
+                            pendulum.parse("2023-03-03 18:00:01+0100", tz="CET"),
+                            pendulum.parse("2023-03-04 19:00:00+0100", tz="CET"),
+                            type=IntervalType.NOT_APPLICABLE,
+                        ),
+                    ],
+                    2: [
+                        Interval(
+                            lower=pendulum.parse("2023-03-02 09:36:24+0000", tz="UTC"),
+                            upper=pendulum.parse("2023-03-04 18:00:00+0000", tz="UTC"),
+                            type=IntervalType.NEGATIVE,
+                        )
+                    ],
+                    3: [
+                        Interval(
+                            lower=pendulum.parse("2023-03-03 09:36:24+0000", tz="UTC"),
+                            upper=pendulum.parse("2023-03-04 18:00:00+0000", tz="UTC"),
+                            type=IntervalType.NEGATIVE,
+                        )
+                    ],
+                },
+            ),
+        ],
+    )
+    def test_combination_on_database(
+        self,
+        person_visit,
+        db_session,
+        base_criterion,
+        patient_events,
+        criteria,
+        combination,
+        expected,
+        observation_window,
+    ):
+        persons = [pv[0] for pv in person_visit]
+        self.run_criteria_test(
+            combination,
+            expected,
+            db_session,
+            criteria,
+            base_criterion,
+            observation_window,
+            persons,
+            result_mode="exact",
         )

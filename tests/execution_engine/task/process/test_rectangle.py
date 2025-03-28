@@ -7,7 +7,9 @@ from execution_engine.task.process import (
     Interval,
     IntervalWithCount,
     get_processing_module,
+    interval_like,
 )
+from execution_engine.util.interval import IntervalType
 from execution_engine.util.interval import IntervalType as T
 from execution_engine.util.types import PersonIntervals
 from execution_engine.util.types.timerange import TimeRange
@@ -1770,3 +1772,75 @@ class TestUnionIntervals(ProcessTest):
         result = self.intervals_to_df(result, ["person_id"])
 
         pd.testing.assert_frame_equal(result, expected_df)
+
+
+class TestFindRectangles(ProcessTest):
+
+    @pytest.mark.parametrize(
+        "right_intervals, expected",
+        (
+            (
+                [Interval(4, 4, IntervalType.POSITIVE)],
+                Interval(4, 4, IntervalType.POSITIVE),
+            ),
+            (
+                [Interval(4, 5, IntervalType.POSITIVE)],
+                Interval(4, 5, IntervalType.POSITIVE),
+            ),
+            (
+                [Interval(4, 6, IntervalType.POSITIVE)],
+                Interval(4, 6, IntervalType.POSITIVE),
+            ),
+            (
+                [
+                    Interval(4, 4, IntervalType.POSITIVE),
+                    Interval(4, 4, IntervalType.POSITIVE),
+                ],
+                Interval(4, 4, IntervalType.POSITIVE),
+            ),
+            # the following test currently (2025-03-28) fails, but this input is artificial, as only criteria could yield
+            # multiple overlapping intervals "on the same track", but these are always union-ed before propagation anyway,
+            # so find_rectangles with the new_interval function below should never receive such intervals.
+            # ([Interval(4, 5, IntervalType.POSITIVE), Interval(4, 6, IntervalType.POSITIVE)], Interval(4, 6, IntervalType.POSITIVE)),
+            (
+                [
+                    Interval(4, 5, IntervalType.POSITIVE),
+                    Interval(5, 6, IntervalType.POSITIVE),
+                ],
+                Interval(4, 6, IntervalType.POSITIVE),
+            ),
+            (
+                [
+                    Interval(4, 5, IntervalType.POSITIVE),
+                    Interval(6, 6, IntervalType.POSITIVE),
+                ],
+                Interval(4, 6, IntervalType.POSITIVE),
+            ),
+        ),
+    )
+    def test_counting(self, right_intervals, expected):
+        def new_interval(start: int, end: int, intervals):
+            left_interval, right_interval, observation_window_ = intervals
+            if (left_interval is None) or left_interval.type != IntervalType.POSITIVE:
+                # no left_interval or not positive -> use fill type
+                return Interval(start, end, IntervalType.NOT_APPLICABLE)
+            elif right_interval is not None:
+                return interval_like(right_interval, start, end)
+            else:  # left_interval but not right_interval -> implicit negative
+                return None
+
+        left = {1: [Interval(2, 8, IntervalType.POSITIVE)]}
+        right = {1: right_intervals}
+        window_intervals = {1: [Interval(0, 10, IntervalType.POSITIVE)]}
+
+        result = self.process.find_rectangles(
+            [left, right, window_intervals], new_interval
+        )
+
+        assert result == {
+            1: [
+                Interval(lower=0, upper=1, type=IntervalType.NOT_APPLICABLE),
+                expected,
+                Interval(lower=9, upper=10, type=IntervalType.NOT_APPLICABLE),
+            ]
+        }

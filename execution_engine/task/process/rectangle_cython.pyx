@@ -22,7 +22,7 @@ DEF SCHAR_MAX = 127
 MODULE_IMPLEMENTATION = "cython"
 
 IntervalEvent = typing.Tuple[int, bool, AnyInterval]
-IntervalEventWithCount = typing.Tuple[int, bool, AnyInterval, int]
+IntervalEventOnTrack = typing.Tuple[int, bool, AnyInterval, int]
 
 def intervals_to_events(
     intervals: list[AnyInterval],
@@ -295,10 +295,11 @@ def default_is_same_result(interval_constructor: IntervalConstructor):
                 == interval_constructor(0, 0, active_intervals2))
     return is_same_result
 
-def find_rectangles(all_intervals: list[list[AnyInterval]],
-                    interval_constructor: IntervalConstructor,
-                    is_same_result: SameResult | None  = None) \
-        -> list[AnyInterval]:
+def find_rectangles(
+    all_intervals: list[list[AnyInterval]],
+    interval_constructor: IntervalConstructor,
+    is_same_result: SameResult | None = None,
+) -> list[AnyInterval]:
     """
     Low-level engine for interval construction.
 
@@ -342,16 +343,15 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
         (time, event, interval, j)
         for j, intervals in enumerate(all_intervals)
         for interval in intervals
-        for (time,event) in [(interval.lower, True), (interval.upper, False)]
+        for (time, event) in [(interval.lower, True), (interval.upper, False)]
     ]
-
     event_count = len(events)
 
     if event_count == 0:
         return []
 
     def compare_events(
-        event1: IntervalEventWithCount, event2: IntervalEventWithCount
+        event1: IntervalEventOnTrack, event2: IntervalEventOnTrack
     ) -> int:
         """
         Sorting comparator to ensure we process events in the correct order:
@@ -359,23 +359,59 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
           - if same time and same track, close events before open events
             (so we don't incorrectly treat a consecutive interval on the same track
              as overlapping).
+
+        Index of event1 and event2:
+        - [0]: time of event
+        - [1]: opening (True) or closing (False)
+        - [2]: the interval to which the event belongs
+        - [3]: track index
         """
-        if event1[0] < event2[0]: # event1 is earlier
+        if event1[0] < event2[0]:  # event1 is earlier
             return -1
-        elif event2[0] < event1[0]: # event2 is earlier
+        elif event2[0] < event1[0]:  # event2 is earlier
             return 1
-        elif event1[3] == event2[3]: # at the same time and on same track,
-            if event1[2] is event2[2]: # same interval
-                return -1 if (event1[1] is True) else 1 # sort open events before open events
-            else: # different intervals
-                return -1 if (event1[1] is False) else 1 # sort close events before open events
-        else: # at the same time, but different tracks => any order is fine
+        elif event1[3] == event2[3]:  # at the same time and on same track,
+            if event1[2] == event2[2]:  # same interval (we don't check for "is" because they might be different objects, but still represent the same interval)
+                return (
+                    -1 if (event1[1] is True) else 1
+                )  # sort open events before open events
+            else:  # different intervals
+                return (
+                    -1 if (event1[1] is False) else 1
+                )  # sort close events before open events
+        else:  # at the same time, but different tracks => any order is fine
             return 1
 
     # Sort events chronologically according to compare_events
     events.sort(key=cmp_to_key(compare_events))
 
     active_intervals: list[GeneralizedInterval] = [None] * track_count
+
+    def finalize_interval(
+        interval_start_time: int,
+        current_time: int,
+        interval_start_state: List[GeneralizedInterval],
+    ) -> None:
+        """
+        Appends a new time slice (interval_start_time -> current_time) to 'result_intervals',
+        ensuring we don't create duplicate adjacency boundaries if the previous slice ends
+        exactly where the new one starts.
+        """
+        if len(result_intervals) > 0:
+            previous_result = result_intervals[-1]
+            if previous_result[1] == interval_start_time:
+                # Adjust the previous slice so it doesn't overlap or duplicate
+                result_intervals[-1] = (
+                    previous_result[0],
+                    previous_result[1] - 1,
+                    previous_result[2],
+                )
+
+        # Now finalize the current slice
+        result_intervals.append(
+            (interval_start_time, current_time, interval_start_state)
+        )
+
 
     def process_events_for_point_in_time(
         index: int, point_time: int
@@ -405,25 +441,33 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
             # [START_TIME1, 10:59:59] [11:00:00, END_TIME2]
             # have no gap between them and can be considered a single
             # continuous interval [START_TIME1, END_TIME2].
-            if (point_time == time) or (open_ and (point_time == time - 1)):
+
+            point_interval_closing = any_open and not open_ and interval.lower == interval.upper == point_time
+
+            if ((point_time == time) and not point_interval_closing) or (open_ and (point_time == time - 1)):
                 if time > high_time:
                     high_time = time
                 any_open |= open_
             else:
                 # As soon as we find an event that’s clearly beyond the cluster at point_time,
                 # we break and return
-                return i, time, high_time if any_open else high_time + 1
+                return (
+                    i,
+                    time,
+                    high_time if any_open else high_time + 1,
+                )
 
             # Opening => set this track’s active interval to the new interval
             # Closing => set it to None
             active_intervals[track] = interval if open_ else None
+
+        # If we exit the loop fully, we used all events
         return None
 
-    result_intervals = []
     # Step through event "clusters" with a common point in time and
     # emit result intervals with unchanged interval "payload".
     index: int | None = 0
-    time: int | None = events[0][0]
+    time: int | None = events[index][0]
     interval_start_time: int = time
     result_intervals: list[tuple[int, int, List[GeneralizedInterval]]] = []
 
@@ -431,6 +475,7 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
         # No events at all
         return []
 
+    # process the event at index 0 at the first timepoint
     res = process_events_for_point_in_time(index, time)
 
     if res is None:
@@ -439,31 +484,6 @@ def find_rectangles(all_intervals: list[list[AnyInterval]],
     index, time, high_time = res
 
     interval_start_state = active_intervals.copy()
-
-    def finalize_interval(
-        interval_start_time: int,
-        current_time: int,
-        interval_start_state: List[GeneralizedInterval],
-    ) -> None:
-        """
-        Appends a new time slice (interval_start_time -> current_time) to 'result_intervals',
-        ensuring we don't create duplicate adjacency boundaries if the previous slice ends
-        exactly where the new one starts.
-        """
-        if len(result_intervals) > 0:
-            previous_result = result_intervals[-1]
-            if previous_result[1] == interval_start_time:
-                # Adjust the previous slice so it doesn't overlap or duplicate
-                result_intervals[-1] = (
-                    previous_result[0],
-                    previous_result[1] - 1,
-                    previous_result[2],
-                )
-
-        # Now finalize the current slice
-        result_intervals.append(
-            (interval_start_time, current_time, interval_start_state)
-        )
 
     # The main loop: step through event clusters
     while True:
