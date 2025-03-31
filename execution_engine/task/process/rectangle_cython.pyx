@@ -379,8 +379,10 @@ def find_rectangles(
                 return (
                     -1 if (event1[1] is False) else 1
                 )  # sort close events before open events
-        else:  # at the same time, but different tracks => any order is fine
-            return 1
+        else:  # at the same time, but different tracks any order is
+            # fine as long as it is consistent so we use the track
+            # number as a tie-breaker
+            return -1 if (event1[3] < event2[3]) else 1
 
     # Sort events chronologically according to compare_events
     events.sort(key=cmp_to_key(compare_events))
