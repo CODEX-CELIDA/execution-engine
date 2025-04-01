@@ -1,6 +1,6 @@
 import json
 import re
-from typing import List
+from typing import List, cast
 
 from database import SessionLocal
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -193,6 +193,7 @@ tables = {
         "columns": [
             "measurement_datetime",
             "value_as_number",
+            "value_as_concept_id",
             "unit_concept_id",
             "measurement_source_value",
             "unit_source_value",
@@ -226,6 +227,7 @@ tables = {
         "columns": [
             "observation_datetime",
             "value_as_number",
+            "value_as_concept_id",
             "observation_source_value",
             "observation_source_concept_id",
         ],
@@ -286,11 +288,19 @@ async def get_patient_data(person_id: str, db: Session = Depends(get_db)) -> dic
     for table_name in tables:
 
         table = tables[table_name]
+        select_additional = ""
+        join_additional = ""
+
+        if "value_as_concept_id" in table["columns"]:
+            select_additional = ", c_value.concept_name as value_concept_name"
+            join_additional = f"LEFT JOIN {data_schema}.concept c_value ON t.value_as_concept_id = c_value.concept_id"
+
         query = text(
             f"""
-            SELECT t.*, c.concept_name, c.concept_id
+            SELECT t.*, c.concept_name, c.concept_id {select_additional}
             FROM {data_schema}.{table_name} as t
             JOIN {data_schema}.concept c ON t.{table['concept_id']} = c.concept_id
+            {join_additional}
             WHERE person_id = :person_id"""  # nosec: result_schema and data_schema are checked above (is_valid_identifier)
         )
 
@@ -314,7 +324,7 @@ async def get_concepts(
     """
 
     table = tables[table_name]
-    columns = []
+    columns: list[str] = [cast(str, table["concept_id"])]
     concept_joins: list[str] = []
 
     for column in table["columns"]:

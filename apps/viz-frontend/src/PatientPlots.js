@@ -12,6 +12,21 @@ const generateTraceKey = (interval) => {
     return `[${interval.cohort_category}]` + (descriptionPart ? ` ${descriptionPart}` : '');
 };
 
+
+function getDSTAdjustedDuration(startStr, endStr) {
+  const start = new Date(startStr);
+  const end = new Date(endStr);
+
+  let durationMs = end - start;
+
+  // Adjust for DST shift if needed
+  const offsetDiffMinutes = start.getTimezoneOffset() - end.getTimezoneOffset();
+  const offsetDiffMs = offsetDiffMinutes * 60 * 1000;
+
+  return durationMs + offsetDiffMs;
+}
+
+
 const PatientPlots = ({ runId, personId, personSourceValue, selectedDate }) => {
     const [patientData, setPatientData] = useState([]);
 
@@ -64,7 +79,7 @@ const PatientPlots = ({ runId, personId, personSourceValue, selectedDate }) => {
                 };
             }
 
-            const duration = new Date(interval.interval_end) - new Date(interval.interval_start);
+            const duration = getDSTAdjustedDuration(interval.interval_start, interval.interval_end);
 
             traceMap[traceKey].base.push(new Date(interval.interval_start));
             traceMap[traceKey].x.push(Math.max(duration, 20000));
