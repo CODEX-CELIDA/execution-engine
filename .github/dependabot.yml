@@ -21,3 +21,13 @@ updates:
       dependencies:
         patterns:
           - "**"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    target-branch: "main"
+    groups:
+      javascript-dependencies:
+        patterns:
+          - "*"
