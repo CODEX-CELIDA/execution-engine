@@ -146,7 +146,7 @@ class ResultInterval(Base):  # noqa: D101
     )
 
     result_id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, index=True, autoincrement=True
+        BigInteger, primary_key=True, index=True, autoincrement=True
     )
     run_id = mapped_column(
         ForeignKey(f"{SCHEMA_NAME}.execution_run.run_id"),
@@ -169,9 +169,7 @@ class ResultInterval(Base):  # noqa: D101
     interval_start: Mapped[datetime]
     interval_end: Mapped[datetime]
     interval_type = mapped_column(IntervalTypeEnum)
-    interval_ratio: Mapped[float] = mapped_column(
-        nullable=True
-    )
+    interval_ratio: Mapped[float] = mapped_column(nullable=True)
     execution_run: Mapped["ExecutionRun"] = relationship(
         primaryjoin="ResultInterval.run_id == ExecutionRun.run_id",
     )
