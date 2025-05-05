@@ -210,10 +210,10 @@ class Recommendation(SerializableDataClass):
 
         Sets all _id attributes to None in the recommendation and all its population/intervention pairs and criteria.
         """
-        self._id = None
+        self.reset_id()
 
         for pi_pair in self.population_intervention_pairs():
-            pi_pair._id = None
+            pi_pair.reset_id()
 
         for criterion in self.atoms():
-            criterion._id = None
+            criterion.reset_id()

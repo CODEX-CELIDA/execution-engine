@@ -170,7 +170,14 @@ class Serializable(metaclass=RegisteredPostInitMeta):
         """
         if self._id is not None and not overwrite:
             raise ValueError("Database ID has already been set!")
-        self._id = value
+        object.__setattr__(self, "_id", value)
+
+    def reset_id(self) -> None:
+        """
+        Resets the database ID.
+        """
+        # Circumvents the immutable __setattr__
+        object.__setattr__(self, "_id", None)
 
     @property
     def id(self) -> int:
