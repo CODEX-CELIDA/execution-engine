@@ -51,6 +51,7 @@ def default_interval_union_with_count(
             interval_type, interval_count = IntervalType.NEGATIVE, 0
         else:
             interval_type, interval_count = interval.type, cast(int, interval.count)
+
         if (
             (
                 interval_type is IntervalType.POSITIVE
@@ -199,14 +200,15 @@ class Task:
         Indicates whether this tasks only receives inputs from expression that perform counting and thus return
         IntervalWithCount.
         """
-        # all arguments are count types
-        if all(isinstance(parent, COUNT_TYPES) for parent in self.expr.args):
-            return True
-
-        # all arguments are logic.BinaryNonCommutativeOperator, and all of their "right" children are count types
+        #  all arguments are either count types or logic.BinaryNonCommutativeOperator
+        #  with their "right" child being a count type, or they have a custom counting function (count_intervals())
         if all(
-            isinstance(parent, logic.BinaryNonCommutativeOperator)
-            and isinstance(parent.right, COUNT_TYPES)
+            (
+                isinstance(parent, logic.BinaryNonCommutativeOperator)
+                and isinstance(parent.right, COUNT_TYPES)
+            )
+            or (isinstance(parent, COUNT_TYPES))
+            or (hasattr(parent, "count_intervals"))
             for parent in self.expr.args
         ):
             return True
