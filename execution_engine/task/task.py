@@ -494,6 +494,8 @@ class Task:
                 )
                 if positive_count >= effective_count_min:
                     effective_type = IntervalType.POSITIVE
+                elif not_applicable_count == len(intervals):
+                    effective_type = IntervalType.NOT_APPLICABLE
                 else:
                     effective_type = IntervalType.NEGATIVE
                 ratio = positive_count / effective_count_min
